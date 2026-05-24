@@ -1,0 +1,39 @@
+{
+  "name": "gameobject-find",
+  "description": "Finds GameObjects by filters, or returns detail data when includeDetails/includeComponents is set.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "path": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "namePattern": {
+        "type": "string"
+      },
+      "componentType": {
+        "type": "string"
+      },
+      "instanceId": {
+        "type": "integer"
+      },
+      "includeInactive": {
+        "type": "boolean"
+      },
+      "includeDetails": {
+        "type": "boolean"
+      },
+      "includeComponents": {
+        "type": "boolean"
+      },
+      "maxResults": {
+        "type": "integer"
+      }
+    }
+  }
+}

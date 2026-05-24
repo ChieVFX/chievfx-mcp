@@ -1,0 +1,18 @@
+uri:"chievfx://extensions/chievfx.ugui/runtime/status" readAtUtc:"2026-05-18T05:03:12.0887870Z" extensionId:chievfx.ugui playMode:true runtimeAvailable:true canvasCount:0 activeCanvasCount:0
+dependency packageName:com.unity.ugui packageVersion:2.0.0 packageSource:BuiltIn canvasLoaded:true defaultControlsLoaded:true versionDefineActive:true baseInputModuleLoaded:true inputSystemUiInputModuleLoaded:true prefersInputSystemUiInputModule:false textMeshProUGUILoaded:true textMeshProConfigured:true available:true reason:"com.unity.ugui is installed and UnityEngine.UI authoring types are loaded."
+runtimeControlTypesLoaded[8]:
+- UnityEngine.UI.Button
+- UnityEngine.UI.Toggle
+- UnityEngine.UI.Slider
+- UnityEngine.UI.Scrollbar
+- UnityEngine.UI.ScrollRect
+- UnityEngine.UI.Dropdown
+- TMPro.TMP_Dropdown
+- UnityEngine.UI.InputField
+coordinateConvention origin:bottom-left units:pixels normalizedInputSupplied:false
+screenSize x:3456.0 y:72.0
+screenPosition x:1728.0 y:36.0
+normalizedPosition x:0.5 y:0.5
+warnings[2]:
+- "No EventSystem.current found; uGUI selection and raycast routing may be unavailable."
+- "No GraphicRaycaster found on runtime canvases; screen probes will not hit uGUI Graphics."

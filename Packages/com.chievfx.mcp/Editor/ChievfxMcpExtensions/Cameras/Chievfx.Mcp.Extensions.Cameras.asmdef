@@ -1,0 +1,35 @@
+{
+    "name": "Chievfx.Mcp.Extensions.Cameras",
+    "rootNamespace": "Chievfx.Mcp.Extensions.Cameras",
+    "references": [
+        "Chievfx.Mcp.Editor",
+        "Unity.Newtonsoft.Json"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.cinemachine",
+            "expression": "0.0.0",
+            "define": "CHIEVFX_MCP_HAS_CINEMACHINE"
+        },
+        {
+            "name": "com.unity.timeline",
+            "expression": "0.0.0",
+            "define": "CHIEVFX_MCP_HAS_TIMELINE"
+        },
+        {
+            "name": "com.unity.splines",
+            "expression": "0.0.0",
+            "define": "CHIEVFX_MCP_HAS_SPLINES"
+        }
+    ],
+    "noEngineReferences": false
+}

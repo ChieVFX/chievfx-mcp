@@ -1,0 +1,32 @@
+{
+    "name": "Chievfx.Mcp.Editor",
+    "rootNamespace": "Chievfx.Mcp.Editor",
+    "references": [
+        "Unity.Newtonsoft.Json",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Newtonsoft.Json.dll",
+        "Microsoft.CodeAnalysis.dll",
+        "Microsoft.CodeAnalysis.CSharp.dll",
+        "System.Collections.Immutable.dll",
+        "System.Reflection.Metadata.dll",
+        "System.Runtime.CompilerServices.Unsafe.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.inputsystem",
+            "expression": "0.0.0",
+            "define": "CHIEVFX_MCP_HAS_INPUTSYSTEM"
+        }
+    ],
+    "noEngineReferences": false
+}

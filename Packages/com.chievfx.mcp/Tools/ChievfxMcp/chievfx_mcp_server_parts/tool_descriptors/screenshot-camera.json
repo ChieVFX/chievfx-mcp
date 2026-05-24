@@ -1,0 +1,35 @@
+{
+  "name": "screenshot-camera",
+  "description": "Captures a screenshot from a Unity camera.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "cameraPath": {
+        "type": "string",
+        "description": "Hierarchy path to Camera GameObject. Use indexed path from hierarchy/find for duplicate names."
+      },
+      "cameraInstanceId": {
+        "type": "integer",
+        "description": "Camera GameObject or Camera component instanceId. Use with cameraPath when name/path is ambiguous."
+      },
+      "path": {
+        "type": "string",
+        "description": "Alias for cameraPath."
+      },
+      "instanceId": {
+        "type": "integer",
+        "description": "Alias for cameraInstanceId."
+      },
+      "cameraName": {
+        "type": "string",
+        "description": "Legacy name fallback when path/id omitted."
+      },
+      "width": {
+        "type": "integer"
+      },
+      "height": {
+        "type": "integer"
+      }
+    }
+  }
+}

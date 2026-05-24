@@ -1,0 +1,33 @@
+{
+  "name": "package-list",
+  "description": "Lists Unity Package Manager packages resolved for this project.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "sourceFilter": {
+        "type": "string",
+        "enum": [
+          "All",
+          "Registry",
+          "Embedded",
+          "Local",
+          "Git",
+          "BuiltIn",
+          "LocalTarball"
+        ]
+      },
+      "nameFilter": {
+        "type": "string"
+      },
+      "directDependenciesOnly": {
+        "type": "boolean"
+      },
+      "offlineMode": {
+        "type": "boolean"
+      }
+    }
+  }
+}

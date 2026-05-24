@@ -1,0 +1,12 @@
+uri:"chievfx://extensions/chievfx.uitoolkit/runtime/status" readAtUtc:"2026-05-17T05:56:52.6481140Z" extensionId:chievfx.uitoolkit framework:uitoolkit playMode:false runtimeAvailable:false documentCount:0 panelCount:0
+dependency packageName:com.unity.modules.uielements packageVersion:1.0.0 packageSource:BuiltIn versionDefineActive:true modulePresent:true uiDocumentLoaded:true panelSettingsLoaded:true iPanelLoaded:true runtimePanelUtilsLoaded:true visualElementLoaded:true available:true reason:"com.unity.modules.uielements is available and UI Toolkit runtime panel types are loaded."
+input origin:bottom-left
+screenPosition x:682.0 y:924.0
+normalizedPosition x:0.5 y:0.5
+coordinateConvention origin:bottom-left uiToolkitYInverted:true
+screenSize x:1364.0 y:1848.0
+screenPosition x:682.0 y:924.0
+normalizedPosition x:0.5 y:0.5
+uiToolkitScreenPosition x:682.0 y:924.0
+warnings[1]:
+- "Runtime UI Toolkit reads are gated to Play Mode; enter Play Mode before reading runtime UI state."

@@ -1,0 +1,33 @@
+{
+  "name": "gameobject-set-parent",
+  "description": "Moves one GameObject under another GameObject, or unparents it to scene root.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "path": {
+        "type": "string"
+      },
+      "instanceId": {
+        "type": "integer"
+      },
+      "parentPath": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "parentInstanceId": {
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "worldPositionStays": {
+        "type": "boolean"
+      }
+    }
+  }
+}

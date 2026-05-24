@@ -1,0 +1,10 @@
+uri:"chievfx://extensions/chievfx.control/status" extensionId:chievfx.control available:true dependencyReason:"Input System types loaded." package:com.unity.inputsystem playMode:false requiresPlayModeForMutation:true requiresAllowStateMutation:true
+keyboard kind:Keyboard available:true type:UnityEngine.InputSystem.FastKeyboard displayName:Keyboard name:Keyboard
+mouse kind:Mouse available:true type:UnityEngine.InputSystem.FastMouse displayName:Mouse name:Mouse
+touchscreen kind:Touchscreen available:false
+tools[5]:
+- editor-playmode-set
+- input-control-keyboard-event
+- input-control-mouse-event
+- input-control-mouse-gesture
+- input-control-touch-event

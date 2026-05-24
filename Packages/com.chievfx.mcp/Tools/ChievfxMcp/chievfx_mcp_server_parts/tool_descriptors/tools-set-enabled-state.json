@@ -1,0 +1,36 @@
+{
+  "name": "tools-set-enabled-state",
+  "description": "Enables/disables optional ChievFX MCP tools or categories. After success, call reload_cursor_mcp for this server before using changed tool descriptors.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "enabled": {
+        "type": "boolean"
+      },
+      "category": {
+        "type": "string"
+      },
+      "categories": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "tool": {
+        "type": "string"
+      },
+      "tools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "enabled"
+    ]
+  }
+}

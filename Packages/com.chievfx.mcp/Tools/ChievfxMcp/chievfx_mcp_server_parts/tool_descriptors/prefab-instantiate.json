@@ -1,0 +1,41 @@
+{
+  "name": "prefab-instantiate",
+  "description": "Instantiates a prefab asset into current scene or prefab stage.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "prefabPath": {
+        "type": "string"
+      },
+      "parentPath": {
+        "type": "string"
+      },
+      "parentInstanceId": {
+        "type": "integer"
+      },
+      "name": {
+        "type": "string"
+      },
+      "position": {
+        "$chievfxSchema": "vector3Ref"
+      },
+      "rotationEuler": {
+        "$chievfxSchema": "vector3Ref"
+      },
+      "scale": {
+        "$chievfxSchema": "vector3Ref"
+      }
+    },
+    "$defs": {
+      "Vector3": {
+        "$chievfxSchema": "vector3"
+      }
+    },
+    "required": [
+      "prefabPath"
+    ]
+  }
+}

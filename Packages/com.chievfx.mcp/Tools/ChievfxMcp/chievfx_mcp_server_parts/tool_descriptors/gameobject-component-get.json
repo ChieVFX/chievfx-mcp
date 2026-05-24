@@ -1,0 +1,38 @@
+{
+  "name": "gameobject-component-get",
+  "description": "Returns one component on a GameObject with inspector-visible serialized state by default.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "path": {
+        "type": "string"
+      },
+      "instanceId": {
+        "type": "integer"
+      },
+      "componentType": {
+        "type": "string"
+      },
+      "componentIndex": {
+        "type": "integer",
+        "default": 0,
+        "minimum": 0
+      },
+      "includeSerializedData": {
+        "type": "boolean",
+        "default": true
+      },
+      "isDebug": {
+        "type": "boolean",
+        "default": false,
+        "description": "Use debug serialized traversal, including normally hidden serialized fields."
+      }
+    },
+    "required": [
+      "componentType"
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+uri:"chievfx://extensions/chievfx.ugui/runtime/interactables" readAtUtc:"2026-05-17T05:56:53.2570360Z" extensionId:chievfx.ugui playMode:false runtimeAvailable:false count:0
+dependency packageName:com.unity.ugui packageVersion:2.0.0 packageSource:BuiltIn canvasLoaded:true defaultControlsLoaded:true versionDefineActive:true baseInputModuleLoaded:true inputSystemUiInputModuleLoaded:true prefersInputSystemUiInputModule:false textMeshProUGUILoaded:true textMeshProConfigured:true available:true reason:"com.unity.ugui is installed and UnityEngine.UI authoring types are loaded."
+runtimeControlTypesLoaded[8]:
+- UnityEngine.UI.Button
+- UnityEngine.UI.Toggle
+- UnityEngine.UI.Slider
+- UnityEngine.UI.Scrollbar
+- UnityEngine.UI.ScrollRect
+- UnityEngine.UI.Dropdown
+- TMPro.TMP_Dropdown
+- UnityEngine.UI.InputField
+warnings[1]:
+- "Runtime uGUI reads are gated to Play Mode by default; enter Play Mode before reading runtime UI state."

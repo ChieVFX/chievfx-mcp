@@ -1,0 +1,26 @@
+{
+  "name": "editor-window-list",
+  "description": "Lists open Unity EditorWindow instances and docked tabs.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "typeName": {
+        "type": "string",
+        "description": "Optional EditorWindow type filter by simple, full, or assembly-qualified name."
+      },
+      "titleContains": {
+        "type": "string",
+        "description": "Optional case-insensitive title substring filter."
+      },
+      "maxResults": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 500,
+        "default": 200
+      }
+    }
+  }
+}

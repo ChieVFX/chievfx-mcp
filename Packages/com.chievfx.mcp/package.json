@@ -1,0 +1,27 @@
+{
+  "name": "com.chievfx.mcp",
+  "version": "0.1.0",
+  "displayName": "ChievFX MCP",
+  "description": "Unity Editor bridge and MCP server for ChievFX automation workflows.",
+  "unity": "2022.3",
+  "author": {
+    "name": "Evgeniy Skvortsov",
+    "email": "chievfx@gmail.com"
+  },
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
+    "com.unity.test-framework": "1.1.33"
+  },
+  "samples": [
+    {
+      "displayName": "Editor Tests",
+      "description": "Optional editor tests and QA fixtures for ChievFX MCP.",
+      "path": "Samples~/Tests"
+    }
+  ],
+  "keywords": [
+    "mcp",
+    "automation",
+    "editor"
+  ]
+}

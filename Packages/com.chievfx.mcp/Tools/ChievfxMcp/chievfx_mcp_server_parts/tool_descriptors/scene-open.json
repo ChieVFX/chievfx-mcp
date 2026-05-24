@@ -1,0 +1,28 @@
+{
+  "name": "scene-open",
+  "description": "Opens a Unity scene asset, preserving dirty scenes unless explicitly saved first.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "scenePath": {
+        "type": "string"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "Single",
+          "Additive"
+        ]
+      },
+      "saveDirtyScenes": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "scenePath"
+    ]
+  }
+}

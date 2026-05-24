@@ -1,0 +1,83 @@
+{
+  "name": "gameobject-duplicate",
+  "description": "Duplicates a GameObject hierarchy/subtree. By default the duplicate is a sibling of the source; provide parentPath/parentInstanceId to clone the branch under another parent.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "path": {
+        "type": "string",
+        "description": "Source GameObject path to duplicate."
+      },
+      "instanceId": {
+        "type": "integer",
+        "description": "Source GameObject instance id to duplicate."
+      },
+      "newName": {
+        "type": "string",
+        "description": "Optional name for the duplicate. With count > 1, numeric suffixes are added."
+      },
+      "parentPath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Optional destination parent path. Omit to duplicate as a sibling; null duplicates at scene/prefab-stage root."
+      },
+      "parentInstanceId": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "description": "Optional destination parent instance id. Omit to duplicate as a sibling; null duplicates at scene/prefab-stage root."
+      },
+      "includeChildren": {
+        "type": "boolean",
+        "description": "When true (default), duplicate the full child hierarchy/subtree. When false, duplicate only the root GameObject and components."
+      },
+      "count": {
+        "type": "integer",
+        "description": "Number of duplicates to create. Defaults to 1. Allowed range: 1..100."
+      },
+      "position": {
+        "$ref": "#/$defs/Vector3",
+        "description": "Optional local position for each duplicate. Mutually exclusive with positionOffset."
+      },
+      "positionOffset": {
+        "$ref": "#/$defs/Vector3",
+        "description": "Optional local position offset applied per duplicate index. Mutually exclusive with position."
+      },
+      "rotationEuler": {
+        "$ref": "#/$defs/Vector3",
+        "description": "Optional local Euler rotation for each duplicate. Mutually exclusive with rotationEulerOffset/euler/eulerOffset."
+      },
+      "rotationEulerOffset": {
+        "$ref": "#/$defs/Vector3",
+        "description": "Optional local Euler offset applied per duplicate index. Mutually exclusive with rotationEuler/euler/eulerOffset."
+      },
+      "euler": {
+        "$ref": "#/$defs/Vector3",
+        "description": "Alias for rotationEuler."
+      },
+      "eulerOffset": {
+        "$ref": "#/$defs/Vector3",
+        "description": "Alias for rotationEulerOffset."
+      },
+      "scale": {
+        "$ref": "#/$defs/Vector3",
+        "description": "Optional local scale for each duplicate. Mutually exclusive with scaleOffset."
+      },
+      "scaleOffset": {
+        "$ref": "#/$defs/Vector3",
+        "description": "Optional local scale offset applied per duplicate index. Mutually exclusive with scale."
+      }
+    },
+    "$defs": {
+      "Vector3": {
+        "$chievfxSchema": "vector3"
+      }
+    }
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "roles": [
+    {
+      "id": "developer",
+      "displayName": "Developer",
+      "description": "Builder mode: scene, objects, prefabs, tests, and sharp tools in one belt.",
+      "enabledCategoryIds": [
+        "Scene",
+        "GameObject",
+        "Prefab",
+        "Script Execution / Tests"
+      ],
+      "enabledToolIds": []
+    },
+    {
+      "id": "qa",
+      "displayName": "QA",
+      "description": "Bug net: inspect scenes, run tests, and poke windows without opening the toolbox volcano.",
+      "enabledCategoryIds": [
+        "Scene",
+        "GameObject",
+        "Script Execution / Tests",
+        "Editor Window"
+      ],
+      "enabledToolIds": []
+    },
+    {
+      "id": "performance-profiling",
+      "displayName": "Performance Profiling",
+      "description": "Frame hunter: profiler, counters, and debugger snacks for chasing stutter goblins.",
+      "enabledCategoryIds": [
+        "Profiler",
+        "Frame Debugger"
+      ],
+      "enabledToolIds": [
+        "profiler-get-state",
+        "profiler-start-recording",
+        "profiler-stop-recording",
+        "profiler-counters-get",
+        "profiler-window-control",
+        "frame-debugger-control",
+        "frame-debugger-groups-list",
+        "frame-debugger-group-events-list",
+        "frame-debugger-drawcall-get",
+        "frame-debugger-drawcall-screenshot",
+        "frame-debugger-events-list",
+        "frame-debugger-event-get"
+      ]
+    },
+    {
+      "id": "memory-profiling",
+      "displayName": "Memory Profiling",
+      "description": "Heap whisperer: profiler access now, Memory Profiler hooks when project grows them.",
+      "enabledCategoryIds": [
+        "Profiler",
+        "Memory Profiler"
+      ],
+      "enabledToolIds": [
+        "profiler-get-state",
+        "profiler-start-recording",
+        "profiler-stop-recording",
+        "profiler-counters-get",
+        "profiler-window-control"
+      ]
+    },
+    {
+      "id": "ugui-ui",
+      "displayName": "uGUI UI",
+      "description": "Canvas goblin: uGUI authoring and runtime eyes, plus enough scene context to not get lost.",
+      "enabledCategoryIds": [
+        "ugui-design",
+        "ugui-runtime-control",
+        "Scene",
+        "GameObject",
+        "Editor Window"
+      ],
+      "enabledToolIds": []
+    },
+    {
+      "id": "ui-toolkit-ui",
+      "displayName": "UI Toolkit UI",
+      "description": "Panel mage: UI Toolkit probes and editor-window vision for USS spelunking.",
+      "enabledCategoryIds": [
+        "UI Toolkit",
+        "Scene",
+        "GameObject",
+        "Editor Window"
+      ],
+      "enabledToolIds": []
+    },
+    {
+      "id": "ecs-developer",
+      "displayName": "ECS Developer",
+      "description": "Chunk wrangler: ECS facts, scene context, and test tools for data-oriented mischief.",
+      "enabledCategoryIds": [
+        "ECS",
+        "Scene",
+        "GameObject",
+        "Script Execution / Tests"
+      ],
+      "enabledToolIds": []
+    }
+  ]
+}

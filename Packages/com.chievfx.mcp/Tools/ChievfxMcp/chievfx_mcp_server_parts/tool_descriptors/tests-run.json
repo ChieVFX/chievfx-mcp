@@ -1,0 +1,73 @@
+{
+  "name": "tests-run",
+  "description": "Runs Unity tests with focused filters.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "testMode": {
+        "type": "string",
+        "enum": [
+          "EditMode",
+          "PlayMode"
+        ],
+        "default": "EditMode"
+      },
+      "testAssembly": {
+        "type": "string"
+      },
+      "testNamespace": {
+        "type": "string"
+      },
+      "testClass": {
+        "type": "string"
+      },
+      "testMethod": {
+        "type": "string"
+      },
+      "includePassingTests": {
+        "type": "boolean"
+      },
+      "includeMessages": {
+        "type": "boolean"
+      },
+      "includeStacktrace": {
+        "type": "boolean"
+      },
+      "includeLogs": {
+        "type": "boolean"
+      },
+      "logType": {
+        "type": "string",
+        "enum": [
+          "Error",
+          "Assert",
+          "Warning",
+          "Log",
+          "Exception"
+        ],
+        "default": "Warning"
+      },
+      "includeLogsStacktrace": {
+        "type": "boolean"
+      },
+      "maxResults": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1000
+      },
+      "timeoutMs": {
+        "type": "integer",
+        "minimum": 1000,
+        "maximum": {
+          "$chievfxConst": "HARD_TESTS_RUN_TIMEOUT_MS"
+        },
+        "default": {
+          "$chievfxConst": "DEFAULT_TESTS_RUN_TIMEOUT_MS"
+        }
+      }
+    }
+  }
+}

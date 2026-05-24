@@ -1,0 +1,12 @@
+{
+  "name": "console-clear-logs",
+  "description": "Clears ChievFX MCP log cache and Unity developer console.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      }
+    }
+  }
+}

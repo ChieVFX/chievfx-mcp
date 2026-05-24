@@ -1,0 +1,38 @@
+{
+  "name": "console-get-logs",
+  "description": "Recent Unity Console entries (first-line only, no time). Each row has an id; duplicates collapse via stack=true.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "maxEntries": {
+        "type": "integer"
+      },
+      "levels": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Error",
+            "Assert",
+            "Warning",
+            "Log",
+            "Exception"
+          ]
+        }
+      },
+      "contains": {
+        "type": "string"
+      },
+      "stack": {
+        "type": "boolean",
+        "default": true
+      },
+      "lastMinutes": {
+        "type": "integer"
+      }
+    }
+  }
+}

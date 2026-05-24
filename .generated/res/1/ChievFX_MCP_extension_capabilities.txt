@@ -1,0 +1,2 @@
+ChievFX MCP extension registry active.
+Manifest: Library/ChievfxMcpBridge/extension-capabilities.json

@@ -1,0 +1,22 @@
+{
+  "name": "console-get-logs-single",
+  "description": "Fetches one Unity Console entry by id (from console-get-logs) with full message and stack trace.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "id": {
+        "type": "string"
+      },
+      "includeUnityConsole": {
+        "type": "boolean",
+        "default": true
+      }
+    },
+    "required": [
+      "id"
+    ]
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "name": "gameobject-component-update-or-create",
+  "description": "Updates a component by serialized property path, creating it when absent by default.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "path": {
+        "type": "string"
+      },
+      "instanceId": {
+        "type": "integer"
+      },
+      "componentType": {
+        "type": "string"
+      },
+      "componentIndex": {
+        "type": "integer",
+        "default": 0,
+        "minimum": 0
+      },
+      "isCreateIfNone": {
+        "type": "boolean",
+        "default": true
+      },
+      "writeNonSerialized": {
+        "type": "boolean",
+        "default": false,
+        "description": "When true, unresolved names write fields/properties via reflection, including non-serialized members."
+      },
+      "properties": {
+        "type": "object",
+        "description": "JSON object keyed by serialized property path or, with writeNonSerialized, reflected member name."
+      },
+      "json": {
+        "description": "Alias for properties. May be an object or JSON object string."
+      }
+    },
+    "required": [
+      "componentType"
+    ]
+  }
+}

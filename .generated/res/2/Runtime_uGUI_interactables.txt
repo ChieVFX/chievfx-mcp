@@ -1,0 +1,78 @@
+uri:"chievfx://extensions/chievfx.ugui/runtime/interactables" readAtUtc:"2026-05-18T05:00:30.1091090Z" extensionId:chievfx.ugui playMode:true runtimeAvailable:true count:3
+dependency packageName:com.unity.ugui packageVersion:2.0.0 packageSource:BuiltIn canvasLoaded:true defaultControlsLoaded:true versionDefineActive:true baseInputModuleLoaded:true inputSystemUiInputModuleLoaded:true prefersInputSystemUiInputModule:false textMeshProUGUILoaded:true textMeshProConfigured:true available:true reason:"com.unity.ugui is installed and UnityEngine.UI authoring types are loaded."
+runtimeControlTypesLoaded[8]:
+- UnityEngine.UI.Button
+- UnityEngine.UI.Toggle
+- UnityEngine.UI.Slider
+- UnityEngine.UI.Scrollbar
+- UnityEngine.UI.ScrollRect
+- UnityEngine.UI.Dropdown
+- TMPro.TMP_Dropdown
+- UnityEngine.UI.InputField
+interactables[3]:
+- name:"Scroll View" path:"Canvas/Scroll View" instanceId:82522 activeInHierarchy:true type:GameObject enabled:true raycastTarget:true
+  components[4]:
+- RectTransform
+- CanvasRenderer
+- Image
+- ScrollRect
+  rectTransform:
+anchorMin x:0.0 y:0.0
+anchorMax x:0.3 y:1.0
+anchoredPosition x:0.0 y:0.0
+sizeDelta x:0.0 y:0.0
+pivot x:0.5 y:0.5
+offsetMin x:0.0 y:0.0
+offsetMax x:0.0 y:0.0
+rect width:888.000061 height:1440.0
+  controlComponents[1]:
+- ScrollRect
+  canvas path:Canvas instanceId:82458 renderMode:ScreenSpaceOverlay
+sorting overrideSorting:false sortingLayerId:0 sortingLayerName:Default sortingOrder:0 targetDisplay:0
+  sorting overrideSorting:false sortingLayerId:0 sortingLayerName:Default sortingOrder:0 targetDisplay:0
+  controls[1]:
+- type:ScrollRect enabled:true
+- name:"Scrollbar Vertical" path:"Canvas/Scroll View/Scrollbar Vertical" instanceId:82470 activeInHierarchy:true type:GameObject enabled:true interactable:true raycastTarget:true
+  components[4]:
+- RectTransform
+- CanvasRenderer
+- Image
+- Scrollbar
+  rectTransform:
+anchorMin x:1.0 y:0.0
+anchorMax x:1.0 y:1.0
+anchoredPosition x:0.0 y:0.0
+sizeDelta x:20.0 y:0.0
+pivot x:1.0 y:1.0
+offsetMin x:-20.0 y:0.0
+offsetMax x:0.0 y:0.0
+rect width:20.0 height:1440.0
+  controlComponents[1]:
+- Scrollbar
+  canvas path:Canvas instanceId:82458 renderMode:ScreenSpaceOverlay
+sorting overrideSorting:false sortingLayerId:0 sortingLayerName:Default sortingOrder:0 targetDisplay:0
+  sorting overrideSorting:false sortingLayerId:0 sortingLayerName:Default sortingOrder:0 targetDisplay:0
+  controls[1]:
+- type:Scrollbar enabled:true interactable:true
+- name:BtnTest path:Canvas/Screen/BtnTest instanceId:82412 activeInHierarchy:true type:GameObject enabled:true interactable:true raycastTarget:true
+  components[4]:
+- RectTransform
+- CanvasRenderer
+- Image
+- Button
+  rectTransform:
+anchorMin x:0.5 y:0.5
+anchorMax x:0.5 y:0.5
+anchoredPosition x:0.0 y:0.0
+sizeDelta x:300.0 y:200.0
+pivot x:0.5 y:0.5
+offsetMin x:-150.0 y:-100.0
+offsetMax x:150.0 y:100.0
+rect width:300.0 height:200.0
+  controlComponents[1]:
+- Button
+  canvas path:Canvas instanceId:82458 renderMode:ScreenSpaceOverlay
+sorting overrideSorting:false sortingLayerId:0 sortingLayerName:Default sortingOrder:0 targetDisplay:0
+  sorting overrideSorting:false sortingLayerId:0 sortingLayerName:Default sortingOrder:0 targetDisplay:0
+  controls[1]:
+- type:Button enabled:true interactable:true

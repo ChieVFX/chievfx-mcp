@@ -1,0 +1,23 @@
+{
+    "name": "Chievfx.Mcp.Input.PlayMode.Tests",
+    "rootNamespace": "Chievfx.Mcp.Input.PlayMode.Tests",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.inputsystem",
+            "expression": "0.0.0",
+            "define": "CHIEVFX_MCP_HAS_INPUTSYSTEM"
+        }
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "noEngineReferences": false
+}

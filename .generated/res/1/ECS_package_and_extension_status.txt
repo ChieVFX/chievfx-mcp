@@ -1,0 +1,2 @@
+uri:"chievfx://extensions/chievfx.ecs/status" readAtUtc:"2026-05-17T05:56:39.8783010Z" extensionId:chievfx.ecs available:false dependencyReason:"com.unity.entities is not installed, not compiled, or not loaded; ECS/SubScene resources are unavailable."
+dependency packageName:com.unity.entities entitiesAssemblyLoaded:false versionDefineActive:false available:false reason:"com.unity.entities is not installed, not compiled, or not loaded; ECS/SubScene resources are unavailable."

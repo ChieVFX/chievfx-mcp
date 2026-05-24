@@ -1,0 +1,18 @@
+{
+  "name": "scene-create",
+  "description": "Creates an empty Unity scene asset at path without leaving it open.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ]
+  }
+}

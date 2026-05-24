@@ -1,0 +1,35 @@
+{
+  "name": "reflection-method-find",
+  "description": "Finds loaded C# methods. Exact matching is default; use match:'contains' for fuzzy discovery.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "filter": {
+        "$chievfxSchema": "methodRef"
+      },
+      "match": {
+        "type": "string",
+        "enum": [
+          "exact",
+          "contains"
+        ],
+        "default": "exact"
+      },
+      "maxResults": {
+        "type": "integer",
+        "default": 10
+      },
+      "page": {
+        "type": "integer",
+        "minimum": 1,
+        "default": 1
+      }
+    },
+    "required": [
+      "filter"
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "asset-delete",
+  "description": "Deletes one or more Unity project assets or folders by path.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "path": {
+        "type": "string"
+      },
+      "paths": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

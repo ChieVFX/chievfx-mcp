@@ -1,0 +1,7 @@
+---
+description: "CallMcpTool requires hidden arguments wrapper"
+alwaysApply: true
+---
+When calling `CallMcpTool`, pass tool parameters inside top-level `arguments`.
+Example:
+`CallMcpTool({ server, toolName, arguments: { path: "Assets/Foo" } })`

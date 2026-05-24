@@ -1,0 +1,24 @@
+{
+  "name": "scene-list-available",
+  "description": "Finds scene assets available in the Unity project.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "filter": {
+        "type": "string"
+      },
+      "searchInFolders": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "maxResults": {
+        "type": "integer"
+      }
+    }
+  }
+}

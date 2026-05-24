@@ -1,0 +1,28 @@
+{
+  "name": "tool-batch",
+  "description": "Runs one enabled tool for many item argument objects. One tool only, no mixed operations.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "tool": {
+        "type": "string"
+      },
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "stopOnError": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "tool",
+      "items"
+    ]
+  }
+}

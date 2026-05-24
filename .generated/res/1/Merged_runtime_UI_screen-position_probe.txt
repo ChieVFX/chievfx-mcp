@@ -1,0 +1,40 @@
+uri:"chievfx://extensions/chievfx.runtime-ui/runtime/probe-screen-position" readAtUtc:"2026-05-17T05:56:40.1222490Z" extensionId:chievfx.runtime-ui adapterCount:2 availableAdapterCount:2 count:0 maxRows:256 truncated:false
+input origin:bottom-left
+screenPosition x:682.0 y:924.0
+normalizedPosition x:0.5 y:0.5
+coordinateConvention origin:bottom-left
+screenSize x:1364.0 y:1848.0
+screenPosition x:682.0 y:924.0
+normalizedPosition x:0.5 y:0.5
+adapters[2]:
+- frameworkId:ugui frameworkName:uGUI priority:100 available:true registrationOrder:0 probed:true count:0 runtimeAvailable:false
+  resources[4]:
+- "chievfx://extensions/chievfx.ugui/runtime/status"
+- "chievfx://extensions/chievfx.ugui/runtime/canvases"
+- "chievfx://extensions/chievfx.ugui/runtime/visible-tree"
+- "chievfx://extensions/chievfx.ugui/runtime/interactables"
+  status packageName:com.unity.ugui packageVersion:2.0.0 packageSource:BuiltIn canvasLoaded:true defaultControlsLoaded:true versionDefineActive:true baseInputModuleLoaded:true inputSystemUiInputModuleLoaded:true prefersInputSystemUiInputModule:false textMeshProUGUILoaded:true textMeshProConfigured:true available:true reason:"com.unity.ugui is installed and UnityEngine.UI authoring types are loaded."
+runtimeControlTypesLoaded[8]:
+- UnityEngine.UI.Button
+- UnityEngine.UI.Toggle
+- UnityEngine.UI.Slider
+- UnityEngine.UI.Scrollbar
+- UnityEngine.UI.ScrollRect
+- UnityEngine.UI.Dropdown
+- TMPro.TMP_Dropdown
+- UnityEngine.UI.InputField
+  warnings[2]:
+- "No screenPosition provided; defaulted to center of current screen/game-view."
+- "Runtime uGUI reads are gated to Play Mode by default; enter Play Mode before reading runtime UI state."
+- frameworkId:uitoolkit frameworkName:"UI Toolkit" priority:100 available:true registrationOrder:1 probed:true count:0 runtimeAvailable:false
+  resources[4]:
+- "chievfx://extensions/chievfx.uitoolkit/runtime/status"
+- "chievfx://extensions/chievfx.uitoolkit/runtime/panels"
+- "chievfx://extensions/chievfx.uitoolkit/runtime/visible-tree"
+- "chievfx://extensions/chievfx.uitoolkit/runtime/interactables"
+  status packageName:com.unity.modules.uielements packageVersion:1.0.0 packageSource:BuiltIn versionDefineActive:true modulePresent:true uiDocumentLoaded:true panelSettingsLoaded:true iPanelLoaded:true runtimePanelUtilsLoaded:true visualElementLoaded:true available:true reason:"com.unity.modules.uielements is available and UI Toolkit runtime panel types are loaded."
+  warnings[2]:
+- "No screen position supplied; defaulted to normalized center (0.5, 0.5)."
+- "Runtime UI Toolkit reads are gated to Play Mode; enter Play Mode before reading runtime UI state."
+warnings[1]:
+- "No screen position supplied; defaulted to normalized center (0.5, 0.5)."

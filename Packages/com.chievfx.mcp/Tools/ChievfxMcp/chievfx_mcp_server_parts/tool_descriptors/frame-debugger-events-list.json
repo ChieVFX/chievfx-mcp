@@ -1,0 +1,31 @@
+{
+  "name": "frame-debugger-events-list",
+  "description": "Lists captured Unity Frame Debugger events/draw calls in compact overview rows. Use frame-debugger-event-get for shader/batch details.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "open": {
+        "type": "boolean",
+        "default": true
+      },
+      "focus": {
+        "type": "boolean",
+        "default": false
+      },
+      "startIndex": {
+        "type": "integer",
+        "minimum": 0,
+        "default": 0
+      },
+      "maxResults": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 200,
+        "default": 30
+      }
+    }
+  }
+}

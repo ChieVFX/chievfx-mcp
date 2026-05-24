@@ -1,0 +1,59 @@
+{
+  "name": "events-check-since",
+  "description": "Checks bridge events since a wait.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "sinceEventId": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "sinceTimestampUtc": {
+        "type": "string",
+        "description": "UTC timestamp returned by events-wait as startedAtUtc."
+      },
+      "maxEntries": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": {
+          "$chievfxConst": "HARD_EVENTS_MAX_ENTRIES"
+        },
+        "default": {
+          "$chievfxConst": "DEFAULT_EVENTS_CHECK_MAX_ENTRIES"
+        }
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "log",
+          "bridge",
+          "editor",
+          "structured"
+        ]
+      },
+      "type": {
+        "type": "string"
+      },
+      "level": {
+        "type": "string"
+      },
+      "contains": {
+        "type": "string"
+      },
+      "marker": {
+        "type": "string"
+      },
+      "includeData": {
+        "type": "boolean",
+        "default": false
+      }
+    },
+    "required": [
+      "sinceEventId",
+      "sinceTimestampUtc"
+    ]
+  }
+}

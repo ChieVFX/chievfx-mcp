@@ -1,0 +1,19 @@
+{
+  "name": "gameobject-create",
+  "description": "Creates one GameObject at a hierarchy path in the active scene or current prefab stage.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "path": {
+        "type": "string",
+        "description": "Hierarchy path for the new GameObject. Intermediate parent path must already exist."
+      }
+    },
+    "required": [
+      "path"
+    ]
+  }
+}

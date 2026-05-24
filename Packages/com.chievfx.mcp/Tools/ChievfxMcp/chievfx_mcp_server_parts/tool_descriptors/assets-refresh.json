@@ -1,0 +1,53 @@
+{
+  "name": "assets-refresh",
+  "description": "Imports non-script Unity assets by path, folder/type, or path substring. Use recompile for C# scripts.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "path": {
+        "type": "string",
+        "description": "Project-relative asset or folder path, e.g. Assets/Art/Icon.png."
+      },
+      "folder": {
+        "type": "string",
+        "description": "Project-relative folder searched recursively."
+      },
+      "pathContains": {
+        "type": "string",
+        "description": "Case-insensitive path substring filter."
+      },
+      "type": {
+        "type": "string",
+        "description": "Unity asset type such as Texture, Shader, Material, Model, Prefab, or Sprite."
+      },
+      "extensions": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "File extension filter such as .png, .shader, .mat, or .fbx."
+      },
+      "options": {
+        "type": "string",
+        "enum": [
+          "Default",
+          "ForceUpdate",
+          "ForceSynchronousImport",
+          "ImportRecursive",
+          "DontDownloadFromCacheServer",
+          "ForceUncompressedImport"
+        ]
+      }
+    }
+  }
+}

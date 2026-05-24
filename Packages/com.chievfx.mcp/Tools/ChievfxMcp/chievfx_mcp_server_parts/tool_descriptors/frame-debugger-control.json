@@ -1,0 +1,34 @@
+{
+  "name": "frame-debugger-control",
+  "description": "Opens/focuses the Unity Frame Debugger window and adjusts enabled/event state. Compact output reports only agent-usable Frame Debugger state.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "open": {
+        "type": "boolean",
+        "default": true
+      },
+      "focus": {
+        "type": "boolean",
+        "default": true
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "Set enabled state through the Frame Debugger window when available; reported state uses FrameDebugger.enabled."
+      },
+      "eventIndex": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Zero-based frame event index to select via FrameDebuggerTreeView when supported."
+      },
+      "eventLimit": {
+        "type": "integer",
+        "minimum": 1,
+        "description": "One-based FrameDebuggerUtility.limit value to apply via FrameDebuggerWindow.ChangeFrameEventLimit when supported."
+      }
+    }
+  }
+}

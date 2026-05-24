@@ -1,0 +1,19 @@
+{
+  "name": "folder-ensure",
+  "description": "Creates missing Unity project folders for a path starting with Assets/.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "path": {
+        "type": "string",
+        "description": "Project-relative folder path starting with Assets/, e.g. Assets/Testrun/Monopoly."
+      }
+    },
+    "required": [
+      "path"
+    ]
+  }
+}

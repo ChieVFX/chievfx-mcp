@@ -1,0 +1,20 @@
+{
+  "name": "bridge-get-operation",
+  "description": "Returns the full bridge operation record for a specific opId.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "opId": {
+        "type": "string",
+        "description": "Operation id to read (UUID shown in bridge status/operation rows)."
+      },
+      "operationId": {
+        "type": "string",
+        "description": "Alias for opId."
+      }
+    }
+  }
+}

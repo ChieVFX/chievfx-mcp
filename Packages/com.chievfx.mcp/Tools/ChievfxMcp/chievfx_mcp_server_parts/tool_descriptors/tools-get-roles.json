@@ -1,0 +1,12 @@
+{
+  "name": "tools-get-roles",
+  "description": "Lists ChievFX MCP role titles and descriptions.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      }
+    }
+  }
+}

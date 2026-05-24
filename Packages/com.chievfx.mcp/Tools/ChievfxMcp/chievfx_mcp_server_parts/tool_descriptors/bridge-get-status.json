@@ -1,0 +1,24 @@
+{
+  "name": "bridge-get-status",
+  "description": "Slim ChievFX bridge health snapshot. Pass verbose=true for full diagnostics.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "verbose": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return the full diagnostic shape (editor/busy/eventWaits/counts blocks plus per-op timestamps)."
+      },
+      "maxOperations": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 50,
+        "default": 0,
+        "description": "Maximum recent (terminal) operation rows to include. Defaults to 0; active ops are always returned when present."
+      }
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "name": "gameobject-update",
+  "description": "Updates GameObject name, tag, layer, active/static state, static flags, or light bake flags.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "path": {
+        "type": "string"
+      },
+      "instanceId": {
+        "type": "integer"
+      },
+      "newName": {
+        "type": "string"
+      },
+      "tag": {
+        "type": "string"
+      },
+      "layer": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "isStatic": {
+        "type": "boolean"
+      },
+      "activeSelf": {
+        "type": "boolean"
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "Alias for activeSelf."
+      },
+      "staticFlags": {
+        "description": "StaticEditorFlags as integer, enum string, string array, or object of flag booleans."
+      },
+      "lightBakeFlags": {
+        "type": "object",
+        "description": "Lightmapping flags. Supports contributeGI, receiveGI, scaleInLightmap, importantGI, stitchLightmapSeams."
+      }
+    }
+  }
+}

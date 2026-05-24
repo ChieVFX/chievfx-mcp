@@ -1,0 +1,40 @@
+{
+  "name": "reflection-method-call",
+  "description": "Calls one loaded C# method. Instance calls need targetObject.value.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "filter": {
+        "$chievfxSchema": "methodRef"
+      },
+      "targetObject": {
+        "$chievfxSchema": "serializedValue"
+      },
+      "inputParameters": {
+        "type": "array",
+        "items": {
+          "$chievfxSchema": "serializedValue"
+        }
+      },
+      "executeInMainThread": {
+        "type": "boolean"
+      },
+      "timeoutMs": {
+        "type": "integer",
+        "minimum": 100,
+        "maximum": {
+          "$chievfxConst": "HARD_REFLECTION_METHOD_CALL_TIMEOUT_MS"
+        },
+        "default": {
+          "$chievfxConst": "DEFAULT_REFLECTION_METHOD_CALL_TIMEOUT_MS"
+        }
+      }
+    },
+    "required": [
+      "filter"
+    ]
+  }
+}

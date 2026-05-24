@@ -1,0 +1,53 @@
+{
+  "name": "script-execute",
+  "description": "Compiles and runs caller-provided C# without writing project files.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "csharpCode": {
+        "type": "string"
+      },
+      "className": {
+        "type": "string"
+      },
+      "methodName": {
+        "type": "string"
+      },
+      "parameters": {
+        "type": "array",
+        "items": {
+          "$chievfxSchema": "serializedValue"
+        }
+      },
+      "includeLogs": {
+        "type": "boolean"
+      },
+      "logType": {
+        "type": "string",
+        "enum": [
+          "Error",
+          "Assert",
+          "Warning",
+          "Log",
+          "Exception"
+        ]
+      },
+      "timeoutMs": {
+        "type": "integer",
+        "minimum": 100,
+        "maximum": {
+          "$chievfxConst": "HARD_SCRIPT_EXECUTE_TIMEOUT_MS"
+        },
+        "default": {
+          "$chievfxConst": "DEFAULT_SCRIPT_EXECUTE_TIMEOUT_MS"
+        }
+      }
+    },
+    "required": [
+      "csharpCode"
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "package-search",
+  "description": "Searches installed and registry packages by package id, display name, or description.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "query": {
+        "type": "string"
+      },
+      "maxResults": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 50
+      },
+      "offlineMode": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "query"
+    ]
+  }
+}

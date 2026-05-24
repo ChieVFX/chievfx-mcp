@@ -1,0 +1,55 @@
+{
+  "name": "events-wait",
+  "description": "Long-polls bridge events. Subagents must be write-capable.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "sinceEventId": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "timeoutMs": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": {
+          "$chievfxConst": "HARD_EVENTS_WAIT_TIMEOUT_MS"
+        },
+        "default": {
+          "$chievfxConst": "DEFAULT_EVENTS_WAIT_TIMEOUT_MS"
+        }
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "log",
+          "bridge",
+          "editor",
+          "structured"
+        ]
+      },
+      "type": {
+        "type": "string"
+      },
+      "level": {
+        "type": "string"
+      },
+      "contains": {
+        "type": "string"
+      },
+      "marker": {
+        "type": "string"
+      },
+      "includeRecentMs": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "includeData": {
+        "type": "boolean",
+        "default": false
+      }
+    }
+  }
+}

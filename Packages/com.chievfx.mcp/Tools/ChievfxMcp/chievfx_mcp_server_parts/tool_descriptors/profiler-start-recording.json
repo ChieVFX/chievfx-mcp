@@ -1,0 +1,15 @@
+{
+  "name": "profiler-start-recording",
+  "description": "Enables Unity editor profiler recording, optionally selecting a profiler connection id.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "connectionId": {
+        "type": "integer"
+      }
+    }
+  }
+}

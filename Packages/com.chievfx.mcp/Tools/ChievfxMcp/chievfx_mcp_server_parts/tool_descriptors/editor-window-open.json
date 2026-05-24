@@ -1,0 +1,28 @@
+{
+  "name": "editor-window-open",
+  "description": "Opens a Unity EditorWindow by typeName or menuPath.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "typeName": {
+        "type": "string",
+        "description": "EditorWindow simple, full, or assembly-qualified type name."
+      },
+      "menuPath": {
+        "type": "string",
+        "description": "Unity menu item path used as fallback, e.g. Window/Analysis/Profiler."
+      },
+      "focus": {
+        "type": "boolean",
+        "default": true
+      },
+      "title": {
+        "type": "string",
+        "description": "Optional title to apply when opening by type."
+      }
+    }
+  }
+}

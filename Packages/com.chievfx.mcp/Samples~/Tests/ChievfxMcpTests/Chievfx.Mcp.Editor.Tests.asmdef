@@ -1,0 +1,53 @@
+{
+    "name": "Chievfx.Mcp.Editor.Tests",
+    "rootNamespace": "Chievfx.Mcp.Editor.Tests",
+    "references": [
+        "Chievfx.Mcp.Editor",
+        "Chievfx.Mcp.Extensions.Cameras",
+        "Chievfx.Mcp.Extensions.Particles",
+        "Chievfx.Mcp.Extensions.Ugui",
+        "Chievfx.Mcp.Extensions.UiToolkit"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.ugui",
+            "expression": "0.0.0",
+            "define": "CHIEVFX_MCP_HAS_UGUI"
+        },
+        {
+            "name": "com.unity.modules.particlesystem",
+            "expression": "0.0.0",
+            "define": "CHIEVFX_MCP_HAS_PARTICLESYSTEM"
+        },
+        {
+            "name": "com.unity.cinemachine",
+            "expression": "0.0.0",
+            "define": "CHIEVFX_MCP_HAS_CINEMACHINE"
+        },
+        {
+            "name": "com.unity.timeline",
+            "expression": "0.0.0",
+            "define": "CHIEVFX_MCP_HAS_TIMELINE"
+        },
+        {
+            "name": "com.unity.inputsystem",
+            "expression": "0.0.0",
+            "define": "CHIEVFX_MCP_HAS_INPUTSYSTEM"
+        }
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "noEngineReferences": false
+}

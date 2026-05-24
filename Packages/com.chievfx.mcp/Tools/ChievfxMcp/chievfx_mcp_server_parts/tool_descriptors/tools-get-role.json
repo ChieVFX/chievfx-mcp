@@ -1,0 +1,20 @@
+{
+  "name": "tools-get-role",
+  "description": "Lists tools enabled by a ChievFX MCP role index, grouped by category.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "roleIndex": {
+        "type": "integer",
+        "minimum": 1,
+        "description": "1-based role index from tools-get-roles."
+      }
+    },
+    "required": [
+      "roleIndex"
+    ]
+  }
+}

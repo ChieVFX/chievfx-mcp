@@ -1,0 +1,33 @@
+{
+  "name": "frame-debugger-event-get",
+  "description": "Gets one captured Unity Frame Debugger event/draw call with shader, pass, mesh, render target, and batch break details when available.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "open": {
+        "type": "boolean",
+        "default": true
+      },
+      "focus": {
+        "type": "boolean",
+        "default": false
+      },
+      "eventIndex": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Zero-based captured frame event index."
+      },
+      "select": {
+        "type": "boolean",
+        "default": true,
+        "description": "Also select this event in the Frame Debugger window."
+      }
+    },
+    "required": [
+      "eventIndex"
+    ]
+  }
+}

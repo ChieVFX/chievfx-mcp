@@ -1,0 +1,12 @@
+{
+  "name": "profiler-get-state",
+  "description": "Reports Unity editor profiler enabled state and available targets.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      }
+    }
+  }
+}

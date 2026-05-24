@@ -1,0 +1,25 @@
+{
+    "name": "Chievfx.Mcp.Extensions.Ecs",
+    "rootNamespace": "Chievfx.Mcp.Extensions.Ecs",
+    "references": [
+        "Chievfx.Mcp.Editor",
+        "Unity.Newtonsoft.Json"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.entities",
+            "expression": "1.0.0",
+            "define": "CHIEVFX_MCP_HAS_ENTITIES"
+        }
+    ],
+    "noEngineReferences": false
+}

@@ -1,0 +1,2 @@
+uri:"chievfx://extensions/chievfx.uitoolkit/runtime/panels" readAtUtc:"2026-05-18T05:00:26.7028660Z" extensionId:chievfx.uitoolkit framework:uitoolkit playMode:true runtimeAvailable:true count:0
+dependency packageName:com.unity.modules.uielements packageVersion:1.0.0 packageSource:BuiltIn versionDefineActive:true modulePresent:true uiDocumentLoaded:true panelSettingsLoaded:true iPanelLoaded:true runtimePanelUtilsLoaded:true visualElementLoaded:true available:true reason:"com.unity.modules.uielements is available and UI Toolkit runtime panel types are loaded."

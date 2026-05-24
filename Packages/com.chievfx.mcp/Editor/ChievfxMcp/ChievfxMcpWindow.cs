@@ -1,0 +1,1038 @@
+#nullable enable
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.UIElements;
+using Debug = UnityEngine.Debug;
+using static Chievfx.Mcp.Editor.ChievfxMcpSelectionUi;
+
+namespace Chievfx.Mcp.Editor
+{
+    internal sealed class ChievfxMcpWindow : EditorWindow
+    {
+        private const string TransportStdio = "stdio";
+        private const string TransportHttp = "http";
+        private const string PythonCommand = "python3";
+        private const string ToolAllInfoEditorPrefsKey = "ChievfxMcp.ToolSelection.AllInfo";
+        private const string ResourceAllInfoEditorPrefsKey = "ChievfxMcp.ResourceSelection.AllInfo";
+        private const string PromptAllInfoEditorPrefsKey = "ChievfxMcp.PromptSelection.AllInfo";
+
+        private static readonly string[] TransportChoices = { TransportStdio, TransportHttp };
+        private static Process? httpProcess;
+        private static ChievfxMcpTab? pendingTab;
+
+        private IntegerField? portField;
+        private IntegerField? timeoutField;
+        private PopupField<string>? transportField;
+        private Toggle? autoReloadExternallyChangedScenesToggle;
+        private Label? summaryLabel;
+        private Label? guidanceLabel;
+        private TextField? previewField;
+        private Button? startButton;
+        private Button? stopButton;
+        private Label? serverChip;
+        private Label? bridgeChip;
+        private Label? httpChip;
+        private Label? cursorConfigChip;
+        private ChievfxMcpTab activeTab = ChievfxMcpTab.Status;
+
+        [MenuItem("Window/ChievFX MCP")]
+        public static void Open()
+        {
+            Open(LoadActiveTab());
+        }
+
+        public static void OpenStatus()
+        {
+            Open(ChievfxMcpTab.Status);
+        }
+
+        public static void OpenTools()
+        {
+            Open(ChievfxMcpTab.Tools);
+        }
+
+        public static void OpenPresets()
+        {
+            Open(ChievfxMcpTab.Presets);
+        }
+
+        public static void OpenResources()
+        {
+            Open(ChievfxMcpTab.Resources);
+        }
+
+        public static void OpenPrompts()
+        {
+            Open(ChievfxMcpTab.Prompts);
+        }
+
+        private static void Open(ChievfxMcpTab tab)
+        {
+            var window = GetWindow<ChievfxMcpWindow>();
+            pendingTab = tab;
+            window.activeTab = tab;
+            SaveActiveTab(tab);
+            window.titleContent = new GUIContent("MCP (ChievFX)");
+            window.minSize = new Vector2(320, 420);
+            window.Show();
+            window.Focus();
+            if (window.rootVisualElement.childCount > 0)
+            {
+                window.BuildWindow();
+            }
+        }
+
+        public void CreateGUI()
+        {
+            activeTab = pendingTab ?? LoadActiveTab();
+            pendingTab = null;
+            BuildWindow();
+        }
+
+        private void OnFocus()
+        {
+            RefreshUi();
+        }
+
+        private void BuildWindow()
+        {
+            titleContent = new GUIContent("MCP (ChievFX)");
+            rootVisualElement.Clear();
+            var content = new ScrollView(ScrollViewMode.Vertical);
+            content.style.flexGrow = 1;
+            content.style.paddingLeft = 12;
+            content.style.paddingRight = 12;
+            content.style.paddingTop = 12;
+            content.style.paddingBottom = 12;
+            rootVisualElement.Add(content);
+
+            content.Add(CreateWindowTitleRow());
+
+            content.Add(CreateTabBar());
+
+            switch (activeTab)
+            {
+                case ChievfxMcpTab.Presets:
+                    new ChievfxMcpToolSelectionPanel().CreateRolePresetGUI(content);
+                    return;
+                case ChievfxMcpTab.Tools:
+                    new ChievfxMcpToolSelectionPanel().CreateGUI(content, showTitle: false);
+                    return;
+                case ChievfxMcpTab.Resources:
+                    new ChievfxMcpResourceSelectionPanel().CreateGUI(content, showTitle: false);
+                    return;
+                case ChievfxMcpTab.Prompts:
+                    new ChievfxMcpPromptSelectionPanel().CreateGUI(content, showTitle: false);
+                    return;
+                default:
+                    BuildStatusTab(content);
+                    return;
+            }
+        }
+
+        private VisualElement CreateWindowTitleRow()
+        {
+            var row = new VisualElement
+            {
+                style =
+                {
+                    flexDirection = FlexDirection.Row,
+                    alignItems = Align.Center
+                }
+            };
+
+            var title = new Label("MCP (ChievFX)");
+            title.style.unityFontStyleAndWeight = FontStyle.Bold;
+            title.style.fontSize = 18;
+            title.style.flexGrow = 1;
+            row.Add(title);
+
+            var allInfoKey = GetAllInfoEditorPrefsKey(activeTab);
+            if (!string.IsNullOrEmpty(allInfoKey))
+            {
+                var allInfo = EditorPrefs.GetBool(allInfoKey, false);
+                row.Add(CreateAllInfoButton(allInfo, value =>
+                {
+                    EditorPrefs.SetBool(allInfoKey, value);
+                    BuildWindow();
+                }));
+            }
+
+            return row;
+        }
+
+        private static string GetAllInfoEditorPrefsKey(ChievfxMcpTab tab)
+        {
+            return tab switch
+            {
+                ChievfxMcpTab.Tools => ToolAllInfoEditorPrefsKey,
+                ChievfxMcpTab.Resources => ResourceAllInfoEditorPrefsKey,
+                ChievfxMcpTab.Prompts => PromptAllInfoEditorPrefsKey,
+                _ => string.Empty
+            };
+        }
+
+        private VisualElement CreateTabBar()
+        {
+            var tabs = new VisualElement
+            {
+                style =
+                {
+                    flexDirection = FlexDirection.Row,
+                    flexWrap = Wrap.Wrap,
+                    marginTop = 8,
+                    marginBottom = 8
+                }
+            };
+
+            tabs.Add(CreateTabButton("Connection", ChievfxMcpTab.Status));
+            tabs.Add(CreateTabButton("Presets", ChievfxMcpTab.Presets));
+            tabs.Add(CreateTabButton("Tools", ChievfxMcpTab.Tools));
+            tabs.Add(CreateTabButton("Resources", ChievfxMcpTab.Resources));
+            tabs.Add(CreateTabButton("Prompts", ChievfxMcpTab.Prompts));
+            return tabs;
+        }
+
+        private Button CreateTabButton(string text, ChievfxMcpTab tab)
+        {
+            var button = new Button(() =>
+            {
+                activeTab = tab;
+                pendingTab = tab;
+                SaveActiveTab(tab);
+                BuildWindow();
+            })
+            {
+                text = text
+            };
+            button.style.minWidth = 88;
+            button.style.marginRight = 4;
+            button.style.marginBottom = 4;
+            button.style.unityFontStyleAndWeight = activeTab == tab ? FontStyle.Bold : FontStyle.Normal;
+            button.style.backgroundColor = activeTab == tab
+                ? new StyleColor(new Color(0.22f, 0.32f, 0.42f))
+                : new StyleColor(new Color(0.16f, 0.16f, 0.16f));
+            return button;
+        }
+
+        private void BuildStatusTab(VisualElement content)
+        {
+            content.Add(new HelpBox(
+                "Configure the local ChievFX MCP server used by Cursor. Runtime state, Cursor config, and selection shortcuts stay available below.",
+                HelpBoxMessageType.Info));
+
+            summaryLabel = new Label();
+            summaryLabel.style.marginTop = 8;
+            summaryLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            summaryLabel.style.whiteSpace = WhiteSpace.Normal;
+            content.Add(summaryLabel);
+
+            guidanceLabel = new Label();
+            guidanceLabel.style.marginTop = 2;
+            guidanceLabel.style.marginBottom = 4;
+            guidanceLabel.style.whiteSpace = WhiteSpace.Normal;
+            content.Add(guidanceLabel);
+
+            var settings = CreateSectionCard("Connection");
+            var connectionState = CreateChipRow();
+            serverChip = CreateStateChip("Server unknown", StatusChipState.Neutral);
+            connectionState.Add(serverChip);
+            settings.Add(connectionState);
+
+            transportField = new PopupField<string>(new List<string>(TransportChoices), LoadTransportIndex())
+            {
+                label = "Transport"
+            };
+            transportField.RegisterValueChangedCallback(_ => RefreshUi());
+            settings.Add(transportField);
+
+            portField = new IntegerField("MCP port") { value = LoadInt("port", ChievfxMcpToolPolicy.DefaultMcpPort) };
+            portField.RegisterValueChangedCallback(_ => RefreshUi());
+            settings.Add(portField);
+
+            timeoutField = new IntegerField("Tool timeout ms") { value = LoadInt("timeout", ChievfxMcpToolPolicy.DefaultTimeoutMs) };
+            timeoutField.RegisterValueChangedCallback(_ => RefreshUi());
+            settings.Add(timeoutField);
+
+            settings.Add(CreateMutedLabel($"Server script: {ServerScriptPath}"));
+            settings.Add(CreateMutedLabel($"Bridge IPC: {ChievfxMcpToolPolicy.BridgeDirectory}"));
+            content.Add(settings);
+
+            var runtime = CreateSectionCard("Runtime");
+            var runtimeState = CreateChipRow();
+            bridgeChip = CreateStateChip("Bridge unknown", StatusChipState.Neutral);
+            httpChip = CreateStateChip("HTTP unknown", StatusChipState.Neutral);
+            runtimeState.Add(bridgeChip);
+            runtimeState.Add(httpChip);
+            runtime.Add(runtimeState);
+
+            startButton = CreateButton("Start HTTP", StartHttpServer);
+            stopButton = CreateButton("Stop HTTP", StopHttpServer);
+            runtime.Add(CreateActionRow(startButton, stopButton, CreateButton("Start Bridge", StartBridge), CreateButton("Refresh", RefreshUi)));
+            content.Add(runtime);
+
+            var automation = CreateSectionCard("Automation");
+            autoReloadExternallyChangedScenesToggle = new Toggle("Auto-reload externally changed open scenes")
+            {
+                value = ChievfxMcpToolPolicy.AutoReloadExternallyChangedScenes
+            };
+            autoReloadExternallyChangedScenesToggle.RegisterValueChangedCallback(_ => RefreshUi());
+            automation.Add(autoReloadExternallyChangedScenesToggle);
+            automation.Add(CreateMutedLabel("When scene files change on disk, reload them automatically so Unity's modal reload prompt does not block MCP work."));
+            content.Add(automation);
+
+            var cursorConfig = CreateSectionCard("Cursor Config");
+            var configState = CreateChipRow();
+            cursorConfigChip = CreateStateChip("Cursor unknown", StatusChipState.Neutral);
+            configState.Add(cursorConfigChip);
+            cursorConfig.Add(configState);
+            cursorConfig.Add(CreateMutedLabel($"Cursor config: {CursorConfigPath}"));
+            cursorConfig.Add(CreateMutedLabel("Write config after changing transport, port, or timeout. Reload MCP tools or restart Cursor afterward."));
+            cursorConfig.Add(CreateActionRow(CreateButton("Write Cursor Config", WriteCursorConfig), CreateButton("Copy Preview", CopyPreview)));
+            content.Add(cursorConfig);
+
+            var selection = CreateSectionCard("Selection tabs");
+            selection.Add(CreateMutedLabel("Manage role presets and advertised tools, resources, and prompts with the same saved-selection UI."));
+            selection.Add(CreateActionRow(CreateButton("Open Presets", OpenPresets), CreateButton("Open Tools", OpenTools), CreateButton("Open Resources", OpenResources), CreateButton("Open Prompts", OpenPrompts)));
+            content.Add(selection);
+
+            content.Add(CreateConfigPreviewFoldout());
+
+            var advanced = new Foldout
+            {
+                text = "Advanced details",
+                value = false
+            };
+            advanced.style.marginTop = 4;
+            advanced.Add(CreateRequiredToolsFoldout());
+            content.Add(advanced);
+
+            RefreshUi();
+        }
+
+        private enum ChievfxMcpTab
+        {
+            Status,
+            Presets,
+            Tools,
+            Resources,
+            Prompts
+        }
+
+        private static string ProjectRoot => ChievfxMcpToolPolicy.ProjectRoot;
+
+        private static string CursorConfigPath => ChievfxMcpToolPolicy.CursorConfigPath;
+
+        private static string ServerScriptPath => ChievfxMcpToolPolicy.ServerScriptPath;
+
+        private static string HttpUrl(int port)
+        {
+            return $"http://127.0.0.1:{port}";
+        }
+
+        private static VisualElement CreateChipRow()
+        {
+            return new VisualElement
+            {
+                style =
+                {
+                    flexDirection = FlexDirection.Row,
+                    flexWrap = Wrap.Wrap,
+                    marginTop = 2,
+                    marginBottom = 4
+                }
+            };
+        }
+
+        private static VisualElement CreateActionRow(params Button[] buttons)
+        {
+            var row = new VisualElement
+            {
+                style =
+                {
+                    flexDirection = FlexDirection.Row,
+                    flexGrow = 1,
+                    flexWrap = Wrap.Wrap,
+                    marginTop = 4
+                }
+            };
+
+            foreach (var button in buttons)
+            {
+                row.Add(button);
+            }
+
+            return row;
+        }
+
+        private VisualElement CreateConfigPreviewFoldout()
+        {
+            var foldout = new Foldout
+            {
+                text = "Config preview",
+                value = false
+            };
+            foldout.style.marginTop = 8;
+
+            previewField = new TextField
+            {
+                multiline = true,
+                isReadOnly = true
+            };
+            previewField.style.minHeight = 140;
+            previewField.style.whiteSpace = WhiteSpace.Normal;
+            previewField.style.flexGrow = 1;
+            foldout.Add(previewField);
+            return foldout;
+        }
+
+        private static Foldout CreateRequiredToolsFoldout()
+        {
+            var tools = ChievfxMcpToolPolicy.RequiredToolIds;
+            var toolsFoldout = new Foldout
+            {
+                text = $"Required tool visibility ({tools.Length} required tools)",
+                value = false
+            };
+
+            var summary = new Label($"{tools.Length} required tools");
+            summary.style.unityFontStyleAndWeight = FontStyle.Bold;
+            summary.style.marginBottom = 4;
+            toolsFoldout.Add(summary);
+
+            foreach (var toolId in tools)
+            {
+                toolsFoldout.Add(CreateRequiredToolRow(toolId));
+            }
+
+            toolsFoldout.Add(new HelpBox(
+                "These tools are always advertised. Optional tools can be enabled in the Tools tab. Tool calls are served by the ChievFX Unity bridge, not by ai-game-developer.",
+                HelpBoxMessageType.None));
+            return toolsFoldout;
+        }
+
+        private static VisualElement CreateRequiredToolRow(string toolId)
+        {
+            var row = new VisualElement
+            {
+                style =
+                {
+                    flexDirection = FlexDirection.Row,
+                    flexWrap = Wrap.Wrap,
+                    alignItems = Align.Center,
+                    marginBottom = 2
+                }
+            };
+
+            var toolLabel = new Label($"[x] {toolId}");
+            toolLabel.style.flexBasis = 180;
+            toolLabel.style.flexGrow = 1;
+            toolLabel.style.minWidth = 0;
+            toolLabel.style.marginRight = 8;
+            toolLabel.style.whiteSpace = WhiteSpace.Normal;
+            row.Add(toolLabel);
+
+            var purposeLabel = new Label(GetRequiredToolPurpose(toolId));
+            purposeLabel.style.color = new StyleColor(new Color(0.62f, 0.62f, 0.62f));
+            purposeLabel.style.flexBasis = 160;
+            purposeLabel.style.flexGrow = 1;
+            purposeLabel.style.minWidth = 0;
+            purposeLabel.style.whiteSpace = WhiteSpace.Normal;
+            row.Add(purposeLabel);
+
+            return row;
+        }
+
+        private static string GetRequiredToolPurpose(string toolId)
+        {
+            return toolId switch
+            {
+                "screenshot-game-view" => "Capture the current Game View.",
+                "screenshot-camera" => "Capture from a Unity camera.",
+                "screenshot-editor-window" => "Capture Unity tabs like Console/Inspector without OS screenshots.",
+                "tool-batch" => "Run one enabled MCP tool for many argument objects.",
+                "assets-refresh" => "Import non-script assets by path/type after file changes.",
+                "recompile" => "Request Unity script compilation and wait for idle.",
+                "console-clear-logs" => "Clear logs before an isolated run.",
+                "console-get-logs" => "Read recent Unity Console output (compact, duplicate-stacked) without filesystem scraping.",
+                "console-get-logs-single" => "Fetch one full Unity Console entry by id from console-get-logs.",
+                "reflection-method-find" => "Discover callable C# methods.",
+                "reflection-method-find-single" => "Fetch full info for one discovered C# method.",
+                "reflection-method-call" => "Invoke discovered C# methods.",
+                "profiler-get-state" => "Check Unity profiler recording state.",
+                "profiler-start-recording" => "Start a profiler capture.",
+                "profiler-stop-recording" => "Stop and save a profiler capture.",
+                "profiler-counters-get" => "Read memory counters from the profiler.",
+                _ => "Required ChievFX MCP capability."
+            };
+        }
+
+        private void RefreshUi()
+        {
+            SavePreferences();
+
+            var port = GetPort();
+            var timeout = GetTimeout();
+            var transport = GetTransport();
+            var serverScriptExists = File.Exists(ServerScriptPath);
+            var bridgeRunning = ChievfxMcpBridge.IsRunning;
+            var httpRunning = IsHttpServerRunning();
+            var configured = IsCursorConfigCurrent(transport, port, timeout);
+
+            if (summaryLabel != null)
+            {
+                summaryLabel.text =
+                    $"Server: script {(serverScriptExists ? "found" : "missing")} | Bridge {(bridgeRunning ? "running" : "stopped")} | HTTP {(httpRunning ? "running" : "stopped")} | Cursor {(configured ? "configured" : "needs write")}";
+            }
+
+            if (guidanceLabel != null)
+            {
+                var guidanceGood = serverScriptExists && bridgeRunning && configured && (transport != TransportHttp || httpRunning);
+                guidanceLabel.text = BuildSetupGuidance(transport, serverScriptExists, bridgeRunning, httpRunning, configured);
+                guidanceLabel.style.color = new StyleColor(guidanceGood ? new Color(0.58f, 0.78f, 0.58f) : new Color(0.72f, 0.72f, 0.72f));
+            }
+
+            UpdateStateChip(serverChip, serverScriptExists ? "Server found" : "Server missing", serverScriptExists ? StatusChipState.Good : StatusChipState.Warning);
+            UpdateStateChip(bridgeChip, bridgeRunning ? "Bridge running" : "Bridge stopped", bridgeRunning ? StatusChipState.Good : StatusChipState.Neutral);
+            UpdateStateChip(httpChip, httpRunning ? "HTTP running" : "HTTP stopped", httpRunning ? StatusChipState.Good : StatusChipState.Neutral);
+            UpdateStateChip(cursorConfigChip, configured ? "Configured" : "Needs write", configured ? StatusChipState.Good : StatusChipState.Warning);
+
+            if (previewField != null)
+            {
+                previewField.value = BuildCursorConfigPreview(transport, port, timeout);
+            }
+
+            if (startButton != null)
+            {
+                startButton.SetEnabled(transport == TransportHttp && serverScriptExists && !httpRunning);
+            }
+
+            if (stopButton != null)
+            {
+                stopButton.SetEnabled(httpRunning);
+            }
+        }
+
+        private static void UpdateStateChip(Label? chip, string text, StatusChipState state)
+        {
+            if (chip == null)
+            {
+                return;
+            }
+
+            chip.text = text;
+            ApplyStateChipStyle(chip, state);
+        }
+
+        private static string BuildSetupGuidance(string transport, bool serverScriptExists, bool bridgeRunning, bool httpRunning, bool configured)
+        {
+            if (!serverScriptExists)
+            {
+                return "Server script missing. Confirm project install before writing Cursor config.";
+            }
+
+            if (!configured)
+            {
+                return "Write Cursor Config, then reload MCP tools or restart Cursor.";
+            }
+
+            if (!bridgeRunning)
+            {
+                return "Start Bridge before using Unity-backed tools.";
+            }
+
+            if (transport == TransportHttp && !httpRunning)
+            {
+                return "HTTP transport selected. Start HTTP before Cursor connects over HTTP.";
+            }
+
+            return "Ready. Reload MCP tools or restart Cursor after config or selection changes.";
+        }
+
+        private void StartHttpServer()
+        {
+            SavePreferences();
+
+            if (GetTransport() != TransportHttp)
+            {
+                EditorUtility.DisplayDialog("ChievFX MCP", "Switch transport to HTTP before starting the HTTP server.", "OK");
+                return;
+            }
+
+            if (!File.Exists(ServerScriptPath))
+            {
+                EditorUtility.DisplayDialog("ChievFX MCP", $"ChievFX MCP server script not found:\n{ServerScriptPath}", "OK");
+                return;
+            }
+
+            if (IsHttpServerRunning())
+            {
+                RefreshUi();
+                return;
+            }
+
+            ChievfxMcpToolPolicy.EnsureBridgeStarted();
+            if (!TryStartHttpServerProcess(GetPort(), GetTimeout(), out var error))
+            {
+                EditorUtility.DisplayDialog("ChievFX MCP", error, "OK");
+                return;
+            }
+
+            RefreshUi();
+        }
+
+        private void StopHttpServer()
+        {
+            StopHttpServerProcess();
+            RefreshUi();
+        }
+
+        internal static void StopHttpServerProcess()
+        {
+            var process = httpProcess;
+            if (process != null)
+            {
+                try
+                {
+                    if (!process.HasExited)
+                    {
+                        process.Kill();
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                    // Process exited between HasExited and Kill.
+                }
+                finally
+                {
+                    process.Dispose();
+                    httpProcess = null;
+                }
+            }
+            else
+            {
+                var pid = EditorPrefs.GetInt(PrefKey("httpPid"), 0);
+                if (pid > 0 && TryGetProcess(pid, out var storedProcess))
+                {
+                    try
+                    {
+                        storedProcess.Kill();
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // Process exited before cleanup.
+                    }
+                    finally
+                    {
+                        storedProcess.Dispose();
+                    }
+                }
+            }
+
+            EditorPrefs.DeleteKey(PrefKey("httpPid"));
+        }
+
+        private void WriteCursorConfig()
+        {
+            SavePreferences();
+            ChievfxMcpToolPolicy.EnsureBridgeStarted();
+            Directory.CreateDirectory(Path.GetDirectoryName(CursorConfigPath)!);
+            File.WriteAllText(CursorConfigPath, BuildCursorConfigPreview(GetTransport(), GetPort(), GetTimeout()), new UTF8Encoding(false));
+            RefreshUi();
+            EditorUtility.DisplayDialog(
+                "ChievFX MCP",
+                "Cursor config written. Reload Cursor MCP tools or restart Cursor before unity-mcp-chievfx appears in the current Cursor session.",
+                "OK");
+        }
+
+        private void StartBridge()
+        {
+            ChievfxMcpToolPolicy.EnsureBridgeStarted();
+            RefreshUi();
+            EditorUtility.DisplayDialog("ChievFX MCP", $"Unity bridge IPC is active at:\n{ChievfxMcpToolPolicy.BridgeDirectory}", "OK");
+        }
+
+        private void CopyPreview()
+        {
+            EditorGUIUtility.systemCopyBuffer = BuildCursorConfigPreview(GetTransport(), GetPort(), GetTimeout());
+        }
+
+        private string BuildCursorConfigPreview(string transport, int port, int timeout)
+        {
+            var mcpServers = new JObject();
+            foreach (var existingServer in ReadExistingServersForPreview(port))
+            {
+                mcpServers[existingServer.Name] = existingServer.Value;
+            }
+
+            mcpServers[ChievfxMcpToolPolicy.ServerName] = BuildExpectedCursorServerEntry(transport, port, timeout);
+
+            var root = new JObject { ["mcpServers"] = mcpServers };
+            return root.ToString(Formatting.Indented);
+        }
+
+        private static JObject BuildExpectedCursorServerEntry(string transport, int port, int timeout)
+        {
+            var server = new JObject();
+            if (transport == TransportHttp)
+            {
+                server["type"] = TransportHttp;
+                server["url"] = HttpUrl(port);
+                return server;
+            }
+
+            server["type"] = TransportStdio;
+            server["command"] = PythonCommand;
+            server["args"] = new JArray(
+                ServerScriptPath,
+                "--transport",
+                TransportStdio,
+                "--project-root",
+                ProjectRoot,
+                "--bridge-dir",
+                ChievfxMcpToolPolicy.BridgeDirectory,
+                "--timeout",
+                timeout.ToString());
+            return server;
+        }
+
+        private static List<CursorServerConfig> ReadExistingServersForPreview(int port)
+        {
+            var servers = new List<CursorServerConfig>();
+            if (!File.Exists(CursorConfigPath))
+            {
+                return servers;
+            }
+
+            try
+            {
+                var root = JToken.Parse(File.ReadAllText(CursorConfigPath));
+                if (root is not JObject rootObj
+                    || rootObj["mcpServers"] is not JObject mcpServers)
+                {
+                    return servers;
+                }
+
+                foreach (var server in mcpServers.Properties())
+                {
+                    if (ShouldSkipExistingServer(server.Name, server.Value, port))
+                    {
+                        continue;
+                    }
+
+                    servers.Add(new CursorServerConfig(server.Name, server.Value.DeepClone()));
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"ChievFX MCP could not parse existing Cursor config. Preview will replace it. {ex.Message}");
+            }
+
+            return servers;
+        }
+
+        private static bool ShouldSkipExistingServer(string name, JToken value, int port)
+        {
+            if (string.Equals(name, ChievfxMcpToolPolicy.ServerName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return IsSameProjectLocalMcpServer(value, port);
+        }
+
+        private static bool IsSameProjectLocalMcpServer(JToken server, int port)
+        {
+            if (server is not JObject serverObj)
+            {
+                return false;
+            }
+
+            var commandElement = serverObj["command"];
+            if (commandElement?.Type == JTokenType.String
+                && IsSamePath(commandElement.Value<string>(), ServerScriptPath))
+            {
+                return true;
+            }
+
+            if (serverObj["args"] is JToken argsElement
+                && ArgsContainPath(argsElement, ServerScriptPath))
+            {
+                return true;
+            }
+
+            if (commandElement?.Type == JTokenType.String
+                && IsSameProjectUpstreamUnityServer(commandElement.Value<string>()))
+            {
+                return true;
+            }
+
+            var urlElement = serverObj["url"];
+            if (urlElement?.Type == JTokenType.String
+                && IsSameLocalHttpEndpoint(urlElement.Value<string>(), port))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool ArgsContainPath(JToken argsElement, string path)
+        {
+            if (argsElement is not JArray argsArray)
+            {
+                return false;
+            }
+
+            foreach (var item in argsArray)
+            {
+                if (item.Type == JTokenType.String && IsSamePath(item.Value<string>(), path))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsSameProjectUpstreamUnityServer(string? command)
+        {
+            if (string.IsNullOrWhiteSpace(command))
+            {
+                return false;
+            }
+
+            var normalizedCommand = command!.Replace('\\', '/');
+            var normalizedProjectRoot = ProjectRoot.Replace('\\', '/');
+            return normalizedCommand.StartsWith(normalizedProjectRoot, StringComparison.Ordinal)
+                && normalizedCommand.Contains("/Library/mcp-server/", StringComparison.Ordinal)
+                && normalizedCommand.EndsWith("/unity-mcp-server", StringComparison.Ordinal);
+        }
+
+        private static bool IsSamePath(string? first, string second)
+        {
+            if (string.IsNullOrWhiteSpace(first))
+            {
+                return false;
+            }
+
+            try
+            {
+                return string.Equals(
+                    Path.GetFullPath(first),
+                    Path.GetFullPath(second),
+                    RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+            }
+            catch
+            {
+                return string.Equals(first, second, StringComparison.Ordinal);
+            }
+        }
+
+        private static bool IsSameLocalHttpEndpoint(string? url, int port)
+        {
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                return false;
+            }
+
+            return (string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase) || uri.Host == "127.0.0.1")
+                && uri.Port == port;
+        }
+
+        private static bool IsCursorConfigCurrent(string transport, int port, int timeout)
+        {
+            if (!File.Exists(CursorConfigPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                var root = JToken.Parse(File.ReadAllText(CursorConfigPath));
+                if (root is not JObject rootObj
+                    || rootObj["mcpServers"] is not JObject mcpServers
+                    || mcpServers[ChievfxMcpToolPolicy.ServerName] is not JToken server)
+                {
+                    return false;
+                }
+
+                return JToken.DeepEquals(server, BuildExpectedCursorServerEntry(transport, port, timeout));
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+        }
+
+        private static bool IsHttpServerRunning()
+        {
+            if (httpProcess != null && !httpProcess.HasExited)
+            {
+                return true;
+            }
+
+            var pid = EditorPrefs.GetInt(PrefKey("httpPid"), 0);
+            return pid > 0 && TryGetProcess(pid, out _);
+        }
+
+        private static bool TryStartHttpServerProcess(int port, int timeout, out string error)
+        {
+            error = string.Empty;
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = PythonCommand,
+                    WorkingDirectory = ProjectRoot,
+                    Arguments = BuildHttpServerArguments(port, timeout),
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardError = false,
+                    RedirectStandardOutput = false
+                },
+                EnableRaisingEvents = true
+            };
+
+            process.Exited += (_, _) => EditorApplication.delayCall += RefreshOpenWindows;
+
+            if (!process.Start())
+            {
+                error = "Failed to start HTTP server process.";
+                process.Dispose();
+                return false;
+            }
+
+            httpProcess = process;
+            EditorPrefs.SetInt(PrefKey("httpPid"), process.Id);
+            return true;
+        }
+
+        private static void RefreshOpenWindows()
+        {
+            foreach (var window in UnityEngine.Resources.FindObjectsOfTypeAll<ChievfxMcpWindow>())
+            {
+                window.RefreshUi();
+            }
+        }
+
+        private static bool TryGetProcess(int pid, out Process process)
+        {
+            try
+            {
+                process = Process.GetProcessById(pid);
+                return !process.HasExited;
+            }
+            catch
+            {
+                process = null!;
+                return false;
+            }
+        }
+
+        private static string BuildHttpServerArguments(int port, int timeout)
+        {
+            return $"{QuoteArg(ServerScriptPath)} --transport {TransportHttp} --port {port} --project-root {QuoteArg(ProjectRoot)} --bridge-dir {QuoteArg(ChievfxMcpToolPolicy.BridgeDirectory)} --timeout {timeout}";
+        }
+
+        private static string QuoteArg(string value)
+        {
+            return $"\"{value.Replace("\"", "\\\"")}\"";
+        }
+
+        private static void LogServerLine(string? line)
+        {
+            if (!string.IsNullOrEmpty(line))
+            {
+                Debug.Log($"[ChievFX MCP] {line}");
+            }
+        }
+
+        private int GetPort()
+        {
+            return Mathf.Max(1, portField?.value ?? ChievfxMcpToolPolicy.DefaultMcpPort);
+        }
+
+        private int GetTimeout()
+        {
+            return Mathf.Max(1000, timeoutField?.value ?? ChievfxMcpToolPolicy.DefaultTimeoutMs);
+        }
+
+        private string GetTransport()
+        {
+            return transportField?.value == TransportHttp ? TransportHttp : TransportStdio;
+        }
+
+        private void SavePreferences()
+        {
+            if (portField != null)
+            {
+                EditorPrefs.SetInt(PrefKey("port"), GetPort());
+            }
+
+            if (timeoutField != null)
+            {
+                EditorPrefs.SetInt(PrefKey("timeout"), GetTimeout());
+            }
+
+            if (transportField != null)
+            {
+                EditorPrefs.SetString(PrefKey("transport"), GetTransport());
+            }
+
+            if (autoReloadExternallyChangedScenesToggle != null)
+            {
+                EditorPrefs.SetBool(
+                    ChievfxMcpToolPolicy.AutoReloadExternallyChangedScenesKey,
+                    autoReloadExternallyChangedScenesToggle.value);
+            }
+        }
+
+        private static int LoadTransportIndex()
+        {
+            return EditorPrefs.GetString(PrefKey("transport"), TransportStdio) == TransportHttp ? 1 : 0;
+        }
+
+        private static ChievfxMcpTab LoadActiveTab()
+        {
+            var value = EditorPrefs.GetString(PrefKey("activeTab"), ChievfxMcpTab.Status.ToString());
+            return Enum.TryParse(value, out ChievfxMcpTab tab) ? tab : ChievfxMcpTab.Status;
+        }
+
+        private static void SaveActiveTab(ChievfxMcpTab tab)
+        {
+            EditorPrefs.SetString(PrefKey("activeTab"), tab.ToString());
+        }
+
+        private static int LoadInt(string key, int defaultValue)
+        {
+            return EditorPrefs.GetInt(PrefKey(key), defaultValue);
+        }
+
+        private static string PrefKey(string key)
+        {
+            return $"{ChievfxMcpToolPolicy.ServerName}.{key}";
+        }
+
+        private readonly struct CursorServerConfig
+        {
+            public CursorServerConfig(string name, JToken value)
+            {
+                Name = name;
+                Value = value;
+            }
+
+            public string Name { get; }
+
+            public JToken Value { get; }
+        }
+    }
+}

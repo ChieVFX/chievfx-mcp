@@ -1,0 +1,23 @@
+{
+  "name": "tools-list-category",
+  "description": "Lists tools in one category with argument names and short descriptions.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "category": {
+        "type": "string",
+        "description": "Category name, case-insensitive."
+      },
+      "includeDisabled": {
+        "type": "boolean",
+        "default": false
+      }
+    },
+    "required": [
+      "category"
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+uri:"chievfx://extensions/chievfx.runtime-ui/status" readAtUtc:"2026-05-17T05:56:52.9526110Z" extensionId:chievfx.runtime-ui adapterCount:2 availableAdapterCount:2 probeTool:runtime-ui-probe-screen-position probeResource:"chievfx://extensions/chievfx.runtime-ui/runtime/probe-screen-position"
+adapters[2]:
+- frameworkId:ugui frameworkName:uGUI priority:100 available:true registrationOrder:0
+  resources[4]:
+- "chievfx://extensions/chievfx.ugui/runtime/status"
+- "chievfx://extensions/chievfx.ugui/runtime/canvases"
+- "chievfx://extensions/chievfx.ugui/runtime/visible-tree"
+- "chievfx://extensions/chievfx.ugui/runtime/interactables"
+  status packageName:com.unity.ugui packageVersion:2.0.0 packageSource:BuiltIn canvasLoaded:true defaultControlsLoaded:true versionDefineActive:true baseInputModuleLoaded:true inputSystemUiInputModuleLoaded:true prefersInputSystemUiInputModule:false textMeshProUGUILoaded:true textMeshProConfigured:true available:true reason:"com.unity.ugui is installed and UnityEngine.UI authoring types are loaded."
+runtimeControlTypesLoaded[8]:
+- UnityEngine.UI.Button
+- UnityEngine.UI.Toggle
+- UnityEngine.UI.Slider
+- UnityEngine.UI.Scrollbar
+- UnityEngine.UI.ScrollRect
+- UnityEngine.UI.Dropdown
+- TMPro.TMP_Dropdown
+- UnityEngine.UI.InputField
+- frameworkId:uitoolkit frameworkName:"UI Toolkit" priority:100 available:true registrationOrder:1
+  resources[4]:
+- "chievfx://extensions/chievfx.uitoolkit/runtime/status"
+- "chievfx://extensions/chievfx.uitoolkit/runtime/panels"
+- "chievfx://extensions/chievfx.uitoolkit/runtime/visible-tree"
+- "chievfx://extensions/chievfx.uitoolkit/runtime/interactables"
+  status packageName:com.unity.modules.uielements packageVersion:1.0.0 packageSource:BuiltIn versionDefineActive:true modulePresent:true uiDocumentLoaded:true panelSettingsLoaded:true iPanelLoaded:true runtimePanelUtilsLoaded:true visualElementLoaded:true available:true reason:"com.unity.modules.uielements is available and UI Toolkit runtime panel types are loaded."

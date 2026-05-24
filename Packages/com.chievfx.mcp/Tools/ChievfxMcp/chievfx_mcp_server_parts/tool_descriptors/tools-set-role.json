@@ -1,0 +1,29 @@
+{
+  "name": "tools-set-role",
+  "description": "Applies a built-in/custom ChievFX MCP tool role preset. After success, call reload_cursor_mcp for this server before using changed tool descriptors.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "role": {
+        "type": "string",
+        "description": "Built-in/custom role id or display name. Examples: Developer, performance-profiling."
+      },
+      "roleId": {
+        "type": "string",
+        "description": "Alias for role."
+      },
+      "customAssetPath": {
+        "type": "string",
+        "description": "Project-relative custom ChievfxMcpToolRoleAsset path."
+      },
+      "roleIndex": {
+        "type": "integer",
+        "minimum": 1,
+        "description": "1-based role index from tools-get-roles."
+      }
+    }
+  }
+}

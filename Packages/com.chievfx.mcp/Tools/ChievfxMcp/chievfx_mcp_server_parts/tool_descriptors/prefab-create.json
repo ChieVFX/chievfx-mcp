@@ -1,0 +1,35 @@
+{
+  "name": "prefab-create",
+  "description": "Creates or overwrites a prefab asset from one scene or prefab-stage GameObject. By default only the asset is saved; set connectGameObjectToPrefab=true to keep the source scene object linked as a prefab instance.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "sourcePath": {
+        "type": "string",
+        "description": "Scene or prefab-stage GameObject path to save as a prefab."
+      },
+      "sourceInstanceId": {
+        "type": "integer",
+        "description": "Scene or prefab-stage GameObject instance id to save as a prefab."
+      },
+      "prefabPath": {
+        "type": "string",
+        "description": "Project asset path for the prefab, e.g. Assets/Prefabs/Foo.prefab."
+      },
+      "overwrite": {
+        "type": "boolean",
+        "description": "Allow replacing an existing prefab asset at prefabPath."
+      },
+      "connectGameObjectToPrefab": {
+        "type": "boolean",
+        "description": "When true, use Unity SaveAsPrefabAssetAndConnect so the source scene object becomes/keeps a connected prefab instance. Default false saves the asset only and leaves the source object disconnected."
+      }
+    },
+    "required": [
+      "prefabPath"
+    ]
+  }
+}

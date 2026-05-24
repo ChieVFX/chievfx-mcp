@@ -1,0 +1,36 @@
+{
+  "name": "frame-debugger-drawcall-get",
+  "description": "Gets one draw call by groupIndex + drawCallIndex with shader, pass, mesh, render target, and batch reason.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "open": {
+        "type": "boolean",
+        "default": true
+      },
+      "focus": {
+        "type": "boolean",
+        "default": false
+      },
+      "groupIndex": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "drawCallIndex": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "select": {
+        "type": "boolean",
+        "default": true
+      }
+    },
+    "required": [
+      "groupIndex",
+      "drawCallIndex"
+    ]
+  }
+}

@@ -1,0 +1,68 @@
+uri:"chievfx://extensions/chievfx.cameras/status" readAtUtc:"2026-05-17T05:56:01.9944810Z" extensionId:chievfx.cameras available:true dependencyReason:one-or-more-dependencies-available cinemachineApiFamily:absent sequencerCameraAvailable:false sequencerCameraTypeLoaded:false sequencerCameraUnavailableReason:"com.unity.cinemachine package is not installed." collisionImpulseSourceTypeLoaded:false externalImpulseListenerTypeLoaded:false obsoleteConfinerTypeLoaded:false
+dependency available:true collisionImpulseSourceTypeLoaded:false externalImpulseListenerTypeLoaded:false obsoleteConfinerTypeLoaded:false obsoleteConfinerTypeName:Unity.Cinemachine.CinemachineConfiner
+cinemachine available:false packageName:com.unity.cinemachine packageInstalled:false typesLoaded:false versionDefineActive:false reason:"com.unity.cinemachine package is not installed." apiFamily:absent cinemachineApiFamily:absent
+sequencerCamera available:false packageName:com.unity.cinemachine packageInstalled:false apiFamily:absent cinemachineApiFamily:absent versionDefineActive:false typesLoaded:false sequencerCameraAvailable:false sequencerCameraTypeLoaded:false instructionTypeLoaded:false cinemachineCameraTypeLoaded:false virtualCameraBaseTypeLoaded:false blendDefinitionTypeLoaded:false brainTypeLoaded:false reason:"com.unity.cinemachine package is not installed."
+splinesDolly available:false key:splinesDolly displayName:"Splines Dolly" packageName:com.unity.cinemachine packageInstalled:false apiFamily:absent cinemachineApiFamily:absent versionDefineActive:false typesLoaded:false helperTypeName:Unity.Cinemachine.CinemachineSplineDolly helperTypeLoaded:false secondaryHelperTypeName:Unity.Cinemachine.CinemachineSplineRoll secondaryHelperTypeLoaded:false tertiaryHelperTypeLoaded:true reason:"com.unity.cinemachine package is not installed." optionalPackageName:com.unity.splines optionalPackageInstalled:false optionalTypeName:UnityEngine.Splines.SplineContainer optionalTypeLoaded:false optionalVersionDefineActive:false optionalGateAvailable:false
+inputAxisController available:false key:inputAxisController displayName:InputAxisController packageName:com.unity.cinemachine packageInstalled:false apiFamily:absent cinemachineApiFamily:absent versionDefineActive:false typesLoaded:false helperTypeName:Unity.Cinemachine.CinemachineInputAxisController helperTypeLoaded:false secondaryHelperTypeName:Unity.Cinemachine.InputAxis secondaryHelperTypeLoaded:false tertiaryHelperTypeName:Unity.Cinemachine.IInputAxisOwner tertiaryHelperTypeLoaded:false reason:"com.unity.cinemachine package is not installed."
+inputSystem available:true packageName:com.unity.inputsystem packageVersion:1.19.0 packageInstalled:true typesLoaded:true primaryTypeName:UnityEngine.InputSystem.InputActionReference primaryTypeLoaded:true secondaryTypeName:UnityEngine.InputSystem.PlayerInput secondaryTypeLoaded:true reason:available
+blenderSettings available:false key:blenderSettings displayName:"Blender Settings/custom blends" packageName:com.unity.cinemachine packageInstalled:false apiFamily:absent cinemachineApiFamily:absent versionDefineActive:false typesLoaded:false helperTypeName:Unity.Cinemachine.CinemachineBlenderSettings helperTypeLoaded:false secondaryHelperTypeLoaded:true tertiaryHelperTypeLoaded:true reason:"com.unity.cinemachine package is not installed."
+impulse available:false key:impulse displayName:Impulse packageName:com.unity.cinemachine packageInstalled:false apiFamily:absent cinemachineApiFamily:absent versionDefineActive:false typesLoaded:false helperTypeName:Unity.Cinemachine.CinemachineImpulseSource helperTypeLoaded:false secondaryHelperTypeName:Unity.Cinemachine.CinemachineImpulseListener secondaryHelperTypeLoaded:false tertiaryHelperTypeLoaded:true reason:"com.unity.cinemachine package is not installed."
+confiner2D available:false key:confiner2D displayName:Confiner2D packageName:com.unity.cinemachine packageInstalled:false apiFamily:absent cinemachineApiFamily:absent versionDefineActive:false typesLoaded:false helperTypeName:Unity.Cinemachine.CinemachineConfiner2D helperTypeLoaded:false secondaryHelperTypeName:UnityEngine.Collider2D secondaryHelperTypeLoaded:true tertiaryHelperTypeLoaded:true reason:"com.unity.cinemachine package is not installed."
+confiner3D available:false key:confiner3D displayName:Confiner3D packageName:com.unity.cinemachine packageInstalled:false apiFamily:absent cinemachineApiFamily:absent versionDefineActive:false typesLoaded:false helperTypeName:Unity.Cinemachine.CinemachineConfiner3D helperTypeLoaded:false secondaryHelperTypeName:UnityEngine.Collider secondaryHelperTypeLoaded:true tertiaryHelperTypeLoaded:true reason:"com.unity.cinemachine package is not installed."
+timeline available:true packageName:com.unity.timeline packageVersion:1.8.12 packageInstalled:true typesLoaded:true versionDefineActive:true reason:available
+cinemachine available:false packageName:com.unity.cinemachine packageInstalled:false typesLoaded:false versionDefineActive:false reason:"com.unity.cinemachine package is not installed." apiFamily:absent cinemachineApiFamily:absent
+sequencerCamera available:false packageName:com.unity.cinemachine packageInstalled:false apiFamily:absent cinemachineApiFamily:absent versionDefineActive:false typesLoaded:false sequencerCameraAvailable:false sequencerCameraTypeLoaded:false instructionTypeLoaded:false cinemachineCameraTypeLoaded:false virtualCameraBaseTypeLoaded:false blendDefinitionTypeLoaded:false brainTypeLoaded:false reason:"com.unity.cinemachine package is not installed."
+splinesDolly available:false key:splinesDolly displayName:"Splines Dolly" packageName:com.unity.cinemachine packageInstalled:false apiFamily:absent cinemachineApiFamily:absent versionDefineActive:false typesLoaded:false helperTypeName:Unity.Cinemachine.CinemachineSplineDolly helperTypeLoaded:false secondaryHelperTypeName:Unity.Cinemachine.CinemachineSplineRoll secondaryHelperTypeLoaded:false tertiaryHelperTypeLoaded:true reason:"com.unity.cinemachine package is not installed." optionalPackageName:com.unity.splines optionalPackageInstalled:false optionalTypeName:UnityEngine.Splines.SplineContainer optionalTypeLoaded:false optionalVersionDefineActive:false optionalGateAvailable:false
+inputAxisController available:false key:inputAxisController displayName:InputAxisController packageName:com.unity.cinemachine packageInstalled:false apiFamily:absent cinemachineApiFamily:absent versionDefineActive:false typesLoaded:false helperTypeName:Unity.Cinemachine.CinemachineInputAxisController helperTypeLoaded:false secondaryHelperTypeName:Unity.Cinemachine.InputAxis secondaryHelperTypeLoaded:false tertiaryHelperTypeName:Unity.Cinemachine.IInputAxisOwner tertiaryHelperTypeLoaded:false reason:"com.unity.cinemachine package is not installed."
+inputSystem available:true packageName:com.unity.inputsystem packageVersion:1.19.0 packageInstalled:true typesLoaded:true primaryTypeName:UnityEngine.InputSystem.InputActionReference primaryTypeLoaded:true secondaryTypeName:UnityEngine.InputSystem.PlayerInput secondaryTypeLoaded:true reason:available
+blenderSettings available:false key:blenderSettings displayName:"Blender Settings/custom blends" packageName:com.unity.cinemachine packageInstalled:false apiFamily:absent cinemachineApiFamily:absent versionDefineActive:false typesLoaded:false helperTypeName:Unity.Cinemachine.CinemachineBlenderSettings helperTypeLoaded:false secondaryHelperTypeLoaded:true tertiaryHelperTypeLoaded:true reason:"com.unity.cinemachine package is not installed."
+impulse available:false key:impulse displayName:Impulse packageName:com.unity.cinemachine packageInstalled:false apiFamily:absent cinemachineApiFamily:absent versionDefineActive:false typesLoaded:false helperTypeName:Unity.Cinemachine.CinemachineImpulseSource helperTypeLoaded:false secondaryHelperTypeName:Unity.Cinemachine.CinemachineImpulseListener secondaryHelperTypeLoaded:false tertiaryHelperTypeLoaded:true reason:"com.unity.cinemachine package is not installed."
+confiner2D available:false key:confiner2D displayName:Confiner2D packageName:com.unity.cinemachine packageInstalled:false apiFamily:absent cinemachineApiFamily:absent versionDefineActive:false typesLoaded:false helperTypeName:Unity.Cinemachine.CinemachineConfiner2D helperTypeLoaded:false secondaryHelperTypeName:UnityEngine.Collider2D secondaryHelperTypeLoaded:true tertiaryHelperTypeLoaded:true reason:"com.unity.cinemachine package is not installed."
+confiner3D available:false key:confiner3D displayName:Confiner3D packageName:com.unity.cinemachine packageInstalled:false apiFamily:absent cinemachineApiFamily:absent versionDefineActive:false typesLoaded:false helperTypeName:Unity.Cinemachine.CinemachineConfiner3D helperTypeLoaded:false secondaryHelperTypeName:UnityEngine.Collider secondaryHelperTypeLoaded:true tertiaryHelperTypeLoaded:true reason:"com.unity.cinemachine package is not installed."
+timeline available:true packageName:com.unity.timeline packageVersion:1.8.12 packageInstalled:true typesLoaded:true versionDefineActive:true reason:available
+resources[12]:
+- "chievfx://extensions/chievfx.cameras/status"
+- "chievfx://extensions/chievfx.cameras/cinemachine/cameras"
+- "chievfx://extensions/chievfx.cameras/cinemachine/brains"
+- "chievfx://extensions/chievfx.cameras/cinemachine/sequencers"
+- "chievfx://extensions/chievfx.cameras/cinemachine/splines-dolly"
+- "chievfx://extensions/chievfx.cameras/cinemachine/input-axis-controllers"
+- "chievfx://extensions/chievfx.cameras/cinemachine/blender-settings"
+- "chievfx://extensions/chievfx.cameras/cinemachine/impulse"
+- "chievfx://extensions/chievfx.cameras/cinemachine/confiner-2d"
+- "chievfx://extensions/chievfx.cameras/cinemachine/confiner-3d"
+- "chievfx://extensions/chievfx.cameras/timeline/directors"
+- "chievfx://extensions/chievfx.cameras/timeline/assets"
+resourceTemplates[4]:
+- "chievfx://extensions/chievfx.cameras/cinemachine/camera/{pathOrInstanceId}"
+- "chievfx://extensions/chievfx.cameras/cinemachine/sequencer/{pathOrInstanceId}"
+- "chievfx://extensions/chievfx.cameras/timeline/director/{pathOrInstanceId}"
+- "chievfx://extensions/chievfx.cameras/timeline/asset/{guidOrPath}"
+tools[10]:
+- brain-ensure
+- cinemachine-create
+- cinemachine-set
+- cinemachine-sequencer-create
+- cinemachine-spline-dolly-set
+- cinemachine-blender-settings-set
+- cinemachine-confiner-set
+- timeline-director-create
+- timeline-shot-sequence-create
+- timeline-director-preview
+prompts[6]:
+- cameras-ending-session-slowmo-zoom
+- gamefeel-ending-session-slowmo
+- cameras-cinemachine-sequencer-camera
+- cameras-cinemachine-splines-dolly
+- cameras-cinemachine-input-axis-controller
+- cameras-cinemachine-impulse-shake
+workflowNotes[9]:
+- "Ending-session slow-mo should be integrated in runtime game code with Time.timeScale plus Time.fixedDeltaTime restore; MCP tools only author Camera/Timeline assets."
+- "gamefeel-ending-session-slowmo is prompt-only guidance; MCP does not create hidden runtime owners or mutate Time globals."
+- "Read status and read-only inventory resources before using mutating camera/cutscene tools."
+- "Splines dolly helper binds existing CinemachineCamera and existing SplineContainer only; author spline knots/shape manually in Unity first."
+- "InputAxisController guidance is prompt/read-only only; MCP does not invent input assets or hidden input forwarding scripts."
+- "Impulse guidance is prompt/read-only only; MCP does not add hidden impulse trigger scripts or invent gameplay trigger ownership."
+- "Use screenshot-camera against authored Cinemachine/Unity camera fixtures for visual QA."
+- "Timeline shot overlaps ignore CinemachineBrain default/custom blend settings; use Timeline clip overlap for Timeline blend feel."
+- "Confiner2D cache invalidation can be expensive; invalidate bounding-shape/lens caches only when explicitly requested after collider or lens changes."

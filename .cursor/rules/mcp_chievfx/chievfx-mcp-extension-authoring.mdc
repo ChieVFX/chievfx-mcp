@@ -1,0 +1,39 @@
+---
+description: "Author ChievFX MCP extension tools and resources"
+alwaysApply: false
+---
+
+# ChievFX MCP Extension Authoring
+
+Use this rule when writing Unity-side ChievFX MCP extension tools, resources, resource templates, or prompts.
+
+## Registration
+
+- Register from Unity Editor C# with `[InitializeOnLoad]` and `ChievfxMcpExtensionRegistry.RegisterExtension(...)`.
+- Put extension code under `Assets/Editor/...`; use existing extension examples before inventing new structure.
+- Set stable `Id`, `DisplayName`, `Version`, `Description`, and optionally `ToolRunner` / `ResourceReader`.
+- IDs must not collide with core or other extensions. Extension ids use lowercase dotted names like `chievfx.particles`; capability ids use lowercase names like `particles-system-create`.
+- Extension resource URIs and templates must start with `chievfx://extensions/`.
+
+## Writing Tools
+
+- Add each tool as `ChievfxMcpToolDescriptor` with `Name`, `Description`, `Category`, and JSON `InputSchema`.
+- Route execution through `ToolRunner(string toolName, JToken args)` and use a strict switch on `toolName`.
+- Validate required args explicitly; throw `ArgumentException` for bad user input.
+- For Unity mutations, use `Undo`, mark changed objects/scenes dirty, and support `dryRun` when risk or validation value is meaningful.
+- Return compact structured objects: include `ok`, target identity/path, warnings, and changed fields where useful.
+- Keep schema, parser, mutation, and row/summary helpers small; split partial files only when extension size warrants it.
+
+## Writing Resources
+
+- Add static resources with `ChievfxMcpResourceDescriptor.StaticText` only when content is truly static.
+- Add dynamic resources with `ResourceReader(string uri)`; return `null` only for unknown URIs.
+- For detail resources, add `ChievfxMcpResourceTemplateDescriptor` and parse URL-encoded path/id segments with `Uri.UnescapeDataString`.
+- Keep resource responses read-only, capped, and compact. Include `uri`, dependency/status info, counts, caps, and warnings.
+- Use `MimeType = "application/json"` for structured payloads and `text/plain` for text payloads.
+
+## After Changes
+
+- Let Unity compile/import so `Library/ChievfxMcpBridge/extension-capabilities.json` refreshes.
+- Use `recompile` for C# changes when appropriate, then reload Cursor MCP tools/resources if descriptors changed.
+- Check Unity Console for registration or validation errors before assuming the MCP surface updated.

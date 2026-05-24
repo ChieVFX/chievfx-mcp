@@ -1,0 +1,18 @@
+{
+  "name": "scene-save",
+  "description": "Saves an opened Unity scene, defaulting to the active scene.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "openedSceneName": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      }
+    }
+  }
+}

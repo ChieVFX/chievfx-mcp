@@ -1,0 +1,31 @@
+{
+  "name": "editor-window-focus",
+  "description": "Focuses/selects an existing Unity EditorWindow tab.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "instanceId": {
+        "type": "integer"
+      },
+      "typeName": {
+        "type": "string",
+        "description": "EditorWindow simple, full, or assembly-qualified type name."
+      },
+      "titleContains": {
+        "type": "string",
+        "description": "Case-insensitive title substring filter."
+      },
+      "focused": {
+        "type": "boolean",
+        "description": "Focus the currently focused EditorWindow."
+      },
+      "mouseOver": {
+        "type": "boolean",
+        "description": "Focus the current mouse-over EditorWindow."
+      }
+    }
+  }
+}

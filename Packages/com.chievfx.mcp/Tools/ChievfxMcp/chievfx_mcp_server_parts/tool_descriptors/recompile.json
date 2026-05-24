@@ -1,0 +1,17 @@
+{
+  "name": "recompile",
+  "description": "Refreshes scripts, requests Unity script compilation, and returns only after Unity is idle again.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "timeoutMs": {
+        "type": "integer",
+        "minimum": 1000,
+        "description": "Maximum time to wait for compilation/imports to finish."
+      }
+    }
+  }
+}

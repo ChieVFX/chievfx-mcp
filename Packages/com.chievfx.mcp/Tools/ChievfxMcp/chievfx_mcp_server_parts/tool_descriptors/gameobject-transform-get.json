@@ -1,0 +1,22 @@
+{
+  "name": "gameobject-transform-get",
+  "description": "Returns one GameObject Transform in local or world space.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "path": {
+        "type": "string"
+      },
+      "instanceId": {
+        "type": "integer"
+      },
+      "isWorld": {
+        "type": "boolean",
+        "default": false
+      }
+    }
+  }
+}

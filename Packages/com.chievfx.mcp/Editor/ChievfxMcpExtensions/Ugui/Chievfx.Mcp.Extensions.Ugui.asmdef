@@ -1,0 +1,25 @@
+{
+    "name": "Chievfx.Mcp.Extensions.Ugui",
+    "rootNamespace": "Chievfx.Mcp.Extensions.Ugui",
+    "references": [
+        "Chievfx.Mcp.Editor",
+        "Unity.Newtonsoft.Json"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.ugui",
+            "expression": "0.0.0",
+            "define": "CHIEVFX_MCP_HAS_UGUI"
+        }
+    ],
+    "noEngineReferences": false
+}

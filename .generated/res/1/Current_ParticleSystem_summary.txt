@@ -1,0 +1,3 @@
+uri:"chievfx://extensions/chievfx.particles/systems" count:0 capped:false maxRows:96
+status available:true packageInstalled:true particleSystemTypesLoaded:true versionDefineActive:true
+stage kind:scene

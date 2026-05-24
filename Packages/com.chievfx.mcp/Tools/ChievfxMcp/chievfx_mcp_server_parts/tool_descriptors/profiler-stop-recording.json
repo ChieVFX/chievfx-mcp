@@ -1,0 +1,15 @@
+{
+  "name": "profiler-stop-recording",
+  "description": "Disables Unity editor profiler recording and saves a .data capture when supported.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "savePath": {
+        "type": "string"
+      }
+    }
+  }
+}

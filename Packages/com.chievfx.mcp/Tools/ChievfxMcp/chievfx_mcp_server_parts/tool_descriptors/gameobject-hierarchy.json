@@ -1,0 +1,24 @@
+{
+  "name": "gameobject-hierarchy",
+  "description": "Returns a compact GameObject hierarchy for the active scene or current prefab stage.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "path": {
+        "type": "string"
+      },
+      "maxDepth": {
+        "type": "integer"
+      },
+      "includeComponents": {
+        "type": "boolean"
+      },
+      "maxResults": {
+        "type": "integer"
+      }
+    }
+  }
+}

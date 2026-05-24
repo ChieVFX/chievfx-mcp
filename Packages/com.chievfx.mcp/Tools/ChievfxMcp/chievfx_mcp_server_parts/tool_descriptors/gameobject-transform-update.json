@@ -1,0 +1,36 @@
+{
+  "name": "gameobject-transform-update",
+  "description": "Updates one GameObject Transform in local or world space.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "path": {
+        "type": "string"
+      },
+      "instanceId": {
+        "type": "integer"
+      },
+      "position": {
+        "$chievfxSchema": "vector3Ref"
+      },
+      "rotationEuler": {
+        "$chievfxSchema": "vector3Ref"
+      },
+      "scale": {
+        "$chievfxSchema": "vector3Ref"
+      },
+      "isWorld": {
+        "type": "boolean",
+        "default": false
+      }
+    },
+    "$defs": {
+      "Vector3": {
+        "$chievfxSchema": "vector3"
+      }
+    }
+  }
+}

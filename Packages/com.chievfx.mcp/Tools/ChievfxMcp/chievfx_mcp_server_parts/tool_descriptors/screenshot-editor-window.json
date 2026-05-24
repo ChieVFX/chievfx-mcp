@@ -1,0 +1,79 @@
+{
+  "name": "screenshot-editor-window",
+  "description": "Captures Unity EditorWindow.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "target": {
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "focused",
+              "mouseOver"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "instanceId": {
+                "type": "integer"
+              },
+              "typeName": {
+                "type": "string",
+                "description": "EditorWindow simple, full, or assembly-qualified type name."
+              },
+              "titleContains": {
+                "type": "string",
+                "description": "Case-insensitive title substring filter."
+              },
+              "menuPath": {
+                "type": "string",
+                "description": "Unity menu item path used when openIfMissing is true."
+              }
+            }
+          }
+        ],
+        "description": "Defaults to focused when omitted."
+      },
+      "openIfMissing": {
+        "type": "boolean",
+        "default": false
+      },
+      "selectDockedTab": {
+        "type": "boolean",
+        "default": true
+      },
+      "captureArea": {
+        "type": "string",
+        "enum": [
+          "view",
+          "content",
+          "window"
+        ],
+        "default": "view"
+      },
+      "delayFrames": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 120,
+        "description": "Explicit editor-update wait override. If neither delayFrames nor delayMs is supplied, Unity uses a conservative 2-frame plus 1000 ms repaint wait."
+      },
+      "delayMs": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 10000,
+        "description": "Explicit millisecond wait override. If neither delayFrames nor delayMs is supplied, Unity uses a conservative 2-frame plus 1000 ms repaint wait."
+      },
+      "maxDimension": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 16384
+      },
+      "timeoutMs": {
+        "type": "integer",
+        "minimum": 1000
+      }
+    }
+  }
+}

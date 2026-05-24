@@ -1,0 +1,27 @@
+{
+  "requiredToolIds": [
+    "screenshot-game-view",
+    "screenshot-camera",
+    "screenshot-editor-window",
+    "tool-batch",
+    "editor-playmode-set",
+    "bridge-get-status",
+    "bridge-get-operation",
+    "events-check-since",
+    "events-wait",
+    "asset-create",
+    "asset-delete",
+    "assets-refresh",
+    "folder-ensure",
+    "recompile",
+    "console-clear-logs",
+    "console-get-logs",
+    "console-get-logs-single",
+    "reflection-method-find",
+    "reflection-method-find-single",
+    "reflection-method-call",
+    "editor-window-list",
+    "editor-window-open",
+    "editor-window-focus"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "frame-debugger-groups-list",
+  "description": "Lists captured Frame Debugger groups like the Unity tree, with group indices and event ranges.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "open": {
+        "type": "boolean",
+        "default": true
+      },
+      "focus": {
+        "type": "boolean",
+        "default": false
+      }
+    }
+  }
+}

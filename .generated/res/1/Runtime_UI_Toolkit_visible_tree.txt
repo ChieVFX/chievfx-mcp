@@ -1,0 +1,4 @@
+uri:"chievfx://extensions/chievfx.uitoolkit/runtime/visible-tree" readAtUtc:"2026-05-17T05:56:52.7414320Z" extensionId:chievfx.uitoolkit framework:uitoolkit playMode:false runtimeAvailable:false maxRowsPerDocument:256 count:0
+dependency packageName:com.unity.modules.uielements packageVersion:1.0.0 packageSource:BuiltIn versionDefineActive:true modulePresent:true uiDocumentLoaded:true panelSettingsLoaded:true iPanelLoaded:true runtimePanelUtilsLoaded:true visualElementLoaded:true available:true reason:"com.unity.modules.uielements is available and UI Toolkit runtime panel types are loaded."
+warnings[1]:
+- "Runtime UI Toolkit reads are gated to Play Mode; enter Play Mode before reading runtime UI state."

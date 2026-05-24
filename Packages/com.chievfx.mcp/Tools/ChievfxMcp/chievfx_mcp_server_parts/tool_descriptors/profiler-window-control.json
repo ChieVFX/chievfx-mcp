@@ -1,0 +1,50 @@
+{
+  "name": "profiler-window-control",
+  "description": "Controls Unity Profiler window focus and selection.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "open": {
+        "type": "boolean",
+        "default": true
+      },
+      "focus": {
+        "type": "boolean",
+        "default": true
+      },
+      "selectedFrameIndex": {
+        "type": "integer",
+        "description": "Profiler frame index to select when the public API supports assignment."
+      },
+      "latest": {
+        "type": "boolean",
+        "default": false,
+        "description": "Call SelectAndStayOnLatestFrame after other frame changes."
+      },
+      "stayOnLatestFrame": {
+        "type": "boolean",
+        "default": false,
+        "description": "Alias for latest."
+      },
+      "module": {
+        "type": "string",
+        "enum": [
+          "CPU",
+          "GPU"
+        ],
+        "description": "Convenience module selector."
+      },
+      "moduleIdentifier": {
+        "type": "string",
+        "description": "Exact Profiler module identifier to select."
+      },
+      "selectedModuleIdentifier": {
+        "type": "string",
+        "description": "Alias for moduleIdentifier."
+      }
+    }
+  }
+}

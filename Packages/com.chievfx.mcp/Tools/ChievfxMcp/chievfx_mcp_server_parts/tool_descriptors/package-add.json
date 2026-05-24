@@ -1,0 +1,18 @@
+{
+  "name": "package-add",
+  "description": "Installs a package by registry id, git URL, or file: local path via Unity Package Manager. If a git package declares URL dependencies, install those URL dependencies first recursively, then install the root package.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "packageId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "packageId"
+    ]
+  }
+}

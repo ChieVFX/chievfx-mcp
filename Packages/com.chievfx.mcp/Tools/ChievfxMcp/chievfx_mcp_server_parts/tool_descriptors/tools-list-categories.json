@@ -1,0 +1,16 @@
+{
+  "name": "tools-list-categories",
+  "description": "Lists tool categories with enabled/total counts and short descriptions.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "includeDisabled": {
+        "type": "boolean",
+        "default": false
+      }
+    }
+  }
+}

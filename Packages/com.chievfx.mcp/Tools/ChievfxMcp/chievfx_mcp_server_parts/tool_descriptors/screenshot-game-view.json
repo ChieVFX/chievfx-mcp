@@ -1,0 +1,16 @@
+{
+  "name": "screenshot-game-view",
+  "description": "Captures a screenshot from the Unity Editor Game View.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "maxDimension": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 16384,
+        "default": 960,
+        "description": "Maximum output width or height. Defaults to 960 to avoid oversized images."
+      }
+    }
+  }
+}

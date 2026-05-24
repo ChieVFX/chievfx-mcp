@@ -1,0 +1,38 @@
+{
+  "name": "frame-debugger-drawcall-screenshot",
+  "description": "Captures one image comparing before/after a draw call: top is previous event, bottom is requested draw call.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "open": {
+        "type": "boolean",
+        "default": true
+      },
+      "focus": {
+        "type": "boolean",
+        "default": false
+      },
+      "groupIndex": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "drawCallIndex": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "maxDimension": {
+        "type": "integer",
+        "minimum": 128,
+        "maximum": 4096,
+        "default": 960
+      }
+    },
+    "required": [
+      "groupIndex",
+      "drawCallIndex"
+    ]
+  }
+}

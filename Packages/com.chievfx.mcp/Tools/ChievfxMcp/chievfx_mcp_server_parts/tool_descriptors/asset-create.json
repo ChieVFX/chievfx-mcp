@@ -1,0 +1,24 @@
+{
+  "name": "asset-create",
+  "description": "Creates Unity object assets under Assets/: prefab, or a ScriptableObject asset from a non-abstract ScriptableObject inheritor type name. Scripts, shaders, uxml, uss, json, and other text files can be created by the agent directly without using this tool.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "path": {
+        "type": "string",
+        "description": "Project-relative asset path starting with Assets/, e.g. Assets/MyFolder/MyAsset.asset or Assets/MyFolder/MyPrefab.prefab."
+      },
+      "type": {
+        "type": "string",
+        "description": "prefab, or a non-abstract ScriptableObject inheritor type name such as MySettings or My.Namespace.MySettings."
+      }
+    },
+    "required": [
+      "path",
+      "type"
+    ]
+  }
+}

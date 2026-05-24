@@ -1,0 +1,12 @@
+{
+  "name": "scene-list-opened",
+  "description": "Lists scenes currently open in the Unity editor.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      }
+    }
+  }
+}

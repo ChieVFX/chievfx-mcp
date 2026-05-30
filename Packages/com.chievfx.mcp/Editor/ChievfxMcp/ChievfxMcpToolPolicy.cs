@@ -87,7 +87,7 @@ namespace Chievfx.Mcp.Editor
 
         public const string AutoReloadExternallyChangedScenesKey = ServerName + ".autoReloadExternallyChangedScenes";
 
-        public static bool AutoReloadExternallyChangedScenes => EditorPrefs.GetBool(AutoReloadExternallyChangedScenesKey, true);
+        public static bool AutoReloadExternallyChangedScenes => EditorPrefs.GetBool(AutoReloadExternallyChangedScenesKey, false);
 
         public static string BridgeUrl => $"http://127.0.0.1:{DefaultBridgePort}";
 

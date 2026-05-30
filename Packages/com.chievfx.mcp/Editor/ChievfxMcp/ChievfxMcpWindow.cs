@@ -34,6 +34,7 @@ namespace Chievfx.Mcp.Editor
         private Toggle? autoReloadExternallyChangedScenesToggle;
         private Label? summaryLabel;
         private Label? guidanceLabel;
+        private HelpBox? setupHelpBox;
         private TextField? previewField;
         private Button? startButton;
         private Button? stopButton;
@@ -225,9 +226,8 @@ namespace Chievfx.Mcp.Editor
 
         private void BuildStatusTab(VisualElement content)
         {
-            content.Add(new HelpBox(
-                "Configure the local ChievFX MCP server used by Cursor. Runtime state, Cursor config, and selection shortcuts stay available below.",
-                HelpBoxMessageType.Info));
+            setupHelpBox = new HelpBox(string.Empty, HelpBoxMessageType.Info);
+            content.Add(setupHelpBox);
 
             summaryLabel = new Label();
             summaryLabel.style.marginTop = 8;
@@ -262,8 +262,6 @@ namespace Chievfx.Mcp.Editor
             timeoutField.RegisterValueChangedCallback(_ => RefreshUi());
             settings.Add(timeoutField);
 
-            settings.Add(CreateMutedLabel($"Server script: {ServerScriptPath}"));
-            settings.Add(CreateMutedLabel($"Bridge IPC: {ChievfxMcpToolPolicy.BridgeDirectory}"));
             content.Add(settings);
 
             var runtime = CreateSectionCard("Runtime");
@@ -279,6 +277,16 @@ namespace Chievfx.Mcp.Editor
             runtime.Add(CreateActionRow(startButton, stopButton, CreateButton("Start Bridge", StartBridge), CreateButton("Refresh", RefreshUi)));
             content.Add(runtime);
 
+            var cursorConfig = CreateSectionCard("Cursor Config");
+            var configState = CreateChipRow();
+            cursorConfigChip = CreateStateChip("Cursor unknown", StatusChipState.Neutral);
+            configState.Add(cursorConfigChip);
+            cursorConfig.Add(configState);
+            cursorConfig.Add(CreateMutedLabel($"Cursor config: {CursorConfigPath}"));
+            cursorConfig.Add(CreateMutedLabel("Write config after changing connection settings. Reload MCP tools or restart Cursor afterward."));
+            cursorConfig.Add(CreateActionRow(CreateButton("Write Cursor Config", WriteCursorConfig), CreateButton("Copy Preview", CopyPreview)));
+            content.Add(cursorConfig);
+
             var automation = CreateSectionCard("Automation");
             autoReloadExternallyChangedScenesToggle = new Toggle("Auto-reload externally changed open scenes")
             {
@@ -289,21 +297,6 @@ namespace Chievfx.Mcp.Editor
             automation.Add(CreateMutedLabel("When scene files change on disk, reload them automatically so Unity's modal reload prompt does not block MCP work."));
             content.Add(automation);
 
-            var cursorConfig = CreateSectionCard("Cursor Config");
-            var configState = CreateChipRow();
-            cursorConfigChip = CreateStateChip("Cursor unknown", StatusChipState.Neutral);
-            configState.Add(cursorConfigChip);
-            cursorConfig.Add(configState);
-            cursorConfig.Add(CreateMutedLabel($"Cursor config: {CursorConfigPath}"));
-            cursorConfig.Add(CreateMutedLabel("Write config after changing transport, port, or timeout. Reload MCP tools or restart Cursor afterward."));
-            cursorConfig.Add(CreateActionRow(CreateButton("Write Cursor Config", WriteCursorConfig), CreateButton("Copy Preview", CopyPreview)));
-            content.Add(cursorConfig);
-
-            var selection = CreateSectionCard("Selection tabs");
-            selection.Add(CreateMutedLabel("Manage role presets and advertised tools, resources, and prompts with the same saved-selection UI."));
-            selection.Add(CreateActionRow(CreateButton("Open Presets", OpenPresets), CreateButton("Open Tools", OpenTools), CreateButton("Open Resources", OpenResources), CreateButton("Open Prompts", OpenPrompts)));
-            content.Add(selection);
-
             content.Add(CreateConfigPreviewFoldout());
 
             var advanced = new Foldout
@@ -312,7 +305,8 @@ namespace Chievfx.Mcp.Editor
                 value = false
             };
             advanced.style.marginTop = 4;
-            advanced.Add(CreateRequiredToolsFoldout());
+            advanced.Add(CreateMutedLabel($"Server script: {ServerScriptPath}"));
+            advanced.Add(CreateMutedLabel($"Bridge IPC: {ChievfxMcpToolPolicy.BridgeDirectory}"));
             content.Add(advanced);
 
             RefreshUi();
@@ -500,6 +494,13 @@ namespace Chievfx.Mcp.Editor
                 guidanceLabel.style.color = new StyleColor(guidanceGood ? new Color(0.58f, 0.78f, 0.58f) : new Color(0.72f, 0.72f, 0.72f));
             }
 
+            if (setupHelpBox != null)
+            {
+                var guidanceGood = serverScriptExists && bridgeRunning && configured && (transport != TransportHttp || httpRunning);
+                setupHelpBox.text = BuildSetupGuidance(transport, serverScriptExists, bridgeRunning, httpRunning, configured);
+                setupHelpBox.style.display = guidanceGood ? DisplayStyle.None : DisplayStyle.Flex;
+            }
+
             UpdateStateChip(serverChip, serverScriptExists ? "Server found" : "Server missing", serverScriptExists ? StatusChipState.Good : StatusChipState.Warning);
             UpdateStateChip(bridgeChip, bridgeRunning ? "Bridge running" : "Bridge stopped", bridgeRunning ? StatusChipState.Good : StatusChipState.Neutral);
             UpdateStateChip(httpChip, httpRunning ? "HTTP running" : "HTTP stopped", httpRunning ? StatusChipState.Good : StatusChipState.Neutral);
@@ -518,6 +519,11 @@ namespace Chievfx.Mcp.Editor
             if (stopButton != null)
             {
                 stopButton.SetEnabled(httpRunning);
+            }
+
+            if (portField != null)
+            {
+                portField.style.display = transport == TransportHttp ? DisplayStyle.Flex : DisplayStyle.None;
             }
         }
 

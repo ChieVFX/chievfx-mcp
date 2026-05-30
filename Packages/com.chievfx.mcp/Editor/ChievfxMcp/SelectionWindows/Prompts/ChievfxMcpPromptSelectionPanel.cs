@@ -18,7 +18,7 @@ namespace Chievfx.Mcp.Editor
 {
     internal sealed class ChievfxMcpPromptSelectionPanel
     {
-        private const string AllInfoEditorPrefsKey = "ChievfxMcp.PromptSelection.AllInfo";
+        private const string AllInfoEditorPrefsKey = "ChievfxMcp.Selection.AllInfo";
         private const string PythonCommand = "python3";
 
         private readonly List<PromptRow> promptRows = new();
@@ -81,16 +81,19 @@ namespace Chievfx.Mcp.Editor
             saveFeedbackLabel.style.whiteSpace = WhiteSpace.Normal;
             content.Add(saveFeedbackLabel);
 
-            detailLabel = new Label();
-            detailLabel.style.whiteSpace = WhiteSpace.Normal;
-            detailLabel.style.marginBottom = 8;
-            var detailsFoldout = new Foldout
+            if (allInfo)
             {
-                text = "Token/cache details",
-                value = false
-            };
-            detailsFoldout.Add(detailLabel);
-            content.Add(detailsFoldout);
+                detailLabel = new Label();
+                detailLabel.style.whiteSpace = WhiteSpace.Normal;
+                detailLabel.style.marginBottom = 8;
+                var detailsFoldout = new Foldout
+                {
+                    text = "Token/cache details",
+                    value = false
+                };
+                detailsFoldout.Add(detailLabel);
+                content.Add(detailsFoldout);
+            }
 
             var actions = new VisualElement
             {
@@ -342,7 +345,10 @@ namespace Chievfx.Mcp.Editor
 
         private VisualElement CreateCategoryElement(string category, IReadOnlyList<PromptRow> rows)
         {
-            var card = CreateSectionCard($"{category} prompts");
+            var enabledCount = rows.Count(row => row.Required || row.Enabled);
+            var card = CreateSectionCard(allInfo
+                ? $"{category} prompts"
+                : $"{category} ({enabledCount}/{rows.Count})");
             var optionalRows = rows.Where(row => !row.Required).ToList();
             var header = CreateMetaRow();
             header.style.marginLeft = 0;
@@ -356,9 +362,12 @@ namespace Chievfx.Mcp.Editor
             categoryStateButtons[category] = stateButton;
             header.Add(stateButton);
 
-            var summary = new Label(BuildCategorySummary(rows));
-            summary.style.whiteSpace = WhiteSpace.Normal;
-            header.Add(summary);
+            if (allInfo)
+            {
+                var summary = new Label(BuildCategorySummary(rows));
+                summary.style.whiteSpace = WhiteSpace.Normal;
+                header.Add(summary);
+            }
             card.Add(header);
 
             foreach (var row in rows)
@@ -657,10 +666,12 @@ namespace Chievfx.Mcp.Editor
 
             if (summaryLabel != null)
             {
-                summaryLabel.text =
-                    $"Selected descriptors: ~{selectedDescriptorTokens} tokens across {selectedRows.Count}/{promptRows.Count} prompts | " +
-                    $"All prompts descriptors: ~{allDescriptorTokens} tokens\n" +
-                    $"Selected descriptions: ~{selectedDescriptionTokens} tokens | All prompts descriptions: ~{allDescriptionTokens} tokens";
+                summaryLabel.text = allInfo
+                    ? $"Selected descriptors: ~{selectedDescriptorTokens} tokens across {selectedRows.Count}/{promptRows.Count} prompts | " +
+                      $"All prompts descriptors: ~{allDescriptorTokens} tokens\n" +
+                      $"Selected descriptions: ~{selectedDescriptionTokens} tokens | All prompts descriptions: ~{allDescriptionTokens} tokens"
+                    : $"Selected descriptors: ~{selectedDescriptorTokens} tokens across {selectedRows.Count}/{promptRows.Count} prompts\n" +
+                      $"Selected descriptions: ~{selectedDescriptionTokens} tokens";
             }
 
             if (detailLabel != null)

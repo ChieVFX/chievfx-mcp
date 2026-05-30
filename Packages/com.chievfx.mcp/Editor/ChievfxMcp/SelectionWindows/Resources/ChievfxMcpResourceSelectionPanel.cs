@@ -18,7 +18,7 @@ namespace Chievfx.Mcp.Editor
 {
     internal sealed class ChievfxMcpResourceSelectionPanel
     {
-        private const string AllInfoEditorPrefsKey = "ChievfxMcp.ResourceSelection.AllInfo";
+        private const string AllInfoEditorPrefsKey = "ChievfxMcp.Selection.AllInfo";
         private const string PythonCommand = "python3";
         private const string ResourceKind = "Resource";
         private const string TemplateKind = "Template";
@@ -88,16 +88,19 @@ namespace Chievfx.Mcp.Editor
             saveFeedbackLabel.style.whiteSpace = WhiteSpace.Normal;
             content.Add(saveFeedbackLabel);
 
-            detailLabel = new Label();
-            detailLabel.style.whiteSpace = WhiteSpace.Normal;
-            detailLabel.style.marginBottom = 8;
-            var detailsFoldout = new Foldout
+            if (allInfo)
             {
-                text = "Token/cache details",
-                value = false
-            };
-            detailsFoldout.Add(detailLabel);
-            content.Add(detailsFoldout);
+                detailLabel = new Label();
+                detailLabel.style.whiteSpace = WhiteSpace.Normal;
+                detailLabel.style.marginBottom = 8;
+                var detailsFoldout = new Foldout
+                {
+                    text = "Token/cache details",
+                    value = false
+                };
+                detailsFoldout.Add(detailLabel);
+                content.Add(detailsFoldout);
+            }
 
             var actions = new VisualElement
             {
@@ -532,7 +535,10 @@ namespace Chievfx.Mcp.Editor
             categoryStateButtons[category] = stateButton;
             header.Add(stateButton);
 
-            var title = new Label($"{category} ({rows.Count} rows)");
+            var enabledCount = rows.Count(row => row.Required || row.Enabled);
+            var title = new Label(allInfo
+                ? $"{category} ({rows.Count} rows)"
+                : $"{category} ({enabledCount}/{rows.Count})");
             title.style.unityFontStyleAndWeight = FontStyle.Bold;
             title.style.fontSize = 14;
             title.style.flexBasis = 160;
@@ -541,14 +547,17 @@ namespace Chievfx.Mcp.Editor
             title.style.whiteSpace = WhiteSpace.Normal;
             header.Add(title);
 
-            var detail = new Label(BuildCategorySummary(rows));
-            detail.style.flexBasis = 220;
-            detail.style.flexGrow = 2;
-            detail.style.minWidth = 0;
-            detail.style.whiteSpace = WhiteSpace.Normal;
-            detail.style.color = new StyleColor(new Color(0.72f, 0.72f, 0.72f));
-            categorySummaryLabels[category] = detail;
-            header.Add(detail);
+            if (allInfo)
+            {
+                var detail = new Label(BuildCategorySummary(rows));
+                detail.style.flexBasis = 220;
+                detail.style.flexGrow = 2;
+                detail.style.minWidth = 0;
+                detail.style.whiteSpace = WhiteSpace.Normal;
+                detail.style.color = new StyleColor(new Color(0.72f, 0.72f, 0.72f));
+                categorySummaryLabels[category] = detail;
+                header.Add(detail);
+            }
 
             container.Add(header);
             var intent = CreateMutedLabel(GetCategoryDescription(category));
@@ -937,18 +946,20 @@ namespace Chievfx.Mcp.Editor
 
             if (summaryLabel != null)
             {
-                summaryLabel.text =
-                    $"Selected descriptors: ~{selectedDescriptorTokens} tokens across {selectedRows.Count}/{resourceRows.Count} resources/templates | " +
-                    $"All resources/templates descriptors: ~{allDescriptorTokens} tokens\n" +
-                    $"Selected descriptions: ~{selectedDescriptionTokens} tokens | All resources/templates descriptions: ~{allDescriptionTokens} tokens";
+                summaryLabel.text = allInfo
+                    ? $"Selected descriptors: ~{selectedDescriptorTokens} tokens across {selectedRows.Count}/{resourceRows.Count} resources | " +
+                      $"All resources descriptors: ~{allDescriptorTokens} tokens\n" +
+                      $"Selected descriptions: ~{selectedDescriptionTokens} tokens | All resources descriptions: ~{allDescriptionTokens} tokens"
+                    : $"Selected descriptors: ~{selectedDescriptorTokens} tokens across {selectedRows.Count}/{resourceRows.Count} resources\n" +
+                      $"Selected descriptions: ~{selectedDescriptionTokens} tokens";
             }
 
             if (detailLabel != null)
             {
                 detailLabel.text =
                     $"Categories: {categoryCount} | Required: {requiredCount} locked | Optional: {selectedOptionalCount}/{optionalCount} enabled | Estimator: {estimator}\n" +
-                    $"Descriptors: selected ~{selectedDescriptorTokens}, all resources/templates ~{allDescriptorTokens}. Resources: {resourceDescriptorEstimateBasis}. Templates: {templateDescriptorEstimateBasis}\n" +
-                    $"Descriptions: selected ~{selectedDescriptionTokens}, all resources/templates ~{allDescriptionTokens}. Descriptors already include URI/name/description; this line estimates discovery surface separately. Resources: {resourceDescriptionEstimateBasis}. Templates: {templateDescriptionEstimateBasis}\n" +
+                    $"Descriptors: selected ~{selectedDescriptorTokens}, all resources ~{allDescriptorTokens}. Resources: {resourceDescriptorEstimateBasis}. Templates: {templateDescriptorEstimateBasis}\n" +
+                    $"Descriptions: selected ~{selectedDescriptionTokens}, all resources ~{allDescriptionTokens}. Descriptors already include URI/name/description; this line estimates discovery surface separately. Resources: {resourceDescriptionEstimateBasis}. Templates: {templateDescriptionEstimateBasis}\n" +
                     $"resources/read base envelope: selected ~{selectedReadTokens}, all ~{allReadTokens}. {readEnvelopeEstimateBasis}\n" +
                     $"Responses: {responseEstimateNote}\n" +
                     $"Selection file: {ChievfxMcpToolPolicy.ResourceSelectionPath}\n" +

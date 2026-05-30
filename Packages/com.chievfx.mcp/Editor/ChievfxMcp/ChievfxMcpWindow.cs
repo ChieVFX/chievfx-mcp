@@ -20,9 +20,7 @@ namespace Chievfx.Mcp.Editor
         private const string TransportStdio = "stdio";
         private const string TransportHttp = "http";
         private const string PythonCommand = "python3";
-        private const string ToolAllInfoEditorPrefsKey = "ChievfxMcp.ToolSelection.AllInfo";
-        private const string ResourceAllInfoEditorPrefsKey = "ChievfxMcp.ResourceSelection.AllInfo";
-        private const string PromptAllInfoEditorPrefsKey = "ChievfxMcp.PromptSelection.AllInfo";
+        private const string AllInfoEditorPrefsKey = "ChievfxMcp.Selection.AllInfo";
         private const string ShowExperimentalPromptsEditorPrefsKey = "ChievfxMcp.Experimental.ShowPromptsTab";
 
         private static readonly string[] TransportChoices = { TransportStdio, TransportHttp };
@@ -165,29 +163,14 @@ namespace Chievfx.Mcp.Editor
             title.style.flexGrow = 1;
             row.Add(title);
 
-            var allInfoKey = GetAllInfoEditorPrefsKey(activeTab);
-            if (!string.IsNullOrEmpty(allInfoKey))
+            var allInfo = EditorPrefs.GetBool(AllInfoEditorPrefsKey, false);
+            row.Add(CreateAllInfoButton(allInfo, value =>
             {
-                var allInfo = EditorPrefs.GetBool(allInfoKey, false);
-                row.Add(CreateAllInfoButton(allInfo, value =>
-                {
-                    EditorPrefs.SetBool(allInfoKey, value);
-                    BuildWindow();
-                }));
-            }
+                EditorPrefs.SetBool(AllInfoEditorPrefsKey, value);
+                BuildWindow();
+            }));
 
             return row;
-        }
-
-        private static string GetAllInfoEditorPrefsKey(ChievfxMcpTab tab)
-        {
-            return tab switch
-            {
-                ChievfxMcpTab.Tools => ToolAllInfoEditorPrefsKey,
-                ChievfxMcpTab.Resources => ResourceAllInfoEditorPrefsKey,
-                ChievfxMcpTab.Prompts => PromptAllInfoEditorPrefsKey,
-                _ => string.Empty
-            };
         }
 
         private VisualElement CreateTabBar()

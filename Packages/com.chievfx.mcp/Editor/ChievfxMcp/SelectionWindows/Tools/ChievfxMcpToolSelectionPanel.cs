@@ -18,7 +18,7 @@ namespace Chievfx.Mcp.Editor
 {
     internal sealed class ChievfxMcpToolSelectionPanel
     {
-        private const string AllInfoEditorPrefsKey = "ChievfxMcp.ToolSelection.AllInfo";
+        private const string AllInfoEditorPrefsKey = "ChievfxMcp.Selection.AllInfo";
 
         private readonly List<ToolRow> toolRows = new();
         private readonly Dictionary<string, Toggle> toggles = new(StringComparer.Ordinal);
@@ -98,16 +98,19 @@ namespace Chievfx.Mcp.Editor
             saveFeedbackLabel.style.whiteSpace = WhiteSpace.Normal;
             content.Add(saveFeedbackLabel);
 
-            detailLabel = new Label();
-            detailLabel.style.whiteSpace = WhiteSpace.Normal;
-            detailLabel.style.marginBottom = 8;
-            var detailsFoldout = new Foldout
+            if (allInfo)
             {
-                text = "Token/cache details",
-                value = false
-            };
-            detailsFoldout.Add(detailLabel);
-            content.Add(detailsFoldout);
+                detailLabel = new Label();
+                detailLabel.style.whiteSpace = WhiteSpace.Normal;
+                detailLabel.style.marginBottom = 8;
+                var detailsFoldout = new Foldout
+                {
+                    text = "Token/cache details",
+                    value = false
+                };
+                detailsFoldout.Add(detailLabel);
+                content.Add(detailsFoldout);
+            }
 
             var actions = new VisualElement
             {
@@ -1380,10 +1383,12 @@ namespace Chievfx.Mcp.Editor
 
             if (summaryLabel != null)
             {
-                summaryLabel.text =
-                    $"Selected descriptors: ~{selectedDescriptorTokens} tokens across {selectedRows.Count}/{toolRows.Count} tools | " +
-                    $"All tools descriptors: ~{allDescriptorTokens} tokens\n" +
-                    $"Selected descriptions: ~{selectedDescriptionTokens} tokens | All tools descriptions: ~{allDescriptionTokens} tokens";
+                summaryLabel.text = allInfo
+                    ? $"Selected descriptors: ~{selectedDescriptorTokens} tokens across {selectedRows.Count}/{toolRows.Count} tools | " +
+                      $"All tools descriptors: ~{allDescriptorTokens} tokens\n" +
+                      $"Selected descriptions: ~{selectedDescriptionTokens} tokens | All tools descriptions: ~{allDescriptionTokens} tokens"
+                    : $"Selected descriptors: ~{selectedDescriptorTokens} tokens across {selectedRows.Count}/{toolRows.Count} tools\n" +
+                      $"Selected descriptions: ~{selectedDescriptionTokens} tokens";
             }
 
             if (detailLabel != null)

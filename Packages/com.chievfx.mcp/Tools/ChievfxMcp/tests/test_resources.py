@@ -312,12 +312,13 @@ class ResourceTests(unittest.TestCase):
         )
 
     def test_core_resource_metadata_matches_csharp_registry_catalog(self) -> None:
-        project_root = Path(__file__).resolve().parents[3]
+        package_root = Path(__file__).resolve().parents[3]
         catalog = (
-            project_root
-            / "Assets"
+            package_root
             / "Editor"
             / "ChievfxMcp"
+            / "Core"
+            / "Metadata"
             / "ChievfxMcpCoreMetadata.cs"
         ).read_text(encoding="utf-8")
 

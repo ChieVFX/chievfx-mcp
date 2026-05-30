@@ -190,6 +190,7 @@ def save_enabled_prompt_names(enabled_prompt_names: set[str], metadata: dict[str
         },
     }
     PROMPT_SELECTION_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    dump_debug_instructions("prompt-selection-save")
 
 
 def enabled_prompts() -> list[dict[str, Any]]:

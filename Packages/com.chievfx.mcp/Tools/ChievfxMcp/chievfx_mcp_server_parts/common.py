@@ -43,6 +43,7 @@ PROMPT_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpPromptSelecti
 CATALOGS_MD_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_text_prompts_resources.md"
 INITIALIZE_INSTRUCTIONS_MD_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_initialize_instructions.md"
 EXTENSION_CAPABILITY_MANIFEST_PATH = PROJECT_ROOT / "Library" / "ChievfxMcpBridge" / "extension-capabilities.json"
+DEBUG_INSTRUCTIONS_PATH = PROJECT_ROOT / ".temp" / "debug_instructions.md"
 TOOL_SELECTION_SCHEMA_VERSION = 1
 RESOURCE_SELECTION_SCHEMA_VERSION = 1
 PROMPT_SELECTION_SCHEMA_VERSION = 1
@@ -98,6 +99,7 @@ def configure_project_root(project_root: str | os.PathLike[str] | None) -> None:
     global RESOURCE_SELECTION_PATH
     global PROMPT_SELECTION_PATH
     global EXTENSION_CAPABILITY_MANIFEST_PATH
+    global DEBUG_INSTRUCTIONS_PATH
 
     if project_root is None:
         return
@@ -107,6 +109,9 @@ def configure_project_root(project_root: str | os.PathLike[str] | None) -> None:
     RESOURCE_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpResourceSelection.json"
     PROMPT_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpPromptSelection.json"
     EXTENSION_CAPABILITY_MANIFEST_PATH = PROJECT_ROOT / "Library" / "ChievfxMcpBridge" / "extension-capabilities.json"
+    DEBUG_INSTRUCTIONS_PATH = PROJECT_ROOT / ".temp" / "debug_instructions.md"
+
+
 DEFAULT_REQUIRED_TOOL_IDS = {
     "screenshot-game-view",
     "screenshot-camera",

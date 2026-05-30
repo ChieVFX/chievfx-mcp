@@ -22,6 +22,7 @@ namespace Chievfx.Mcp.Editor
         public static IReadOnlyList<ChievfxMcpResourceTemplateDescriptor> ResourceTemplates { get; } =
             new[]
             {
+                Template("scene-current-hierarchy-path", "chievfx://scene/current/hierarchy/{hierarchyPath}", "Current hierarchy subtree", "Compact hierarchy for a subtree in the current scene or opened prefab."),
                 Template("scene-go", "chievfx://scene/{scenePath}/go/{goPath}", "GameObject summary by scene and path", "Compact GameObject summary. Percent-encode scene path and hierarchy path as full URI segments."),
                 Template("scene-component", "chievfx://scene/{scenePath}/go/{goPath}/component/{componentKey}", "Component serialized values by scene, GameObject path, and component key", "Serialized values for one component. Percent-encode every dynamic value as a full URI segment."),
                 Template("scene-current-go", "chievfx://scene/current/go/{goPath}", "Current GameObject summary", "Compact GameObject summary in the current prefab stage or active scene."),

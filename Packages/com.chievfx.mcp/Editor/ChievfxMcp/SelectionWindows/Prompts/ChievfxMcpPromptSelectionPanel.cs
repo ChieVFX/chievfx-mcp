@@ -576,6 +576,7 @@ namespace Chievfx.Mcp.Editor
 
             lastSavedAtLocal = DateTime.Now;
             RefreshSaveFeedback();
+            ChievfxMcpDebugInstructionsDumper.TryDump("unity-prompt-selection-save");
         }
 
         private void ResetRequiredMinimum()

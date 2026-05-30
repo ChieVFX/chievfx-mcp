@@ -110,6 +110,7 @@ InitTestScene*.unity*
 .vkb/
 .vibe-kanban/
 .cursor/mcp.json
+/.temp/
 
 /Generated/
 Generated.meta

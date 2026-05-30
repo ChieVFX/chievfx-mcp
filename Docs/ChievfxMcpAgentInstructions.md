@@ -61,6 +61,22 @@ Previously the guide hard-coded the full catalog and could mention resources tha
 
 Read path: `server_core.py` serves the guide locally without calling the Unity bridge.
 
+## Debug dump
+
+When tool/resource/prompt selection changes (Unity selection windows or MCP `tools-set-*` / role APIs), the server writes:
+
+```text
+.temp/debug_instructions.md
+```
+
+Contents: selection snapshot, exact `initialize.instructions` payload, and exact `chievfx://resources/guide` body for the current project state.
+
+Manual refresh:
+
+```bash
+python3 Tools/ChievfxMcp/chievfx_mcp_server.py --project-root . --dump-debug-instructions --debug-trigger manual
+```
+
 ## Related files
 
 | File | Role |

@@ -98,6 +98,7 @@ def save_enabled_tool_ids(
         },
     }
     TOOL_SELECTION_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    dump_debug_instructions("tool-selection-save")
 
 
 def coerce_string_list(value: Any) -> list[str]:

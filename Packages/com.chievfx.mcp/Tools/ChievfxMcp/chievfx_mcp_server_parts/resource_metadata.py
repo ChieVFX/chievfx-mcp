@@ -269,3 +269,4 @@ def save_enabled_resource_ids(
         },
     }
     RESOURCE_SELECTION_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    dump_debug_instructions("resource-selection-save")

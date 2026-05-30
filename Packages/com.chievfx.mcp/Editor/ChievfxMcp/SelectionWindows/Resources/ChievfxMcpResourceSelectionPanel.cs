@@ -807,6 +807,7 @@ namespace Chievfx.Mcp.Editor
 
             lastSavedAtLocal = DateTime.Now;
             RefreshSaveFeedback();
+            ChievfxMcpDebugInstructionsDumper.TryDump("unity-resource-selection-save");
         }
 
         private static void WriteRowMetadata(JsonTextWriter writer, string propertyName, IEnumerable<ResourceRow> rows)

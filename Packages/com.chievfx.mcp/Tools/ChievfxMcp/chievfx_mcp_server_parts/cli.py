@@ -12,6 +12,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tool-metadata", action="store_true", help="Print ChievFX MCP tool metadata and exit.")
     parser.add_argument("--resource-metadata", action="store_true", help="Print ChievFX MCP resource metadata and exit.")
     parser.add_argument("--prompt-metadata", action="store_true", help="Print ChievFX MCP prompt metadata and exit.")
+    parser.add_argument(
+        "--dump-debug-instructions",
+        action="store_true",
+        help="Write .temp/debug_instructions.md from current selection and exit.",
+    )
+    parser.add_argument(
+        "--debug-trigger",
+        default="",
+        help="Optional trigger label stored in debug_instructions.md.",
+    )
     return parser.parse_args()
 
 
@@ -26,6 +36,10 @@ def main() -> int:
         return 0
     if args.prompt_metadata:
         sys.stdout.write(json.dumps(build_prompt_metadata(), ensure_ascii=False, separators=(",", ":")) + "\n")
+        return 0
+    if args.dump_debug_instructions:
+        path = dump_debug_instructions(args.debug_trigger)
+        sys.stdout.write(str(path) + "\n")
         return 0
 
     server = McpServer(args.unity_url, args.bridge_dir, args.timeout)

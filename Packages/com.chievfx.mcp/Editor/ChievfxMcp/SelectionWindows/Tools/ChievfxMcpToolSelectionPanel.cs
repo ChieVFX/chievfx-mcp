@@ -1244,6 +1244,7 @@ namespace Chievfx.Mcp.Editor
 
             lastSavedAtLocal = DateTime.Now;
             RefreshSaveFeedback();
+            ChievfxMcpDebugInstructionsDumper.TryDump("unity-tool-selection-save");
         }
 
         private void ResetRequiredMinimum()

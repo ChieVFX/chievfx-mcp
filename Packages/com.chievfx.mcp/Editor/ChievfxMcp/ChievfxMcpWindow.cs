@@ -222,7 +222,7 @@ namespace Chievfx.Mcp.Editor
 
         private void BuildStatusTab(VisualElement content)
         {
-            setupHelpBox = new HelpBox(string.Empty, HelpBoxMessageType.Info);
+            setupHelpBox = new HelpBox(string.Empty, HelpBoxMessageType.Warning);
             content.Add(setupHelpBox);
 
             summaryLabel = new Label();
@@ -503,8 +503,14 @@ namespace Chievfx.Mcp.Editor
 
             if (summaryLabel != null)
             {
+                var httpSummary = transport == TransportHttp
+                    ? $" | HTTP {(httpRunning ? "running" : "stopped")}"
+                    : string.Empty;
                 summaryLabel.text =
-                    $"Server: script {(serverScriptExists ? "found" : "missing")} | Bridge {(bridgeRunning ? "running" : "stopped")} | HTTP {(httpRunning ? "running" : "stopped")} | Cursor {(configured ? "configured" : "needs write")}";
+                    $"Server: script {(serverScriptExists ? "found" : "missing")} | Bridge {(bridgeRunning ? "running" : "stopped")}{httpSummary} | Cursor {(configured ? "configured" : "needs write")}";
+                summaryLabel.style.color = new StyleColor(!configured || (transport == TransportHttp && !httpRunning)
+                    ? new Color(1f, 0.88f, 0.58f)
+                    : new Color(0.78f, 0.78f, 0.78f));
             }
 
             if (guidanceLabel != null)
@@ -523,7 +529,11 @@ namespace Chievfx.Mcp.Editor
 
             UpdateStateChip(serverChip, serverScriptExists ? "Server found" : "Server missing", serverScriptExists ? StatusChipState.Good : StatusChipState.Warning);
             UpdateStateChip(bridgeChip, bridgeRunning ? "Bridge running" : "Bridge stopped", bridgeRunning ? StatusChipState.Good : StatusChipState.Neutral);
-            UpdateStateChip(httpChip, httpRunning ? "HTTP running" : "HTTP stopped", httpRunning ? StatusChipState.Good : StatusChipState.Neutral);
+            UpdateStateChip(httpChip, httpRunning ? "HTTP running" : "HTTP stopped", httpRunning ? StatusChipState.Good : StatusChipState.Warning);
+            if (httpChip != null)
+            {
+                httpChip.style.display = transport == TransportHttp ? DisplayStyle.Flex : DisplayStyle.None;
+            }
             UpdateStateChip(cursorConfigChip, configured ? "Configured" : "Needs write", configured ? StatusChipState.Good : StatusChipState.Warning);
 
             if (previewField != null)

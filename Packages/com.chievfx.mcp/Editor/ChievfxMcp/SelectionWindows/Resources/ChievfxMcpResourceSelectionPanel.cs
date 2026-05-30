@@ -71,22 +71,21 @@ namespace Chievfx.Mcp.Editor
                 content.Add(CreateTitleRow("ChievFX MCP Resources", allInfo, SetAllInfo));
             }
 
-            content.Add(new HelpBox(
-                "Select advertised MCP resources and templates. Required rows stay enabled; optional changes auto-save.",
-                HelpBoxMessageType.Info));
-
             summaryLabel = new Label();
             summaryLabel.style.marginTop = 8;
             summaryLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
             summaryLabel.style.whiteSpace = WhiteSpace.Normal;
             content.Add(summaryLabel);
 
-            saveFeedbackLabel = new Label("Optional resource changes auto-save. Reload MCP resources or restart Cursor after changing selection.");
-            saveFeedbackLabel.style.marginTop = 2;
-            saveFeedbackLabel.style.marginBottom = 4;
-            saveFeedbackLabel.style.color = new StyleColor(new Color(0.58f, 0.78f, 0.58f));
-            saveFeedbackLabel.style.whiteSpace = WhiteSpace.Normal;
-            content.Add(saveFeedbackLabel);
+            if (allInfo)
+            {
+                saveFeedbackLabel = new Label("Optional resource changes auto-save.");
+                saveFeedbackLabel.style.marginTop = 2;
+                saveFeedbackLabel.style.marginBottom = 4;
+                saveFeedbackLabel.style.color = new StyleColor(new Color(0.58f, 0.78f, 0.58f));
+                saveFeedbackLabel.style.whiteSpace = WhiteSpace.Normal;
+                content.Add(saveFeedbackLabel);
+            }
 
             if (allInfo)
             {
@@ -1002,8 +1001,8 @@ namespace Chievfx.Mcp.Editor
             }
 
             saveFeedbackLabel.text = lastSavedAtLocal.HasValue
-                ? $"Saved at {lastSavedAtLocal.Value:HH:mm:ss}. Reload MCP resources or restart Cursor to apply resource-list changes."
-                : "Optional resource changes auto-save. Reload MCP resources or restart Cursor after changing selection.";
+                ? $"Saved at {lastSavedAtLocal.Value:HH:mm:ss}."
+                : "Optional resource changes auto-save.";
         }
 
         private static int GetCategorySortOrder(string category)

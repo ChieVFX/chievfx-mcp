@@ -81,22 +81,21 @@ namespace Chievfx.Mcp.Editor
                 content.Add(CreateTitleRow("ChievFX MCP Tools", allInfo, SetAllInfo));
             }
 
-            content.Add(new HelpBox(
-                "Select advertised MCP tools. Required tools stay enabled; optional changes auto-save.",
-                HelpBoxMessageType.Info));
-
             summaryLabel = new Label();
             summaryLabel.style.marginTop = 8;
             summaryLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
             summaryLabel.style.whiteSpace = WhiteSpace.Normal;
             content.Add(summaryLabel);
 
-            saveFeedbackLabel = new Label("Optional tool changes auto-save. Reload MCP tools or restart Cursor after changing selection.");
-            saveFeedbackLabel.style.marginTop = 2;
-            saveFeedbackLabel.style.marginBottom = 4;
-            saveFeedbackLabel.style.color = new StyleColor(new Color(0.58f, 0.78f, 0.58f));
-            saveFeedbackLabel.style.whiteSpace = WhiteSpace.Normal;
-            content.Add(saveFeedbackLabel);
+            if (allInfo)
+            {
+                saveFeedbackLabel = new Label("Optional tool changes auto-save.");
+                saveFeedbackLabel.style.marginTop = 2;
+                saveFeedbackLabel.style.marginBottom = 4;
+                saveFeedbackLabel.style.color = new StyleColor(new Color(0.58f, 0.78f, 0.58f));
+                saveFeedbackLabel.style.whiteSpace = WhiteSpace.Normal;
+                content.Add(saveFeedbackLabel);
+            }
 
             if (allInfo)
             {
@@ -167,7 +166,7 @@ namespace Chievfx.Mcp.Editor
                 "Role presets define the MCP capability profile for a session. Applying one updates advertised tools; resources and prompts can grow into the same model.",
                 HelpBoxMessageType.Info));
 
-            saveFeedbackLabel = new Label("Role changes auto-save. Reload MCP tools or restart Cursor after changing selection.");
+            saveFeedbackLabel = new Label("Role changes auto-save.");
             saveFeedbackLabel.style.marginTop = 2;
             saveFeedbackLabel.style.marginBottom = 4;
             saveFeedbackLabel.style.color = new StyleColor(new Color(0.58f, 0.78f, 0.58f));
@@ -1415,8 +1414,8 @@ namespace Chievfx.Mcp.Editor
             }
 
             saveFeedbackLabel.text = lastSavedAtLocal.HasValue
-                ? $"Saved at {lastSavedAtLocal.Value:HH:mm:ss}. Reload MCP tools or restart Cursor to apply descriptor changes."
-                : "Optional tool changes auto-save. Reload MCP tools or restart Cursor after changing selection.";
+                ? $"Saved at {lastSavedAtLocal.Value:HH:mm:ss}."
+                : "Optional tool changes auto-save.";
         }
 
         private readonly struct SelectionTotals

@@ -44,23 +44,39 @@ class ToolRoleTests(unittest.TestCase):
         response = self.call_tool(name, payload)
         return json.loads(response["result"]["content"][0]["text"])
 
+    def test_developer_role_is_default_without_saved_selection(self) -> None:
+        tools = self.request("tools/list")["result"]["tools"]
+        names = {tool["name"] for tool in tools}
+        inventory = self.call_json_tool("tools-list-categories")
+
+        self.assertFalse(self.selection_path.exists())
+        self.assertEqual(inventory["roleState"]["kind"], "built-in")
+        self.assertEqual(inventory["roleState"]["roleId"], "developer")
+        self.assertFalse(inventory["roleState"]["manualOverride"])
+        self.assertIn("scene-open", names)
+        self.assertIn("gameobject-find", names)
+        self.assertIn("prefab-open", names)
+        self.assertIn("tests-run", names)
+        self.assertNotIn("profiler-get-state", names)
+
     def test_builtin_role_applies_deterministically_and_filters_tools_list(self) -> None:
-        result = self.call_json_tool("tools-set-role", {"role": "performance-profiling"})
+        result = self.call_json_tool("tools-set-role", {"role": "qa"})
         tools = self.request("tools/list")["result"]["tools"]
         names = {tool["name"] for tool in tools}
 
         self.assertTrue(result["mutated"])
-        self.assertEqual(result["roleState"]["roleId"], "performance-profiling")
-        self.assertIn("profiler-get-state", names)
+        self.assertEqual(result["roleState"]["roleId"], "qa")
+        self.assertIn("tests-run", names)
         self.assertIn("tools-set-role", names)
-        self.assertNotIn("tests-run", names)
-        self.assertNotIn("gameobject-find", names)
+        self.assertIn("gameobject-find", names)
+        self.assertNotIn("prefab-open", names)
 
     def test_required_tools_remain_enabled_when_role_is_narrow(self) -> None:
-        self.call_tool("tools-set-role", {"role": "performance-profiling"})
+        self.call_tool("tools-set-role", {"role": "qa"})
         enabled_ids = mcp.load_enabled_tool_ids()
 
-        required_tool_ids = mcp.load_required_tool_ids()
+        known_tool_ids = {tool["name"] for tool in mcp.all_tools()}
+        required_tool_ids = mcp.load_required_tool_ids() & known_tool_ids
         for required_tool_id in required_tool_ids:
             self.assertIn(required_tool_id, enabled_ids)
 
@@ -139,7 +155,7 @@ class ToolRoleTests(unittest.TestCase):
 
         self.assertIn("enabled:", text)
         self.assertIn("disabled:", text)
-        self.assertIn("- GameObject (0/10)", text)
+        self.assertIn("- Profiler (0/5)", text)
 
     def test_tools_list_category_default_output_is_compact(self) -> None:
         self.call_tool("tools-set-role", {"role": "developer"})
@@ -154,34 +170,34 @@ class ToolRoleTests(unittest.TestCase):
         self.assertNotIn("estimatedTokens", text)
 
     def test_tools_list_category_can_include_disabled(self) -> None:
-        text = self.call_tool("tools-list-category", {"category": "GameObject", "includeDisabled": True})["result"]["content"][0]["text"]
+        text = self.call_tool("tools-list-category", {"category": "Profiler", "includeDisabled": True})["result"]["content"][0]["text"]
 
         self.assertIn("enabled:", text)
         self.assertIn("disabled:", text)
-        self.assertIn("- gameobject-find (", text)
+        self.assertIn("- profiler-get-state", text)
 
     def test_tools_list_disabled_category_still_shows_enabled_section(self) -> None:
-        text = self.call_tool("tools-list-category", {"category": "GameObject", "includeDisabled": True})["result"]["content"][0]["text"]
+        text = self.call_tool("tools-list-category", {"category": "Profiler", "includeDisabled": True})["result"]["content"][0]["text"]
 
         self.assertIn("enabled:\n- none", text)
         self.assertIn("disabled:", text)
 
     def test_disabled_tool_call_returns_clear_error(self) -> None:
-        self.call_tool("tools-set-role", {"role": "performance-profiling"})
+        self.call_tool("tools-set-role", {"role": "qa"})
 
-        response = self.call_tool("tests-run", {})
+        response = self.call_tool("prefab-open", {})
 
         self.assertIn("error", response)
         self.assertIn("disabled", response["error"]["message"])
         self.assertIn("MCP Tools", response["error"]["message"])
 
     def test_manual_tool_edit_marks_role_modified(self) -> None:
-        self.call_tool("tools-set-role", {"role": "performance-profiling"})
-        self.call_tool("tools-set-enabled-state", {"tool": "gameobject-find", "enabled": True})
+        self.call_tool("tools-set-role", {"role": "qa"})
+        self.call_tool("tools-set-enabled-state", {"tool": "prefab-open", "enabled": True})
 
         state = mcp.load_tool_role_state()
 
-        self.assertEqual(state["roleId"], "performance-profiling")
+        self.assertEqual(state["roleId"], "qa")
         self.assertTrue(state["manualOverride"])
 
     def test_get_roles_returns_only_titles_and_descriptions(self) -> None:
@@ -193,11 +209,6 @@ class ToolRoleTests(unittest.TestCase):
                 "roles": [
                     {"index": 1, "title": "Developer", "description": "Builder mode: scene, objects, prefabs, tests, and sharp tools in one belt."},
                     {"index": 2, "title": "QA", "description": "Bug net: inspect scenes, run tests, and poke windows without opening the toolbox volcano."},
-                    {"index": 3, "title": "Performance Profiling", "description": "Frame hunter: profiler, counters, and debugger snacks for chasing stutter goblins."},
-                    {"index": 4, "title": "Memory Profiling", "description": "Heap whisperer: profiler access now, Memory Profiler hooks when project grows them."},
-                    {"index": 5, "title": "uGUI UI", "description": "Canvas goblin: uGUI authoring and runtime eyes, plus enough scene context to not get lost."},
-                    {"index": 6, "title": "UI Toolkit UI", "description": "Panel mage: UI Toolkit probes and editor-window vision for USS spelunking."},
-                    {"index": 7, "title": "ECS Developer", "description": "Chunk wrangler: ECS facts, scene context, and test tools for data-oriented mischief."},
                 ],
             },
         )
@@ -211,33 +222,28 @@ class ToolRoleTests(unittest.TestCase):
         self.assertNotIn("counts", text)
 
     def test_get_role_returns_tools_grouped_by_category(self) -> None:
-        result = self.call_json_tool("tools-get-role", {"roleIndex": 3})
+        result = self.call_json_tool("tools-get-role", {"roleIndex": 2})
         categories = {category["name"]: category["tools"] for category in result["categories"]}
 
-        self.assertEqual(result["role"]["title"], "Performance Profiling")
-        self.assertIn("Profiler", categories)
-        self.assertIn("Frame Debugger", categories)
-        self.assertIn("profiler-get-state", categories["Profiler"])
-        self.assertIn("frame-debugger-control", categories["Frame Debugger"])
-        self.assertIn("frame-debugger-groups-list", categories["Frame Debugger"])
-        self.assertIn("frame-debugger-group-events-list", categories["Frame Debugger"])
-        self.assertIn("frame-debugger-drawcall-get", categories["Frame Debugger"])
-        self.assertIn("frame-debugger-drawcall-screenshot", categories["Frame Debugger"])
-        self.assertIn("frame-debugger-events-list", categories["Frame Debugger"])
-        self.assertIn("frame-debugger-event-get", categories["Frame Debugger"])
+        self.assertEqual(result["role"]["title"], "QA")
+        self.assertIn("Scene", categories)
+        self.assertIn("GameObject", categories)
+        self.assertIn("Script Execution / Tests", categories)
+        self.assertIn("tests-run", categories["Script Execution / Tests"])
+        self.assertIn("gameobject-find", categories["GameObject"])
 
-        text = self.call_tool("tools-get-role", {"roleIndex": 3})["result"]["content"][0]["text"]
-        self.assertIn("Role 3: Performance Profiling", text)
-        self.assertIn("- Profiler\n  - profiler-counters-get", text)
+        text = self.call_tool("tools-get-role", {"roleIndex": 2})["result"]["content"][0]["text"]
+        self.assertIn("Role 2: QA", text)
+        self.assertIn("- Script Execution / Tests\n  - script-execute", text)
 
     def test_set_role_accepts_role_index(self) -> None:
-        result = self.call_json_tool("tools-set-role", {"roleIndex": 3})
+        result = self.call_json_tool("tools-set-role", {"roleIndex": 2})
         tools = self.request("tools/list")["result"]["tools"]
         names = {tool["name"] for tool in tools}
 
-        self.assertEqual(result["roleState"]["roleId"], "performance-profiling")
-        self.assertIn("profiler-get-state", names)
-        self.assertNotIn("tests-run", names)
+        self.assertEqual(result["roleState"]["roleId"], "qa")
+        self.assertIn("tests-run", names)
+        self.assertNotIn("prefab-open", names)
 
     def test_set_role_default_output_matches_get_role_detail(self) -> None:
         text = self.call_tool("tools-set-role", {"roleIndex": 2})["result"]["content"][0]["text"]
@@ -255,7 +261,7 @@ class ToolRoleTests(unittest.TestCase):
         self.assertNotIn("counts", text)
 
     def test_set_enabled_state_no_change_mentions_reason(self) -> None:
-        text = self.call_tool("tools-set-enabled-state", {"category": "Prefab", "enabled": False})["result"]["content"][0]["text"]
+        text = self.call_tool("tools-set-enabled-state", {"category": "Profiler", "enabled": False})["result"]["content"][0]["text"]
 
         self.assertEqual(text, "success: 5 tools already disabled")
 

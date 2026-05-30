@@ -21,6 +21,9 @@ def load_enabled_tool_ids() -> set[str]:
 
     enabled_ids = payload.get("enabledToolIds")
     if not isinstance(enabled_ids, list):
+        default_role = next((role for role in load_builtin_tool_roles() if role.get("id") == "developer"), None)
+        if default_role is not None:
+            return enabled_ids_for_role(default_role, build_tool_metadata())
         return required_tool_ids | (set(DEFAULT_ENABLED_TOOL_IDS) & tool_names)
 
     selected_tool_ids = {item for item in enabled_ids if isinstance(item, str)}
@@ -30,8 +33,22 @@ def load_enabled_tool_ids() -> set[str]:
 
 
 def load_tool_role_state() -> dict[str, Any]:
-    state = load_tool_selection_payload().get("roleState")
-    return state if isinstance(state, dict) else {"kind": "manual", "manualOverride": False}
+    payload = load_tool_selection_payload()
+    state = payload.get("roleState")
+    if isinstance(state, dict):
+        return state
+    if "enabledToolIds" not in payload:
+        default_role = next((role for role in load_builtin_tool_roles() if role.get("id") == "developer"), None)
+        if default_role is not None:
+            return {
+                "kind": "built-in",
+                "roleId": default_role.get("id"),
+                "displayName": default_role.get("displayName"),
+                "description": default_role.get("description", ""),
+                "customAssetPath": None,
+                "manualOverride": False,
+            }
+    return {"kind": "manual", "manualOverride": False}
 
 
 def save_enabled_tool_ids(

@@ -9,7 +9,7 @@
       },
       "role": {
         "type": "string",
-        "description": "Built-in/custom role id or display name. Examples: Developer, performance-profiling."
+        "description": "Built-in/custom role id or display name. Examples: Developer, QA."
       },
       "roleId": {
         "type": "string",

@@ -114,7 +114,7 @@ Use `tools-list-categories` to inspect tool categories and `tools-list-category`
 
 ## Tool Roles
 
-Roles are presets above manual category/tool controls. Applying a role enables its category list and explicit tool IDs, disables other optional tools, and keeps required tools locked enabled. Built-in roles live in `Tools/ChievfxMcp/chievfx_mcp_role_presets.json`: `Developer`, `QA`, `Performance Profiling`, `Memory Profiling`, `uGUI UI`, `UI Toolkit UI`, and `ECS Developer`.
+Roles are presets above manual category/tool controls. Applying a role enables its category list and explicit tool IDs, disables other optional tools, and keeps required tools locked enabled. Built-in roles live in `Tools/ChievfxMcp/chievfx_mcp_role_presets.json`: `Developer` and `QA`. Fresh installs default to `Developer` until a saved project-local selection exists.
 
 Open `Window > ChievFX > MCP Tools` to apply roles, inspect missing categories/tools, see token totals, and create custom project roles. Custom roles are Unity `ChievfxMcpToolRoleAsset` assets under `Assets/ChievfxMcp/Roles` by default; create one from the MCP Tools window, edit it in Inspector, or save the current tool selection back into the asset. The selected role and modified/manual state are stored only in:
 
@@ -125,7 +125,7 @@ UserSettings/ChievfxMcpToolSelection.json
 Agents can switch roles programmatically:
 
 ```json
-{ "name": "tools-set-role", "arguments": { "role": "performance-profiling" } }
+{ "name": "tools-set-role", "arguments": { "role": "qa" } }
 ```
 
 Use `tools-get-roles` for current state and available built-in/custom roles. Use `customAssetPath` to apply a project role asset, for example `Assets/ChievfxMcp/Roles/MyRole.asset`. After role changes, call `reload_cursor_mcp` for `unity-mcp-chievfx` or the full runtime id shown in `SERVER_METADATA.json`; running server processes read the selection file at runtime, but Cursor caches `tools/list`.

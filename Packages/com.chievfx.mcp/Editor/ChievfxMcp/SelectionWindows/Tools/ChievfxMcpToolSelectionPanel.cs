@@ -263,7 +263,22 @@ namespace Chievfx.Mcp.Editor
 
             if (!hasSavedEnabledIds)
             {
-                enabledIds.UnionWith(ChievfxMcpToolPolicy.DefaultEnabledToolIds);
+                var defaultRole = roleDefinitions.FirstOrDefault(role =>
+                    string.Equals(role.Kind, "built-in", StringComparison.Ordinal)
+                    && string.Equals(role.Id, "developer", StringComparison.Ordinal));
+                if (defaultRole != null)
+                {
+                    enabledIds.UnionWith(ChievfxMcpToolPolicy.DefaultEnabledToolIds);
+                    enabledIds.UnionWith(GetRowsForRole(defaultRole).Select(row => row.Id));
+                    activeRoleKind = defaultRole.Kind;
+                    activeRoleId = defaultRole.Id;
+                    activeRoleDisplayName = defaultRole.DisplayName;
+                    activeCustomRolePath = defaultRole.AssetPath;
+                }
+                else
+                {
+                    enabledIds.UnionWith(ChievfxMcpToolPolicy.DefaultEnabledToolIds);
+                }
             }
 
             foreach (var row in toolRows)

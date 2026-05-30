@@ -487,15 +487,10 @@ class McpServerCore:
         elif (extension_template := get_extension_resource_template_by_uri(uri)) is not None:
             mime_type = extension_template.get("mimeType") or RESOURCE_MIME_TYPE
             bridge_result = fetch_via_bridge()
-            if uri.startswith("chievfx://scene/current/hierarchy"):
-                text = truncate_resource_text(format_scene_current_hierarchy_resource_text(bridge_result.get("result")))
-            else:
-                text = format_resource_text(bridge_result.get("result"))
+            text = format_resource_text(bridge_result.get("result"))
         else:
             bridge_result = fetch_via_bridge()
-            if uri.startswith("chievfx://scene/current/hierarchy"):
-                text = truncate_resource_text(format_scene_current_hierarchy_resource_text(bridge_result.get("result")))
-            elif uri == "chievfx://scene/opened":
+            if uri == "chievfx://scene/opened":
                 text = format_scene_opened_resource_text(bridge_result.get("result"))
             else:
                 text = format_resource_text(bridge_result.get("result"))

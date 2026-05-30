@@ -14,7 +14,6 @@ namespace Chievfx.Mcp.Editor
                 Resource("resources-guide", "chievfx://resources/guide", "ChievFX MCP resource guide", "Static guide for ChievFX resource URIs, drill-down links, and encoding rules."),
                 Resource("editor-context", "chievfx://editor/context", "Unity editor context", "Compact Unity editor, play mode, active scene, prefab stage, and selection context."),
                 Resource("scene-opened", "chievfx://scene/opened", "Opened scenes", "Opened Unity scenes and their load/dirty/build state."),
-                Resource("scene-current-hierarchy", "chievfx://scene/current/hierarchy", "Current hierarchy", "Compact hierarchy for the current prefab stage when open, otherwise active scene."),
                 Resource("scene-current-usage-counts", "chievfx://scene/current/usage/counts", "Current scene asset usage counts", "Asset usage totals for the current prefab stage or active scene, grouped by common asset type."),
                 Resource("scene-current-material-profile-summary", "chievfx://scene/current/material-profile/summary", "Current scene material profile", "Read-only material profile for the current prefab stage or active scene with exact shader/material counts and profiler memory estimates."),
             };
@@ -22,7 +21,6 @@ namespace Chievfx.Mcp.Editor
         public static IReadOnlyList<ChievfxMcpResourceTemplateDescriptor> ResourceTemplates { get; } =
             new[]
             {
-                Template("scene-current-hierarchy-path", "chievfx://scene/current/hierarchy/{hierarchyPath}", "Current hierarchy subtree", "Compact hierarchy for a subtree in the current scene or opened prefab."),
                 Template("scene-go", "chievfx://scene/{scenePath}/go/{goPath}", "GameObject summary by scene and path", "Compact GameObject summary. Percent-encode scene path and hierarchy path as full URI segments."),
                 Template("scene-component", "chievfx://scene/{scenePath}/go/{goPath}/component/{componentKey}", "Component serialized values by scene, GameObject path, and component key", "Serialized values for one component. Percent-encode every dynamic value as a full URI segment."),
                 Template("scene-current-go", "chievfx://scene/current/go/{goPath}", "Current GameObject summary", "Compact GameObject summary in the current prefab stage or active scene."),

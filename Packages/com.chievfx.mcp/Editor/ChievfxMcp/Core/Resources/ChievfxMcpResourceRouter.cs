@@ -54,26 +54,6 @@ namespace Chievfx.Mcp.Editor
                     return sceneResources.ReadOpenedScenesResource(uri);
                 }
 
-                if (string.Equals(uri, "chievfx://scene/current/hierarchy", StringComparison.Ordinal))
-                {
-                    return sceneResources.ReadHierarchyResource(uri, GameObjectBridgeService.GetGameObjectQueryContext());
-                }
-
-                if (uri.StartsWith("chievfx://scene/current/hierarchy/", StringComparison.Ordinal))
-                {
-                    var hierarchyPath = uri.Substring("chievfx://scene/current/hierarchy/".Length);
-                    if (string.IsNullOrWhiteSpace(hierarchyPath))
-                    {
-                        throw new ArgumentException("Hierarchy path cannot be empty.");
-                    }
-
-                    return BridgeResourcePayloadService.ReadHierarchyResource(
-                        uri,
-                        GameObjectBridgeService.GetGameObjectQueryContext(),
-                        BridgeResourcePayloadService.DecodeResourceSegment(hierarchyPath, "hierarchyPath"),
-                        limitToTwoLevels: true);
-                }
-
                 if (uri.StartsWith("chievfx://assets/", StringComparison.Ordinal))
                 {
                     var assetParts = uri.Substring("chievfx://assets/".Length).Split('/');

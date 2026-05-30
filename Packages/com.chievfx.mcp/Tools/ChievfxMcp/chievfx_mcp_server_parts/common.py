@@ -51,7 +51,6 @@ EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION = 1
 EXTENSION_URI_PREFIX = "chievfx://extensions/"
 RESOURCE_MIME_TYPE = "text/plain"
 MAX_RESOURCE_TEXT_CHARS = 40000
-MAX_RESOURCE_TEXT_LINES = 200
 HEARTBEAT_STALE_SECONDS = 5.0
 PROCESSING_STALE_SECONDS = 30.0
 OPERATION_STALE_SECONDS = 60.0
@@ -241,12 +240,10 @@ RESOURCE_CATEGORIES = {
     "resources-guide": "Guide",
     "editor-context": "Editor",
     "scene-opened": "Scene",
-    "scene-current-hierarchy": "Scene",
     "scene-current-material-profile-summary": "Asset",
     "scene-current-usage-counts": "Asset",
 }
 RESOURCE_TEMPLATE_CATEGORIES = {
-    "scene-current-hierarchy-path": "Scene",
     "scene-go": "GameObject",
     "scene-component": "GameObject",
     "scene-current-go": "GameObject",
@@ -270,7 +267,7 @@ RESOURCE_TEMPLATE_CATEGORIES = {
 RESOURCE_CATEGORY_DESCRIPTIONS = {
     "Guide": "Static usage notes for ChievFX MCP resources and URI encoding.",
     "Editor": "Compact current Unity editor context.",
-    "Scene": "Opened scenes and hierarchy resources.",
+    "Scene": "Opened scenes and scene context resources.",
     "GameObject": "GameObject and component drill-down resources.",
     "Asset": "Persisted AssetDatabase search and asset drill-down resources.",
     "cinemachine-and-timeline": "Cinemachine and Timeline extension resources for camera/cutscene inspection.",
@@ -442,8 +439,6 @@ RESPONSE_PROFILE_BY_RESOURCE = {
     "resources-guide": "guide",
     "editor-context": "status",
     "scene-opened": "row-list",
-    "scene-current-hierarchy": "row-list",
-    "scene-current-hierarchy-path": "row-list",
     "scene-go": "row-list",
     "scene-component": "serialized-component",
     "scene-current-go": "row-list",

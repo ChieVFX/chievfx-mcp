@@ -24,13 +24,6 @@ RESOURCES: list[dict[str, Any]] = [
         "mimeType": RESOURCE_MIME_TYPE,
     },
     {
-        "id": "scene-current-hierarchy",
-        "uri": "chievfx://scene/current/hierarchy",
-        "name": "Current hierarchy",
-        "description": "Compact hierarchy for the current prefab stage when open, otherwise active scene.",
-        "mimeType": RESOURCE_MIME_TYPE,
-    },
-    {
         "id": "scene-current-usage-counts",
         "uri": "chievfx://scene/current/usage/counts",
         "name": "Current scene asset usage counts",
@@ -48,14 +41,6 @@ RESOURCES: list[dict[str, Any]] = [
 
 
 RESOURCE_TEMPLATES: list[dict[str, Any]] = [
-    {
-        "id": "scene-current-hierarchy-path",
-        "uriTemplate": "chievfx://scene/current/hierarchy/{hierarchyPath}",
-        "name": "Current hierarchy subtree",
-        "description": "Compact hierarchy for a subtree in the current scene or opened prefab.",
-        "required": True,
-        "mimeType": RESOURCE_MIME_TYPE,
-    },
     {
         "id": "scene-go",
         "uriTemplate": "chievfx://scene/{scenePath}/go/{goPath}",

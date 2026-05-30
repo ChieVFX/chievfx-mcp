@@ -295,7 +295,6 @@ namespace Chievfx.Mcp.Editor
                 ["sceneName"] = context.SceneName,
                 ["scenePath"] = context.ScenePath,
                 ["prefabAssetPath"] = context.PrefabAssetPath,
-                ["hierarchyUri"] = GetHierarchyResourceUri(context)
             };
         }
 
@@ -368,59 +367,6 @@ namespace Chievfx.Mcp.Editor
             }
 
             return output;
-        }
-
-        private static Dictionary<string, object?>? BuildResourceHierarchyNode(
-            GameObject gameObject,
-            GameObjectQueryContext context,
-            int depth,
-            int maxDepth,
-            int maxResults,
-            ref int emitted,
-            ref bool truncated,
-            ref bool depthLimited)
-        {
-            if (emitted >= maxResults)
-            {
-                truncated = true;
-                return null;
-            }
-
-            emitted++;
-            var node = CreateResourceGameObjectSummary(gameObject, context, includeComponents: true);
-            if (gameObject.transform.childCount == 0)
-            {
-                return node;
-            }
-
-            if (depth >= maxDepth)
-            {
-                node["childrenTruncatedByDepth"] = true;
-                depthLimited = true;
-                return node;
-            }
-
-            var children = new List<Dictionary<string, object?>>();
-            foreach (Transform child in gameObject.transform)
-            {
-                var childNode = BuildResourceHierarchyNode(child.gameObject, context, depth + 1, maxDepth, maxResults, ref emitted, ref truncated, ref depthLimited);
-                if (childNode != null)
-                {
-                    children.Add(childNode);
-                }
-
-                if (truncated)
-                {
-                    break;
-                }
-            }
-
-            if (children.Count > 0)
-            {
-                node["children"] = children.ToArray();
-            }
-
-            return node;
         }
 
         private static Dictionary<string, object?> CreateResourceGameObjectSummary(
@@ -572,11 +518,6 @@ namespace Chievfx.Mcp.Editor
         private static string GetComponentSimpleName(Component? component)
         {
             return component == null ? "MissingScript" : component.GetType().Name;
-        }
-
-        private static string GetHierarchyResourceUri(GameObjectQueryContext _)
-        {
-            return "chievfx://scene/current/hierarchy";
         }
 
         private static string GetGameObjectResourceUri(GameObject gameObject, GameObjectQueryContext context)

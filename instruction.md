@@ -157,7 +157,6 @@ Static resources:
 - `chievfx://resources/guide`
 - `chievfx://editor/context`
 - `chievfx://scene/opened`
-- `chievfx://scene/current/hierarchy`
 
 Resource templates:
 
@@ -190,7 +189,7 @@ json.dumps(
 
 Tokens use optional Python `tiktoken` encoding `o200k_base` when installed, else deterministic fallback `ceil(utf8Bytes / 4)`. Descriptor byte count, SHA-256 hash, exact compact preview, and estimated tokens come from the same preview string.
 
-The Resources window also shows rough `resources/read` base overhead from a compact JSON-RPC envelope with one `uri` param. Template read-envelope estimates use the advertised `uriTemplate` string as the sample URI; real encoded scene/GameObject/component path lengths are not included. Response-size labels are rough profiles only: editor context is usually status-sized, hierarchy/list resources scale with row count, and component/value resources can reach larger output sizes. Outputs are compact `text/plain` TOON with `readAt` metadata, drill-down URIs, truncation flags, and hard caps.
+The Resources window also shows rough `resources/read` base overhead from a compact JSON-RPC envelope with one `uri` param. Template read-envelope estimates use the advertised `uriTemplate` string as the sample URI; real encoded scene/GameObject/component path lengths are not included. Response-size labels are rough profiles only: editor context is usually status-sized, list resources scale with row count, and component/value resources can reach larger output sizes. Outputs are compact `text/plain` TOON with `readAt` metadata, drill-down URIs, truncation flags, and hard caps.
 
 If Cursor shows stale resources after changing selection, reload MCP resources or restart Cursor. Stale resource-list caches can lag behind `Tools/ChievfxMcp/chievfx_mcp_server.py` and `UserSettings/ChievfxMcpResourceSelection.json`. Existing `.cursor/mcp.json` does not embed resource selection; the MCP server reads selection at runtime. Cursor may cache resource lists, so treat the selection file as source of truth when checking freshness.
 

@@ -42,8 +42,6 @@ def resolve_resource_uri(uri: str) -> tuple[str, str]:
     if uri.startswith("chievfx://scene/"):
         rest = uri[len("chievfx://scene/") :]
         parts = rest.split("/")
-        if len(parts) == 3 and parts[0] == "current" and parts[1] == "hierarchy" and parts[2]:
-            return "template", "scene-current-hierarchy-path"
         if len(parts) == 4 and parts[0] == "current" and parts[1] == "usage" and parts[2] == "assets" and parts[3]:
             return "template", "scene-current-usage-assets"
         if len(parts) == 4 and parts[0] == "current" and parts[1] == "usage" and parts[2] == "asset" and parts[3]:

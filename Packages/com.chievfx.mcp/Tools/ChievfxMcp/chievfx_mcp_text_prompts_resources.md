@@ -42,15 +42,6 @@ mimeType: text/plain
 
 --- 
 type: resource
-id: scene-current-hierarchy
-uri: chievfx://scene/current/hierarchy
-name: Current hierarchy
-description: Compact hierarchy for the current prefab stage when open, otherwise active scene.
-mimeType: text/plain
----
-
---- 
-type: resource
 id: scene-current-usage-counts
 uri: chievfx://scene/current/usage/counts
 name: Current scene asset usage counts
@@ -68,16 +59,6 @@ mimeType: text/plain
 ---
 
 ### RESOURCE TEMPLATE
----
-type: resourceTemplate
-id: scene-current-hierarchy-path
-uriTemplate: chievfx://scene/current/hierarchy/{hierarchyPath}
-name: Current hierarchy subtree
-description: Compact hierarchy for a subtree in the current scene or opened prefab.
-required: true
-mimeType: text/plain
----
-
 ---
 type: resourceTemplate
 id: scene-go

@@ -50,13 +50,11 @@ namespace Chievfx.Mcp.Editor
                 {
                     ["active"] = true,
                     ["assetPath"] = stage.assetPath,
-                    ["hierarchyUri"] = "chievfx://scene/current/hierarchy"
                 };
             }
             else
             {
                 var sceneDto = SceneToResourceDto(activeScene);
-                sceneDto["hierarchyUri"] = "chievfx://scene/current/hierarchy";
                 result["scene"] = sceneDto;
             }
 
@@ -84,56 +82,6 @@ namespace Chievfx.Mcp.Editor
             });
             result["count"] = scenes.Length;
             result["scenes"] = scenes;
-            return result;
-        }
-
-        internal static object ReadHierarchyResource(string uri, GameObjectQueryContext context, string? hierarchyPath = null, bool limitToTwoLevels = false)
-        {
-            var emitted = 0;
-            var truncated = false;
-            var depthLimited = false;
-            var rootsToRead = context.Roots;
-            if (!string.IsNullOrWhiteSpace(hierarchyPath))
-            {
-                var decodedHierarchyPath = BridgeResourcePayloadService.DecodeResourceSegment(hierarchyPath!, "hierarchyPath");
-                rootsToRead = new[] { GameObjectBridgeService.ResolveGameObjectByPath(context, decodedHierarchyPath) };
-            }
-
-            var maxDepth = limitToTwoLevels ? (string.IsNullOrWhiteSpace(hierarchyPath) ? 1 : 3) : DefaultResourceMaxDepth;
-            var maxResults = limitToTwoLevels ? int.MaxValue : DefaultResourceMaxResults;
-
-            var totalObjects = rootsToRead.Sum(GameObjectBridgeService.CountGameObjects);
-            var roots = new List<Dictionary<string, object?>>();
-            foreach (var root in rootsToRead)
-            {
-                var node = BuildResourceHierarchyNode(
-                    root,
-                    context,
-                    0,
-                    maxDepth,
-                    maxResults,
-                    ref emitted,
-                    ref truncated,
-                    ref depthLimited);
-                if (node != null)
-                {
-                    roots.Add(node);
-                }
-
-                if (truncated)
-                {
-                    break;
-                }
-            }
-
-            var result = CreateResourceEnvelope(uri, CreateResourceContext(context));
-            result["count"] = emitted;
-            result["totalObjects"] = totalObjects;
-            result["maxDepth"] = maxDepth;
-            result["maxResults"] = maxResults;
-            result["truncated"] = !limitToTwoLevels && truncated;
-            result["depthLimited"] = limitToTwoLevels || depthLimited;
-            result["roots"] = roots.ToArray();
             return result;
         }
 

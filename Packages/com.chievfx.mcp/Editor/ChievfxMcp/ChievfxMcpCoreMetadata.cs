@@ -9,11 +9,9 @@ namespace Chievfx.Mcp.Editor
         // Resource("resources-guide", "chievfx://resources/guide")
         // Resource("editor-context", "chievfx://editor/context")
         // Resource("scene-opened", "chievfx://scene/opened")
-        // Resource("scene-current-hierarchy", "chievfx://scene/current/hierarchy")
         // Resource("scene-current-usage-counts", "chievfx://scene/current/usage/counts")
         // Resource("scene-current-material-profile-summary", "chievfx://scene/current/material-profile/summary")
 
-        // Template("scene-current-hierarchy-path", "chievfx://scene/current/hierarchy/{hierarchyPath}")
         // Template("scene-go", "chievfx://scene/{scenePath}/go/{goPath}")
         // Template("scene-component", "chievfx://scene/{scenePath}/go/{goPath}/component/{componentKey}")
         // Template("scene-current-go", "chievfx://scene/current/go/{goPath}")

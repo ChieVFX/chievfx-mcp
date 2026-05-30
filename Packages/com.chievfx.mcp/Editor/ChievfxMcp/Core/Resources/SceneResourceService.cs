@@ -15,11 +15,6 @@ namespace Chievfx.Mcp.Editor
             return BridgeResourcePayloadService.ReadOpenedScenesResource(uri);
         }
 
-        public object ReadHierarchyResource(string uri, GameObjectQueryContext context)
-        {
-            return BridgeResourcePayloadService.ReadHierarchyResource(uri, context, limitToTwoLevels: true);
-        }
-
         public object ReadGameObjectResource(string uri, GameObjectQueryContext context, GameObject gameObject)
         {
             return BridgeResourcePayloadService.ReadGameObjectResource(uri, context, gameObject);

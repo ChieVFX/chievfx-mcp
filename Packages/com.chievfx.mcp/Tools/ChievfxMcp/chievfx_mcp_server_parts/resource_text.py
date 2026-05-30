@@ -2,40 +2,32 @@
 # Keep this part focused and below 1000 lines.
 
 def resource_guide_text() -> str:
-    return "\n".join(
+    lines = [
+        "ChievFX MCP resources v2",
+        "Guide covers enabled v2 GameObject, AssetDatabase, and scene-usage resources for this project.",
+        "Static resource and template lists match resources/list and resources/templates/list for the current selection.",
+        "",
+        "Static resources:",
+    ]
+
+    resource_descriptors = sorted(enabled_resources(), key=lambda item: item.get("uri", ""))
+    if resource_descriptors:
+        lines.extend(format_resource_for_initialize_instructions(descriptor) for descriptor in resource_descriptors)
+    else:
+        lines.append("- (none enabled)")
+
+    lines.extend(["", "Templates:"])
+
+    template_descriptors = sorted(enabled_resource_templates(), key=lambda item: item.get("uriTemplate", ""))
+    if template_descriptors:
+        lines.extend(
+            format_resource_template_for_initialize_instructions(descriptor) for descriptor in template_descriptors
+        )
+    else:
+        lines.append("- (none enabled)")
+
+    lines.extend(
         [
-            "ChievFX MCP resources v2",
-            "Guide covers v2 GameObject, AssetDatabase, and scene-usage resources.",
-            "",
-            "Static resources:",
-            "- chievfx://resources/guide",
-            "- chievfx://editor/context",
-            "- chievfx://scene/opened",
-            "- chievfx://scene/current/hierarchy",
-            "- chievfx://scene/current/usage/counts",
-            "- chievfx://scene/current/material-profile/summary",
-            "",
-            "Templates:",
-            "- chievfx://scene/{scenePath}/go/{goPath}",
-            "- chievfx://scene/{scenePath}/go/{goPath}/component/{componentKey}",
-            "- chievfx://scene/current/go/{goPath}",
-            "- chievfx://scene/current/go/{goPath}/component/{componentKey}",
-        "- chievfx://scene/current/hierarchy/{hierarchyPath}",
-            "- chievfx://scene/current/go/name-contains/{text}",
-            "- chievfx://scene/current/go/name-pattern/{pattern}",
-            "- chievfx://scene/current/go/component/{componentType}",
-            "- chievfx://scene/current/go/filter/{filterSpec}",
-            "- chievfx://assets/name-contains/{text}",
-            "- chievfx://assets/type/{assetType}",
-            "- chievfx://assets/label/{label}",
-            "- chievfx://assets/filter/{filterSpec}",
-            "- chievfx://asset/{guid}",
-            "- chievfx://asset/{guid}/id/{localId}",
-            "- chievfx://scene/current/material-profile/shader/{shaderKey}",
-            "- chievfx://scene/current/material-profile/material/{materialKey}",
-            "- chievfx://scene/current/usage/assets/{assetType}",
-            "- chievfx://scene/current/usage/asset/{guid}",
-            "- chievfx://scene/current/usage/asset/{guid}/id/{localId}",
             "",
             "Encode every scene path, GameObject hierarchy path, component key, and asset filterSpec as one URI segment.",
             "Use percent-encoding with no safe slash: quote(value, safe='').",
@@ -49,6 +41,7 @@ def resource_guide_text() -> str:
             "Outputs are compact text/plain TOON with readAt metadata, drill-down URIs, truncation flags, and hard caps.",
         ]
     )
+    return "\n".join(lines)
 
 
 def format_scene_opened_resource_text(result: Any) -> str:

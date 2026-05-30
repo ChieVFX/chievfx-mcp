@@ -148,7 +148,7 @@ Open `Window > ChievFX > MCP Resources` to choose advertised MCP resources/templ
 UserSettings/ChievfxMcpResourceSelection.json
 ```
 
-Fresh `resources/list` and `resources/templates/list` advertise enabled resources only. Default required resource:
+Fresh `resources/list` and `resources/templates/list` advertise enabled resources only. The required `chievfx://resources/guide` resource lists the same enabled static resources and templates plus static URI-encoding rules. See `Docs/ChievfxMcpAgentInstructions.md` for how `initialize.instructions` and the guide are assembled. Default required resource:
 
 - `chievfx://resources/guide`
 

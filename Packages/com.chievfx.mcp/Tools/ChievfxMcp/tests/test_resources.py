@@ -365,8 +365,19 @@ class ResourceTests(unittest.TestCase):
         content = result["contents"][0]
         self.assertEqual(content["mimeType"], "text/plain")
         self.assertIn("ChievFX MCP resources v2", content["text"])
-        self.assertIn("GameObject, AssetDatabase, and scene-usage resources", content["text"])
+        self.assertIn("enabled v2 GameObject, AssetDatabase, and scene-usage resources", content["text"])
         self.assertEqual(self.server.calls, [])
+
+    def test_guide_lists_only_enabled_resources_and_templates(self) -> None:
+        self.write_selection(["resources-guide", "editor-context"], ["scene-current-go"])
+
+        text = self.request("resources/read", {"uri": "chievfx://resources/guide"})["result"]["contents"][0]["text"]
+
+        self.assertIn("chievfx://resources/guide", text)
+        self.assertIn("chievfx://editor/context", text)
+        self.assertNotIn("chievfx://scene/opened", text)
+        self.assertIn("chievfx://scene/current/go/{goPath}", text)
+        self.assertNotIn("chievfx://assets/type/{assetType}", text)
 
     def test_dynamic_resource_read_forwards_hidden_bridge_command(self) -> None:
         uri = "chievfx://scene/Assets%2FScenes%2FSample.unity/go/Root%2FChild/component/BoxCollider.1"

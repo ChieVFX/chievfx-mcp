@@ -23,6 +23,7 @@ namespace Chievfx.Mcp.Editor
         private const string ToolAllInfoEditorPrefsKey = "ChievfxMcp.ToolSelection.AllInfo";
         private const string ResourceAllInfoEditorPrefsKey = "ChievfxMcp.ResourceSelection.AllInfo";
         private const string PromptAllInfoEditorPrefsKey = "ChievfxMcp.PromptSelection.AllInfo";
+        private const string ShowExperimentalPromptsEditorPrefsKey = "ChievfxMcp.Experimental.ShowPromptsTab";
 
         private static readonly string[] TransportChoices = { TransportStdio, TransportHttp };
         private static Process? httpProcess;
@@ -38,6 +39,7 @@ namespace Chievfx.Mcp.Editor
         private TextField? previewField;
         private Button? startButton;
         private Button? stopButton;
+        private Toggle? showPromptsTabToggle;
         private Label? serverChip;
         private Label? bridgeChip;
         private Label? httpChip;
@@ -105,6 +107,13 @@ namespace Chievfx.Mcp.Editor
 
         private void BuildWindow()
         {
+            if (activeTab == ChievfxMcpTab.Prompts && !ShowExperimentalPromptsTab)
+            {
+                activeTab = ChievfxMcpTab.Status;
+                pendingTab = ChievfxMcpTab.Status;
+                SaveActiveTab(ChievfxMcpTab.Status);
+            }
+
             titleContent = new GUIContent("MCP (ChievFX)");
             rootVisualElement.Clear();
             var content = new ScrollView(ScrollViewMode.Vertical);
@@ -198,7 +207,11 @@ namespace Chievfx.Mcp.Editor
             tabs.Add(CreateTabButton("Presets", ChievfxMcpTab.Presets));
             tabs.Add(CreateTabButton("Tools", ChievfxMcpTab.Tools));
             tabs.Add(CreateTabButton("Resources", ChievfxMcpTab.Resources));
-            tabs.Add(CreateTabButton("Prompts", ChievfxMcpTab.Prompts));
+            if (ShowExperimentalPromptsTab)
+            {
+                tabs.Add(CreateTabButton("Prompts", ChievfxMcpTab.Prompts));
+            }
+
             return tabs;
         }
 
@@ -307,9 +320,31 @@ namespace Chievfx.Mcp.Editor
             advanced.style.marginTop = 4;
             advanced.Add(CreateMutedLabel($"Server script: {ServerScriptPath}"));
             advanced.Add(CreateMutedLabel($"Bridge IPC: {ChievfxMcpToolPolicy.BridgeDirectory}"));
+            advanced.Add(CreateExperimentalFoldout());
             content.Add(advanced);
 
             RefreshUi();
+        }
+
+        private VisualElement CreateExperimentalFoldout()
+        {
+            var experimental = new Foldout
+            {
+                text = "Experimental",
+                value = false
+            };
+            showPromptsTabToggle = new Toggle("Show Prompts tab")
+            {
+                value = ShowExperimentalPromptsTab
+            };
+            showPromptsTabToggle.RegisterValueChangedCallback(evt =>
+            {
+                EditorPrefs.SetBool(ShowExperimentalPromptsEditorPrefsKey, evt.newValue);
+                BuildWindow();
+            });
+            experimental.Add(showPromptsTabToggle);
+            experimental.Add(CreateMutedLabel("Prompts are hidden by default while the prompt catalog stays experimental."));
+            return experimental;
         }
 
         private enum ChievfxMcpTab
@@ -331,6 +366,8 @@ namespace Chievfx.Mcp.Editor
         {
             return $"http://127.0.0.1:{port}";
         }
+
+        private static bool ShowExperimentalPromptsTab => EditorPrefs.GetBool(ShowExperimentalPromptsEditorPrefsKey, false);
 
         private static VisualElement CreateChipRow()
         {

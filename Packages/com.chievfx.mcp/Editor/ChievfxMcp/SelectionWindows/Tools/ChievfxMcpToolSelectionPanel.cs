@@ -737,9 +737,23 @@ namespace Chievfx.Mcp.Editor
             selectedCustomRole = role.Asset;
             SyncTogglesFromRows();
             SaveSelection();
+            SavePromptSelectionForRole(role);
             RenderRoleControls();
             RenderTools();
             RefreshSummary();
+        }
+
+        private static void SavePromptSelectionForRole(RoleDefinition role)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(ChievfxMcpToolPolicy.PromptSelectionPath)!);
+            var root = new JObject
+            {
+                ["schemaVersion"] = 1,
+                ["updatedAtUtc"] = DateTime.UtcNow.ToString("O"),
+                ["source"] = "Tools/ChievfxMcp/chievfx_mcp_role_presets.json",
+                ["enabledPromptNames"] = new JArray(role.EnabledPromptNames.OrderBy(name => name, StringComparer.Ordinal))
+            };
+            File.WriteAllText(ChievfxMcpToolPolicy.PromptSelectionPath, root.ToString(Formatting.Indented) + Environment.NewLine, new UTF8Encoding(false));
         }
 
         private void ResetRoleState()

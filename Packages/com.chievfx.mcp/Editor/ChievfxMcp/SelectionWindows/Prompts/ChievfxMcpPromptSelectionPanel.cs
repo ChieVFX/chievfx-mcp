@@ -252,7 +252,7 @@ namespace Chievfx.Mcp.Editor
         private void ApplySavedSelection()
         {
             var allPromptNames = new HashSet<string>(promptRows.Select(row => row.Name), StringComparer.Ordinal);
-            var enabledNames = new HashSet<string>(allPromptNames, StringComparer.Ordinal);
+            var enabledNames = new HashSet<string>(StringComparer.Ordinal);
 
             if (File.Exists(ChievfxMcpToolPolicy.PromptSelectionPath))
             {
@@ -260,14 +260,10 @@ namespace Chievfx.Mcp.Editor
                 {
                     var root = JToken.Parse(File.ReadAllText(ChievfxMcpToolPolicy.PromptSelectionPath));
                     enabledNames = ReadStringSet(root, "enabledPromptNames");
-                    if (enabledNames.Count == 0 && root["enabledPromptNames"] is not JArray)
-                    {
-                        enabledNames = new HashSet<string>(allPromptNames, StringComparer.Ordinal);
-                    }
                 }
                 catch (JsonException ex)
                 {
-                    Debug.LogWarning($"ChievFX MCP could not read prompt selection. All prompts will be enabled. {ex.Message}");
+                    Debug.LogWarning($"ChievFX MCP could not read prompt selection. Prompts will stay disabled by default. {ex.Message}");
                 }
             }
 

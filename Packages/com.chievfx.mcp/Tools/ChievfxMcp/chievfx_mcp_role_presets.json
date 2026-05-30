@@ -11,7 +11,8 @@
         "Prefab",
         "Script Execution / Tests"
       ],
-      "enabledToolIds": []
+      "enabledToolIds": [],
+      "enabledPromptNames": []
     },
     {
       "id": "qa",
@@ -23,7 +24,8 @@
         "Script Execution / Tests",
         "Editor Window"
       ],
-      "enabledToolIds": []
+      "enabledToolIds": [],
+      "enabledPromptNames": []
     }
   ]
 }

@@ -70,6 +70,9 @@ class PromptTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def enable_all_prompts(self) -> None:
+        self.write_selection([prompt["name"] for prompt in mcp.all_prompts()])
+
     def write_extension_manifest(self, extensions: list[dict[str, object]]) -> None:
         self.extension_manifest_path.parent.mkdir(parents=True, exist_ok=True)
         self.extension_manifest_path.write_text(
@@ -88,6 +91,8 @@ class PromptTests(unittest.TestCase):
         return response
 
     def test_initialize_advertises_prompts_when_enabled(self) -> None:
+        self.write_selection(["unity-scene-review"])
+
         response = self.request("initialize", {"protocolVersion": "2024-11-05"})
 
         capabilities = response["result"]["capabilities"]
@@ -95,14 +100,14 @@ class PromptTests(unittest.TestCase):
         self.assertIn("tools", capabilities)
         self.assertIn("resources", capabilities)
 
-    def test_initialize_omits_prompts_when_catalog_disabled(self) -> None:
-        self.write_selection([])
-
+    def test_initialize_omits_prompts_by_default(self) -> None:
         response = self.request("initialize", {"protocolVersion": "2024-11-05"})
 
         self.assertNotIn("prompts", response["result"]["capabilities"])
 
     def test_prompts_list_and_get_static_prompt(self) -> None:
+        self.write_selection(["unity-scene-review"])
+
         prompts = self.request("prompts/list")["result"]["prompts"]
         result = self.request("prompts/get", {"name": "unity-scene-review", "arguments": {"goal": "wire UI"}})["result"]
 
@@ -115,6 +120,8 @@ class PromptTests(unittest.TestCase):
         self.assertEqual(self.server.calls, [])
 
     def test_prompts_list_advertises_shader_prompts(self) -> None:
+        self.enable_all_prompts()
+
         prompts = {item["name"]: item for item in self.request("prompts/list")["result"]["prompts"]}
         expected_shader_prompts = {
             "unity-shader-built-in-draft",
@@ -134,6 +141,8 @@ class PromptTests(unittest.TestCase):
         self.assertFalse(built_in_arguments["context"]["required"])
 
     def test_shader_prompt_get_uses_static_scalar_arguments(self) -> None:
+        self.write_selection(["unity-shader-urp-draft"])
+
         result = self.request(
             "prompts/get",
             {
@@ -154,6 +163,8 @@ class PromptTests(unittest.TestCase):
         self.assertEqual(self.server.calls, [])
 
     def test_shader_prompt_get_fills_optional_args_without_bridge_call(self) -> None:
+        self.write_selection(["unity-shader-graph-plan"])
+
         result = self.request(
             "prompts/get",
             {"name": "unity-shader-graph-plan", "arguments": {"goal": "dissolve edge"}},
@@ -166,6 +177,8 @@ class PromptTests(unittest.TestCase):
         self.assertEqual(self.server.calls, [])
 
     def test_dynamic_prompt_forwards_hidden_bridge_command(self) -> None:
+        self.write_selection(["unity-editor-context"])
+
         result = self.request(
             "prompts/get",
             {"name": "unity-editor-context", "arguments": {"focus": "selection"}},
@@ -228,6 +241,7 @@ class PromptTests(unittest.TestCase):
                 }
             ]
         )
+        self.write_selection(["gamefeel-ending-session-slowmo"])
 
         prompts = {item["name"]: item for item in self.request("prompts/list")["result"]["prompts"]}
         result = self.request(
@@ -265,10 +279,10 @@ class PromptTests(unittest.TestCase):
                     "sourceAssembly": "Chievfx.Mcp.Diagnostics",
                     "prompts": [
                         {
-                            "name": "chievfx-diagnostics-summary",
+                            "name": "sample-required-review",
                             "title": "Summarize diagnostics",
                             "description": "Diagnostic prompt.",
-                            "category": "Diagnostics",
+                            "category": "Review",
                             "required": True,
                             "staticText": "diagnostics active",
                             "arguments": [],
@@ -280,9 +294,9 @@ class PromptTests(unittest.TestCase):
         self.write_selection([])
 
         prompts = self.request("prompts/list")["result"]["prompts"]
-        result = self.request("prompts/get", {"name": "chievfx-diagnostics-summary"})["result"]
+        result = self.request("prompts/get", {"name": "sample-required-review"})["result"]
 
-        self.assertIn("chievfx-diagnostics-summary", {prompt["name"] for prompt in prompts})
+        self.assertIn("sample-required-review", {prompt["name"] for prompt in prompts})
         self.assertEqual(result["messages"][0]["content"]["text"], "diagnostics active")
 
     def test_extension_manifest_rejects_core_prompt_name_collision(self) -> None:
@@ -309,18 +323,24 @@ class PromptTests(unittest.TestCase):
         self.assertTrue(any("name collision unity-scene-review" in error for error in metadata["extensionErrors"]))
 
     def test_missing_required_argument_returns_invalid_params(self) -> None:
+        self.write_selection(["unity-scene-review"])
+
         response = self.request("prompts/get", {"name": "unity-scene-review", "arguments": {}})
 
         self.assertEqual(response["error"]["code"], -32602)
         self.assertIn("Missing required argument", response["error"]["message"])
 
     def test_shader_prompt_missing_required_argument_returns_invalid_params(self) -> None:
+        self.write_selection(["unity-material-profile-review"])
+
         response = self.request("prompts/get", {"name": "unity-material-profile-review", "arguments": {"focus": "mobile"}})
 
         self.assertEqual(response["error"]["code"], -32602)
         self.assertIn("goal", response["error"]["message"])
 
     def test_malformed_arguments_return_invalid_params(self) -> None:
+        self.write_selection(["unity-scene-review"])
+
         response = self.request("prompts/get", {"name": "unity-scene-review", "arguments": []})
 
         self.assertEqual(response["error"]["code"], -32602)

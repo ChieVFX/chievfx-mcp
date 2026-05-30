@@ -23,6 +23,11 @@ namespace Chievfx.Mcp.Editor
                 fragments.Add($"tools {FormatCompactList(role.EnabledToolIds)}");
             }
 
+            if (role.EnabledPromptNames.Count > 0)
+            {
+                fragments.Add($"prompts {FormatCompactList(role.EnabledPromptNames)}");
+            }
+
             return fragments.Count == 0
                 ? string.Empty
                 : $" Targets: {string.Join("; ", fragments)}.";

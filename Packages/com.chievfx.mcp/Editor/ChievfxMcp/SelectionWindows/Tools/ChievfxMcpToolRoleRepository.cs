@@ -39,7 +39,8 @@ namespace Chievfx.Mcp.Editor
                                 DisplayName = ReadString(item, "displayName", id),
                                 Description = ReadString(item, "description"),
                                 EnabledCategoryIds = ReadStringArray(item["enabledCategoryIds"]),
-                                EnabledToolIds = ReadStringArray(item["enabledToolIds"])
+                                EnabledToolIds = ReadStringArray(item["enabledToolIds"]),
+                                EnabledPromptNames = ReadStringArray(item["enabledPromptNames"])
                             });
                         }
                     }
@@ -68,6 +69,7 @@ namespace Chievfx.Mcp.Editor
                     Description = asset.description,
                     EnabledCategoryIds = asset.enabledCategoryIds.Where(value => !string.IsNullOrWhiteSpace(value)).ToList(),
                     EnabledToolIds = asset.enabledToolIds.Where(value => !string.IsNullOrWhiteSpace(value)).ToList(),
+                    EnabledPromptNames = new List<string>(),
                     AssetPath = path,
                     Asset = asset
                 });

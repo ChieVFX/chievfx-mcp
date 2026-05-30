@@ -17,6 +17,8 @@ namespace Chievfx.Mcp.Editor
 
         public List<string> EnabledToolIds { get; set; } = new();
 
+        public List<string> EnabledPromptNames { get; set; } = new();
+
         public string AssetPath { get; set; } = string.Empty;
 
         public ChievfxMcpToolRoleAsset? Asset { get; set; }

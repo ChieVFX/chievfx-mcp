@@ -257,6 +257,9 @@ def all_resource_templates() -> list[dict[str, Any]]:
 def all_prompts() -> list[dict[str, Any]]:
     catalogs = load_text_catalogs_from_md() if CATALOGS_MD_PATH.exists() else {}
     core_prompts = catalogs.get("prompts") if isinstance(catalogs, dict) else None
-    if not core_prompts:
+    if core_prompts:
+        catalog_names = {prompt.get("name") for prompt in core_prompts}
+        core_prompts = list(core_prompts) + [prompt for prompt in PROMPTS if prompt.get("name") not in catalog_names]
+    else:
         core_prompts = PROMPTS
     return [dict(prompt, **core_source_fields()) for prompt in core_prompts] + collect_extension_capabilities()["prompts"]

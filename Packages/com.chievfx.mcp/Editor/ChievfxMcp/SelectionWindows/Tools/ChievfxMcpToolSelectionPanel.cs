@@ -358,7 +358,7 @@ namespace Chievfx.Mcp.Editor
             }
 
             roleActions.Add(CreateButton("Apply Role", ApplySelectedRole));
-            roleActions.Add(CreateButton("Reset Role State", ResetRoleState));
+            roleActions.Add(CreateButton("Reset", ResetRoleState));
             roleActions.Add(CreateButton("Create Custom Role", CreateCustomRoleAsset));
             saveCustomRoleButton = CreateButton("Save Selection To Custom Role", SaveCurrentSelectionToCustomRole);
             roleActions.Add(saveCustomRoleButton);
@@ -482,6 +482,13 @@ namespace Chievfx.Mcp.Editor
         private RoleDefinition? FindRoleByKey(string key)
         {
             return roleDefinitions.FirstOrDefault(role => string.Equals(role.Key, key, StringComparison.Ordinal));
+        }
+
+        private RoleDefinition? FindDeveloperRole()
+        {
+            return roleDefinitions.FirstOrDefault(role =>
+                string.Equals(role.Kind, "built-in", StringComparison.Ordinal)
+                && string.Equals(role.Id, "developer", StringComparison.Ordinal));
         }
 
         private List<ToolRow> GetRowsForRole(RoleDefinition role)
@@ -758,14 +765,15 @@ namespace Chievfx.Mcp.Editor
 
         private void ResetRoleState()
         {
-            activeRoleKind = "manual";
-            activeRoleId = string.Empty;
-            activeRoleDisplayName = "Manual";
-            activeCustomRolePath = string.Empty;
-            activeRoleManualOverride = false;
-            SaveSelection();
-            RenderRoleControls();
-            RefreshSummary();
+            var developerRole = FindDeveloperRole();
+            if (developerRole == null)
+            {
+                EditorUtility.DisplayDialog("ChievFX MCP", "Developer role preset could not be found.", "OK");
+                return;
+            }
+
+            selectedRoleKey = developerRole.Key;
+            ApplySelectedRole();
         }
 
         private void CreateCustomRoleAsset()
@@ -990,7 +998,10 @@ namespace Chievfx.Mcp.Editor
             categoryStateButtons[category] = stateButton;
             header.Add(stateButton);
 
-            var title = new Label($"{category} ({rows.Count} tools)");
+            var enabledCount = rows.Count(row => row.Required || row.Enabled);
+            var title = new Label(allInfo
+                ? $"{category} ({rows.Count} tools)"
+                : $"{category} ({enabledCount}/{rows.Count})");
             title.style.unityFontStyleAndWeight = FontStyle.Bold;
             title.style.fontSize = 14;
             title.style.flexBasis = 160;
@@ -999,14 +1010,17 @@ namespace Chievfx.Mcp.Editor
             title.style.whiteSpace = WhiteSpace.Normal;
             header.Add(title);
 
-            var detail = new Label(BuildCategorySummary(rows));
-            detail.style.flexBasis = 220;
-            detail.style.flexGrow = 2;
-            detail.style.minWidth = 0;
-            detail.style.whiteSpace = WhiteSpace.Normal;
-            detail.style.color = new StyleColor(new Color(0.72f, 0.72f, 0.72f));
-            categorySummaryLabels[category] = detail;
-            header.Add(detail);
+            if (allInfo)
+            {
+                var detail = new Label(BuildCategorySummary(rows));
+                detail.style.flexBasis = 220;
+                detail.style.flexGrow = 2;
+                detail.style.minWidth = 0;
+                detail.style.whiteSpace = WhiteSpace.Normal;
+                detail.style.color = new StyleColor(new Color(0.72f, 0.72f, 0.72f));
+                categorySummaryLabels[category] = detail;
+                header.Add(detail);
+            }
 
             container.Add(header);
             var intent = CreateMutedLabel(GetCategoryDescription(category));

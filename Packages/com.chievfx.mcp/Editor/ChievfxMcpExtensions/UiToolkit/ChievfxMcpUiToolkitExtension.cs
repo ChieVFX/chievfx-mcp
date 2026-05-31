@@ -85,7 +85,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 Id = "uitoolkit-status",
                 Uri = StatusUri,
                 Name = "UI Toolkit extension status",
-                Description = "Reports whether UI Toolkit runtime panel types are loaded and runtime inspection can be offered.",
+                Description = "Compact UI Toolkit availability, current hierarchy counts, and Play Mode drill-down hints.",
                 MimeType = "application/json",
                 Category = Category,
             });
@@ -174,19 +174,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             var status = GetDependencyStatus();
             if (string.Equals(uri, StatusUri, StringComparison.Ordinal))
             {
-                var result = CreateEnvelope(uri, status);
-                result["available"] = status.Available;
-                result["dependencyReason"] = status.Reason;
-                result["tools"] = status.Available
-                    ? new[] { "uitoolkit-runtime-probe-screen-position", "uitoolkit-runtime-interact" }
-                    : Array.Empty<string>();
-                result["resources"] = status.Available
-                    ? new[] { RuntimeStatusUri, RuntimePanelsUri, RuntimeVisibleTreeUri, RuntimeInteractablesUri }
-                    : Array.Empty<string>();
-                result["runtimeReadsInScope"] = true;
-                result["runtimeInteractionInScope"] = status.Available;
-                result["framework"] = "uitoolkit";
-                return result;
+                return ReadStatusResource(uri, status);
             }
 
             if (!status.Available)

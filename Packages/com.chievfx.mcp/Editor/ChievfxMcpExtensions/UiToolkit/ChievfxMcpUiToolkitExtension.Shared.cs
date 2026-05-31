@@ -26,24 +26,39 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
     {
         internal static Dictionary<string, object?> CreateEnvelope(string uri, UiToolkitDependencyStatus status)
         {
-            return new Dictionary<string, object?>
+            return new Dictionary<string, object?>();
+        }
+
+        internal static Dictionary<string, object?> ReadStatusResource(string uri, UiToolkitDependencyStatus status)
+        {
+            var result = new Dictionary<string, object?>
             {
-                ["uri"] = uri,
-                ["readAtUtc"] = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture),
-                ["extensionId"] = ExtensionId,
                 ["framework"] = "uitoolkit",
-                ["dependency"] = status.ToDictionary(),
+                ["context"] = ChievfxMcpUiStatusHelpers.DescribeEditorContext(),
             };
+            if (!status.Available)
+            {
+                result["reason"] = status.Reason;
+                return result;
+            }
+
+            result["uitoolkit"] = ChievfxMcpUiStatusHelpers.DescribePackageCapability(
+                status.PackageName,
+                status.PackageVersion,
+                status.PackageSource,
+                true);
+            result["currentHierarchy"] = ChievfxMcpUiStatusHelpers.DescribeUiToolkitHierarchy(status.UIDocumentType);
+            result["runtimeOnly"] = true;
+            return result;
         }
 
         internal static Dictionary<string, object?> CreateUnavailable(string uri, UiToolkitDependencyStatus status, string? reason = null)
         {
-            var result = CreateEnvelope(uri, status);
-            result["available"] = false;
-            result["dependencyReason"] = reason ?? status.Reason;
-            result["statusUri"] = StatusUri;
-            result["warnings"] = new[] { reason ?? status.Reason };
-            return result;
+            return new Dictionary<string, object?>
+            {
+                ["reason"] = reason ?? status.Reason,
+                ["warnings"] = new[] { reason ?? status.Reason },
+            };
         }
 
         internal static UiToolkitDependencyStatus GetDependencyStatus()

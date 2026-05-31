@@ -58,13 +58,48 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
         internal static Dictionary<string, object?> CreateEnvelope(string uri, UguiDependencyStatus status)
         {
-            return new Dictionary<string, object?>
+            return new Dictionary<string, object?>();
+        }
+
+        internal static Dictionary<string, object?> ReadStatusResource(string uri, UguiDependencyStatus status)
+        {
+            var result = new Dictionary<string, object?>
             {
-                ["uri"] = uri,
-                ["readAtUtc"] = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture),
-                ["extensionId"] = ExtensionId,
-                ["dependency"] = status.ToDictionary(),
+                ["context"] = ChievfxMcpUiStatusHelpers.DescribeEditorContext(),
             };
+            if (!status.Available)
+            {
+                result["reason"] = status.Reason;
+                return result;
+            }
+
+            result["ugui"] = ChievfxMcpUiStatusHelpers.DescribePackageCapability(
+                status.PackageName,
+                status.PackageVersion,
+                status.PackageSource,
+                true);
+            if (status.TmpConfigured)
+            {
+                result["textMeshPro"] = string.IsNullOrWhiteSpace(status.TmpPackageVersion)
+                    ? new Dictionary<string, object?> { ["loaded"] = true }
+                    : new Dictionary<string, object?> { ["loaded"] = true, ["version"] = status.TmpPackageVersion };
+            }
+            else
+            {
+                result["textMeshPro"] = new Dictionary<string, object?> { ["loaded"] = false };
+            }
+
+            result["inputModule"] = new Dictionary<string, object?>
+            {
+                ["standaloneAvailable"] = status.StandaloneInputModuleType != null,
+                ["inputSystemAvailable"] = status.InputSystemUiInputModuleType != null,
+                ["prefersInputSystem"] = ShouldPreferInputSystemUiModule(),
+            };
+            result["currentHierarchy"] = ChievfxMcpUiStatusHelpers.DescribeUguiHierarchy(
+                status.CanvasType,
+                status.EventSystemType,
+                status.TmpTextType);
+            return result;
         }
 
         internal static Dictionary<string, object?> CreateToolEnvelope(string operation)
@@ -74,11 +109,10 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
         internal static Dictionary<string, object?> CreateUnavailable(string uri, UguiDependencyStatus status, string? reason = null)
         {
-            var result = CreateEnvelope(uri, status);
-            result["available"] = false;
-            result["dependencyReason"] = reason ?? status.Reason;
-            result["statusUri"] = StatusUri;
-            return result;
+            return new Dictionary<string, object?>
+            {
+                ["reason"] = reason ?? status.Reason,
+            };
         }
 
         internal static UguiDependencyStatus GetDependencyStatus()
@@ -164,9 +198,17 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 return Array.Empty<Component>();
             }
 
-            return SceneManager.GetActiveScene().GetRootGameObjects()
-                .SelectMany(root => GetComponentsInChildren(root, status.CanvasType, includeInactive))
-                .ToArray();
+            try
+            {
+                var context = GameObjectBridgeService.GetGameObjectQueryContext();
+                return context.Roots
+                    .SelectMany(root => GetComponentsInChildren(root, status.CanvasType, includeInactive))
+                    .ToArray();
+            }
+            catch
+            {
+                return Array.Empty<Component>();
+            }
         }
 
         internal static GameObject? FindFirstCanvas(UguiDependencyStatus status)

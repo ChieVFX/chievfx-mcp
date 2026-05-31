@@ -31,11 +31,9 @@ namespace Chievfx.Mcp.Editor.Tests
 
             var status = ReadResource("chievfx://extensions/chievfx.ugui/status");
 
-            Assert.AreEqual(true, status["runtimeReadsInScope"]);
-            Assert.AreEqual(true, status["runtimeInteractionInScope"]);
-            CollectionAssert.Contains((object[])status["tools"]!, "ugui-runtime-probe-screen-position");
-            CollectionAssert.Contains((object[])status["tools"]!, "ugui-runtime-click");
-            CollectionAssert.Contains((object[])status["tools"]!, "ugui-runtime-set-control-value");
+            Assert.IsNotNull(status["ugui"]);
+            Assert.IsNotNull(status["context"]);
+            Assert.IsNotNull(status["currentHierarchy"]);
         }
 
         [UnityTest]
@@ -240,9 +238,9 @@ namespace Chievfx.Mcp.Editor.Tests
         private static void RequireUgui()
         {
             var status = ReadResource("chievfx://extensions/chievfx.ugui/status");
-            if (!Equals(status["available"], true))
+            if (!status.TryGetValue("ugui", out _))
             {
-                Assert.Ignore((string)status["dependencyReason"]!);
+                Assert.Ignore((string)status["reason"]!);
             }
         }
 

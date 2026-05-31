@@ -30,20 +30,15 @@ namespace Chievfx.Mcp.Editor.Tests
             var status = (Dictionary<string, object?>)ChievfxMcpUiToolkitExtension.ReadResourceForTests("chievfx://extensions/chievfx.uitoolkit/status")!;
 
             Assert.AreEqual("uitoolkit", status["framework"]);
-            Assert.IsNotNull(status["dependency"]);
-            if (!Equals(status["available"], true))
+            if (status.ContainsKey("reason") && !status.ContainsKey("uitoolkit"))
             {
-                Assert.IsEmpty((object[])status["tools"]!);
-                Assert.IsEmpty((object[])status["resources"]!);
                 return;
             }
 
-            CollectionAssert.Contains((object[])status["tools"]!, "uitoolkit-runtime-probe-screen-position");
-            CollectionAssert.Contains((object[])status["tools"]!, "uitoolkit-runtime-interact");
-            CollectionAssert.Contains((object[])status["resources"]!, "chievfx://extensions/chievfx.uitoolkit/runtime/status");
-            CollectionAssert.Contains((object[])status["resources"]!, "chievfx://extensions/chievfx.uitoolkit/runtime/panels");
-            CollectionAssert.Contains((object[])status["resources"]!, "chievfx://extensions/chievfx.uitoolkit/runtime/visible-tree");
-            CollectionAssert.Contains((object[])status["resources"]!, "chievfx://extensions/chievfx.uitoolkit/runtime/interactables");
+            Assert.IsNotNull(status["context"]);
+            Assert.IsNotNull(status["uitoolkit"]);
+            Assert.IsNotNull(status["currentHierarchy"]);
+            Assert.AreEqual(true, status["runtimeOnly"]);
         }
 
         [Test]
@@ -97,9 +92,8 @@ namespace Chievfx.Mcp.Editor.Tests
 
             var status = ReadResource("chievfx://extensions/chievfx.uitoolkit/status");
 
-            Assert.AreEqual(true, status["runtimeInteractionInScope"]);
-            var tools = ((object[])status["tools"]!).Cast<string>().ToArray();
-            CollectionAssert.Contains(tools, "uitoolkit-runtime-interact");
+            Assert.AreEqual(true, status["runtimeOnly"]);
+            Assert.IsNotNull(status["uitoolkit"]);
         }
 
         [Test]
@@ -323,9 +317,9 @@ namespace Chievfx.Mcp.Editor.Tests
         private static void RequireUiToolkit()
         {
             var status = (Dictionary<string, object?>)ChievfxMcpUiToolkitExtension.ReadResourceForTests("chievfx://extensions/chievfx.uitoolkit/status")!;
-            if (!Equals(status["available"], true))
+            if (!status.TryGetValue("uitoolkit", out _))
             {
-                Assert.Ignore((string)status["dependencyReason"]!);
+                Assert.Ignore((string)status["reason"]!);
             }
         }
 

@@ -613,9 +613,9 @@ namespace Chievfx.Mcp.Editor.Tests
         private static void RequireUgui()
         {
             var status = (Dictionary<string, object?>)ChievfxMcpUguiExtension.ReadResourceForTests("chievfx://extensions/chievfx.ugui/status")!;
-            if (!Equals(status["available"], true))
+            if (!status.TryGetValue("ugui", out _))
             {
-                Assert.Ignore((string)status["dependencyReason"]!);
+                Assert.Ignore((string)status["reason"]!);
             }
         }
 
@@ -637,8 +637,7 @@ namespace Chievfx.Mcp.Editor.Tests
         private static bool TextMeshProLoaded()
         {
             var status = (Dictionary<string, object?>)ChievfxMcpUguiExtension.ReadResourceForTests("chievfx://extensions/chievfx.ugui/status")!;
-            var dependency = Row(status, "dependency");
-            return Equals(dependency["textMeshProUGUILoaded"], true);
+            return Equals(Row(status, "textMeshPro")["loaded"], true);
         }
 
         private static string CreateTempSpriteTexture(string filename, Vector4 border)

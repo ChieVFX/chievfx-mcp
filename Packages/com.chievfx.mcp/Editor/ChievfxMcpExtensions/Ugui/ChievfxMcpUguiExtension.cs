@@ -115,7 +115,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 Id = "ugui-status",
                 Uri = StatusUri,
                 Name = "uGUI extension status",
-                Description = "Reports whether com.unity.ugui is installed, loaded, and usable for editor-time authoring.",
+                Description = "Compact uGUI availability, TMP readiness, current hierarchy counts, and editor/runtime drill-down hints.",
                 MimeType = "application/json",
                 Category = DesignCategory,
             });
@@ -287,18 +287,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             var status = GetDependencyStatus();
             if (string.Equals(uri, StatusUri, StringComparison.Ordinal))
             {
-                var result = CreateEnvelope(uri, status);
-                result["available"] = status.Available;
-                result["dependencyReason"] = status.Reason;
-                result["tools"] = status.Available
-                    ? new[] { "ugui-canvas-ensure", "ugui-rect-get", "ugui-rect-update", "ugui-layout-group-set", "ugui-layout-element-set", "ugui-layout-rebuild", "ugui-scrollrect-create", "ugui-grid-create", "ugui-sibling-draworder-set", "ugui-create-simple", "ugui-create-control", "ugui-textmeshpro-hierarchy", "ugui-textmeshpro-get", "ugui-textmeshpro-set-or-create", "ugui-image-set", "ugui-image-primitive-create", "ugui-sprite-configure", "ugui-ui-hierarchy", "ugui-ui-find", "ugui-runtime-probe-screen-position", "ugui-runtime-click", "ugui-runtime-drag", "ugui-runtime-select", "ugui-runtime-set-control-value" }
-                    : Array.Empty<string>();
-                result["resources"] = status.Available
-                    ? new[] { CanvasesUri, CanvasDetailPrefix + "{pathOrInstanceId}", SpriteReadinessPrefix + "{guidOrPath}", RuntimeStatusUri, RuntimeCanvasesUri, RuntimeVisibleTreeUri, RuntimeInteractablesUri }
-                    : Array.Empty<string>();
-                result["runtimeReadsInScope"] = true;
-                result["runtimeInteractionInScope"] = true;
-                return result;
+                return ReadStatusResource(uri, status);
             }
 
             if (!status.Available)

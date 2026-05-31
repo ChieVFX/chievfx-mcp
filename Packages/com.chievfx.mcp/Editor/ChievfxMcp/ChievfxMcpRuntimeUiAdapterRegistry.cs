@@ -93,7 +93,7 @@ namespace Chievfx.Mcp.Editor
                 Id = "runtime-ui-status",
                 Uri = StatusUri,
                 Name = "Runtime UI adapter status",
-                Description = "Reports registered runtime UI adapters, availability, priorities, and framework resources.",
+                Description = "Compact runtime UI capability summary, current hierarchy counts, and Play Mode drill-down hints.",
                 MimeType = "application/json",
                 Category = Category,
             });
@@ -143,17 +143,76 @@ namespace Chievfx.Mcp.Editor
         private static Dictionary<string, object?> ReadStatus(string uri)
         {
             var adapters = SnapshotAdapters();
+            var canvasType = FindLoadedType("UnityEngine.Canvas");
+            var eventSystemType = FindLoadedType("UnityEngine.EventSystems.EventSystem");
+            var tmpTextType = FindLoadedType("TMPro.TextMeshProUGUI");
+            var uiDocumentType = FindLoadedType("UnityEngine.UIElements.UIDocument");
+            var capabilities = new Dictionary<string, object?>(StringComparer.Ordinal);
+            foreach (var registered in adapters)
+            {
+                if (!TryReadDictionary(registered.Adapter.Status, out var status))
+                {
+                    capabilities[registered.Adapter.FrameworkId] = registered.Adapter.Available
+                        ? new Dictionary<string, object?> { ["loaded"] = true }
+                        : new Dictionary<string, object?> { ["loaded"] = false };
+                    continue;
+                }
+
+                if (string.Equals(registered.Adapter.FrameworkId, "ugui", StringComparison.Ordinal))
+                {
+                    capabilities["ugui"] = ChievfxMcpUiStatusHelpers.ExtractCompactCapability(status);
+                    capabilities["textMeshPro"] = Equals(ReadObject(status, "textMeshProConfigured"), true)
+                        ? new Dictionary<string, object?> { ["loaded"] = true }
+                        : new Dictionary<string, object?> { ["loaded"] = false };
+                }
+                else if (string.Equals(registered.Adapter.FrameworkId, "uitoolkit", StringComparison.Ordinal))
+                {
+                    capabilities["uitoolkit"] = ChievfxMcpUiStatusHelpers.ExtractCompactCapability(status);
+                }
+                else
+                {
+                    capabilities[registered.Adapter.FrameworkId] = registered.Adapter.Available
+                        ? new Dictionary<string, object?> { ["loaded"] = true }
+                        : new Dictionary<string, object?> { ["loaded"] = false };
+                }
+            }
+
             return new Dictionary<string, object?>
             {
-                ["uri"] = uri,
-                ["readAtUtc"] = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture),
-                ["extensionId"] = ExtensionId,
-                ["adapterCount"] = adapters.Length,
-                ["availableAdapterCount"] = adapters.Count(adapter => adapter.Adapter.Available),
-                ["probeTool"] = ProbeToolName,
-                ["probeResource"] = RuntimeProbeUri,
-                ["adapters"] = adapters.Select(CreateAdapterStatusRow).ToArray(),
+                ["context"] = ChievfxMcpUiStatusHelpers.DescribeEditorContext(),
+                ["capabilities"] = capabilities,
+                ["currentHierarchy"] = ChievfxMcpUiStatusHelpers.DescribeCrossFrameworkHierarchy(
+                    canvasType,
+                    eventSystemType,
+                    tmpTextType,
+                    uiDocumentType),
+                ["adapters"] = adapters.Select(CreateCompactAdapterStatusRow).ToArray(),
             };
+        }
+
+        private static Dictionary<string, object?> CreateCompactAdapterStatusRow(RegisteredAdapter registered)
+        {
+            var adapter = registered.Adapter;
+            return new Dictionary<string, object?>
+            {
+                ["frameworkId"] = adapter.FrameworkId,
+                ["frameworkName"] = adapter.FrameworkName,
+                ["priority"] = adapter.Priority,
+            };
+        }
+
+        private static Type? FindLoadedType(string fullName)
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var type = assembly.GetType(fullName, throwOnError: false);
+                if (type != null)
+                {
+                    return type;
+                }
+            }
+
+            return null;
         }
 
         private static Dictionary<string, object?> ProbeScreenPosition(string uri, JToken args)
@@ -480,14 +539,7 @@ namespace Chievfx.Mcp.Editor
 
         private static Dictionary<string, object?> CreateUnavailable(string uri, string reason)
         {
-            return new Dictionary<string, object?>
-            {
-                ["uri"] = uri,
-                ["readAtUtc"] = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture),
-                ["extensionId"] = ExtensionId,
-                ["available"] = false,
-                ["warnings"] = new[] { reason },
-            };
+            return new Dictionary<string, object?> { ["reason"] = reason };
         }
 
         private static JObject RuntimeProbeSchema()

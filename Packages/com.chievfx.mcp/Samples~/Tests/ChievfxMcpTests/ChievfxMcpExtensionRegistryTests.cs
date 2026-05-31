@@ -179,7 +179,6 @@ namespace Chievfx.Mcp.Editor.Tests
                 Assert.IsTrue(adapters.Any(row => string.Equals((string)row["frameworkId"]!, frameworkId, StringComparison.Ordinal)));
                 var adapter = adapters.First(row => string.Equals((string)row["frameworkId"]!, frameworkId, StringComparison.Ordinal));
                 Assert.AreEqual(7, adapter["priority"]);
-                Assert.AreEqual(true, adapter["available"]);
             }
             finally
             {

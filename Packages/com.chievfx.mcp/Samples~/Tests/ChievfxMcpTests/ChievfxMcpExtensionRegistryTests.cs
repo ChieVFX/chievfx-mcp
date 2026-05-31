@@ -247,23 +247,15 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
-        public void RuntimeUiMergedProbeResourceReturnsDefaultProbeShape()
+        public void RuntimeUiProbeResourceUriIsNotRegistered()
         {
-            var frameworkId = "test.runtimeui.resource." + Guid.NewGuid().ToString("N");
-            try
-            {
-                ChievfxMcpRuntimeUiAdapterRegistry.Register(new TestRuntimeUiAdapter(frameworkId, "Resource Adapter", 1, Hit("resource-hit", 0, 0, 0)));
-
-                var probe = ReadExtensionResource("chievfx://extensions/chievfx.runtime-ui/runtime/probe-screen-position");
-
-                Assert.AreEqual("chievfx://extensions/chievfx.runtime-ui/runtime/probe-screen-position", probe["uri"]);
-                Assert.AreEqual("bottom-left", Row(probe, "coordinateConvention")["origin"]);
-                Assert.IsTrue(Rows(probe, "stack").Any(row => string.Equals((string)row["path"]!, "resource-hit", StringComparison.Ordinal)));
-            }
-            finally
-            {
-                ChievfxMcpRuntimeUiAdapterRegistry.Unregister(frameworkId);
-            }
+            ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
+            var method = typeof(ChievfxMcpExtensionRegistry).GetMethod(
+                "TryReadResource",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(method);
+            var parameters = new object?[] { "chievfx://extensions/chievfx.runtime-ui/runtime/probe-screen-position", null };
+            Assert.IsFalse((bool)method!.Invoke(null, parameters)!);
         }
 
         [Test]

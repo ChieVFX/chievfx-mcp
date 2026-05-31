@@ -33,7 +33,6 @@ namespace Chievfx.Mcp.Editor
         private const string Category = "Runtime UI";
         private const string UriPrefix = "chievfx://extensions/chievfx.runtime-ui/";
         private const string StatusUri = UriPrefix + "status";
-        private const string RuntimeProbeUri = UriPrefix + "runtime/probe-screen-position";
         private const string ProbeToolName = "runtime-ui-probe-screen-position";
         private const int DefaultMaxRows = 256;
 
@@ -97,15 +96,6 @@ namespace Chievfx.Mcp.Editor
                 MimeType = "application/json",
                 Category = Category,
             });
-            descriptor.Resources.Add(new ChievfxMcpResourceDescriptor
-            {
-                Id = "runtime-ui-runtime-probe-screen-position",
-                Uri = RuntimeProbeUri,
-                Name = "Merged runtime UI screen-position probe",
-                Description = "Read-only default-center merged runtime UI hit stack across registered adapters.",
-                MimeType = "application/json",
-                Category = Category,
-            });
             descriptor.Tools.Add(new ChievfxMcpToolDescriptor
             {
                 Name = ProbeToolName,
@@ -132,12 +122,7 @@ namespace Chievfx.Mcp.Editor
                 return ReadStatus(uri);
             }
 
-            if (string.Equals(uri, RuntimeProbeUri, StringComparison.Ordinal))
-            {
-                return ProbeScreenPosition(uri, new JObject());
-            }
-
-            return CreateUnavailable(uri, "Unsupported runtime UI registry resource URI.");
+            return null;
         }
 
         private static Dictionary<string, object?> ReadStatus(string uri)
@@ -535,11 +520,6 @@ namespace Chievfx.Mcp.Editor
                 ["x"] = value.x,
                 ["y"] = value.y,
             };
-        }
-
-        private static Dictionary<string, object?> CreateUnavailable(string uri, string reason)
-        {
-            return new Dictionary<string, object?> { ["reason"] = reason };
         }
 
         private static JObject RuntimeProbeSchema()

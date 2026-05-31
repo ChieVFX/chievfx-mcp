@@ -16,9 +16,6 @@ namespace Chievfx.Mcp.Editor
         private static readonly ExtensionRegistrationType[] KnownRegistrationTypes =
         {
             new(
-                "Chievfx.Mcp.Extensions.SampleReadOnly",
-                "Chievfx.Mcp.Extensions.SampleReadOnly.ChievfxMcpSampleReadOnlyExtension"),
-            new(
                 "Chievfx.Mcp.Extensions.Ecs",
                 "Chievfx.Mcp.Extensions.Ecs.ChievfxMcpEcsExtension"),
             new(

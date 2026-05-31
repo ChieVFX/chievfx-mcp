@@ -57,9 +57,6 @@ Assets/
       Ecs/
         Chievfx.Mcp.Extensions.Ecs.asmdef
         ChievfxMcpEcsExtension.cs
-      SampleReadOnly/
-        Chievfx.Mcp.Extensions.SampleReadOnly.asmdef
-        ChievfxMcpSampleReadOnlyExtension.cs
 ```
 
 User-created extensions can live under the project or a UPM package:
@@ -327,9 +324,3 @@ Before review:
   the additional resources.
 - Cursor descriptor refresh or MCP server restart shows updated descriptor
   previews and token estimates.
-
-## Minimal Sample
-
-See `Assets/Editor/ChievfxMcpExtensions/SampleReadOnly/`. It compiles as
-`Chievfx.Mcp.Extensions.SampleReadOnly`, registers one dynamic read-only JSON
-resource, and registers one static prompt with a scalar argument.

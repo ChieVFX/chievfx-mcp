@@ -25,7 +25,6 @@ namespace Chievfx.Mcp.Extensions.Particles
         internal const string ExtensionId = "chievfx.particles";
         internal const string Category = "Particles";
         internal const string UriPrefix = "chievfx://extensions/chievfx.particles/";
-        internal const string StatusUri = UriPrefix + "status";
         internal const string SystemsUri = UriPrefix + "systems";
         internal const string SystemDetailPrefix = UriPrefix + "system/";
         internal const int MaxSystemRows = 96;
@@ -74,16 +73,6 @@ namespace Chievfx.Mcp.Extensions.Particles
                 ResourceReader = ReadResource,
             };
 
-            descriptor.Resources.Add(new ChievfxMcpResourceDescriptor
-            {
-                Id = "particles-status",
-                Uri = StatusUri,
-                Name = "ParticleSystem extension status",
-                Description = "Reports whether built-in Unity ParticleSystem support is installed, loaded, and usable.",
-                MimeType = "application/json",
-                Category = Category,
-            });
-
             descriptor.Prompts.Add(new ChievfxMcpPromptDescriptor
             {
                 Name = "particles-effect-recipe",
@@ -99,7 +88,7 @@ namespace Chievfx.Mcp.Extensions.Particles
                         ["required"] = false,
                     },
                 },
-                StaticText = "Draft a compact built-in ParticleSystem recipe. Start from chievfx://extensions/chievfx.particles/status and systems resources for context. Prefer named presets, then narrow module patches only for allowlisted fields. Goal: {goal}",
+                StaticText = "Draft a compact built-in ParticleSystem recipe. Start from chievfx://extensions/chievfx.particles/systems for context. Prefer named presets, then narrow module patches only for allowlisted fields. Goal: {goal}",
             });
             descriptor.Prompts.Add(new ChievfxMcpPromptDescriptor
             {
@@ -181,11 +170,6 @@ namespace Chievfx.Mcp.Extensions.Particles
 
         private static object? ReadResource(string uri)
         {
-            if (string.Equals(uri, StatusUri, StringComparison.Ordinal))
-            {
-                return ReadStatusResource(uri);
-            }
-
             var status = GetDependencyStatus();
             if (!status.Available)
             {
@@ -212,7 +196,7 @@ namespace Chievfx.Mcp.Extensions.Particles
             var status = GetDependencyStatus();
             if (!status.Available)
             {
-                return CreateUnavailable(StatusUri, status, $"Tool '{toolName}' requires com.unity.modules.particlesystem and loaded UnityEngine.ParticleSystem types.");
+                return CreateUnavailable(status, $"Tool '{toolName}' requires com.unity.modules.particlesystem and loaded UnityEngine.ParticleSystem types.");
             }
 
 #if CHIEVFX_MCP_HAS_PARTICLESYSTEM
@@ -226,7 +210,7 @@ namespace Chievfx.Mcp.Extensions.Particles
                 _ => throw new InvalidOperationException($"Unknown ParticleSystem extension tool '{toolName}'."),
             };
 #else
-            return CreateUnavailable(StatusUri, status, $"Tool '{toolName}' requires com.unity.modules.particlesystem and loaded UnityEngine.ParticleSystem types.");
+            return CreateUnavailable(status, $"Tool '{toolName}' requires com.unity.modules.particlesystem and loaded UnityEngine.ParticleSystem types.");
 #endif
         }
 
@@ -273,53 +257,19 @@ namespace Chievfx.Mcp.Extensions.Particles
             return null;
         }
 
-        internal static Dictionary<string, object?> ReadStatusResource(string uri)
-        {
-            var status = GetDependencyStatus();
-            return new Dictionary<string, object?>
-            {
-                ["uri"] = uri,
-                ["extensionId"] = ExtensionId,
-                ["available"] = status.Available,
-                ["packageName"] = "com.unity.modules.particlesystem",
-                ["packageInstalled"] = status.PackageInstalled,
-                ["particleSystemTypesLoaded"] = status.TypesLoaded,
-                ["versionDefineActive"] = status.VersionDefineActive,
-                ["resources"] = status.Available
-                    ? new[] { StatusUri, SystemsUri, SystemDetailPrefix + "{pathOrInstanceId}" }
-                    : new[] { StatusUri },
-                ["tools"] = status.Available
-                    ? new[]
-                    {
-                        "particles-system-create",
-                        "particles-preset-apply",
-                        "particles-module-patch",
-                        "particles-renderer-set",
-                        "particles-preview-control",
-                    }
-                    : Array.Empty<string>(),
-                ["prompts"] = new[]
-                {
-                    "particles-effect-recipe",
-                    "particles-tool-call-plan",
-                    "particles-authoring-review",
-                },
-            };
-        }
-
         internal static Dictionary<string, object?> CreateUnavailableResource(string uri, DependencyStatus status)
         {
-            return CreateUnavailable(StatusUri, status, $"Resource '{uri}' requires com.unity.modules.particlesystem and loaded UnityEngine.ParticleSystem types.");
+            return CreateUnavailable(status, $"Resource '{uri}' requires com.unity.modules.particlesystem and loaded UnityEngine.ParticleSystem types.");
         }
 
-        internal static Dictionary<string, object?> CreateUnavailable(string statusUri, DependencyStatus status, string message)
+        internal static Dictionary<string, object?> CreateUnavailable(DependencyStatus status, string message)
         {
             return new Dictionary<string, object?>
             {
                 ["ok"] = false,
                 ["unavailable"] = true,
                 ["message"] = message,
-                ["statusUri"] = statusUri,
+                ["extensionId"] = ExtensionId,
                 ["status"] = status.ToDictionary(),
             };
         }

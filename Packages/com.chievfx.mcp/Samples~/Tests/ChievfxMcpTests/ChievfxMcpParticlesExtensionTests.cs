@@ -30,20 +30,19 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
-        public void StatusReportsParticlesCapability()
+        public void DependencyStatusReportsParticlesCapability()
         {
-            var status = Resource("chievfx://extensions/chievfx.particles/status");
+            var status = ChievfxMcpParticlesExtension.GetDependencyStatus();
 
-            Assert.AreEqual("chievfx.particles", status["extensionId"]);
-            Assert.IsTrue(status.ContainsKey("packageInstalled"));
-            Assert.IsNotEmpty((string[])status["prompts"]!);
+            Assert.IsTrue(status.PackageInstalled || !status.Available);
+            Assert.IsTrue(status.TypesLoaded || !status.Available);
         }
 
         [Test]
         public void ManifestAdvertisesRuntimeAvailableParticlesCapabilities()
         {
-            var status = Resource("chievfx://extensions/chievfx.particles/status");
-            if (!Equals(true, status["available"]))
+            var status = ChievfxMcpParticlesExtension.GetDependencyStatus();
+            if (!status.Available)
             {
                 Assert.Ignore("ParticleSystem extension is unavailable in this project.");
             }

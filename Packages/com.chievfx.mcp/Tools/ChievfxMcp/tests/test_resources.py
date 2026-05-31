@@ -161,8 +161,8 @@ class ResourceTests(unittest.TestCase):
         self.assertEqual(self.server.calls, [])
 
     def test_dynamic_extension_resource_reads_forward_to_unity_bridge(self) -> None:
-        uri = "chievfx://extensions/chievfx.ecs/status"
-        self.write_selection(["resources-guide", "ecs-status"], [])
+        uri = "chievfx://extensions/chievfx.ecs/worlds"
+        self.write_selection(["resources-guide", "ecs-worlds-list"], [])
         self.write_extension_manifest(
             [
                 {
@@ -172,10 +172,10 @@ class ResourceTests(unittest.TestCase):
                     "sourceAssembly": "Chievfx.Mcp.Extensions.Ecs",
                     "resources": [
                         {
-                            "id": "ecs-status",
+                            "id": "ecs-worlds-list",
                             "uri": uri,
-                            "name": "ECS status",
-                            "description": "Dynamic ECS package and availability status.",
+                            "name": "ECS worlds list",
+                            "description": "Dynamic ECS worlds list.",
                             "mimeType": "application/json",
                             "category": "ECS",
                         }

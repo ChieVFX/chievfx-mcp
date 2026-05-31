@@ -20,7 +20,6 @@ namespace Chievfx.Mcp.Extensions.Ecs
     {
         private const string ExtensionId = "chievfx.ecs";
         private const string UriPrefix = "chievfx://extensions/chievfx.ecs/";
-        private const string StatusUri = UriPrefix + "status";
         private const string WorldsUri = UriPrefix + "worlds";
         private const string SystemsUri = UriPrefix + "systems";
         private const string EntitiesQueryPrefix = UriPrefix + "entities/query/";
@@ -58,17 +57,6 @@ namespace Chievfx.Mcp.Extensions.Ecs
                 ResourceReader = ReadResource,
             };
 
-            descriptor.Resources.Add(
-                new ChievfxMcpResourceDescriptor
-                {
-                    Id = "ecs-status",
-                    Uri = StatusUri,
-                    Name = "ECS package and extension status",
-                    Description = "Reports whether com.unity.entities is installed, loaded, and exposing ECS inspection capabilities.",
-                    MimeType = "application/json",
-                    Category = EcsCategory,
-                });
-
             if (!status.Available)
             {
                 return descriptor;
@@ -90,7 +78,7 @@ namespace Chievfx.Mcp.Extensions.Ecs
                             ["required"] = false,
                         },
                     },
-                    StaticText = "Use read-only ECS resources only. Start with chievfx://extensions/chievfx.ecs/status, then worlds, systems, entities/query/all, and SubScene resources as needed. Goal: {goal}",
+                    StaticText = "Use read-only ECS resources only. Start with chievfx://extensions/chievfx.ecs/worlds, then systems, entities/query/all, and SubScene resources as needed. Use package-list for package availability. Goal: {goal}",
                 });
 
             descriptor.Prompts.Add(
@@ -168,11 +156,6 @@ namespace Chievfx.Mcp.Extensions.Ecs
 
         private static object? ReadResource(string uri)
         {
-            if (string.Equals(uri, StatusUri, StringComparison.Ordinal))
-            {
-                return ReadStatusResource(uri);
-            }
-
             var status = GetDependencyStatus();
             if (!status.Available)
             {
@@ -205,31 +188,6 @@ namespace Chievfx.Mcp.Extensions.Ecs
             }
 
             return CreateUnavailableResource(uri, status, "Unsupported ECS extension resource URI.");
-        }
-
-        private static Dictionary<string, object?> ReadStatusResource(string uri)
-        {
-            var status = GetDependencyStatus();
-            var result = CreateEnvelope(uri, status);
-            result["available"] = status.Available;
-            result["dependencyReason"] = status.Reason;
-            result["capabilityUris"] = status.Available
-                ? new[]
-                {
-                    WorldsUri,
-                    SystemsUri,
-                    EntitiesQueryPrefix + "all",
-                    SubScenesUri,
-                }
-                : Array.Empty<string>();
-            result["resourceTemplates"] = status.Available
-                ? new[]
-                {
-                    EntitiesQueryPrefix + "{querySpec}",
-                    SubSceneDetailPrefix + "{guidOrPath}",
-                }
-                : Array.Empty<string>();
-            return result;
         }
 
         private static Dictionary<string, object?> ReadWorldsResource(string uri, EcsDependencyStatus status)
@@ -459,7 +417,6 @@ namespace Chievfx.Mcp.Extensions.Ecs
             var result = CreateEnvelope(uri, status);
             result["available"] = false;
             result["dependencyReason"] = reason ?? status.Reason;
-            result["statusUri"] = StatusUri;
             return result;
         }
 

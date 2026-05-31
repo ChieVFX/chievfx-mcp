@@ -375,6 +375,121 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return row;
         }
 
+        internal static Dictionary<string, object?> CreateCompactProbeStackRow(object raycastResult, int index, UguiDependencyStatus status)
+        {
+            var target = GetMemberValue(raycastResult, "gameObject") as GameObject;
+            if (target == null)
+            {
+                return new Dictionary<string, object?> { ["i"] = index };
+            }
+
+            var controls = GetControlComponents(target, status).Select(component => component.GetType().Name).ToArray();
+            var canvas = FindParentCanvas(target, status);
+            var sorting = CreateSortingRow(canvas);
+            var row = new Dictionary<string, object?>
+            {
+                ["i"] = index,
+                ["path"] = GetTransformPath(target.transform),
+                ["instanceId"] = UnityObjectIdentity.GetLegacyInstanceId(target),
+                ["type"] = ResolveCompactProbeHitType(target, GetMemberValue(raycastResult, "module") as Component, controls, status),
+                ["enabled"] = target.GetComponents<Component>().Where(component => component is Behaviour).Cast<Behaviour>().All(component => component.enabled),
+                ["interactable"] = GetFirstPropertyValue(target, "interactable", status.SelectableType, status.ButtonType, status.ToggleType, status.SliderType, status.ScrollbarType, status.DropdownType, status.TmpDropdownType, status.InputFieldType),
+                ["raycastTarget"] = GetFirstPropertyValue(target, "raycastTarget", status.GraphicType, status.ImageType, status.TmpTextType),
+            };
+            if (controls.Length > 0)
+            {
+                row["controls"] = controls;
+            }
+
+            if (sorting != null && sorting.TryGetValue("sortingOrder", out var sortingOrder))
+            {
+                row["sortingOrder"] = sortingOrder;
+            }
+
+            var clickTarget = ExecuteEvents.GetEventHandler<IPointerClickHandler>(target) ?? target;
+            if (clickTarget != target)
+            {
+                row["handlerPath"] = GetTransformPath(clickTarget.transform);
+            }
+
+            return row;
+        }
+
+        internal static Dictionary<string, object?> CompactRectHitStackRow(Dictionary<string, object?> row)
+        {
+            if (row.TryGetValue("clickableHandlerTarget", out var handler)
+                && handler is Dictionary<string, object?> handlerRow
+                && handlerRow.TryGetValue("path", out var handlerPath))
+            {
+                row["handlerPath"] = handlerPath;
+            }
+
+            if (row.TryGetValue("sorting", out var sorting)
+                && sorting is Dictionary<string, object?> sortingRow
+                && sortingRow.TryGetValue("sortingOrder", out var sortingOrder))
+            {
+                row["sortingOrder"] = sortingOrder;
+            }
+
+            if (row.TryGetValue("controlComponents", out var controlComponents)
+                && controlComponents is IEnumerable controlNames)
+            {
+                foreach (var name in controlNames)
+                {
+                    if (name == null)
+                    {
+                        continue;
+                    }
+
+                    row["type"] = Convert.ToString(name, CultureInfo.InvariantCulture);
+                    break;
+                }
+            }
+
+            return ChievfxMcpRuntimeUiProbeCompact.CompactUguiHit(row);
+        }
+
+        private static string? moduleTypeName(Component? module)
+        {
+            return module == null ? null : module.GetType().Name;
+        }
+
+        private static string ResolveCompactProbeHitType(
+            GameObject target,
+            Component? raycastModule,
+            string[] controls,
+            UguiDependencyStatus status)
+        {
+            if (controls.Length > 0)
+            {
+                return controls[0];
+            }
+
+            if (status.TmpTextType != null && target.GetComponent(status.TmpTextType) != null)
+            {
+                return status.TmpTextType.Name;
+            }
+
+            if (status.ImageType != null && target.GetComponent(status.ImageType) is Component image)
+            {
+                return image.GetType().Name;
+            }
+
+            if (status.GraphicType != null && target.GetComponent(status.GraphicType) is Component graphic)
+            {
+                return graphic.GetType().Name;
+            }
+
+            var moduleName = moduleTypeName(raycastModule);
+            if (!string.IsNullOrWhiteSpace(moduleName)
+                && !string.Equals(moduleName, "GraphicRaycaster", StringComparison.Ordinal))
+            {
+                return moduleName;
+            }
+
+            return "Graphic";
+        }
+
         internal static Dictionary<string, object?> CreateRuntimeElementRow(GameObject target, UguiDependencyStatus status)
         {
             var row = CreateGameObjectRow(target);

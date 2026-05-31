@@ -87,15 +87,15 @@ namespace Chievfx.Mcp.Editor.Tests
                 "ugui-runtime-probe-screen-position",
                 ScreenPositionArgs(RectCenterScreenPoint(ChievfxMcpUguiRuntimeQaFixture.TopButtonPath)));
             Assert.AreEqual(true, probe["runtimeAvailable"]);
-            Assert.AreEqual("bottom-left", Row(probe, "coordinateConvention")["origin"]);
-            var stack = Rows(probe, "stack");
-            Assert.GreaterOrEqual(stack.Length, 2, string.Join("; ", StringArray(probe, "warnings")));
+            Assert.AreEqual("bottom-left", Row(probe, "probe")["origin"]);
+            var hits = Rows(Row(probe, "ugui"), "hits");
+            Assert.GreaterOrEqual(hits.Length, 2, string.Join("; ", StringArray(probe, "warnings")));
 
-            var top = Row(probe, "top");
+            var top = hits[0];
             StringAssert.EndsWith(ChievfxMcpUguiRuntimeQaFixture.TopButtonPath, (string)top["path"]!);
-            var bottomIndex = Array.FindIndex(stack, row => ((string)row["path"]!).EndsWith(ChievfxMcpUguiRuntimeQaFixture.BottomButtonPath, StringComparison.Ordinal));
+            var bottomIndex = Array.FindIndex(hits, row => ((string)row["path"]!).EndsWith(ChievfxMcpUguiRuntimeQaFixture.BottomButtonPath, StringComparison.Ordinal));
             Assert.GreaterOrEqual(bottomIndex, 1);
-            Assert.AreEqual(100, Row(top, "sorting")["sortingOrder"]);
+            Assert.AreEqual(100, top["sortingOrder"]);
         }
 
         [UnityTest]
@@ -112,7 +112,7 @@ namespace Chievfx.Mcp.Editor.Tests
 
             var probe = RunTool("ugui-runtime-probe-screen-position", "{'normalized':{'x':1.2,'y':0.5}}");
             Assert.AreEqual(true, probe["runtimeAvailable"]);
-            Assert.AreEqual(0, probe["count"]);
+            Assert.AreEqual(0, Row(probe, "ugui")["count"]);
             Assert.IsTrue(StringArray(probe, "warnings").Any(warning => warning.Contains("outside current screen/game-view bounds", StringComparison.Ordinal)));
         }
 
@@ -130,7 +130,7 @@ namespace Chievfx.Mcp.Editor.Tests
 
             var probe = RunTool("ugui-runtime-probe-screen-position", "{'normalized':{'x':0.5,'y':0.5}}");
             Assert.AreEqual(true, probe["runtimeAvailable"]);
-            Assert.AreEqual(0, probe["count"]);
+            Assert.AreEqual(0, Row(probe, "ugui")["count"]);
             Assert.IsTrue(StringArray(probe, "warnings").Any(warning => warning.Contains("No active EventSystem.current", StringComparison.Ordinal)));
         }
 

@@ -133,7 +133,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             });
             descriptor.Tools.Add(CreateTool(
                 "uitoolkit-runtime-probe-screen-position",
-                "Probe Play Mode UI Toolkit hit stack at screen position.",
+                "Probe Play Mode UI Toolkit hit stack at screen position. Requires Play Mode.",
                 RuntimeProbeSchema()));
             descriptor.Tools.Add(CreateTool(
                 "uitoolkit-runtime-interact",

@@ -47,7 +47,8 @@ Expected marker points:
 Expected proof:
 
 - Screenshot center crop around pixel `(400, 300)` shows the blue `TOP HIT` button.
-- Probe `coordinateConvention.origin` is `bottom-left`.
+- Probe `probe.origin` is `bottom-left`.
+- `ugui.hits` is top-to-bottom at the probed screen position.
 - Probe `top.path` ends with `QaOverlayTopCanvas/TopHitPanel/TopButton`.
 - Probe `top.sorting.sortingOrder` is `100`.
 - Probe stack includes `QaOverlayCanvas/BottomHitPanel/BottomButton` below the top hit.

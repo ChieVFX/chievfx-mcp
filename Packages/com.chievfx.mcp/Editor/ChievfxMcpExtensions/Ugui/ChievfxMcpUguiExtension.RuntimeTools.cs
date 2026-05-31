@@ -30,26 +30,16 @@ namespace Chievfx.Mcp.Extensions.Ugui
     {
         internal static Dictionary<string, object?> ProbeRuntimeScreenPosition(JToken args, UguiDependencyStatus status)
         {
+            ChievfxMcpRuntimeUiProbeCompact.EnsurePlayModeForProbe(IsRuntimePlayModeActive());
+
             var warnings = new List<string>();
-            var includeAllComponents = ReadBool(args, "includeAllComponents", false);
+            var maxRows = Mathf.Clamp(ReadInt(args, "maxRows", 256), 1, 1024);
             var position = ReadScreenPosition(args, warnings, status);
-            var result = CreateEnvelope("tool://ugui-runtime-probe-screen-position", status);
-            AddCoordinateInfo(result, position);
-            result["warnings"] = warnings.ToArray();
-            result["stack"] = Array.Empty<Dictionary<string, object?>>();
-            result["hierarchy"] = Array.Empty<string>();
-            result["componentScope"] = includeAllComponents ? "all" : "ugui";
-            result["count"] = 0;
-            result["top"] = null;
+            var probe = ChievfxMcpRuntimeUiProbeCompact.CreateProbeBlock(
+                position.ScreenSize,
+                position.ScreenPosition,
+                position.NormalizedPosition);
 
-            if (!EnsureRuntimeReadAllowed(warnings))
-            {
-                result["runtimeAvailable"] = false;
-                result["warnings"] = warnings.ToArray();
-                return result;
-            }
-
-            result["runtimeAvailable"] = true;
             AddRuntimeWarnings(status, warnings);
             if (IsOutsideScreen(position.ScreenPosition, position.ScreenSize))
             {
@@ -57,25 +47,48 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             var eventSystem = GetCurrentEventSystem(status);
-            result["eventSystem"] = eventSystem == null ? null : CreateGameObjectRow(eventSystem.gameObject);
             if (eventSystem == null)
             {
                 warnings.Add("No active EventSystem.current was found; runtime uGUI raycast probe cannot run.");
-                result["warnings"] = warnings.ToArray();
-                return result;
+                return ChievfxMcpRuntimeUiProbeCompact.CreateProbeResult(
+                    probe,
+                    runtimeAvailable: true,
+                    maxRows,
+                    truncated: false,
+                    warnings,
+                    ugui: ChievfxMcpRuntimeUiProbeCompact.CreateUguiSection(
+                        available: true,
+                        probed: false,
+                        Array.Empty<Dictionary<string, object?>>(),
+                        warnings));
             }
 
             status.CanvasType?.GetMethod("ForceUpdateCanvases", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
             var raycastResults = RaycastAll(status, eventSystem, position.ScreenPosition, warnings);
             var stack = raycastResults.Length == 0
                 ? CreateRuntimeRectHitStack(position.ScreenPosition, status)
-                : raycastResults.Select((raycastResult, index) => CreateRuntimeStackRow(raycastResult, index, status)).ToArray();
-            result["stack"] = stack;
-            result["hierarchy"] = CreateRuntimeProbeHierarchyLines(stack, includeAllComponents, status);
-            result["count"] = stack.Length;
-            result["top"] = stack.FirstOrDefault();
-            result["warnings"] = warnings.ToArray();
-            return result;
+                    .Select(CompactRectHitStackRow)
+                    .ToArray()
+                : raycastResults
+                    .Select((raycastResult, index) => CreateCompactProbeStackRow(raycastResult, index, status))
+                    .ToArray();
+            var truncated = stack.Length > maxRows;
+            if (truncated)
+            {
+                stack = stack.Take(maxRows).ToArray();
+            }
+
+            return ChievfxMcpRuntimeUiProbeCompact.CreateProbeResult(
+                probe,
+                runtimeAvailable: true,
+                maxRows,
+                truncated,
+                warnings,
+                ugui: ChievfxMcpRuntimeUiProbeCompact.CreateUguiSection(
+                    available: true,
+                    probed: true,
+                    stack,
+                    truncated: truncated));
         }
 
         internal static Dictionary<string, object?> RuntimeClick(JToken args, UguiDependencyStatus status)

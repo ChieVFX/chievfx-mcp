@@ -559,17 +559,15 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
-        public void RuntimeProbeOutsidePlayModeReturnsStackShapeAndWarning()
+        public void RuntimeProbeOutsidePlayModeThrows()
         {
             RequireUgui();
 
-            var probe = RunTool("ugui-runtime-probe-screen-position", "{'normalized':{'x':0.5,'y':0.5}}");
+            var ex = Assert.Throws<InvalidOperationException>(() =>
+                RunTool("ugui-runtime-probe-screen-position", "{'normalized':{'x':0.5,'y':0.5}}"));
 
-            Assert.AreEqual(false, probe["runtimeAvailable"]);
-            Assert.AreEqual(0, probe["count"]);
-            Assert.IsEmpty((object[])probe["stack"]!);
-            Assert.IsTrue(StringArray(probe, "warnings").Any(warning => warning.Contains("Play Mode")));
-            Assert.AreEqual("bottom-left", Row(probe, "coordinateConvention")["origin"]);
+            StringAssert.Contains("Play Mode", ex!.Message);
+            StringAssert.Contains("probe", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         [UnityTest]
@@ -589,20 +587,16 @@ namespace Chievfx.Mcp.Editor.Tests
 
             var probe = RunTool("ugui-runtime-probe-screen-position", "{'normalized':{'x':0.5,'y':0.5}}");
             Assert.AreEqual(true, probe["runtimeAvailable"]);
-            var stack = ((object[])probe["stack"]!).Cast<Dictionary<string, object?>>().ToArray();
-            Assert.GreaterOrEqual(stack.Length, 2, string.Join("; ", StringArray(probe, "warnings")));
+            var hits = Rows(Row(probe, "ugui"), "hits");
+            Assert.GreaterOrEqual(hits.Length, 2, string.Join("; ", StringArray(probe, "warnings")));
 
-            var topIndex = Array.FindIndex(stack, row => ((string)row["path"]!).Contains("TopButton"));
-            var bottomIndex = Array.FindIndex(stack, row => ((string)row["path"]!).Contains("BottomButton"));
+            var topIndex = Array.FindIndex(hits, row => ((string)row["path"]!).Contains("TopButton"));
+            var bottomIndex = Array.FindIndex(hits, row => ((string)row["path"]!).Contains("BottomButton"));
             Assert.GreaterOrEqual(topIndex, 0);
             Assert.GreaterOrEqual(bottomIndex, 0);
             Assert.Less(topIndex, bottomIndex);
-            Assert.AreEqual("bottom-left", Row(probe, "coordinateConvention")["origin"]);
-            Assert.IsNotNull(stack[topIndex]["raycastResult"]);
-            Assert.IsNotNull(stack[topIndex]["clickableHandlerTarget"]);
-            var hierarchy = StringArray(probe, "hierarchy");
-            Assert.IsTrue(hierarchy.Any(line => line.Contains("UiRoot [Canvas", StringComparison.Ordinal)));
-            Assert.IsTrue(hierarchy.Any(line => line.Contains("TopButton [Image, Button]", StringComparison.Ordinal)));
+            Assert.AreEqual("bottom-left", Row(probe, "probe")["origin"]);
+            Assert.IsNotNull(hits[topIndex]["controls"]);
         }
 
         private static Dictionary<string, object?> RunTool(string toolName, string argsJson)

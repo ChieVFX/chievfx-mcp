@@ -95,6 +95,29 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             return row;
         }
 
+        internal static Dictionary<string, object?> CreateCompactProbeStackRow(
+            object visualElement,
+            UiToolkitDependencyStatus status,
+            PanelGroup group,
+            int index,
+            int hitOrder)
+        {
+            var sortingOrder = group.Documents.Select(ReadDocumentSortingOrder).DefaultIfEmpty(0).Max();
+            return new Dictionary<string, object?>
+            {
+                ["i"] = index,
+                ["path"] = GetVisualElementPath(visualElement),
+                ["type"] = visualElement.GetType().Name,
+                ["text"] = ReadSimpleMemberValue(visualElement, "text"),
+                ["value"] = ReadSimpleMemberValue(visualElement, "value"),
+                ["focusable"] = ReadBoolMember(visualElement, "focusable", false),
+                ["enabled"] = ReadBoolMember(visualElement, "enabledInHierarchy", true),
+                ["pickingMode"] = ReadMemberString(visualElement, "pickingMode"),
+                ["sortingOrder"] = sortingOrder,
+                ["bound"] = CreateRectRow(ReadRectMember(visualElement, "worldBound")),
+            };
+        }
+
         internal static string[] CreateRuntimeProbeHierarchyLines(IEnumerable<object> hitElements, bool includeAllComponents, bool includeUssClasses)
         {
             var included = new HashSet<int>();

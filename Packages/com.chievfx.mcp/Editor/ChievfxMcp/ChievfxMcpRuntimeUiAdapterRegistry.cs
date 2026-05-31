@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json.Linq;
+using UnityEditor;
 using UnityEngine;
 
 namespace Chievfx.Mcp.Editor
@@ -99,7 +100,7 @@ namespace Chievfx.Mcp.Editor
             descriptor.Tools.Add(new ChievfxMcpToolDescriptor
             {
                 Name = ProbeToolName,
-                Description = "Probe Play Mode runtime UI hit stack at screen position.",
+                Description = "Probe Play Mode runtime UI hit stack at screen position. Requires Play Mode.",
                 Category = Category,
                 InputSchema = RuntimeProbeSchema(),
             });
@@ -202,76 +203,121 @@ namespace Chievfx.Mcp.Editor
 
         private static Dictionary<string, object?> ProbeScreenPosition(string uri, JToken args)
         {
+            ChievfxMcpRuntimeUiProbeCompact.EnsurePlayModeForProbe(EditorApplication.isPlaying || Application.isPlaying);
+
             var request = args is JObject obj ? obj : new JObject();
             var maxRows = Mathf.Clamp(ReadInt(request, "maxRows", DefaultMaxRows), 1, 1024);
             var warnings = new List<string>();
             var position = ReadScreenPosition(request, warnings);
-            var adapters = SnapshotAdapters();
-            var adapterResults = new List<Dictionary<string, object?>>();
-            var mergedRows = new List<MergedHit>();
+            var probe = ChievfxMcpRuntimeUiProbeCompact.CreateProbeBlock(
+                position.ScreenSize,
+                position.ScreenPosition,
+                position.NormalizedPosition);
 
-            foreach (var registered in adapters)
+            Dictionary<string, object?>? uguiSection = null;
+            Dictionary<string, object?>? uitoolkitSection = null;
+            var anyProbed = false;
+            var truncated = false;
+
+            foreach (var registered in SnapshotAdapters())
             {
                 var adapter = registered.Adapter;
-                var adapterResult = CreateAdapterStatusRow(registered);
-                if (!adapter.Available)
+                if (string.Equals(adapter.FrameworkId, "ugui", StringComparison.Ordinal))
                 {
-                    adapterResult["probed"] = false;
-                    adapterResult["warnings"] = new[] { "Adapter is registered but unavailable." };
-                    adapterResults.Add(adapterResult);
+                    uguiSection = ProbeAdapterSection(adapter, request, "ugui", position, ref anyProbed, ref truncated);
                     continue;
                 }
 
-                try
+                if (string.Equals(adapter.FrameworkId, "uitoolkit", StringComparison.Ordinal))
                 {
-                    var probe = adapter.ProbeScreenPosition(request.DeepClone());
-                    adapterResult["probed"] = true;
-                    AddProbeSummary(adapterResult, probe);
-                    adapterResults.Add(adapterResult);
-
-                    foreach (var row in ReadStackRows(probe))
-                    {
-                        var hitOrder = mergedRows.Count(candidate => string.Equals(candidate.FrameworkId, adapter.FrameworkId, StringComparison.Ordinal));
-                        var sortable = CreateSortableHit(row, registered, hitOrder);
-                        mergedRows.Add(sortable);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    adapterResult["probed"] = false;
-                    adapterResult["warnings"] = new[] { "Adapter probe failed: " + RootMessage(ex) };
-                    adapterResults.Add(adapterResult);
+                    uitoolkitSection = ProbeAdapterSection(adapter, request, "uitoolkit", position, ref anyProbed, ref truncated);
                 }
             }
 
-            var orderedRows = mergedRows
-                .OrderByDescending(row => row.AdapterPriority)
-                .ThenByDescending(row => row.SortingOrder)
-                .ThenByDescending(row => row.DocumentDepth)
-                .ThenBy(row => row.HitOrder)
-                .ThenBy(row => row.RegistrationOrder)
-                .ThenBy(row => row.FrameworkId, StringComparer.Ordinal)
-                .Take(maxRows)
-                .Select((row, index) => row.ToDictionary(index))
-                .ToArray();
+            return ChievfxMcpRuntimeUiProbeCompact.CreateProbeResult(
+                probe,
+                runtimeAvailable: anyProbed,
+                maxRows,
+                truncated,
+                warnings,
+                uguiSection,
+                uitoolkitSection);
+        }
 
-            return new Dictionary<string, object?>
+        private static Dictionary<string, object?> ProbeAdapterSection(
+            IChievfxMcpRuntimeUiAdapter adapter,
+            JToken request,
+            string frameworkId,
+            RuntimeScreenPosition position,
+            ref bool anyProbed,
+            ref bool truncated)
+        {
+            if (!adapter.Available)
             {
-                ["uri"] = uri,
-                ["readAtUtc"] = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture),
-                ["extensionId"] = ExtensionId,
-                ["input"] = CreateScreenPositionRow(position),
-                ["coordinateConvention"] = CreateCoordinateInfo(position),
-                ["adapterCount"] = adapters.Length,
-                ["availableAdapterCount"] = adapters.Count(adapter => adapter.Adapter.Available),
-                ["adapters"] = adapterResults.ToArray(),
-                ["stack"] = orderedRows,
-                ["count"] = orderedRows.Length,
-                ["top"] = orderedRows.FirstOrDefault(),
-                ["maxRows"] = maxRows,
-                ["truncated"] = mergedRows.Count > orderedRows.Length,
-                ["warnings"] = warnings.Distinct().ToArray(),
-            };
+                return frameworkId switch
+                {
+                    "ugui" => ChievfxMcpRuntimeUiProbeCompact.CreateUguiSection(
+                        available: false,
+                        probed: false,
+                        Array.Empty<Dictionary<string, object?>>(),
+                        new[] { "Adapter is registered but unavailable." }),
+                    "uitoolkit" => ChievfxMcpRuntimeUiProbeCompact.CreateUiToolkitSection(
+                        available: false,
+                        probed: false,
+                        position.ScreenSize,
+                        position.ScreenPosition,
+                        Array.Empty<Dictionary<string, object?>>(),
+                        new[] { "Adapter is registered but unavailable." }),
+                    _ => throw new InvalidOperationException($"Unknown runtime UI adapter '{frameworkId}'."),
+                };
+            }
+
+            try
+            {
+                var adapterProbe = adapter.ProbeScreenPosition(request.DeepClone());
+                anyProbed = true;
+                var sectionTruncated = ChievfxMcpRuntimeUiProbeCompact.ReadTruncated(adapterProbe, frameworkId);
+                truncated |= sectionTruncated;
+                var hits = ChievfxMcpRuntimeUiProbeCompact.ReadHits(adapterProbe, frameworkId);
+                var sectionWarnings = ChievfxMcpRuntimeUiProbeCompact.ReadSectionWarnings(adapterProbe, frameworkId);
+                return frameworkId switch
+                {
+                    "ugui" => ChievfxMcpRuntimeUiProbeCompact.CreateUguiSection(
+                        available: true,
+                        probed: true,
+                        hits,
+                        sectionWarnings,
+                        sectionTruncated),
+                    "uitoolkit" => ChievfxMcpRuntimeUiProbeCompact.CreateUiToolkitSection(
+                        available: true,
+                        probed: true,
+                        position.ScreenSize,
+                        position.ScreenPosition,
+                        hits,
+                        sectionWarnings,
+                        sectionTruncated),
+                    _ => throw new InvalidOperationException($"Unknown runtime UI adapter '{frameworkId}'."),
+                };
+            }
+            catch (Exception ex)
+            {
+                return frameworkId switch
+                {
+                    "ugui" => ChievfxMcpRuntimeUiProbeCompact.CreateUguiSection(
+                        available: true,
+                        probed: false,
+                        Array.Empty<Dictionary<string, object?>>(),
+                        new[] { "Adapter probe failed: " + RootMessage(ex) }),
+                    "uitoolkit" => ChievfxMcpRuntimeUiProbeCompact.CreateUiToolkitSection(
+                        available: true,
+                        probed: false,
+                        position.ScreenSize,
+                        position.ScreenPosition,
+                        Array.Empty<Dictionary<string, object?>>(),
+                        new[] { "Adapter probe failed: " + RootMessage(ex) }),
+                    _ => throw new InvalidOperationException($"Unknown runtime UI adapter '{frameworkId}'."),
+                };
+            }
         }
 
         private static RegisteredAdapter[] SnapshotAdapters()
@@ -284,107 +330,6 @@ namespace Chievfx.Mcp.Editor
                     .ThenBy(item => item.Adapter.FrameworkId, StringComparer.Ordinal)
                     .ToArray();
             }
-        }
-
-        private static Dictionary<string, object?> CreateAdapterStatusRow(RegisteredAdapter registered)
-        {
-            var adapter = registered.Adapter;
-            return new Dictionary<string, object?>
-            {
-                ["frameworkId"] = adapter.FrameworkId,
-                ["frameworkName"] = adapter.FrameworkName,
-                ["priority"] = adapter.Priority,
-                ["available"] = adapter.Available,
-                ["registrationOrder"] = registered.RegistrationOrder,
-                ["resources"] = adapter.Resources?.ToArray() ?? Array.Empty<string>(),
-                ["status"] = adapter.Status,
-            };
-        }
-
-        private static void AddProbeSummary(Dictionary<string, object?> adapterResult, object? probe)
-        {
-            if (!TryReadDictionary(probe, out var dictionary))
-            {
-                adapterResult["count"] = 0;
-                adapterResult["runtimeAvailable"] = null;
-                adapterResult["warnings"] = Array.Empty<string>();
-                return;
-            }
-
-            adapterResult["count"] = ReadObject(dictionary, "count");
-            adapterResult["runtimeAvailable"] = ReadObject(dictionary, "runtimeAvailable");
-            adapterResult["warnings"] = ReadObject(dictionary, "warnings") ?? Array.Empty<string>();
-            adapterResult["top"] = ReadObject(dictionary, "top");
-        }
-
-        private static IEnumerable<Dictionary<string, object?>> ReadStackRows(object? probe)
-        {
-            if (!TryReadDictionary(probe, out var dictionary)
-                || !dictionary.TryGetValue("stack", out var stack)
-                || stack == null)
-            {
-                yield break;
-            }
-
-            foreach (var item in ReadEnumerable(stack))
-            {
-                if (TryReadDictionary(item, out var row))
-                {
-                    yield return row;
-                }
-            }
-        }
-
-        private static MergedHit CreateSortableHit(Dictionary<string, object?> source, RegisteredAdapter registered, int hitOrder)
-        {
-            var sortingOrder = ReadIntFromPaths(source, 0,
-                "ordering.sortingOrder",
-                "raycastResult.sortingOrder",
-                "sorting.sortingOrder",
-                "canvas.sorting.sortingOrder",
-                "panelSettings.sortingOrder");
-            var documentDepth = ReadIntFromPaths(source, 0,
-                "ordering.documentDepth",
-                "ordering.depth",
-                "depth",
-                "raycastResult.depth");
-            return new MergedHit(
-                registered.Adapter.FrameworkId,
-                registered.Adapter.FrameworkName,
-                registered.Adapter.Priority,
-                registered.RegistrationOrder,
-                sortingOrder,
-                documentDepth,
-                ReadIntFromPaths(source, hitOrder, "ordering.hitOrder", "stackIndex"),
-                source);
-        }
-
-        private static int ReadIntFromPaths(Dictionary<string, object?> source, int defaultValue, params string[] paths)
-        {
-            foreach (var path in paths)
-            {
-                if (TryReadPath(source, path.Split('.'), out var value) && TryConvertInt(value, out var intValue))
-                {
-                    return intValue;
-                }
-            }
-
-            return defaultValue;
-        }
-
-        private static bool TryReadPath(object? source, IReadOnlyList<string> segments, out object? value)
-        {
-            value = source;
-            foreach (var segment in segments)
-            {
-                if (!TryReadDictionary(value, out var dictionary) || !dictionary.TryGetValue(segment, out value))
-                {
-                    value = null;
-                    return false;
-                }
-            }
-
-            return true;
         }
 
         private static object? ReadObject(Dictionary<string, object?> source, string key)
@@ -490,36 +435,6 @@ namespace Chievfx.Mcp.Editor
 
             warnings.Add("No screen position supplied; defaulted to normalized center (0.5, 0.5).");
             return new RuntimeScreenPosition(screenSize * 0.5f, screenSize, new Vector2(0.5f, 0.5f));
-        }
-
-        private static Dictionary<string, object?> CreateCoordinateInfo(RuntimeScreenPosition position)
-        {
-            return new Dictionary<string, object?>
-            {
-                ["origin"] = "bottom-left",
-                ["screenSize"] = CreateVector2Row(position.ScreenSize),
-                ["screenPosition"] = CreateVector2Row(position.ScreenPosition),
-                ["normalizedPosition"] = CreateVector2Row(position.NormalizedPosition),
-            };
-        }
-
-        private static Dictionary<string, object?> CreateScreenPositionRow(RuntimeScreenPosition position)
-        {
-            return new Dictionary<string, object?>
-            {
-                ["screenPosition"] = CreateVector2Row(position.ScreenPosition),
-                ["normalizedPosition"] = CreateVector2Row(position.NormalizedPosition),
-                ["origin"] = "bottom-left",
-            };
-        }
-
-        private static Dictionary<string, object?> CreateVector2Row(Vector2 value)
-        {
-            return new Dictionary<string, object?>
-            {
-                ["x"] = value.x,
-                ["y"] = value.y,
-            };
         }
 
         private static JObject RuntimeProbeSchema()
@@ -632,65 +547,6 @@ namespace Chievfx.Mcp.Editor
             {
                 var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
                 return new RuntimeScreenPosition(screenPosition, screenSize, new Vector2(screenPosition.x / screenSize.x, screenPosition.y / screenSize.y));
-            }
-        }
-
-        private readonly struct MergedHit
-        {
-            public MergedHit(
-                string frameworkId,
-                string frameworkName,
-                int adapterPriority,
-                int registrationOrder,
-                int sortingOrder,
-                int documentDepth,
-                int hitOrder,
-                Dictionary<string, object?> source)
-            {
-                FrameworkId = frameworkId;
-                FrameworkName = frameworkName;
-                AdapterPriority = adapterPriority;
-                RegistrationOrder = registrationOrder;
-                SortingOrder = sortingOrder;
-                DocumentDepth = documentDepth;
-                HitOrder = hitOrder;
-                Source = source;
-            }
-
-            public string FrameworkId { get; }
-
-            public string FrameworkName { get; }
-
-            public int AdapterPriority { get; }
-
-            public int RegistrationOrder { get; }
-
-            public int SortingOrder { get; }
-
-            public int DocumentDepth { get; }
-
-            public int HitOrder { get; }
-
-            private Dictionary<string, object?> Source { get; }
-
-            public Dictionary<string, object?> ToDictionary(int mergedStackIndex)
-            {
-                var row = new Dictionary<string, object?>(Source, StringComparer.Ordinal)
-                {
-                    ["mergedStackIndex"] = mergedStackIndex,
-                    ["frameworkId"] = FrameworkId,
-                    ["frameworkName"] = FrameworkName,
-                    ["adapterPriority"] = AdapterPriority,
-                    ["ordering"] = new Dictionary<string, object?>
-                    {
-                        ["adapterPriority"] = AdapterPriority,
-                        ["registrationOrder"] = RegistrationOrder,
-                        ["sortingOrder"] = SortingOrder,
-                        ["documentDepth"] = DocumentDepth,
-                        ["hitOrder"] = HitOrder,
-                    },
-                };
-                return row;
             }
         }
     }

@@ -462,36 +462,370 @@ def format_editor_playmode_set_text(result: dict[str, Any]) -> str:
 
 
 def format_ugui_runtime_probe_text(result: dict[str, Any]) -> str:
-    coord = result.get("coordinateConvention")
-    if not isinstance(coord, dict):
-        coord = {}
-    screen_position = coord.get("screenPosition")
-    screen_size = coord.get("screenSize")
+    if isinstance(result.get("ugui"), dict) or isinstance(result.get("uitoolkit"), dict):
+        return format_runtime_ui_probe_markdown(result)
+    if isinstance(result.get("adapters"), list):
+        return format_runtime_ui_probe_markdown_from_adapters(result)
+    if isinstance(result.get("probe"), dict):
+        return format_runtime_ui_probe_markdown(result)
 
-    header_parts = [
-        f"count:{result.get('count', 0)}",
-    ]
-    pos_text = format_vector2_pair(screen_position)
-    if pos_text:
-        header_parts.append(f"pos:{pos_text}")
-    size_text = format_vector2_pair(screen_size)
-    if size_text:
-        header_parts.append(f"screen:{size_text}")
+    return format_runtime_ui_probe_markdown_legacy(result)
 
-    lines = [" ".join(header_parts)]
-    hierarchy = result.get("hierarchy")
-    if isinstance(hierarchy, list) and hierarchy:
-        lines.extend(str(line) for line in hierarchy if isinstance(line, str) and line)
-    else:
-        extension_id = result.get("extensionId")
-        lines.append("(no UI Toolkit hit)" if extension_id == "chievfx.uitoolkit" else "(no uGUI hit)")
+
+def format_runtime_ui_probe_markdown_from_adapters(result: dict[str, Any]) -> str:
+    lines: list[str] = ["## Runtime UI probe", ""]
+
+    runtime_available = result.get("runtimeAvailable")
+    truncated = result.get("truncated")
+    max_rows = result.get("maxRows")
+    meta_parts: list[str] = []
+    if runtime_available is not None:
+        meta_parts.append(f"**Runtime available:** {'yes' if runtime_available else 'no'}")
+    if truncated is not None:
+        meta_parts.append(f"**Truncated:** {'yes' if truncated else 'no'}")
+    if max_rows is not None:
+        meta_parts.append(f"**Max rows:** {max_rows}")
+    if meta_parts:
+        lines.append(" · ".join(meta_parts))
+        lines.append("")
+
+    probe = get_dict(result.get("probe"))
+    if probe:
+        lines.extend(format_probe_position_markdown(probe, include_ui_toolkit_coords=True))
+        lines.append("")
+
+    adapters = result.get("adapters")
+    if isinstance(adapters, list):
+        for adapter in adapters:
+            if not isinstance(adapter, dict):
+                continue
+            framework = adapter.get("framework") or adapter.get("frameworkId") or "unknown"
+            title = "uGUI" if framework == "ugui" else "UI Toolkit" if framework == "uitoolkit" else str(framework)
+            hits = adapter.get("hits")
+            if not isinstance(hits, list):
+                stack = adapter.get("stack")
+                hits = stack if isinstance(stack, list) else []
+            section = {
+                "available": adapter.get("available"),
+                "probed": adapter.get("probed"),
+                "count": adapter.get("count", len(hits)),
+                "hits": hits,
+                "warnings": adapter.get("warnings"),
+                "truncated": adapter.get("truncated"),
+            }
+            if framework == "uitoolkit":
+                section["yInverted"] = probe.get("uiToolkitYInverted", True)
+                section["panelScreen"] = probe.get("uiToolkitScreen")
+            lines.extend(
+                format_framework_probe_section_markdown(
+                    title,
+                    section,
+                    include_panel_screen=framework == "uitoolkit",
+                    legacy=True,
+                )
+            )
+            lines.append("")
 
     warnings = result.get("warnings")
     if isinstance(warnings, list):
-        for warning in warnings:
-            if isinstance(warning, str) and warning:
-                lines.append(f"! {warning}")
-    return "\n".join(lines)
+        warning_lines = [str(warning) for warning in warnings if isinstance(warning, str) and warning]
+        if warning_lines:
+            lines.append("### Warnings")
+            lines.extend(f"- {warning}" for warning in warning_lines)
+
+    return "\n".join(line for line in lines if line is not None).rstrip()
+
+
+def format_runtime_ui_probe_markdown(result: dict[str, Any]) -> str:
+    lines: list[str] = ["## Runtime UI probe", ""]
+
+    runtime_available = result.get("runtimeAvailable")
+    truncated = result.get("truncated")
+    max_rows = result.get("maxRows")
+    meta_parts: list[str] = []
+    if runtime_available is not None:
+        meta_parts.append(f"**Runtime available:** {'yes' if runtime_available else 'no'}")
+    if truncated is not None:
+        meta_parts.append(f"**Truncated:** {'yes' if truncated else 'no'}")
+    if max_rows is not None:
+        meta_parts.append(f"**Max rows:** {max_rows}")
+    if meta_parts:
+        lines.append(" · ".join(meta_parts))
+        lines.append("")
+
+    probe = get_dict(result.get("probe"))
+    if probe:
+        lines.extend(format_probe_position_markdown(probe))
+        lines.append("")
+
+    ugui = get_dict(result.get("ugui"))
+    if ugui:
+        lines.extend(format_framework_probe_section_markdown("uGUI", ugui, include_panel_screen=False))
+        lines.append("")
+
+    uitoolkit = get_dict(result.get("uitoolkit"))
+    if uitoolkit:
+        lines.extend(format_framework_probe_section_markdown("UI Toolkit", uitoolkit, include_panel_screen=True))
+        lines.append("")
+
+    warnings = result.get("warnings")
+    if isinstance(warnings, list):
+        warning_lines = [str(warning) for warning in warnings if isinstance(warning, str) and warning]
+        if warning_lines:
+            lines.append("### Warnings")
+            lines.extend(f"- {warning}" for warning in warning_lines)
+
+    return "\n".join(line for line in lines if line is not None).rstrip()
+
+
+def format_runtime_ui_probe_markdown_legacy(result: dict[str, Any]) -> str:
+    lines: list[str] = ["## Runtime UI probe", ""]
+
+    coord = get_dict(result.get("coordinateConvention"))
+    if not coord and isinstance(result.get("input"), dict):
+        input_row = get_dict(result.get("input"))
+        coord = {
+            "origin": input_row.get("origin", "bottom-left"),
+            "normalizedPosition": input_row.get("normalizedPosition"),
+            "screenPosition": input_row.get("screenPosition"),
+            "screenSize": result.get("screenSize"),
+        }
+        if result.get("uiToolkitYInverted") is True:
+            coord["uiToolkitYInverted"] = True
+            coord["uiToolkitScreenPosition"] = result.get("uiToolkitScreenPosition")
+    if coord:
+        lines.extend(format_probe_position_markdown(coord, legacy=True))
+        lines.append("")
+
+    extension_id = result.get("extensionId")
+    framework_name = "UI Toolkit" if extension_id == "chievfx.uitoolkit" else "uGUI"
+    hits = result.get("stack") if isinstance(result.get("stack"), list) else []
+    section = {
+        "probed": result.get("runtimeAvailable"),
+        "count": result.get("count", len(hits)),
+        "hits": hits,
+    }
+    lines.extend(
+        format_framework_probe_section_markdown(
+            framework_name,
+            section,
+            include_panel_screen=extension_id == "chievfx.uitoolkit",
+            legacy=True,
+        )
+    )
+    lines.append("")
+
+    warnings = result.get("warnings")
+    if isinstance(warnings, list):
+        warning_lines = [str(warning) for warning in warnings if isinstance(warning, str) and warning]
+        if warning_lines:
+            lines.append("### Warnings")
+            lines.extend(f"- {warning}" for warning in warning_lines)
+
+    return "\n".join(line for line in lines if line is not None).rstrip()
+
+
+def format_probe_position_markdown(
+    probe: dict[str, Any],
+    *,
+    legacy: bool = False,
+    include_ui_toolkit_coords: bool = False,
+) -> list[str]:
+    parts: list[str] = []
+
+    origin = probe.get("origin")
+    if origin:
+        parts.append(f"origin {origin}")
+
+    normalized = probe.get("normalized") if not legacy else probe.get("normalizedPosition")
+    normalized_text = format_vector2_fixed(normalized)
+    if normalized_text:
+        parts.append(f"normalized {normalized_text}")
+
+    screen = probe.get("screen") if not legacy else probe.get("screenPosition")
+    screen_text = format_vector2_fixed(screen)
+    if screen_text:
+        parts.append(f"screen {screen_text}")
+
+    screen_size = probe.get("screenSize")
+    screen_size_text = format_vector2_fixed(screen_size)
+    if screen_size_text:
+        parts.append(f"screen size {screen_size_text}")
+
+    if include_ui_toolkit_coords or (legacy and probe.get("uiToolkitYInverted") is True):
+        if probe.get("uiToolkitYInverted") is True:
+            parts.append("UITK Y inverted yes")
+        panel_text = format_vector2_fixed(probe.get("uiToolkitScreen"))
+        if panel_text:
+            parts.append(f"UITK screen {panel_text}")
+
+    if not parts:
+        return []
+
+    return ["### Probe position", "", " · ".join(parts)]
+
+
+def format_framework_probe_section_markdown(
+    title: str,
+    section: dict[str, Any],
+    *,
+    include_panel_screen: bool,
+    legacy: bool = False,
+) -> list[str]:
+    lines = [f"### {title}", ""]
+
+    header_parts: list[str] = []
+    if "available" in section:
+        header_parts.append(f"**Available:** {'yes' if section.get('available') else 'no'}")
+    if "probed" in section:
+        header_parts.append(f"**Probed:** {'yes' if section.get('probed') else 'no'}")
+    if include_panel_screen and section.get("yInverted") is True:
+        header_parts.append("**Y inverted:** yes")
+        panel_text = format_vector2_fixed(section.get("panelScreen"))
+        if panel_text:
+            header_parts.append(f"**Panel screen:** {panel_text}")
+    count = section.get("count")
+    if count is not None:
+        header_parts.append(f"**Hits:** {count}")
+    if section.get("truncated") is True:
+        header_parts.append("**Truncated:** yes")
+    if header_parts:
+        lines.append(" · ".join(header_parts))
+        lines.append("")
+
+    section_warnings = section.get("warnings")
+    if isinstance(section_warnings, list):
+        warning_lines = [str(warning) for warning in section_warnings if isinstance(warning, str) and warning]
+        if warning_lines:
+            lines.append("**Section warnings:** " + "; ".join(warning_lines))
+            lines.append("")
+
+    hits = section.get("hits")
+    if not isinstance(hits, list) or not hits:
+        lines.append("_No hits._")
+        return lines
+
+    rows: list[tuple[str, str, str, str]] = []
+    for index, hit in enumerate(hits):
+        if not isinstance(hit, dict):
+            continue
+        row_index = hit.get("i", index)
+        path = str(hit.get("path") or "—")
+        hit_type = format_probe_hit_type(hit)
+        details = format_probe_hit_details(hit, legacy=legacy)
+        rows.append((str(row_index), f"`{path}`", hit_type, details))
+
+    lines.extend(format_markdown_table(["#", "Path", "Type", "Details"], rows))
+    return lines
+
+
+def format_probe_hit_type(hit: dict[str, Any]) -> str:
+    hit_type = hit.get("type") or hit.get("typeName")
+    if hit_type not in (None, ""):
+        return str(hit_type)
+
+    controls = hit.get("controls")
+    if isinstance(controls, list) and controls:
+        first_control = controls[0]
+        if first_control not in (None, ""):
+            return str(first_control)
+
+    return "—"
+
+
+def format_probe_hit_details(hit: dict[str, Any], *, legacy: bool = False) -> str:
+    parts: list[str] = []
+
+    text = hit.get("text")
+    if text not in (None, ""):
+        parts.append(f'text: "{text}"')
+
+    value = hit.get("value")
+    if value not in (None, ""):
+        parts.append(f"value: {format_toon_atom(value)}")
+
+    controls = hit.get("controls")
+    if isinstance(controls, list) and controls:
+        control_names = ", ".join(str(control) for control in controls if control)
+        if control_names:
+            parts.append(f"controls: {control_names}")
+
+    flags: list[str] = []
+    for key, label in (
+        ("interactable", "interactable"),
+        ("raycastTarget", "raycast"),
+        ("enabled", "enabled"),
+        ("focusable", "focusable"),
+    ):
+        value = hit.get(key)
+        if value is False:
+            flags.append(f"not {label}")
+        elif value is True:
+            flags.append(label)
+
+    picking_mode = hit.get("pickingMode")
+    if picking_mode not in (None, "", "Position"):
+        flags.append(f"picking:{picking_mode}")
+
+    handler_path = hit.get("handlerPath")
+    if handler_path:
+        flags.append(f"handler `{handler_path}`")
+
+    sorting_order = hit.get("sortingOrder")
+    if sorting_order not in (None, 0):
+        flags.append(f"sort {sorting_order}")
+
+    bound = get_dict(hit.get("bound"))
+    if not bound and legacy:
+        bound = get_dict(hit.get("worldBound"))
+    bound_text = format_bound_fixed(bound)
+    if bound_text:
+        flags.append(f"bound {bound_text}")
+
+    if flags:
+        parts.extend(flags)
+
+    return " · ".join(parts) if parts else "—"
+
+
+def format_markdown_table(headers: list[str], rows: list[tuple[str, ...]]) -> list[str]:
+    if not rows:
+        return []
+
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join("---" for _ in headers) + " |",
+    ]
+    for row in rows:
+        lines.append("| " + " | ".join(str(cell) for cell in row) + " |")
+    return lines
+
+
+def format_vector2_fixed(value: Any) -> str:
+    if not isinstance(value, dict):
+        return ""
+    x = value.get("x")
+    y = value.get("y")
+    if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        return ""
+    return f"{format_fixed2(float(x))}, {format_fixed2(float(y))}"
+
+
+def format_bound_fixed(bound: dict[str, Any]) -> str:
+    x = bound.get("x")
+    y = bound.get("y")
+    width = bound.get("width")
+    height = bound.get("height")
+    if not all(isinstance(value, (int, float)) for value in (x, y, width, height)):
+        return ""
+    return (
+        f"{format_fixed2(float(x))},{format_fixed2(float(y))} "
+        f"{format_fixed2(float(width))}x{format_fixed2(float(height))}"
+    )
+
+
+def format_fixed2(value: float) -> str:
+    return f"{value:.2f}"
 
 
 def format_uitoolkit_runtime_interact_text(result: dict[str, Any]) -> str:

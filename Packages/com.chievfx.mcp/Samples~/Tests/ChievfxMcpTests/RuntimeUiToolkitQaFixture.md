@@ -44,12 +44,13 @@ Expected marker points with the default `PanelSettings` scale:
 
 Expected proof:
 
-- Probe `coordinateConvention.origin` is `bottom-left`.
-- Probe `coordinateConvention.uiToolkitYInverted` is `true`.
-- Probe `top.path` contains `TopUiToolkitHit`.
-- Probe `top.ordering.sortingOrder` is `100`.
-- Probe stack includes `BottomUiToolkitHit` below the top hit.
-- Merged `runtime-ui-probe-screen-position` rows retain `frameworkId`, `framework`, `path`, `input`, `ordering`, `raycastResult`, `worldBound`, `panelRef`, and `documentRefs`.
+- Probe `probe.origin` is `bottom-left`.
+- `uitoolkit.yInverted` is `true`.
+- `uitoolkit.panelScreen` uses top-left panel coordinates.
+- `uitoolkit.hits[0].path` contains `TopUiToolkitHit`.
+- `uitoolkit.hits[0].sortingOrder` is `100` when multiple panels overlap.
+- `uitoolkit.hits` includes `BottomUiToolkitHit` below the top hit.
+- Merged `runtime-ui-probe-screen-position` returns separate `ugui` and `uitoolkit` sections with compact `hits` rows.
 
 6. Dry-run a value mutation; it should report a plan and keep the control value unchanged:
 

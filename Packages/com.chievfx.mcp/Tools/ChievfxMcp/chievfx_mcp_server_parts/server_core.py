@@ -406,7 +406,11 @@ class McpServerCore:
             else format_uitoolkit_runtime_interact_text(result)
             if name == "uitoolkit-runtime-interact" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_ugui_runtime_probe_text(result)
-            if name in {"ugui-runtime-probe-screen-position", "uitoolkit-runtime-probe-screen-position"}
+            if name in {
+                "runtime-ui-probe-screen-position",
+                "ugui-runtime-probe-screen-position",
+                "uitoolkit-runtime-probe-screen-position",
+            }
             and arguments.get("outputFormat") != "json"
             and isinstance(result, dict)
             else format_ugui_sibling_draworder_set_text(result)

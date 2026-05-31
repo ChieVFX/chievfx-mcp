@@ -26,45 +26,26 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
     {
         internal static Dictionary<string, object?> ProbeRuntimeScreenPosition(JToken args, UiToolkitDependencyStatus status)
         {
+            ChievfxMcpRuntimeUiProbeCompact.EnsurePlayModeForProbe(IsRuntimePlayModeActive());
+
             var warnings = new List<string>();
             var maxRows = Mathf.Clamp(ReadInt(args, "maxRows", DefaultMaxRows), 1, 1024);
-            var includeAllComponents = ReadBool(args, "includeAllComponents", false);
-            var includeUssClasses = ReadBool(args, "includeUssClasses", false);
             var position = ReadScreenPosition(args, warnings);
-            var result = CreateEnvelope("tool://uitoolkit-runtime-probe-screen-position", status);
-            AddCoordinateInfo(result, position);
-            result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
-            result["stack"] = Array.Empty<Dictionary<string, object?>>();
-            result["hierarchy"] = Array.Empty<string>();
-            result["componentScope"] = includeAllComponents ? "all" : "uitoolkit";
-            result["styleScope"] = includeUssClasses ? "ussClasses" : "none";
-            result["count"] = 0;
-            result["top"] = null;
-            result["maxRows"] = maxRows;
-            result["truncated"] = false;
-
-            if (Equals(result["runtimeAvailable"], false))
-            {
-                result["warnings"] = warnings.ToArray();
-                return result;
-            }
+            var probe = ChievfxMcpRuntimeUiProbeCompact.CreateProbeBlock(
+                position.ScreenSize,
+                position.ScreenPosition,
+                position.NormalizedPosition);
 
             if (IsOutsideScreen(position.ScreenPosition, position.ScreenSize))
             {
                 warnings.Add("Coordinate is outside current screen/game-view bounds.");
             }
 
-            var panelRows = new List<Dictionary<string, object?>>();
             var stackRows = new List<Dictionary<string, object?>>();
-            var hitElements = new List<object>();
+            var truncated = false;
             foreach (var panelGroup in FindRuntimePanelGroups(status))
             {
                 var panelPosition = ConvertScreenToPanel(status, panelGroup, position, warnings);
-                var panelRow = CreatePanelRow(panelGroup, status);
-                panelRow["input"] = CreateScreenPositionRow(position);
-                panelRow["panelPosition"] = panelPosition.HasValue ? CreateVector2Row(panelPosition.Value) : null;
-                panelRows.Add(panelRow);
-
                 if (!panelPosition.HasValue)
                 {
                     continue;
@@ -75,31 +56,32 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 {
                     if (stackRows.Count >= maxRows)
                     {
-                        result["truncated"] = true;
+                        truncated = true;
                         break;
                     }
 
-                    var row = CreateVisualElementRow(hit, status, panelGroup, includeTextAndValue: true);
-                    hitElements.Add(hit);
-                    row["input"] = CreateScreenPositionRow(position);
-                    row["panelPosition"] = CreateVector2Row(panelPosition.Value);
-                    row["ordering"] = CreatePanelOrderingRow(panelGroup, hit, stackRows.Count);
-                    row["raycastResult"] = new Dictionary<string, object?>
-                    {
-                        ["source"] = "IPanel.PickAll",
-                        ["panelRef"] = CreatePanelRef(panelGroup.Panel),
-                    };
-                    stackRows.Add(row);
+                    stackRows.Add(CreateCompactProbeStackRow(hit, status, panelGroup, stackRows.Count, stackRows.Count));
+                }
+
+                if (truncated)
+                {
+                    break;
                 }
             }
 
-            result["panels"] = panelRows.ToArray();
-            result["stack"] = stackRows.ToArray();
-            result["hierarchy"] = CreateRuntimeProbeHierarchyLines(hitElements, includeAllComponents, includeUssClasses);
-            result["count"] = stackRows.Count;
-            result["top"] = stackRows.FirstOrDefault();
-            result["warnings"] = warnings.Distinct().ToArray();
-            return result;
+            return ChievfxMcpRuntimeUiProbeCompact.CreateProbeResult(
+                probe,
+                runtimeAvailable: true,
+                maxRows,
+                truncated,
+                warnings,
+                uitoolkit: ChievfxMcpRuntimeUiProbeCompact.CreateUiToolkitSection(
+                    available: true,
+                    probed: true,
+                    position.ScreenSize,
+                    position.ScreenPosition,
+                    stackRows.ToArray(),
+                    truncated: truncated));
         }
 
         internal static Dictionary<string, object?> InteractRuntime(JToken args, UiToolkitDependencyStatus status)

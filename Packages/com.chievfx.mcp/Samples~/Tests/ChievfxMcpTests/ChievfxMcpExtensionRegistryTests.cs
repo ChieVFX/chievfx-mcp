@@ -187,63 +187,15 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
-        public void RuntimeUiMergedProbeSkipsUnavailableAdapters()
+        public void RuntimeUiMergedProbeOutsidePlayModeThrows()
         {
-            var frameworkId = "test.runtimeui.unavailable." + Guid.NewGuid().ToString("N");
-            try
-            {
-                ChievfxMcpRuntimeUiAdapterRegistry.Register(new TestRuntimeUiAdapter(frameworkId, "Unavailable Adapter", 100, available: false));
+            ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
 
-                var probe = RunExtensionTool("runtime-ui-probe-screen-position", "{'normalized':{'x':0.5,'y':0.5}}");
-                var adapter = Rows(probe, "adapters").First(row => string.Equals((string)row["frameworkId"]!, frameworkId, StringComparison.Ordinal));
+            var ex = Assert.Throws<InvalidOperationException>(() =>
+                RunExtensionTool("runtime-ui-probe-screen-position", "{'normalized':{'x':0.5,'y':0.5}}"));
 
-                Assert.AreEqual(false, adapter["available"]);
-                Assert.AreEqual(false, adapter["probed"]);
-                Assert.AreEqual(0, Rows(probe, "stack").Count(row => string.Equals((string)row["frameworkId"]!, frameworkId, StringComparison.Ordinal)));
-            }
-            finally
-            {
-                ChievfxMcpRuntimeUiAdapterRegistry.Unregister(frameworkId);
-            }
-        }
-
-        [Test]
-        public void RuntimeUiMergedProbeOrdersByPrioritySortingDepthAndHitOrder()
-        {
-            var lowPriority = "test.runtimeui.low." + Guid.NewGuid().ToString("N");
-            var highPriority = "test.runtimeui.high." + Guid.NewGuid().ToString("N");
-            try
-            {
-                ChievfxMcpRuntimeUiAdapterRegistry.Register(new TestRuntimeUiAdapter(
-                    lowPriority,
-                    "Low Priority Adapter",
-                    10,
-                    Hit("low-priority", sortingOrder: 999, documentDepth: 0, hitOrder: 0)));
-                ChievfxMcpRuntimeUiAdapterRegistry.Register(new TestRuntimeUiAdapter(
-                    highPriority,
-                    "High Priority Adapter",
-                    20,
-                    Hit("high-priority-low-sort", sortingOrder: 1, documentDepth: 0, hitOrder: 0),
-                    Hit("high-priority-high-sort-shallow", sortingOrder: 5, documentDepth: 1, hitOrder: 1),
-                    Hit("high-priority-high-sort-deep", sortingOrder: 5, documentDepth: 3, hitOrder: 2)));
-
-                var probe = RunExtensionTool("runtime-ui-probe-screen-position", "{'normalized':{'x':0.5,'y':0.5},'maxRows':4}");
-                var stack = Rows(probe, "stack");
-
-                Assert.AreEqual(4, stack.Length);
-                Assert.AreEqual("high-priority-high-sort-deep", stack[0]["path"]);
-                Assert.AreEqual("high-priority-high-sort-shallow", stack[1]["path"]);
-                Assert.AreEqual("high-priority-low-sort", stack[2]["path"]);
-                Assert.AreEqual("low-priority", stack[3]["path"]);
-                Assert.AreEqual(0, stack[0]["mergedStackIndex"]);
-                Assert.IsNotNull(stack[0]["ordering"]);
-                Assert.AreEqual("High Priority Adapter", stack[0]["frameworkName"]);
-            }
-            finally
-            {
-                ChievfxMcpRuntimeUiAdapterRegistry.Unregister(lowPriority);
-                ChievfxMcpRuntimeUiAdapterRegistry.Unregister(highPriority);
-            }
+            StringAssert.Contains("Play Mode", ex!.Message);
+            StringAssert.Contains("probe", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         [Test]

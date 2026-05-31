@@ -68,21 +68,16 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
-        public void RuntimeProbeOutsidePlayModeReturnsStackShapeAndWarning()
+        public void RuntimeProbeOutsidePlayModeThrows()
         {
             RequireUiToolkit();
 
-            var probe = (Dictionary<string, object?>)ChievfxMcpUiToolkitExtension.RunToolForTests(
+            var ex = Assert.Throws<InvalidOperationException>(() => ChievfxMcpUiToolkitExtension.RunToolForTests(
                 "uitoolkit-runtime-probe-screen-position",
-                "{'normalized':{'x':0.5,'y':0.5}}")!;
+                "{'normalized':{'x':0.5,'y':0.5}}"));
 
-            Assert.AreEqual(false, probe["runtimeAvailable"]);
-            Assert.AreEqual(0, probe["count"]);
-            Assert.IsEmpty((object[])probe["stack"]!);
-            Assert.IsTrue(StringArray(probe, "warnings").Any(warning => warning.Contains("Play Mode")));
-            var coordinateConvention = Row(probe, "coordinateConvention");
-            Assert.AreEqual("bottom-left", coordinateConvention["origin"]);
-            Assert.AreEqual(true, coordinateConvention["uiToolkitYInverted"]);
+            StringAssert.Contains("Play Mode", ex!.Message);
+            StringAssert.Contains("probe", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         [Test]
@@ -183,22 +178,22 @@ namespace Chievfx.Mcp.Editor.Tests
             var probe = RunTool("uitoolkit-runtime-probe-screen-position", NormalizedPositionArgs(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized, maxRows: 12));
 
             Assert.AreEqual(true, probe["runtimeAvailable"]);
-            Assert.AreEqual("bottom-left", Row(probe, "coordinateConvention")["origin"]);
-            Assert.AreEqual(true, Row(probe, "coordinateConvention")["uiToolkitYInverted"]);
-            Assert.AreEqual(screenPoint.y, FloatAt(Row(Row(probe, "coordinateConvention"), "screenPosition"), "y"), 0.1f);
-            Assert.AreEqual(Screen.height - screenPoint.y, FloatAt(Row(Row(probe, "coordinateConvention"), "uiToolkitScreenPosition"), "y"), 0.1f);
+            var probeInfo = Row(probe, "probe");
+            var uitoolkit = Row(probe, "uitoolkit");
+            Assert.AreEqual("bottom-left", probeInfo["origin"]);
+            Assert.AreEqual(true, uitoolkit["yInverted"]);
+            Assert.AreEqual(screenPoint.y, FloatAt(Row(probeInfo, "screen"), "y"), 0.1f);
+            Assert.AreEqual(Screen.height - screenPoint.y, FloatAt(Row(uitoolkit, "panelScreen"), "y"), 0.1f);
 
-            var stack = Rows(probe, "stack");
-            Assert.GreaterOrEqual(stack.Length, 2, string.Join("; ", StringArray(probe, "warnings")));
+            var hits = Rows(uitoolkit, "hits");
+            Assert.GreaterOrEqual(hits.Length, 2, string.Join("; ", StringArray(probe, "warnings")));
 
-            var top = Row(probe, "top");
+            var top = hits[0];
             StringAssert.Contains(ChievfxMcpUiToolkitRuntimeQaFixture.TopHitName, (string)top["path"]!);
-            Assert.AreEqual("uitoolkit", top["framework"]);
-            Assert.AreEqual("IPanel.PickAll", Row(top, "raycastResult")["source"]);
-            Assert.AreEqual(100, Row(top, "ordering")["sortingOrder"]);
+            Assert.AreEqual(100, top["sortingOrder"]);
 
-            var topIndex = Array.FindIndex(stack, row => ((string)row["path"]!).Contains(ChievfxMcpUiToolkitRuntimeQaFixture.TopHitName, StringComparison.Ordinal));
-            var bottomIndex = Array.FindIndex(stack, row => ((string)row["path"]!).Contains(ChievfxMcpUiToolkitRuntimeQaFixture.BottomHitName, StringComparison.Ordinal));
+            var topIndex = Array.FindIndex(hits, row => ((string)row["path"]!).Contains(ChievfxMcpUiToolkitRuntimeQaFixture.TopHitName, StringComparison.Ordinal));
+            var bottomIndex = Array.FindIndex(hits, row => ((string)row["path"]!).Contains(ChievfxMcpUiToolkitRuntimeQaFixture.BottomHitName, StringComparison.Ordinal));
             Assert.AreEqual(0, topIndex);
             Assert.Greater(bottomIndex, topIndex);
         }
@@ -214,10 +209,10 @@ namespace Chievfx.Mcp.Editor.Tests
 
             var probe = RunTool("uitoolkit-runtime-probe-screen-position", NormalizedPositionArgs(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized, maxRows: 1));
 
-            Assert.AreEqual(1, probe["count"]);
-            Assert.AreEqual(1, Rows(probe, "stack").Length);
+            var uitoolkit = Row(probe, "uitoolkit");
+            Assert.AreEqual(1, uitoolkit["count"]);
+            Assert.AreEqual(1, Rows(uitoolkit, "hits").Length);
             Assert.AreEqual(true, probe["truncated"]);
-            Assert.GreaterOrEqual(Rows(probe, "panels").Length, 3);
         }
 
         [UnityTest]
@@ -291,27 +286,21 @@ namespace Chievfx.Mcp.Editor.Tests
 
             ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
             var probe = RunExtensionTool("runtime-ui-probe-screen-position", NormalizedPositionArgs(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized, maxRows: 8));
-            var coordinateConvention = Row(probe, "coordinateConvention");
-            var input = Row(probe, "input");
+            var probeInfo = Row(probe, "probe");
+            var uitoolkit = Row(probe, "uitoolkit");
             var expected = NormalizedScreenPoint(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized);
-            Assert.AreEqual("bottom-left", coordinateConvention["origin"]);
-            Assert.AreEqual(expected.x, FloatAt(input, "x"), 0.25f);
-            Assert.AreEqual(expected.y, FloatAt(input, "y"), 0.25f);
+            Assert.AreEqual("bottom-left", probeInfo["origin"]);
+            Assert.AreEqual(expected.x, FloatAt(Row(probeInfo, "screen"), "x"), 0.25f);
+            Assert.AreEqual(expected.y, FloatAt(Row(probeInfo, "screen"), "y"), 0.25f);
 
-            var stack = Rows(probe, "stack");
-            var top = stack.First(row => string.Equals((string)row["frameworkId"]!, "uitoolkit", StringComparison.Ordinal));
+            var hits = Rows(uitoolkit, "hits");
+            var top = hits.First(row => ((string)row["path"]!).Contains(ChievfxMcpUiToolkitRuntimeQaFixture.TopHitName, StringComparison.Ordinal));
 
-            Assert.AreEqual("UI Toolkit", top["frameworkName"]);
-            Assert.AreEqual(100, top["adapterPriority"]);
-            Assert.AreEqual(0, top["mergedStackIndex"]);
-            Assert.AreEqual("uitoolkit", top["framework"]);
+            Assert.AreEqual(0, top["i"]);
             Assert.IsNotNull(top["path"]);
-            Assert.IsNotNull(top["input"]);
-            Assert.IsNotNull(top["ordering"]);
-            Assert.IsNotNull(top["raycastResult"]);
-            Assert.IsNotNull(top["worldBound"]);
-            Assert.IsNotNull(top["panelRef"]);
-            Assert.IsNotNull(top["documentRefs"]);
+            Assert.IsNotNull(top["bound"]);
+            Assert.AreEqual(true, uitoolkit["yInverted"]);
+            Assert.IsNotNull(uitoolkit["panelScreen"]);
         }
 
         private static void RequireUiToolkit()

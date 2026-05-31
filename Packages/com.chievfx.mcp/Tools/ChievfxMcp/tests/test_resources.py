@@ -40,13 +40,14 @@ class ResourceTests(unittest.TestCase):
         self.addCleanup(self.temp_dir.cleanup)
         self.bridge_dir = Path(self.temp_dir.name) / "bridge"
         self.selection_path = Path(self.temp_dir.name) / "UserSettings" / "ChievfxMcpResourceSelection.json"
-        self.extension_manifest_path = Path(self.temp_dir.name) / "Library" / "ChievfxMcpBridge" / "extension-capabilities.json"
+        self.extension_manifest_path = Path(self.temp_dir.name) / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
         self.original_selection_path = mcp.RESOURCE_SELECTION_PATH
         self.original_extension_manifest_path = mcp.EXTENSION_CAPABILITY_MANIFEST_PATH
         mcp.RESOURCE_SELECTION_PATH = self.selection_path
         mcp.EXTENSION_CAPABILITY_MANIFEST_PATH = self.extension_manifest_path
         self.addCleanup(self.restore_selection_path)
         self.server = ResourceServer(self.bridge_dir)
+        mcp.configure_extension_manifest_bridge_fetcher(None)
 
     def restore_selection_path(self) -> None:
         mcp.RESOURCE_SELECTION_PATH = self.original_selection_path
@@ -63,6 +64,7 @@ class ResourceTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        mcp.invalidate_extension_manifest_cache()
 
     def write_selection(
         self,
@@ -121,18 +123,18 @@ class ResourceTests(unittest.TestCase):
         self.write_extension_manifest(
             [
                 {
-                    "id": "chievfx.diagnostics",
-                    "displayName": "ChievFX MCP Diagnostics",
+                    "id": "test.extension",
+                    "displayName": "Test Extension",
                     "version": "1.0.0",
-                    "sourceAssembly": "Chievfx.Mcp.Diagnostics",
+                    "sourceAssembly": "Test.Mcp.Extension",
                     "resources": [
                         {
-                            "id": "chievfx-diagnostics-capabilities",
-                            "uri": "chievfx://extensions/chievfx.diagnostics/capabilities",
-                            "name": "ChievFX MCP extension capabilities",
-                            "description": "Registry diagnostic.",
+                            "id": "test-extension-static",
+                            "uri": "chievfx://extensions/test.extension/static",
+                            "name": "Test extension static resource",
+                            "description": "Registry static resource test.",
                             "mimeType": "text/plain",
-                            "category": "Diagnostics",
+                            "category": "Extensions",
                             "required": True,
                             "staticText": "extension registry active",
                         }
@@ -143,20 +145,20 @@ class ResourceTests(unittest.TestCase):
 
         metadata = mcp.build_resource_metadata()
         resources_by_id = {resource["id"]: resource for resource in metadata["resources"]}
-        diagnostic = resources_by_id["chievfx-diagnostics-capabilities"]
+        static_resource = resources_by_id["test-extension-static"]
         listed_uris = {resource["uri"] for resource in self.request("resources/list")["result"]["resources"]}
         content = self.request(
             "resources/read",
-            {"uri": "chievfx://extensions/chievfx.diagnostics/capabilities"},
+            {"uri": "chievfx://extensions/test.extension/static"},
         )["result"]["contents"][0]
 
-        self.assertIn("chievfx-diagnostics-capabilities", metadata["requiredResourceIds"])
-        self.assertIn("chievfx://extensions/chievfx.diagnostics/capabilities", listed_uris)
-        self.assertEqual(diagnostic["category"], "Diagnostics")
-        self.assertEqual(diagnostic["sourceExtensionId"], "chievfx.diagnostics")
-        self.assertEqual(diagnostic["sourceAssembly"], "Chievfx.Mcp.Diagnostics")
-        self.assertRegex(diagnostic["descriptorHash"], r"^[0-9a-f]{64}$")
-        self.assertGreater(diagnostic["estimatedTokens"], 0)
+        self.assertIn("test-extension-static", metadata["requiredResourceIds"])
+        self.assertIn("chievfx://extensions/test.extension/static", listed_uris)
+        self.assertEqual(static_resource["category"], "Extensions")
+        self.assertEqual(static_resource["sourceExtensionId"], "test.extension")
+        self.assertEqual(static_resource["sourceAssembly"], "Test.Mcp.Extension")
+        self.assertRegex(static_resource["descriptorHash"], r"^[0-9a-f]{64}$")
+        self.assertGreater(static_resource["estimatedTokens"], 0)
         self.assertEqual(content["text"], "extension registry active")
         self.assertEqual(self.server.calls, [])
 

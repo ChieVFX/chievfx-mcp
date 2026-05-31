@@ -187,12 +187,19 @@ Dynamic resources call back into Unity through the bridge and then into
 
 ## Manifest Fields
 
-At domain reload, Unity writes a generated runtime manifest to
-`Library/ChievfxMcpBridge/extension-capabilities.json`. The MCP server reads
-that file and merges extension capabilities into `tools/list`,
-`resources/list`, `resources/templates/list`, and `prompts/list`.
+At runtime, Unity serves extension capabilities to the MCP server through the
+bridge command `extension-capabilities-get`. The MCP server merges that payload
+into `tools/list`, `resources/list`, `resources/templates/list`, and
+`prompts/list`.
 
-Generated manifest fields:
+`ChievfxMcpExtensionRegistry.GetManifest()` is the in-editor source of truth.
+`ExportManifest(path)` remains available for tests and manual inspection. Unity
+selection windows refresh
+`Library/ChievfxMcpBridge/extension-capabilities.snapshot.json` immediately
+before spawning Python metadata CLIs so the editor never deadlocks on a bridge
+round-trip.
+
+Manifest fields:
 
 - `schemaVersion`: extension manifest schema version. Current value is `1`.
 - `extensionUriPrefix`: currently `chievfx://extensions/`.
@@ -297,7 +304,7 @@ Selection metadata includes descriptor previews, descriptor byte counts,
 estimated tokens, read/get/call envelope previews, and response profiles. Use
 the ChievFX MCP Tools, Resources, and Prompts windows to inspect those values.
 If the extension manifest looks stale, trigger a Unity domain reload or call
-`ChievfxMcpExtensionRegistry.ExportManifest()` from trusted editor code, then
+`ChievfxMcpExtensionRegistry.GetManifest()` from trusted editor code, then
 call `reload_cursor_mcp` for `unity-mcp-chievfx` so Cursor reads fresh MCP
 descriptors.
 
@@ -307,7 +314,7 @@ Before review:
 
 - Unity compiles the extension asmdef with only required dependencies present.
 - Domain reload registers the extension exactly once.
-- `Library/ChievfxMcpBridge/extension-capabilities.json` contains your
+- `extension-capabilities-get` through the Unity bridge returns your
   extension id, source assembly, resource ids, template ids, and prompt names.
 - `resources/list` and `prompts/list` include enabled capabilities after Cursor
   descriptor refresh.

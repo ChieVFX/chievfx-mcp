@@ -15,7 +15,7 @@ class ToolRoleTests(unittest.TestCase):
         self.addCleanup(self.temp_dir.cleanup)
         self.root = Path(self.temp_dir.name)
         self.selection_path = self.root / "UserSettings" / "ChievfxMcpToolSelection.json"
-        self.extension_manifest_path = self.root / "Library" / "ChievfxMcpBridge" / "extension-capabilities.json"
+        self.extension_manifest_path = self.root / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
         self.original_selection_path = mcp.TOOL_SELECTION_PATH
         self.original_extension_manifest_path = mcp.EXTENSION_CAPABILITY_MANIFEST_PATH
         self.original_project_root = mcp.PROJECT_ROOT
@@ -24,6 +24,7 @@ class ToolRoleTests(unittest.TestCase):
         mcp.PROJECT_ROOT = self.root
         self.addCleanup(self.restore_paths)
         self.server = mcp.McpServer("http://127.0.0.1:1", str(self.root / "bridge"), timeout_ms=1000)
+        mcp.configure_extension_manifest_bridge_fetcher(None)
 
     def restore_paths(self) -> None:
         mcp.TOOL_SELECTION_PATH = self.original_selection_path

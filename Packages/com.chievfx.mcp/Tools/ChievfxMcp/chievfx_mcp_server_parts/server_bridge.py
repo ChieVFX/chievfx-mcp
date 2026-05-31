@@ -171,6 +171,7 @@ class BridgeTransportMixin:
         )
         if not ready_after:
             result["warning"] = "Timed out waiting for Unity compile/import busy state to clear."
+        invalidate_extension_manifest_cache()
         self.emit_progress(progress_token, notify, 1.0, "recompile completed.")
         return result
 

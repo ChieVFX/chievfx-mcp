@@ -34,9 +34,9 @@ Two layers, both filtered to **enabled** capabilities only:
 
 | Capability | Primary catalog | Also merged from |
 |------------|-----------------|------------------|
-| Tools | `tool_descriptors/*.json` | Unity extension manifest |
-| Resources / templates | `chievfx_mcp_text_prompts_resources.md` (fallback `static_catalog.py`) | Unity extension manifest |
-| Prompts | same MD catalog + `static_catalog.py` | Unity extension manifest |
+| Tools | `tool_descriptors/*.json` | Unity bridge `extension-capabilities-get` |
+| Resources / templates | `chievfx_mcp_text_prompts_resources.md` (fallback `static_catalog.py`) | Unity bridge `extension-capabilities-get` |
+| Prompts | same MD catalog + `static_catalog.py` | Unity bridge `extension-capabilities-get` |
 
 Full descriptors are advertised through normal MCP list methods:
 

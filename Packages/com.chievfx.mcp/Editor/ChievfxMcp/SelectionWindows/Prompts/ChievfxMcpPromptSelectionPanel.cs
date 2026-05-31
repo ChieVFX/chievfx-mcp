@@ -164,6 +164,8 @@ namespace Chievfx.Mcp.Editor
                 throw new FileNotFoundException("ChievFX MCP server script not found.", ChievfxMcpToolPolicy.ServerScriptPath);
             }
 
+            ChievfxMcpExtensionManifestSnapshot.Refresh();
+
             using var process = new Process
             {
                 StartInfo = new ProcessStartInfo

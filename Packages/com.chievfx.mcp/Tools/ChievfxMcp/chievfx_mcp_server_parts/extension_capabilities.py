@@ -1,6 +1,25 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+from collections.abc import Callable
+
+_extension_manifest_cache: dict[str, Any] | None = None
+_extension_manifest_bridge_fetcher: Callable[[], dict[str, Any] | None] | None = None
+
+
+def configure_extension_manifest_bridge_fetcher(
+    fetcher: Callable[[], dict[str, Any] | None] | None,
+) -> None:
+    global _extension_manifest_bridge_fetcher, _extension_manifest_cache
+    _extension_manifest_bridge_fetcher = fetcher
+    _extension_manifest_cache = None
+
+
+def invalidate_extension_manifest_cache() -> None:
+    global _extension_manifest_cache
+    _extension_manifest_cache = None
+
+
 def extension_source_fields(extension: dict[str, Any]) -> dict[str, Any]:
     return {
         "source": "extension",
@@ -21,43 +40,59 @@ def core_source_fields() -> dict[str, Any]:
     }
 
 
-def load_extension_capability_manifest() -> dict[str, Any]:
-    try:
-        payload = json.loads(EXTENSION_CAPABILITY_MANIFEST_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {
-            "schemaVersion": EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION,
-            "extensions": [],
-            "errors": [],
-        }
+def empty_extension_capability_manifest(errors: list[str] | None = None) -> dict[str, Any]:
+    return {
+        "schemaVersion": EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION,
+        "extensions": [],
+        "errors": list(errors or []),
+    }
 
+
+def normalize_extension_manifest_payload(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict):
-        return {
-            "schemaVersion": EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION,
-            "extensions": [],
-            "errors": ["extension manifest root is not an object"],
-        }
+        return empty_extension_capability_manifest(["extension manifest root is not an object"])
 
     if payload.get("schemaVersion") != EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION:
-        return {
-            "schemaVersion": EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION,
-            "extensions": [],
-            "errors": [f"unsupported extension manifest schemaVersion {payload.get('schemaVersion')}"],
-        }
+        return empty_extension_capability_manifest(
+            [f"unsupported extension manifest schemaVersion {payload.get('schemaVersion')}"]
+        )
 
     extensions = payload.get("extensions", [])
     if not isinstance(extensions, list):
-        return {
-            "schemaVersion": EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION,
-            "extensions": [],
-            "errors": ["extension manifest `extensions` is not an array"],
-        }
+        return empty_extension_capability_manifest(["extension manifest `extensions` is not an array"])
 
     return {
         "schemaVersion": EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION,
         "extensions": [item for item in extensions if isinstance(item, dict)],
         "errors": [],
     }
+
+
+def load_extension_capability_manifest() -> dict[str, Any]:
+    global _extension_manifest_cache
+
+    if _extension_manifest_cache is not None:
+        return _extension_manifest_cache
+
+    if _extension_manifest_bridge_fetcher is not None:
+        try:
+            payload = _extension_manifest_bridge_fetcher()
+            if isinstance(payload, dict):
+                normalized = normalize_extension_manifest_payload(payload)
+                _extension_manifest_cache = normalized
+                return _extension_manifest_cache
+        except Exception:
+            pass
+        return empty_extension_capability_manifest()
+
+    try:
+        payload = json.loads(EXTENSION_CAPABILITY_MANIFEST_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return empty_extension_capability_manifest()
+
+    normalized = normalize_extension_manifest_payload(payload)
+    _extension_manifest_cache = normalized
+    return normalized
 
 
 def coerce_extension_category(value: Any, fallback: str = "Extensions") -> str:
@@ -224,7 +259,7 @@ def collect_extension_capabilities() -> dict[str, Any]:
             )
 
     return {
-        "manifestPath": str(EXTENSION_CAPABILITY_MANIFEST_PATH),
+        "source": "bridge",
         "extensions": extension_summaries,
         "tools": tools,
         "resources": resources,

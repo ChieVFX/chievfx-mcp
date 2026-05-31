@@ -111,7 +111,7 @@ namespace Chievfx.Mcp.Editor
 
         public static string BridgeEventPath => Path.Combine(BridgeDirectory, "events.json");
 
-        public static string ExtensionCapabilityManifestPath => Path.Combine(BridgeDirectory, "extension-capabilities.json");
+        public static string ExtensionCapabilitySnapshotPath => Path.Combine(BridgeDirectory, "extension-capabilities.snapshot.json");
 
         public static string CursorConfigPath => Path.Combine(ProjectRoot, ".cursor", "mcp.json");
 

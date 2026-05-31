@@ -19,6 +19,24 @@ class McpServerCore:
         self.wait_cancellation_lock = threading.Lock()
         self.active_event_waits: dict[str, dict[str, Any]] = {}
         self.active_event_wait_lock = threading.Lock()
+        configure_extension_manifest_bridge_fetcher(self.fetch_extension_manifest_from_bridge)
+
+    def fetch_extension_manifest_from_bridge(self) -> dict[str, Any] | None:
+        if not self.bridge_dir or not self.state_path.exists():
+            return None
+
+        heartbeat_age = file_age_seconds(self.state_path, time.time())
+        if heartbeat_age is None or heartbeat_age > HEARTBEAT_STALE_SECONDS:
+            return None
+
+        try:
+            if not self.wait_for_bridge_ready(max_wait_seconds=2.0):
+                return None
+            bridge_result = self.call_unity_bridge("extension-capabilities-get", {})
+            result = bridge_result.get("result")
+            return result if isinstance(result, dict) else None
+        except Exception:
+            return None
 
     def handle_message(self, message: Any, notify: Any | None = None) -> Any:
         if isinstance(message, list):

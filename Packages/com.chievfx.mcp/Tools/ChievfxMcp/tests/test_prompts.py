@@ -46,13 +46,14 @@ class PromptTests(unittest.TestCase):
         self.addCleanup(self.temp_dir.cleanup)
         self.bridge_dir = Path(self.temp_dir.name) / "bridge"
         self.selection_path = Path(self.temp_dir.name) / "UserSettings" / "ChievfxMcpPromptSelection.json"
-        self.extension_manifest_path = Path(self.temp_dir.name) / "Library" / "ChievfxMcpBridge" / "extension-capabilities.json"
+        self.extension_manifest_path = Path(self.temp_dir.name) / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
         self.original_selection_path = mcp.PROMPT_SELECTION_PATH
         self.original_extension_manifest_path = mcp.EXTENSION_CAPABILITY_MANIFEST_PATH
         mcp.PROMPT_SELECTION_PATH = self.selection_path
         mcp.EXTENSION_CAPABILITY_MANIFEST_PATH = self.extension_manifest_path
         self.addCleanup(self.restore_paths)
         self.server = PromptServer(self.bridge_dir)
+        mcp.configure_extension_manifest_bridge_fetcher(None)
 
     def restore_paths(self) -> None:
         mcp.PROMPT_SELECTION_PATH = self.original_selection_path
@@ -84,6 +85,7 @@ class PromptTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        mcp.invalidate_extension_manifest_cache()
 
     def request(self, method: str, params: dict[str, object] | None = None) -> dict[str, object]:
         response = self.server.handle_message({"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}})

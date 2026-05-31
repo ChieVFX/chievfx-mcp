@@ -8,7 +8,6 @@ using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using UnityEditor;
 using UnityEngine;
 
 namespace Chievfx.Mcp.Editor
@@ -200,26 +199,21 @@ namespace Chievfx.Mcp.Editor
             ChievfxMcpCoreMetadata.Prompts.Select(prompt => prompt.Name),
             StringComparer.Ordinal);
 
-        static ChievfxMcpExtensionRegistry()
-        {
-            ScheduleManifestExport();
-        }
-
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void RegisterExtension(ChievfxMcpExtensionDescriptor descriptor)
         {
             RegisterExtension(descriptor, Assembly.GetCallingAssembly());
         }
 
-        public static void ExportManifest()
+        public static object GetManifest()
         {
-            ExportManifest(ChievfxMcpToolPolicy.ExtensionCapabilityManifestPath);
+            return BuildManifest();
         }
 
         public static void ExportManifest(string path)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ChievfxMcpToolPolicy.BridgeDirectory);
-            var json = JsonConvert.SerializeObject(BuildManifest(), Formatting.Indented);
+            var json = JsonConvert.SerializeObject(GetManifest(), Formatting.Indented);
             WriteAllTextAtomic(path, json + Environment.NewLine);
         }
 
@@ -240,27 +234,6 @@ namespace Chievfx.Mcp.Editor
                 }
 
                 Extensions.Add(descriptor.Id, new RegisteredExtension(descriptor, sourceAssemblyName));
-                ScheduleManifestExport();
-            }
-
-            ExportManifestSafely();
-        }
-
-        internal static void ScheduleManifestExport()
-        {
-            EditorApplication.delayCall -= ExportManifestSafely;
-            EditorApplication.delayCall += ExportManifestSafely;
-        }
-
-        private static void ExportManifestSafely()
-        {
-            try
-            {
-                ExportManifest();
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"ChievFX MCP extension manifest export failed. {ex}");
             }
         }
 

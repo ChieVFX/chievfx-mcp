@@ -34,7 +34,7 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
         self.original_prompt_selection_path = mcp.PROMPT_SELECTION_PATH
         self.original_tool_selection_path = mcp.TOOL_SELECTION_PATH
         mcp.EXTENSION_CAPABILITY_MANIFEST_PATH = (
-            Path(self.temp_dir.name) / "Library" / "ChievfxMcpBridge" / "extension-capabilities.json"
+            Path(self.temp_dir.name) / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
         )
         mcp.PROMPT_SELECTION_PATH = Path(self.temp_dir.name) / "UserSettings" / "ChievfxMcpPromptSelection.json"
         mcp.TOOL_SELECTION_PATH = Path(self.temp_dir.name) / "UserSettings" / "ChievfxMcpToolSelection.json"
@@ -56,6 +56,7 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        mcp.invalidate_extension_manifest_cache()
 
     def test_schema_documents_default_repaint_wait(self) -> None:
         tool = next(tool for tool in mcp.TOOLS if tool["name"] == "screenshot-editor-window")

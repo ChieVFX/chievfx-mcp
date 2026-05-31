@@ -45,13 +45,11 @@ SETTINGS_PATH = Path.home() / ".chievfx_mcp_installer.json"
 MCP_PATHS: tuple[str, ...] = (
     "Tools/ChievfxMcp",
     "Assets/Editor/ChievfxMcp",
-    "Assets/Editor/ChievfxMcpDiagnostics",
     "Assets/Editor/ChievfxMcpExtensions",
     "Assets/Plugins/NuGet",
 )
 MCP_META_PATHS: tuple[str, ...] = (
     "Assets/Editor/ChievfxMcp.meta",
-    "Assets/Editor/ChievfxMcpDiagnostics.meta",
     "Assets/Editor/ChievfxMcpExtensions.meta",
     "Assets/Plugins/NuGet.meta",
 )
@@ -800,7 +798,6 @@ class InstallerWindow(QMainWindow):
                 "In each TO folder, this will DELETE:\n"
                 "  - Tools/ChievfxMcp\n"
                 "  - Assets/Editor/ChievfxMcp (and its .meta)\n"
-                "  - Assets/Editor/ChievfxMcpDiagnostics (and its .meta)\n"
                 "  - Assets/Editor/ChievfxMcpExtensions (and its .meta)\n"
                 "  - Assets/Plugins/NuGet (and its .meta)\n\n"
                 "It also removes MCP test folders left by earlier installs.\n\n"

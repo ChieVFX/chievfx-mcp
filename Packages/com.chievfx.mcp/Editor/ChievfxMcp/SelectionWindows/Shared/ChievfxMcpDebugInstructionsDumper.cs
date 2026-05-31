@@ -28,6 +28,8 @@ namespace Chievfx.Mcp.Editor
                     return;
                 }
 
+                ChievfxMcpExtensionManifestSnapshot.Refresh();
+
                 var arguments = $"{QuoteArg(ChievfxMcpToolPolicy.ServerScriptPath)} --project-root {QuoteArg(ChievfxMcpToolPolicy.ProjectRoot)} --dump-debug-instructions --debug-trigger {QuoteArg(trigger)}";
                 using var process = new Process
                 {

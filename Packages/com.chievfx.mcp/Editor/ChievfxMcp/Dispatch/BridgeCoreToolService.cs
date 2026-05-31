@@ -23,6 +23,7 @@ namespace Chievfx.Mcp.Editor
             {
                 "resource-read" => readResource(args),
                 "prompt-get" => getPrompt(args),
+                "extension-capabilities-get" => ChievfxMcpExtensionRegistry.GetManifest(),
                 _ => null
             };
             return result != null;

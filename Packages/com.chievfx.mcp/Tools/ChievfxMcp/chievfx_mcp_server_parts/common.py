@@ -42,7 +42,7 @@ RESOURCE_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpResourceSel
 PROMPT_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpPromptSelection.json"
 CATALOGS_MD_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_text_prompts_resources.md"
 INITIALIZE_INSTRUCTIONS_MD_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_initialize_instructions.md"
-EXTENSION_CAPABILITY_MANIFEST_PATH = PROJECT_ROOT / "Library" / "ChievfxMcpBridge" / "extension-capabilities.json"
+EXTENSION_CAPABILITY_MANIFEST_PATH = PROJECT_ROOT / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
 DEBUG_INSTRUCTIONS_PATH = PROJECT_ROOT / ".temp" / "debug_instructions.md"
 TOOL_SELECTION_SCHEMA_VERSION = 1
 RESOURCE_SELECTION_SCHEMA_VERSION = 1
@@ -107,7 +107,7 @@ def configure_project_root(project_root: str | os.PathLike[str] | None) -> None:
     TOOL_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpToolSelection.json"
     RESOURCE_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpResourceSelection.json"
     PROMPT_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpPromptSelection.json"
-    EXTENSION_CAPABILITY_MANIFEST_PATH = PROJECT_ROOT / "Library" / "ChievfxMcpBridge" / "extension-capabilities.json"
+    EXTENSION_CAPABILITY_MANIFEST_PATH = PROJECT_ROOT / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
     DEBUG_INSTRUCTIONS_PATH = PROJECT_ROOT / ".temp" / "debug_instructions.md"
 
 

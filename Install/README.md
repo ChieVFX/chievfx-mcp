@@ -12,8 +12,6 @@ relative paths:
 Tools/ChievfxMcp/                 (entire folder)
 Assets/Editor/ChievfxMcp/         (entire folder)
 Assets/Editor/ChievfxMcp.meta     (folder meta)
-Assets/Editor/ChievfxMcpDiagnostics/     (entire folder)
-Assets/Editor/ChievfxMcpDiagnostics.meta (folder meta)
 Assets/Editor/ChievfxMcpExtensions/      (entire folder)
 Assets/Editor/ChievfxMcpExtensions.meta  (folder meta)
 ```

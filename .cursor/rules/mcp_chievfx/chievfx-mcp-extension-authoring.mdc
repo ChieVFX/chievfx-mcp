@@ -34,6 +34,6 @@ Use this rule when writing Unity-side ChievFX MCP extension tools, resources, re
 
 ## After Changes
 
-- Let Unity compile/import so `Library/ChievfxMcpBridge/extension-capabilities.json` refreshes.
+- Let Unity compile/import so selection windows can refresh `extension-capabilities.snapshot.json` before metadata reload.
 - Use `recompile` for C# changes when appropriate, then reload Cursor MCP tools/resources if descriptors changed.
 - Check Unity Console for registration or validation errors before assuming the MCP surface updated.

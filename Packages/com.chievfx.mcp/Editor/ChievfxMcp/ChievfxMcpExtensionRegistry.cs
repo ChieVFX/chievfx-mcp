@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using System.Threading;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -533,15 +534,48 @@ namespace Chievfx.Mcp.Editor
                 Directory.CreateDirectory(directory);
             }
 
-            var tempPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            File.WriteAllText(tempPath, contents);
-            if (File.Exists(path))
+            const int maxAttempts = 6;
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                File.Replace(tempPath, path, null);
+                var tempPath = Path.Combine(
+                    directory ?? string.Empty,
+                    "." + Path.GetFileName(path) + "." + Guid.NewGuid().ToString("N") + ".tmp");
+                try
+                {
+                    File.WriteAllText(tempPath, contents);
+                    if (File.Exists(path))
+                    {
+                        File.Delete(path);
+                    }
+
+                    File.Move(tempPath, path);
+                    return;
+                }
+                catch (IOException) when (attempt < maxAttempts)
+                {
+                    TryDeleteFile(tempPath);
+                    Thread.Sleep(25 * attempt);
+                }
+                catch
+                {
+                    TryDeleteFile(tempPath);
+                    throw;
+                }
             }
-            else
+        }
+
+        private static void TryDeleteFile(string path)
+        {
+            try
             {
-                File.Move(tempPath, path);
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch (IOException)
+            {
+                // Best-effort temp cleanup only.
             }
         }
 

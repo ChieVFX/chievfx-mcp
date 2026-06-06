@@ -4,6 +4,8 @@ namespace Chievfx.Mcp.Editor
 {
     internal static class ChievfxMcpExtensionManifestSnapshot
     {
+        private static readonly object SyncRoot = new();
+
         /// <summary>
         /// Writes the current in-editor extension registry for Python metadata CLIs.
         /// Unity selection windows spawn Python synchronously, so metadata must not
@@ -11,7 +13,10 @@ namespace Chievfx.Mcp.Editor
         /// </summary>
         public static void Refresh()
         {
-            ChievfxMcpExtensionRegistry.ExportManifest(ChievfxMcpToolPolicy.ExtensionCapabilitySnapshotPath);
+            lock (SyncRoot)
+            {
+                ChievfxMcpExtensionRegistry.ExportManifest(ChievfxMcpToolPolicy.ExtensionCapabilitySnapshotPath);
+            }
         }
     }
 }

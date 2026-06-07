@@ -235,10 +235,17 @@ Use `console-clear-logs` before a scenario to isolate new messages. It clears th
 
 Use `console-get-logs` after the scenario. Defaults are intentionally quiet:
 
-- `levels`: `Error`, `Exception`, `Assert`
+- `levels`: `Error`, `Exception`, `Assert`, `Warning`
 - `maxEntries`: 50, clamped to 200
 - `lastMinutes`: 10
 - `stackTrace`: `none`
+
+Do not use `contains: "error"` or `contains: "exception"` to hunt console problems unless you truly need that substring in the message. Those exact single-token values are reinterpreted as severity filters (Error, Exception, Assert). For message text search, pass a longer phrase such as `contains: "error CS0234"`.
+
+Level aliases:
+
+- `ConsoleErrors`: `Error`, `Exception`, `Assert` (Unity console red/error filter)
+- `ConsoleIssues`: `Error`, `Exception`, `Assert`, `Warning`
 
 Useful filtered calls:
 

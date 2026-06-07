@@ -54,6 +54,13 @@ text: |
 ---
 
 ---
+type: tool
+id: console-get-logs
+text: |
+  console-get-logs: filter console severity with levels, not contains. Default levels are Error, Exception, Assert, Warning. Exact contains tokens error, exception, warning, or issue are reinterpreted as severity filters so Assert rows like "Map must be contained in state" still match.
+---
+
+---
 type: prompt
 id: unity-editor-context
 text: |

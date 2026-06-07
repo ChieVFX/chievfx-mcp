@@ -28,31 +28,133 @@ namespace Chievfx.Mcp.Editor
 {
     internal sealed class ConsoleLogBridgeService : BridgeDomainServiceBase
     {
+        private static readonly Dictionary<string, string[]> LogLevelAliases = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ConsoleErrors"] = new[]
+            {
+                LogType.Error.ToString(),
+                LogType.Exception.ToString(),
+                LogType.Assert.ToString(),
+            },
+            ["ConsoleIssues"] = new[]
+            {
+                LogType.Error.ToString(),
+                LogType.Exception.ToString(),
+                LogType.Assert.ToString(),
+                LogType.Warning.ToString(),
+            },
+        };
+
         private static HashSet<string> ReadLogLevels(JToken args)
         {
             var levels = ReadArray(args, "levels");
             if (levels is JArray levelsArray && levelsArray.Count > 0)
             {
-                return levelsArray
+                return ExpandLogLevelAliases(levelsArray
                     .Select(level => level.Type == JTokenType.String ? level.Value<string>() : null)
                     .Where(level => !string.IsNullOrWhiteSpace(level))
                     .Select(level => level!)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase));
             }
 
             var legacyFilter = ReadString(args, "logTypeFilter");
             if (!string.IsNullOrWhiteSpace(legacyFilter))
             {
-                return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { legacyFilter! };
+                return ExpandLogLevelAliases(new HashSet<string>(StringComparer.OrdinalIgnoreCase) { legacyFilter! });
             }
 
+            return DefaultIssueLogLevels();
+        }
+
+        private static HashSet<string> DefaultIssueLogLevels()
+        {
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 LogType.Error.ToString(),
                 LogType.Exception.ToString(),
                 LogType.Assert.ToString(),
-                LogType.Warning.ToString()
+                LogType.Warning.ToString(),
             };
+        }
+
+        private static HashSet<string> ExpandLogLevelAliases(HashSet<string> levels)
+        {
+            var expanded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var level in levels)
+            {
+                if (LogLevelAliases.TryGetValue(level, out var aliasLevels))
+                {
+                    foreach (var aliasLevel in aliasLevels)
+                    {
+                        expanded.Add(aliasLevel);
+                    }
+
+                    continue;
+                }
+
+                expanded.Add(level);
+            }
+
+            return expanded;
+        }
+
+        // Agents often pass contains:"error" expecting Unity console severity, not message substring search.
+        // Exact single-token values are reinterpreted as level filters so Assert/Warning rows still match.
+        internal static bool TryInterpretContainsAsSeverityLevels(string? contains, out HashSet<string> severityLevels, out string note)
+        {
+            severityLevels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            note = string.Empty;
+            if (string.IsNullOrWhiteSpace(contains))
+            {
+                return false;
+            }
+
+            var token = contains.Trim();
+            if (token.IndexOf(' ') >= 0)
+            {
+                return false;
+            }
+
+            switch (token.ToLowerInvariant())
+            {
+                case "error":
+                case "errors":
+                    severityLevels.UnionWith(LogLevelAliases["ConsoleErrors"]);
+                    note = "contains matched Unity console error severity (Error, Exception, Assert), not message text.";
+                    return true;
+                case "exception":
+                case "exceptions":
+                    severityLevels.UnionWith(LogLevelAliases["ConsoleErrors"]);
+                    note = "contains matched Unity console exception severity (Exception, Error, Assert), not message text.";
+                    return true;
+                case "warning":
+                case "warnings":
+                    severityLevels.Add(LogType.Warning.ToString());
+                    note = "contains matched Warning severity, not message text.";
+                    return true;
+                case "issue":
+                case "issues":
+                case "problem":
+                case "problems":
+                    severityLevels.UnionWith(LogLevelAliases["ConsoleIssues"]);
+                    note = "contains matched console issue severity (Error, Exception, Assert, Warning), not message text.";
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static (HashSet<string> levels, string? contains, string? filterNote) ResolveLogFilters(JToken args)
+        {
+            var levels = ReadLogLevels(args);
+            var contains = ReadString(args, "contains");
+            if (!TryInterpretContainsAsSeverityLevels(contains, out var severityLevels, out var filterNote))
+            {
+                return (levels, contains, null);
+            }
+
+            levels.UnionWith(severityLevels);
+            return (levels, null, filterNote);
         }
 
         private static Dictionary<string, object> CreateLogEntryOutput(LogEntryDto entry, StackTraceMode stackTraceMode, ref bool truncated)
@@ -189,8 +291,7 @@ namespace Chievfx.Mcp.Editor
         {
             var maxEntries = ClampInt(ReadInt(args, "maxEntries", HardLogMaxEntries), 1, HardLogMaxEntries);
             var lastMinutes = Math.Max(0, ReadInt(args, "lastMinutes", DefaultLogLastMinutes));
-            var levels = ReadLogLevels(args);
-            var contains = ReadString(args, "contains");
+            var (levels, contains, filterNote) = ResolveLogFilters(args);
             var caseSensitive = ReadBool(args, "caseSensitive", false);
             var stackDuplicates = ReadBool(args, "stack", true);
             var includeUnityConsole = ReadBool(args, "includeUnityConsole", true);
@@ -239,6 +340,7 @@ namespace Chievfx.Mcp.Editor
                 groups = groupCount,
                 dropped,
                 truncated,
+                filterNote = filterNote ?? (string?)null,
                 entries
             };
         }

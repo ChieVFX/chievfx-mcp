@@ -45,7 +45,7 @@ class EventsWaitTests(unittest.TestCase):
 
     def wait_for_active_wait_count(self, expected_count: int) -> dict[str, object]:
         for _ in range(100):
-            status = self.server.get_bridge_status({"outputFormat": "json"})
+            status = self.server.get_bridge_status({"outputFormat": "json", "verbose": True})
             if status["activeEventWaitCount"] == expected_count:
                 return status
             time.sleep(0.01)
@@ -75,7 +75,7 @@ class EventsWaitTests(unittest.TestCase):
         self.assertFalse(result["matched"])
         self.assertTrue(result["timedOut"])
         self.assertIsNone(result["event"])
-        self.assertEqual(self.server.get_bridge_status({})["activeEventWaitCount"], 0)
+        self.assertEqual(self.server.get_bridge_status({"verbose": True})["activeEventWaitCount"], 0)
 
     def test_schema_accepts_1000_second_waits(self) -> None:
         wait_tool = next(tool for tool in mcp.TOOLS if tool["name"] == "events-wait")
@@ -135,7 +135,7 @@ class EventsWaitTests(unittest.TestCase):
         result = results["cancel-wait"]
         self.assertIsInstance(result, dict)
         self.assertTrue(result["cancelled"])
-        self.assertEqual(self.server.get_bridge_status({})["activeEventWaitCount"], 0)
+        self.assertEqual(self.server.get_bridge_status({"verbose": True})["activeEventWaitCount"], 0)
 
     def test_three_concurrent_waits_resolve_independently(self) -> None:
         results: dict[str, object] = {}
@@ -160,7 +160,7 @@ class EventsWaitTests(unittest.TestCase):
 
         matched_markers = {results[key]["event"]["marker"] for key in ("wait-a", "wait-b", "wait-c")}
         self.assertEqual(matched_markers, {"marker-a", "marker-b", "marker-c"})
-        self.assertEqual(self.server.get_bridge_status({})["activeEventWaitCount"], 0)
+        self.assertEqual(self.server.get_bridge_status({"verbose": True})["activeEventWaitCount"], 0)
 
     def test_event_waits_are_bounded(self) -> None:
         results: dict[str, object] = {}
@@ -220,6 +220,79 @@ class EventsWaitTests(unittest.TestCase):
         self.assertEqual(result["count"], 1)
         self.assertEqual(result["events"][0]["eventId"], 2)
         self.assertEqual(result["events"][0]["data"], {"key": "value"})
+
+    def test_timeout_reports_match_below_cursor(self) -> None:
+        boot_log = {
+            "eventId": 10,
+            "timestamp": mcp.utc_now_iso(),
+            "source": "log",
+            "type": "log",
+            "level": "Log",
+            "message": "[Turn] Turn 1 — Player Turn",
+        }
+        self.write_events([boot_log])
+
+        # sinceEventId past the boot log mimics a cursor captured after the trigger op completed.
+        result = self.server.events_wait(
+            {"source": "log", "contains": "Turn 1", "sinceEventId": 44, "timeoutMs": 20},
+            request_id="below-cursor-wait",
+        )
+
+        self.assertFalse(result["matched"])
+        self.assertTrue(result["timedOut"])
+        diagnostic = result["diagnostic"]
+        self.assertEqual(diagnostic["matchBelowCursorEventId"], 10)
+        self.assertEqual(diagnostic["matchBelowCursor"]["message"], "[Turn] Turn 1 — Player Turn")
+        self.assertIn("sinceEventId", diagnostic["hint"])
+
+    def test_timeout_reports_possible_truncation(self) -> None:
+        mcp.write_json_file_atomic(
+            self.bridge_dir / "events.json",
+            {
+                "lastEventId": 200,
+                "truncatedBeforeEventId": 150,
+                "events": [
+                    {
+                        "eventId": 200,
+                        "timestamp": mcp.utc_now_iso(),
+                        "source": "log",
+                        "type": "log",
+                        "level": "Log",
+                        "message": "Turn 9 — Player Turn",
+                    }
+                ],
+            },
+        )
+
+        result = self.server.events_wait(
+            {"source": "log", "contains": "Turn 1", "sinceEventId": 120, "timeoutMs": 20},
+            request_id="truncated-wait",
+        )
+
+        self.assertFalse(result["matched"])
+        self.assertTrue(result["timedOut"])
+        diagnostic = result["diagnostic"]
+        self.assertTrue(diagnostic["possiblyTruncated"])
+        self.assertEqual(diagnostic["truncatedBeforeEventId"], 150)
+
+    def test_timeout_without_filters_has_no_diagnostic(self) -> None:
+        self.write_events(
+            [
+                {
+                    "eventId": 5,
+                    "timestamp": mcp.utc_now_iso(),
+                    "source": "log",
+                    "type": "log",
+                    "level": "Log",
+                    "message": "anything",
+                }
+            ]
+        )
+
+        result = self.server.events_wait({"sinceEventId": 10, "timeoutMs": 20}, request_id="bare-wait")
+
+        self.assertTrue(result["timedOut"])
+        self.assertNotIn("diagnostic", result)
 
     def test_events_get_tool_is_removed(self) -> None:
         self.assertNotIn("events-get", {tool["name"] for tool in mcp.TOOLS})

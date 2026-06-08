@@ -304,7 +304,7 @@ class EventsStatusMixin:
 
                 now = time.monotonic()
                 if now >= deadline:
-                    return {
+                    result = {
                         "matched": False,
                         "timedOut": True,
                         "event": None,
@@ -314,6 +314,10 @@ class EventsStatusMixin:
                         "elapsedMs": int((now - started) * 1000),
                         "bridgeState": self.get_bridge_status({}),
                     }
+                    diagnostic = self.build_wait_timeout_diagnostic(stream, since_event_id, filters)
+                    if diagnostic:
+                        result["diagnostic"] = diagnostic
+                    return result
 
                 time.sleep(min(EVENTS_WAIT_POLL_SECONDS, max(0.0, deadline - now)))
         finally:
@@ -402,6 +406,62 @@ class EventsStatusMixin:
                 continue
             matched.append(self.copy_event(event, include_data))
         return matched
+
+    def build_wait_timeout_diagnostic(
+        self,
+        stream: dict[str, Any],
+        since_event_id: int,
+        filters: dict[str, str],
+    ) -> dict[str, Any] | None:
+        """Explain a timeout when the wanted event likely fired below the cursor or was evicted.
+
+        The cursor for a bare events-wait defaults to lastEventId, so a log emitted *during* the
+        triggering operation (Play boot, recompile, script-execute) lands at an eventId <= sinceEventId
+        and is silently skipped. Surface that here so callers can retry with an earlier cursor instead
+        of assuming the event never fired. Never flips `matched` (keeps stale-event avoidance intact).
+        """
+        if not filters:
+            return None
+
+        events = stream.get("events", [])
+        below_cursor = [
+            self.copy_event(event, include_data=False)
+            for event in events
+            if isinstance(event, dict)
+            and isinstance(event.get("eventId"), int)
+            and event["eventId"] <= since_event_id
+            and self.event_matches_filters(event, filters)
+        ]
+
+        truncated_before = stream.get("truncatedBeforeEventId")
+        truncated_before = truncated_before if isinstance(truncated_before, int) else 0
+
+        if below_cursor:
+            latest = max(below_cursor, key=lambda event: event.get("eventId", 0))
+            return {
+                "matchBelowCursor": latest,
+                "matchBelowCursorEventId": latest.get("eventId"),
+                "hint": (
+                    f"A matching event (eventId {latest.get('eventId')}) exists at or below sinceEventId "
+                    f"{since_event_id}. It likely fired during the triggering operation (e.g. Play-mode boot). "
+                    "Retry events-wait with sinceEventId captured from bridge-get-status BEFORE the trigger, "
+                    "or use events-check-since with that earlier cursor."
+                ),
+            }
+
+        if truncated_before > 0 and truncated_before >= since_event_id:
+            return {
+                "possiblyTruncated": True,
+                "truncatedBeforeEventId": truncated_before,
+                "hint": (
+                    f"No buffered event matched, and the event ring buffer dropped events up to "
+                    f"{truncated_before} (>= sinceEventId {since_event_id}). The wanted event may have been "
+                    "evicted before this wait scanned it. For boot/early logs, set the cursor before the "
+                    "trigger, or verify after the fact with console-get-logs (contains)."
+                ),
+            }
+
+        return None
 
     @staticmethod
     def event_matches_filters(event: dict[str, Any], filters: dict[str, str]) -> bool:

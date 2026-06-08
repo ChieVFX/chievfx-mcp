@@ -43,23 +43,15 @@ APP_VERSION = "0.2.2"
 SETTINGS_PATH = Path.home() / ".chievfx_mcp_installer.json"
 
 MCP_PATHS: tuple[str, ...] = (
-    "Tools/ChievfxMcp",
-    "Assets/Editor/ChievfxMcp",
-    "Assets/Editor/ChievfxMcpExtensions",
-    "Assets/Plugins/NuGet",
+    # New MCP lives as a Unity package inside `Packages/com.chievfx.mcp/`.
+    "Packages/com.chievfx.mcp",
 )
 MCP_META_PATHS: tuple[str, ...] = (
-    "Assets/Editor/ChievfxMcp.meta",
-    "Assets/Editor/ChievfxMcpExtensions.meta",
-    "Assets/Plugins/NuGet.meta",
+    # `Packages/com.chievfx.mcp/` contains its own package root meta in Unity.
+    # Keep explicit list for any edge cases where repo ships meta files separately.
+    "Packages/com.chievfx.mcp.meta",
 )
-MCP_TEST_PATHS: tuple[str, ...] = (
-    "Tools/ChievfxMcp/tests",
-    "Assets/Editor/ChievfxMcpTests",
-    "Assets/Editor/ChievfxMcpTests.meta",
-    "Assets/Tests/PlayMode/ChievfxMcpInput",
-    "Assets/Tests/PlayMode/ChievfxMcpInput.meta",
-)
+MCP_TEST_PATHS: tuple[str, ...] = ()
 COPY_IGNORE_DIRS: frozenset[str] = frozenset({"__pycache__", "tests"})
 COPY_IGNORE_SUFFIXES: tuple[str, ...] = (".pyc", ".pyo")
 REQUIRED_UNITY_PACKAGE = "com.unity.test-framework"
@@ -78,10 +70,16 @@ def validate_from(path: Path) -> ValidationResult:
     if not path.is_dir():
         return ValidationResult(False, "Not a folder.")
     missing: list[str] = []
-    if not (path / "Tools" / "ChievfxMcp" / "chievfx_mcp_server.py").is_file():
-        missing.append("Tools/ChievfxMcp/chievfx_mcp_server.py")
-    if not (path / "Assets" / "Editor" / "ChievfxMcp" / "Bridge" / "ChievfxMcpBridge.cs").is_file():
-        missing.append("Assets/Editor/ChievfxMcp/Bridge/ChievfxMcpBridge.cs")
+    if not (path / "Packages" / "com.chievfx.mcp" / "Tools" / "ChievfxMcp" / "chievfx_mcp_server_parts" / "server.py").is_file():
+        missing.append(
+            "Packages/com.chievfx.mcp/Tools/ChievfxMcp/chievfx_mcp_server_parts/server.py"
+        )
+    if not (
+        path / "Packages" / "com.chievfx.mcp" / "Editor" / "ChievfxMcp" / "Bridge" / "ChievfxMcpBridgeHost.cs"
+    ).is_file():
+        missing.append(
+            "Packages/com.chievfx.mcp/Editor/ChievfxMcp/Bridge/ChievfxMcpBridgeHost.cs"
+        )
     if missing:
         return ValidationResult(False, "Missing: " + ", ".join(missing))
     return ValidationResult(True, "MCP sources detected.")
@@ -697,7 +695,7 @@ class InstallerWindow(QMainWindow):
 
         self._from_zone = DropZone(
             "FROM (source)",
-            "Root of the repo containing `Tools/ChievfxMcp` and ChievFX MCP editor folders.",
+            "Root of the repo containing `Packages/com.chievfx.mcp/` Unity package.",
             validate_from,
         )
         self._to_zone = MultiTargetZone()
@@ -796,12 +794,8 @@ class InstallerWindow(QMainWindow):
                 "This will install to these TO folders:\n"
                 f"{target_lines}\n\n"
                 "In each TO folder, this will DELETE:\n"
-                "  - Tools/ChievfxMcp\n"
-                "  - Assets/Editor/ChievfxMcp (and its .meta)\n"
-                "  - Assets/Editor/ChievfxMcpExtensions (and its .meta)\n"
-                "  - Assets/Plugins/NuGet (and its .meta)\n\n"
-                "It also removes MCP test folders left by earlier installs.\n\n"
-                "Then copy fresh versions from FROM, without MCP tests. Continue?"
+                "  - Packages/com.chievfx.mcp (and its .meta)\n\n"
+                "Then copy fresh MCP package from FROM. Continue?"
             ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,

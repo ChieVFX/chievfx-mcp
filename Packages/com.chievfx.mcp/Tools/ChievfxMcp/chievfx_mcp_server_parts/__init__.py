@@ -19,6 +19,7 @@ _PART_FILES = [
     'prompt_metadata.py',
     'resource_resolution.py',
     'resource_text.py',
+    'category_resources.py',
     'debug_instructions.py',
     'bridge_utils.py',
     'server_core.py',

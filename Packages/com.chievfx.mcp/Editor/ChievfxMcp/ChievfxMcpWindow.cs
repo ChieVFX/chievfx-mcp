@@ -303,6 +303,18 @@ namespace Chievfx.Mcp.Editor
             advanced.style.marginTop = 4;
             advanced.Add(CreateMutedLabel($"Server script: {ServerScriptPath}"));
             advanced.Add(CreateMutedLabel($"Bridge IPC: {ChievfxMcpToolPolicy.BridgeDirectory}"));
+            var forceAllCategoriesToggle = new Toggle("Force all categories always-supplied")
+            {
+                value = ChievfxMcpCategorySettings.ForceAll,
+                tooltip = "When on, no category auto-collapses in MCP instructions; every enabled tool/resource is listed inline. Costs more tokens. Default off."
+            };
+            forceAllCategoriesToggle.RegisterValueChangedCallback(evt =>
+            {
+                ChievfxMcpCategorySettings.SetForceAll(evt.newValue);
+                ChievfxMcpDebugInstructionsDumper.TryDump("unity-force-all-categories");
+            });
+            advanced.Add(forceAllCategoriesToggle);
+            advanced.Add(CreateMutedLabel("Categories with more than 3 enabled items collapse into a chievfx://categories link unless marked always-supplied (per-category toggle in Tools/Resources info mode)."));
             advanced.Add(CreateExperimentalFoldout());
             content.Add(advanced);
 

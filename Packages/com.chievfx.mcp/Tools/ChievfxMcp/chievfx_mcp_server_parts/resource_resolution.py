@@ -27,6 +27,10 @@ def resolve_resource_uri(uri: str) -> tuple[str, str]:
     if "?" in uri or "#" in uri:
         raise ResourceNotFoundError(f"ChievFX MCP resource URI not found: {uri}")
 
+    category_slug = category_slug_from_uri(uri)
+    if category_slug is not None:
+        return "category", category_slug
+
     for resource in RESOURCES:
         if uri == resource["uri"]:
             return "resource", resource["id"]
@@ -141,6 +145,10 @@ def resolve_resource_uri(uri: str) -> tuple[str, str]:
 
 def ensure_resource_enabled(uri: str) -> None:
     kind, resource_id = resolve_resource_uri(uri)
+    if kind == "category":
+        if get_category_resource_by_uri(uri) is None:
+            raise ResourceNotFoundError(f"ChievFX MCP resource URI not found: {uri}")
+        return
     enabled_resource_ids, enabled_template_ids = load_enabled_resource_ids()
     if kind == "resource" and resource_id not in enabled_resource_ids:
         raise ResourceNotFoundError(f"ChievFX MCP resource URI not found: {uri}")

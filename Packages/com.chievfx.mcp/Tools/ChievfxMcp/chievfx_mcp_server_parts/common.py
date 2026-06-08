@@ -40,6 +40,7 @@ TOOL_ROLE_PRESETS_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_ro
 TOOL_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpToolSelection.json"
 RESOURCE_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpResourceSelection.json"
 PROMPT_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpPromptSelection.json"
+CATEGORY_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpCategorySelection.json"
 CATALOGS_MD_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_text_prompts_resources.md"
 INITIALIZE_INSTRUCTIONS_MD_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_initialize_instructions.md"
 EXTENSION_CAPABILITY_MANIFEST_PATH = PROJECT_ROOT / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
@@ -47,6 +48,18 @@ DEBUG_INSTRUCTIONS_PATH = PROJECT_ROOT / ".temp" / "debug_instructions.md"
 TOOL_SELECTION_SCHEMA_VERSION = 1
 RESOURCE_SELECTION_SCHEMA_VERSION = 1
 PROMPT_SELECTION_SCHEMA_VERSION = 1
+CATEGORY_SELECTION_SCHEMA_VERSION = 1
+# A merged category (tools + resources + templates sharing a case-folded name)
+# whose enabled item count exceeds this is collapsed in initialize.instructions
+# into a single header line plus a chievfx://categories/<slug> resource, unless
+# it is flagged always-supplied.
+CATEGORY_COLLAPSE_THRESHOLD = 3
+DEFAULT_ALWAYS_SUPPLIED_CATEGORIES = [
+    "Essentials",
+    "Editor Window",
+    "Script Execution / Tests",
+    "Control",
+]
 EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION = 1
 EXTENSION_URI_PREFIX = "chievfx://extensions/"
 RESOURCE_MIME_TYPE = "text/plain"
@@ -97,6 +110,7 @@ def configure_project_root(project_root: str | os.PathLike[str] | None) -> None:
     global TOOL_SELECTION_PATH
     global RESOURCE_SELECTION_PATH
     global PROMPT_SELECTION_PATH
+    global CATEGORY_SELECTION_PATH
     global EXTENSION_CAPABILITY_MANIFEST_PATH
     global DEBUG_INSTRUCTIONS_PATH
 
@@ -107,6 +121,7 @@ def configure_project_root(project_root: str | os.PathLike[str] | None) -> None:
     TOOL_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpToolSelection.json"
     RESOURCE_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpResourceSelection.json"
     PROMPT_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpPromptSelection.json"
+    CATEGORY_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpCategorySelection.json"
     EXTENSION_CAPABILITY_MANIFEST_PATH = PROJECT_ROOT / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
     DEBUG_INSTRUCTIONS_PATH = PROJECT_ROOT / ".temp" / "debug_instructions.md"
 

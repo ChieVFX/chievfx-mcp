@@ -129,6 +129,8 @@ namespace Chievfx.Mcp.Editor
 
         public static string PromptSelectionPath => Path.Combine(ProjectRoot, "UserSettings", "ChievfxMcpPromptSelection.json");
 
+        public static string CategorySelectionPath => Path.Combine(ProjectRoot, "UserSettings", "ChievfxMcpCategorySelection.json");
+
         public static void EnsureBridgeStarted()
         {
             ChievfxMcpBridge.EnsureStarted();

@@ -199,7 +199,7 @@ namespace Chievfx.Mcp.Editor
                 responseEstimateNote = metadata.ResponseEstimateNote;
                 LoadRoleDefinitions();
                 ApplySavedSelection();
-                SaveSelection();
+                SaveSelection(dumpDebugInstructions: false);
             }
             catch (Exception ex)
             {
@@ -1152,7 +1152,7 @@ namespace Chievfx.Mcp.Editor
             return container;
         }
 
-        private void SaveSelection()
+        private void SaveSelection(bool dumpDebugInstructions = true)
         {
             if (toolRows.Count == 0)
             {
@@ -1244,7 +1244,12 @@ namespace Chievfx.Mcp.Editor
 
             lastSavedAtLocal = DateTime.Now;
             RefreshSaveFeedback();
-            ChievfxMcpDebugInstructionsDumper.TryDump("unity-tool-selection-save");
+            // Skip the python dump + log on the initial metadata reload (window open) so merely
+            // opening the panel does not spawn a process or rewrite debug_instructions.md.
+            if (dumpDebugInstructions)
+            {
+                ChievfxMcpDebugInstructionsDumper.TryDump("unity-tool-selection-save");
+            }
         }
 
         private void ResetRequiredMinimum()

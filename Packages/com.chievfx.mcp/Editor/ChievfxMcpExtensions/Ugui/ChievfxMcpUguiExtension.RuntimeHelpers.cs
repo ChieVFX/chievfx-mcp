@@ -484,7 +484,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             if (!string.IsNullOrWhiteSpace(moduleName)
                 && !string.Equals(moduleName, "GraphicRaycaster", StringComparison.Ordinal))
             {
-                return moduleName;
+                return moduleName!;
             }
 
             return "Graphic";

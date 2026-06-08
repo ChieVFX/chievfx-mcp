@@ -1,7 +1,24 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+def force_utf8_stdio() -> None:
+    """JSON-RPC is UTF-8, but Windows stdio defaults to cp1252 and mangles multibyte chars.
+
+    Without this, an em dash (—, UTF-8 E2 80 94) arrives as mojibake (â€") and substring
+    filters like contains silently fail to match. errors="replace" keeps the read loop alive
+    on malformed bytes instead of crashing the server.
+    """
+    for stream in (sys.stdin, sys.stdout):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
 def run_stdio(server: McpServer) -> None:
+    force_utf8_stdio()
     output_lock = threading.Lock()
     workers: list[threading.Thread] = []
 

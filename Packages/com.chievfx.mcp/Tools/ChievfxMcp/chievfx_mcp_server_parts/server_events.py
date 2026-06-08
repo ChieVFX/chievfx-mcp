@@ -449,6 +449,18 @@ class EventsStatusMixin:
                 ),
             }
 
+        contains = filters.get("contains")
+        if contains and not contains.isascii():
+            return {
+                "nonAsciiContains": contains,
+                "hint": (
+                    f"The contains filter '{contains}' has non-ASCII characters (e.g. em dash '—'). If the "
+                    "JSON-RPC pipeline mangled the encoding, the substring match silently fails even though the "
+                    "log fired. Retry with an ASCII-only substring (drop the punctuation, e.g. 'Turn 1') or use "
+                    "a marker: filter instead of matching Unicode punctuation in log text."
+                ),
+            }
+
         if truncated_before > 0 and truncated_before >= since_event_id:
             return {
                 "possiblyTruncated": True,

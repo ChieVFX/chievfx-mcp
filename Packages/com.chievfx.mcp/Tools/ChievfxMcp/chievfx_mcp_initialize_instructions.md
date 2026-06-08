@@ -29,7 +29,7 @@ text: |
 type: tool
 id: events-wait
 text: |
-  events-wait: wait for specific Unity events or markers; timeout is a normal branch, not failure. Default cursor is lastEventId (future-only), so boot/early logs that fire during the triggering op (Play-mode enter, recompile, script-execute) are skipped. For such logs capture sinceEventId from the trigger result (editor-playmode-set returns eventCursorBefore) or bridge-get-status BEFORE the trigger, or use includeRecentMs with no sinceEventId. Debug.Log lines are source:log; pass source:"log" for clarity. On timeout, inspect result.diagnostic: matchBelowCursor means it fired below your cursor (retry from earlier cursor), possiblyTruncated means it was evicted (verify via console-get-logs contains).
+  events-wait: wait for specific Unity events or markers; timeout is a normal branch, not failure. Default cursor is lastEventId (future-only), so boot/early logs that fire during the triggering op (Play-mode enter, recompile, script-execute) are skipped. For such logs capture sinceEventId from the trigger result (editor-playmode-set returns eventCursorBefore) or bridge-get-status BEFORE the trigger, or use includeRecentMs with no sinceEventId. Debug.Log lines are source:log; pass source:"log" for clarity. Prefer ASCII-only contains substrings (e.g. "Turn 1", "Player Turn") or a marker: filter over Unicode punctuation (em dash —, smart quotes) in log text, since encoding mismatches can break substring matches. On timeout, inspect result.diagnostic: matchBelowCursor means it fired below your cursor (retry from earlier cursor), nonAsciiContains means your filter had non-ASCII that may have been mangled (retry ASCII-only), possiblyTruncated means it was evicted (verify via console-get-logs contains).
 ---
 
 ---

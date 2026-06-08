@@ -490,7 +490,6 @@ namespace Chievfx.Mcp.Editor
 
         private static float ReadFiniteFloat(JToken element, string componentName, string parameterName)
         {
-            double number;
             if (ReadProperty(element, componentName) is not JToken component)
             {
                 throw new ArgumentException($"{parameterName}.{componentName} is required and must be a finite number.", parameterName);

@@ -275,6 +275,32 @@ class EventsWaitTests(unittest.TestCase):
         self.assertTrue(diagnostic["possiblyTruncated"])
         self.assertEqual(diagnostic["truncatedBeforeEventId"], 150)
 
+    def test_timeout_reports_non_ascii_contains(self) -> None:
+        self.write_events(
+            [
+                {
+                    "eventId": 10,
+                    "timestamp": mcp.utc_now_iso(),
+                    "source": "log",
+                    "type": "log",
+                    "level": "Log",
+                    "message": "[Turn] Turn 1 — Player Turn",
+                }
+            ]
+        )
+
+        # Mojibake em dash never matches the real em dash in the log.
+        result = self.server.events_wait(
+            {"source": "log", "contains": "Turn 1 â€\" Player Turn", "sinceEventId": 5, "timeoutMs": 20},
+            request_id="mojibake-wait",
+        )
+
+        self.assertFalse(result["matched"])
+        self.assertTrue(result["timedOut"])
+        diagnostic = result["diagnostic"]
+        self.assertIn("nonAsciiContains", diagnostic)
+        self.assertIn("ASCII", diagnostic["hint"])
+
     def test_timeout_without_filters_has_no_diagnostic(self) -> None:
         self.write_events(
             [

@@ -107,7 +107,8 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
-.vkb/
+.vkb/*
+!.vkb/memory/
 .vibe-kanban/
 .cursor/mcp.json
 /.temp/

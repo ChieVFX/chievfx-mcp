@@ -121,7 +121,7 @@ namespace Chievfx.Mcp.Editor
                 }
             };
             actions.Add(CreateButton("Reload Metadata", ReloadMetadata));
-            actions.Add(CreateButton("Save Selection", SaveSelection));
+            actions.Add(CreateButton("Save Selection", () => SaveSelection()));
             actions.Add(CreateButton("Reset Required Minimum", ResetRequiredMinimum));
             actions.Add(CreateButton("Enable All", EnableAll));
             actions.Add(CreateButton("Disable Optional", DisableOptional));

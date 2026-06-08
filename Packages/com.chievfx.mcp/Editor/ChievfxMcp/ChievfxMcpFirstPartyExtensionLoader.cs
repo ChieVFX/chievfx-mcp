@@ -226,6 +226,10 @@ namespace Chievfx.Mcp.Extensions.Control
 
             var requested = hasRequestedState && args["isPlaying"]!.Value<bool>();
             var before = IsPlaying;
+            // Snapshot the event cursor BEFORE toggling play. Boot logs (e.g. Bootstrap.Awake Debug.Log)
+            // fire during the play transition and get higher eventIds; waiting from this cursor catches them,
+            // avoiding the cursor-after-op race where events-wait defaults to lastEventId and skips them.
+            var eventCursorBefore = ChievfxMcpBridgeHost.EventJournal.CurrentEventId();
             if (errors.Count == 0)
             {
                 EditorApplication.isPlaying = requested;
@@ -239,6 +243,8 @@ namespace Chievfx.Mcp.Extensions.Control
                 ["requestedIsPlaying"] = hasRequestedState ? requested : null,
                 ["isPlaying"] = IsPlaying,
                 ["isPlayingOrWillChangePlaymode"] = EditorApplication.isPlayingOrWillChangePlaymode,
+                ["eventCursorBefore"] = eventCursorBefore,
+                ["eventCursorAfter"] = ChievfxMcpBridgeHost.EventJournal.CurrentEventId(),
             };
 
             if (!ok)

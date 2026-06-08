@@ -54,9 +54,6 @@ MCP_META_PATHS: tuple[str, ...] = (
 MCP_TEST_PATHS: tuple[str, ...] = ()
 COPY_IGNORE_DIRS: frozenset[str] = frozenset({"__pycache__", "tests"})
 COPY_IGNORE_SUFFIXES: tuple[str, ...] = (".pyc", ".pyo")
-REQUIRED_UNITY_PACKAGE = "com.unity.test-framework"
-REQUIRED_NEWTONSOFT_PACKAGE = "com.unity.nuget.newtonsoft-json"
-REQUIRED_NEWTONSOFT_VERSION = "3.2.2"
 
 
 @dataclass(frozen=True)
@@ -179,50 +176,15 @@ def _iter_cleanup_paths() -> Iterable[str]:
     yield from MCP_TEST_PATHS
 
 
-def manifest_has_package(manifest_path: Path, package: str) -> tuple[bool, str | None]:
-    """Return (present, version) for `package` in `<manifest>.dependencies`."""
-    if not manifest_path.is_file():
-        return (False, None)
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except Exception:
-        return (False, None)
-    deps = manifest.get("dependencies", {}) or {}
-    if package in deps:
-        return (True, str(deps[package]))
-    return (False, None)
-
-
-def add_package_to_manifest(
-    manifest_path: Path,
-    package: str,
-    version: str,
-) -> None:
-    """Add `package: version` to `dependencies`, preserving alphabetical order.
-
-    Idempotent: caller is expected to have checked presence first.
-    """
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    deps = dict(manifest.get("dependencies", {}) or {})
-    deps[package] = version
-    sorted_deps = dict(sorted(deps.items(), key=lambda kv: kv[0]))
-    manifest["dependencies"] = sorted_deps
-    manifest_path.write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-
-
 def perform_install(
     from_root: Path,
     to_root: Path,
     log: Callable[[str], None],
-    add_newtonsoft: bool,
 ) -> None:
     log(f"FROM: {from_root}")
     log(f"TO:   {to_root}")
     log("")
-    log("[1/4] Removing existing MCP sources and tests in TO ...")
+    log("[1/2] Removing existing MCP sources and tests in TO ...")
     for rel in _iter_cleanup_paths():
         target = to_root / rel
         if target.exists() or target.is_symlink():
@@ -231,7 +193,7 @@ def perform_install(
             log(f"  skipped (absent) {target}")
 
     log("")
-    log("[2/4] Copying fresh MCP sources from FROM ...")
+    log("[2/2] Copying fresh MCP sources from FROM ...")
     for rel in _iter_install_paths():
         src = from_root / rel
         dst = to_root / rel
@@ -241,47 +203,10 @@ def perform_install(
         _copy_tree(src, dst, log)
 
     log("")
-    log("[3/4] Patching Packages/manifest.json ...")
-    manifest_path = to_root / "Packages" / "manifest.json"
-    newtonsoft_present, newtonsoft_version = manifest_has_package(
-        manifest_path, REQUIRED_NEWTONSOFT_PACKAGE
+    log(
+        "Package dependencies (newtonsoft-json, test-framework) are declared in "
+        "com.chievfx.mcp/package.json; Unity resolves them automatically."
     )
-    if newtonsoft_present:
-        log(
-            f"  OK: {REQUIRED_NEWTONSOFT_PACKAGE} {newtonsoft_version} already present, "
-            "leaving as-is."
-        )
-    elif add_newtonsoft:
-        try:
-            add_package_to_manifest(
-                manifest_path,
-                REQUIRED_NEWTONSOFT_PACKAGE,
-                REQUIRED_NEWTONSOFT_VERSION,
-            )
-            log(
-                f"  added: {REQUIRED_NEWTONSOFT_PACKAGE}@{REQUIRED_NEWTONSOFT_VERSION} "
-                f"-> {manifest_path}"
-            )
-        except Exception as ex:
-            log(f"  WARN: could not patch manifest: {ex}")
-    else:
-        log(
-            f"  WARN: `{REQUIRED_NEWTONSOFT_PACKAGE}` missing and not auto-added. "
-            "Bridge will not compile until you add it via Unity Package Manager."
-        )
-
-    log("")
-    log("[4/4] Sanity checks ...")
-    test_present, test_version = manifest_has_package(manifest_path, REQUIRED_UNITY_PACKAGE)
-    if test_present:
-        log(f"  OK: {REQUIRED_UNITY_PACKAGE} {test_version} present.")
-    else:
-        log(
-            f"  WARN: `{REQUIRED_UNITY_PACKAGE}` not found in Packages/manifest.json. "
-            "Bridge `tests-run` will not compile without it. "
-            "Add it via Unity Package Manager."
-        )
-
     log("")
     log("Done.")
     log("Next steps in target Unity project:")
@@ -299,12 +224,10 @@ class _InstallWorker(QObject):
         self,
         from_root: Path,
         to_roots: Iterable[Path],
-        add_newtonsoft: bool,
     ) -> None:
         super().__init__()
         self._from_root = from_root
         self._to_roots = tuple(to_roots)
-        self._add_newtonsoft = add_newtonsoft
 
     def run(self) -> None:
         try:
@@ -315,7 +238,6 @@ class _InstallWorker(QObject):
                     self._from_root,
                     to_root,
                     self.log_line.emit,
-                    add_newtonsoft=self._add_newtonsoft,
                 )
                 if index < total:
                     self.log_line.emit("")
@@ -802,34 +724,6 @@ class InstallerWindow(QMainWindow):
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
-
-        missing_newtonsoft = [
-            to_root
-            for to_root in to_roots
-            if not manifest_has_package(
-                to_root / "Packages" / "manifest.json",
-                REQUIRED_NEWTONSOFT_PACKAGE,
-            )[0]
-        ]
-        add_newtonsoft = False
-        if missing_newtonsoft:
-            missing_lines = "\n".join(f"  - {path}" for path in missing_newtonsoft)
-            response = QMessageBox.question(
-                self,
-                APP_TITLE,
-                (
-                    f"`{REQUIRED_NEWTONSOFT_PACKAGE}` is required by the bridge but is "
-                    "missing from `Packages/manifest.json` in:\n"
-                    f"{missing_lines}\n\n"
-                    f"Add `{REQUIRED_NEWTONSOFT_PACKAGE}@{REQUIRED_NEWTONSOFT_VERSION}` "
-                    "to those manifests now?\n\n"
-                    "(If you say No, the bridge will not compile until you add it "
-                    "manually via Unity Package Manager.)"
-                ),
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.Yes,
-            )
-            add_newtonsoft = response == QMessageBox.StandardButton.Yes
 
         save_last_to_paths(to_roots)
         self._install_button.setEnabled(False)

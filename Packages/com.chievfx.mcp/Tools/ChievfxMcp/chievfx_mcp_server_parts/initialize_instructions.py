@@ -51,6 +51,10 @@ def build_initialize_instructions() -> str:
     if descriptor_blob:
         lines.append(descriptor_blob)
 
+    extra_capabilities_blob = build_extra_capabilities_section(plan)
+    if extra_capabilities_blob:
+        lines.append(extra_capabilities_blob)
+
     return "\n".join(lines).strip()
 
 
@@ -94,13 +98,6 @@ def build_enabled_descriptor_instructions(plan: dict[str, Any] | None = None) ->
     if prompt_descriptors:
         sections.append("Prompts:")
         sections.extend(format_prompt_for_initialize_instructions(descriptor) for descriptor in prompt_descriptors)
-
-    collapsed = collapsed_categories(plan)
-    if collapsed:
-        sections.append(
-            "Collapsed categories (read the linked resource for full tool/resource details):"
-        )
-        sections.extend(format_collapsed_category_line(entry) for entry in collapsed)
 
     return "\n".join(sections)
 

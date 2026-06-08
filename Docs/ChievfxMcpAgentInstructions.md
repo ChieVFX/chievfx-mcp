@@ -39,8 +39,8 @@ To cut token cost, large optional categories are collapsed in `initialize.instru
 
 When collapsed:
 
-- The per-item descriptor lines and curated blurbs are omitted.
-- One header line is emitted under `Collapsed categories (...)`: `- <Name> (<n> tools, <m> resources): <description> -> chievfx://categories/<slug>`.
+- The per-item descriptor lines (in the `Tools:`/`Resources:`/`Resource templates:` blocks) and curated blurbs are omitted.
+- One header line is emitted in a separate `Extra API capabilities (...)` section placed below the `Enabled ChievFX MCP descriptors` block: `- <Name> (<n> tools, <m> resources): <description> -> chievfx://categories/<slug>`. Resource templates are folded into the resources count (the agent treats them as parameterized resources).
 - A dynamic, non-template resource `chievfx://categories/<slug>` is advertised in `resources/list` and served locally by `read_resource`. Its body lists the full compact tool/resource/template lines for that category's enabled items. These resources are not part of the user-selectable catalog, metadata, selection files, or the guide.
 
 Always-supplied control lives in `UserSettings/ChievfxMcpCategorySelection.json`:

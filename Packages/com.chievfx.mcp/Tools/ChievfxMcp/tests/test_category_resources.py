@@ -92,9 +92,14 @@ class CategoryResourceTests(unittest.TestCase):
 
         instructions = mcp.build_initialize_instructions()
 
-        self.assertIn("Collapsed categories", instructions)
+        self.assertIn("Extra API capabilities", instructions)
         self.assertIn("chievfx://categories/frame-debugger", instructions)
         self.assertNotIn("frame-debugger-control:", instructions)
+        # The batched section must sit below the Tools/Resources descriptor block.
+        self.assertGreater(
+            instructions.index("Extra API capabilities"),
+            instructions.index("Enabled ChievFX MCP descriptors"),
+        )
 
     def test_collapsed_category_advertised_and_readable(self) -> None:
         self.write_tool_selection(FRAME_DEBUGGER_TOOLS)
@@ -135,7 +140,7 @@ class CategoryResourceTests(unittest.TestCase):
 
         instructions = mcp.build_initialize_instructions()
 
-        self.assertNotIn("Collapsed categories", instructions)
+        self.assertNotIn("Extra API capabilities", instructions)
         self.assertIn("frame-debugger-control:", instructions)
         self.assertEqual(mcp.dynamic_category_resources(), [])
 
@@ -171,6 +176,20 @@ class CategoryResourceTests(unittest.TestCase):
             }
         )
         self.assertEqual(missing["error"]["code"], -32002)
+
+    def test_templates_fold_into_resources_count(self) -> None:
+        self.write_tool_selection([])
+        self.write_resource_selection(
+            ["resources-guide"],
+            ["assets-name-contains", "assets-type", "assets-label", "assets-filter"],
+        )
+
+        instructions = mcp.build_initialize_instructions()
+
+        self.assertIn("chievfx://categories/asset", instructions)
+        asset_line = next(line for line in instructions.splitlines() if "chievfx://categories/asset" in line)
+        self.assertIn("4 resources", asset_line)
+        self.assertNotIn("templates", asset_line)
 
     def test_essentials_never_collapses_by_default(self) -> None:
         self.write_tool_selection([])

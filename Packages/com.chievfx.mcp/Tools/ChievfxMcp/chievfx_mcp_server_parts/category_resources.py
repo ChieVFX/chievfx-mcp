@@ -156,18 +156,34 @@ def collapsed_item_ids(plan: dict[str, Any]) -> dict[str, set[str]]:
     return {"tools": tools, "resources": resources, "templates": templates}
 
 
+EXTRA_CAPABILITIES_HEADER = (
+    "Extra API capabilities (batched by category to save tokens; "
+    "read the linked chievfx://categories resource for full tool/resource details):"
+)
+
+
 def format_collapsed_category_line(entry: dict[str, Any]) -> str:
+    tool_count = len(entry["tools"])
+    # Resource templates are just parameterized resources to the agent; count them together.
+    resource_count = len(entry["resources"]) + len(entry["templates"])
     counts: list[str] = []
-    if entry["tools"]:
-        counts.append(f"{len(entry['tools'])} tools")
-    if entry["resources"]:
-        counts.append(f"{len(entry['resources'])} resources")
-    if entry["templates"]:
-        counts.append(f"{len(entry['templates'])} templates")
+    if tool_count:
+        counts.append(f"{tool_count} tools")
+    if resource_count:
+        counts.append(f"{resource_count} resources")
     count_text = ", ".join(counts)
     description = str(entry.get("description") or "").strip()
     suffix = f" {description}" if description else ""
     return f"- {entry['name']} ({count_text}):{suffix} -> {CATEGORY_RESOURCE_URI_PREFIX}{entry['slug']}"
+
+
+def build_extra_capabilities_section(plan: dict[str, Any]) -> str:
+    collapsed = collapsed_categories(plan)
+    if not collapsed:
+        return ""
+    lines = [EXTRA_CAPABILITIES_HEADER]
+    lines.extend(format_collapsed_category_line(entry) for entry in collapsed)
+    return "\n".join(lines)
 
 
 def dynamic_category_resources() -> list[dict[str, Any]]:

@@ -39,7 +39,7 @@ from PyQt6.QtWidgets import (
 
 
 APP_TITLE = "ChievFX Unity MCP Installer"
-APP_VERSION = "0.2.2"
+APP_VERSION = "0.3.0"
 SETTINGS_PATH = Path.home() / ".chievfx_mcp_installer.json"
 
 MCP_PATHS: tuple[str, ...] = (
@@ -731,7 +731,7 @@ class InstallerWindow(QMainWindow):
         self._log_view.clear()
 
         self._worker_thread = QThread(self)
-        self._worker = _InstallWorker(from_root, to_roots, add_newtonsoft)
+        self._worker = _InstallWorker(from_root, to_roots)
         self._worker.moveToThread(self._worker_thread)
 
         self._worker_thread.started.connect(self._worker.run)

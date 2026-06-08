@@ -635,7 +635,6 @@ namespace Chievfx.Mcp.Editor
 
             return category switch
             {
-                "Guide" => "Operator guidance, onboarding notes, and ChievFX MCP usage references.",
                 "Editor" => "Unity Editor state and diagnostic resources used while coordinating MCP work.",
                 "Scene" => "Scene-level context for hierarchy, objects, and current editor work.",
                 "GameObject" => "GameObject-oriented templates and resources for targeted scene inspection.",
@@ -1037,7 +1036,6 @@ namespace Chievfx.Mcp.Editor
         {
             return category switch
             {
-                "Guide" => 0,
                 "Editor" => 1,
                 "Scene" => 2,
                 "GameObject" => 3,

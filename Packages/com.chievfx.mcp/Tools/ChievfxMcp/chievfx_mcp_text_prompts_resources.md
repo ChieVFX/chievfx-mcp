@@ -15,15 +15,6 @@ If you add new prompt/resource records, keep `id`/`name` unique.
 ### RESOURCE
 --- 
 type: resource
-id: resources-guide
-uri: chievfx://resources/guide
-name: ChievFX MCP resource guide
-description: Static guide for ChievFX resource URIs, drill-down links, and encoding rules.
-mimeType: text/plain
---- 
-
---- 
-type: resource
 id: editor-context
 uri: chievfx://editor/context
 name: Unity editor context
@@ -263,6 +254,6 @@ text: |
   Shader name or target asset: {shaderName}
   Extra context: {context}
 
-  Before drafting, read relevant ChievFX MCP resources: chievfx://editor/context, chievfx://resources/guide, matching material/shader/texture asset searches, and asset-detail resources for referenced GUIDs. Confirm the project really targets the Built-in Render Pipeline; if URP or HDRP packages/render pipeline assets are active, stop and recommend the matching prompt. Account for Unity version, graphics API/platform, shader model target, lighting path, instancing, SRP Batcher irrelevance for Built-in, keywords, passes, fallbacks, transparency, shadows, and feature support. Prefer compact ShaderLab/HLSL that compiles in Built-in. Call out assumptions, required material properties, unsupported features, and validation steps.
+  Before drafting, read relevant ChievFX MCP resources: chievfx://editor/context, matching material/shader/texture asset searches, and asset-detail resources for referenced GUIDs. Confirm the project really targets the Built-in Render Pipeline; if URP or HDRP packages/render pipeline assets are active, stop and recommend the matching prompt. Account for Unity version, graphics API/platform, shader model target, lighting path, instancing, SRP Batcher irrelevance for Built-in, keywords, passes, fallbacks, transparency, shadows, and feature support. Prefer compact ShaderLab/HLSL that compiles in Built-in. Call out assumptions, required material properties, unsupported features, and validation steps.
 ---
 

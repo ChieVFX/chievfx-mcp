@@ -3,7 +3,6 @@
 
 def build_debug_instructions_markdown(trigger: str = "") -> str:
     instructions = build_initialize_instructions()
-    guide = resource_guide_text()
     enabled_tool_count = len(enabled_tools())
     enabled_resource_count = len(enabled_resources())
     enabled_template_count = len(enabled_resource_templates())
@@ -36,14 +35,6 @@ def build_debug_instructions_markdown(trigger: str = "") -> str:
             "",
             "```text",
             instructions,
-            "```",
-            "",
-            "## chievfx://resources/guide",
-            "",
-            "Exact body returned from `resources/read` for the guide resource.",
-            "",
-            "```text",
-            guide,
             "```",
             "",
         ]

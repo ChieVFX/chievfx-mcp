@@ -7,7 +7,7 @@ Short reference for how agent-facing MCP text is assembled and how it respects t
 | Capability | Selection file | Required defaults |
 |------------|----------------|-------------------|
 | Tools | `UserSettings/ChievfxMcpToolSelection.json` | Essentials + policy-required tools |
-| Resources / templates | `UserSettings/ChievfxMcpResourceSelection.json` | `resources-guide` |
+| Resources / templates | `UserSettings/ChievfxMcpResourceSelection.json` | none required |
 | Prompts | `UserSettings/ChievfxMcpPromptSelection.json` | policy-required prompts |
 
 Unity windows under `Window > ChievFX > MCP *` write these files. The Python MCP server reads them at runtime.
@@ -74,19 +74,13 @@ Full descriptors are advertised through normal MCP list methods:
 
 Disabled items are omitted from lists and from `initialize.instructions`. `resources/read` rejects disabled URIs via `ensure_resource_enabled()`.
 
-## `chievfx://resources/guide`
+## URI encoding rules
 
-Required static resource. Body built by `resource_guide_text()` in `resource_text.py`.
-
-Behavior mirrors the compact initialize/resource list layer:
-
-- **Static resource and template sections** are generated from the same enabled descriptors as `resources/list` and `resources/templates/list`
-- Line format reuses `format_resource_for_initialize_instructions()` and `format_resource_template_for_initialize_instructions()` (`uri: description`)
-- **Encoding and output rules** remain static trailing prose (URI grammar, filterSpec, TOON output notes)
-
-Previously the guide hard-coded the full catalog and could mention resources that were disabled in the Unity selection window. It now tracks the current selection.
-
-Read path: `server_core.py` serves the guide locally without calling the Unity bridge.
+There is no global guide resource. Per the capability-block model, URI grammar travels with the
+capabilities that use it: any collapsed `chievfx://categories/<slug>` resource that exposes resource
+templates appends the shared `RESOURCE_URI_ENCODING_NOTES` block (percent-encoding, GameObject path
+grammar, component-key suffixing, asset `filterSpec` clauses, TOON output notes) defined in
+`category_resources.py`. Inline (non-collapsed) templates carry their own per-descriptor encoding hints.
 
 ## Debug dump
 
@@ -96,7 +90,7 @@ When tool/resource/prompt selection changes (Unity selection windows or MCP `too
 .temp/debug_instructions.md
 ```
 
-Contents: selection snapshot, exact `initialize.instructions` payload, and exact `chievfx://resources/guide` body for the current project state.
+Contents: selection snapshot and the exact `initialize.instructions` payload for the current project state.
 
 Manual refresh:
 
@@ -111,7 +105,7 @@ python3 Tools/ChievfxMcp/chievfx_mcp_server.py --project-root . --dump-debug-ins
 | `chievfx_mcp_initialize_instructions.md` | Curated initialize blurbs |
 | `initialize_instructions.py` | Assembles `initialize.instructions` |
 | `category_resources.py` | Category merge/collapse plan + `chievfx://categories/<slug>` resources |
-| `resource_text.py` | Formats dynamic resource payloads, including the guide |
+| `resource_text.py` | Formats dynamic resource payloads |
 | `resource_metadata.py` | Loads selection, exposes `enabled_resources()` / `enabled_resource_templates()` |
 | `tool_selection.py` | Tool enablement + `enabled_tools()` |
 | `prompt_metadata.py` | Prompt enablement + `enabled_prompts()` |

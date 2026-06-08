@@ -226,6 +226,19 @@ def get_category_resource_by_uri(uri: str) -> dict[str, Any] | None:
     return None
 
 
+# Cross-cutting URI grammar for parameterized (template) resources. Appended to a
+# category resource body only when that category exposes resource templates.
+RESOURCE_URI_ENCODING_NOTES = [
+    "URI encoding for the templates above:",
+    "- Encode every scene path, GameObject hierarchy path, component key, and asset filterSpec as one URI segment.",
+    "- Use percent-encoding with no safe slash: quote(value, safe='').",
+    "- GameObject paths keep ChievFX grammar: / separator, \\/ literal slash, \\\\ literal backslash, [n] duplicate suffix.",
+    "- Component keys use simple class names. Duplicate simple names are suffixed 1-based, e.g. BoxCollider.1.",
+    "- Asset filterSpec uses semicolon key=value clauses: name, type, label, area, folder, limit, subassets.",
+    "Outputs are compact text/plain TOON with readAt metadata, drill-down URIs, truncation flags, and hard caps.",
+]
+
+
 def category_resource_body(entry: dict[str, Any]) -> str:
     lines = [f"{entry['name']} category"]
     description = str(entry.get("description") or "").strip()
@@ -241,6 +254,8 @@ def category_resource_body(entry: dict[str, Any]) -> str:
     if entry["templates"]:
         lines.append("Resource templates:")
         lines.extend(sorted(entry["templates"]))
+        lines.append("")
+        lines.extend(RESOURCE_URI_ENCODING_NOTES)
     lines.append("")
     lines.append(
         "More optional tools for this category may exist but be disabled; "

@@ -248,11 +248,10 @@ TOOL_CATEGORY_DESCRIPTIONS = {
     "ugui-runtime-control": "Optional Play Mode uGUI probing and control helpers: hit stacks, clicks, drags, selection, and control values.",
     "OBSOLETE": "Deprecated compatibility tools. Only enable explicitly; bulk enable skips this category.",
 }
-DEFAULT_REQUIRED_RESOURCE_IDS = {"resources-guide"}
+DEFAULT_REQUIRED_RESOURCE_IDS: set[str] = set()
 DEFAULT_REQUIRED_RESOURCE_TEMPLATE_IDS: set[str] = set()
 DEFAULT_REQUIRED_PROMPT_NAMES: set[str] = set()
 RESOURCE_CATEGORIES = {
-    "resources-guide": "Guide",
     "editor-context": "Editor",
     "scene-opened": "Scene",
     "scene-current-material-profile-summary": "Asset",
@@ -280,7 +279,6 @@ RESOURCE_TEMPLATE_CATEGORIES = {
     "scene-current-usage-subasset": "Asset",
 }
 RESOURCE_CATEGORY_DESCRIPTIONS = {
-    "Guide": "Static usage notes for ChievFX MCP resources and URI encoding.",
     "Editor": "Compact current Unity editor context.",
     "Scene": "Opened scenes and scene context resources.",
     "GameObject": "GameObject and component drill-down resources.",
@@ -451,7 +449,6 @@ RESPONSE_PROFILE_BY_TOOL = {
     "frame-debugger-event-get": "status",
 }
 RESPONSE_PROFILE_BY_RESOURCE = {
-    "resources-guide": "guide",
     "editor-context": "status",
     "scene-opened": "row-list",
     "scene-go": "row-list",

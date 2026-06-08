@@ -11,7 +11,6 @@ namespace Chievfx.Mcp.Editor
         public static IReadOnlyList<ChievfxMcpResourceDescriptor> Resources { get; } =
             new[]
             {
-                Resource("resources-guide", "chievfx://resources/guide", "ChievFX MCP resource guide", "Static guide for ChievFX resource URIs, drill-down links, and encoding rules."),
                 Resource("editor-context", "chievfx://editor/context", "Unity editor context", "Compact Unity editor, play mode, active scene, prefab stage, and selection context."),
                 Resource("scene-opened", "chievfx://scene/opened", "Opened scenes", "Opened Unity scenes and their load/dirty/build state."),
                 Resource("scene-current-usage-counts", "chievfx://scene/current/usage/counts", "Current scene asset usage counts", "Asset usage totals for the current prefab stage or active scene, grouped by common asset type."),

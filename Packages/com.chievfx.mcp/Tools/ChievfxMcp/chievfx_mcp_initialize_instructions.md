@@ -47,13 +47,6 @@ text: |
 ---
 
 ---
-type: resource
-id: resources-guide
-text: |
-  chievfx://resources/guide: URI guide for ChievFX resources, drill-down links, and encoding rules.
----
-
----
 type: tool
 id: console-get-logs
 text: |

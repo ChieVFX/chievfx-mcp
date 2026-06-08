@@ -88,7 +88,7 @@ class CategoryResourceTests(unittest.TestCase):
 
     def test_large_category_collapses(self) -> None:
         self.write_tool_selection(FRAME_DEBUGGER_TOOLS)
-        self.write_resource_selection(["resources-guide"], [])
+        self.write_resource_selection(["editor-context"], [])
 
         instructions = mcp.build_initialize_instructions()
 
@@ -103,7 +103,7 @@ class CategoryResourceTests(unittest.TestCase):
 
     def test_collapsed_category_advertised_and_readable(self) -> None:
         self.write_tool_selection(FRAME_DEBUGGER_TOOLS)
-        self.write_resource_selection(["resources-guide"], [])
+        self.write_resource_selection(["editor-context"], [])
 
         listed = {resource["uri"] for resource in mcp.dynamic_category_resources()}
         self.assertIn("chievfx://categories/frame-debugger", listed)
@@ -116,7 +116,7 @@ class CategoryResourceTests(unittest.TestCase):
 
     def test_small_category_stays_inline(self) -> None:
         self.write_tool_selection(FRAME_DEBUGGER_TOOLS[:3])
-        self.write_resource_selection(["resources-guide"], [])
+        self.write_resource_selection(["editor-context"], [])
 
         instructions = mcp.build_initialize_instructions()
 
@@ -125,7 +125,7 @@ class CategoryResourceTests(unittest.TestCase):
 
     def test_always_supplied_category_not_collapsed(self) -> None:
         self.write_tool_selection(FRAME_DEBUGGER_TOOLS)
-        self.write_resource_selection(["resources-guide"], [])
+        self.write_resource_selection(["editor-context"], [])
         self.write_category_settings(False, ["Frame Debugger"])
 
         instructions = mcp.build_initialize_instructions()
@@ -135,7 +135,7 @@ class CategoryResourceTests(unittest.TestCase):
 
     def test_force_all_collapses_nothing(self) -> None:
         self.write_tool_selection(FRAME_DEBUGGER_TOOLS)
-        self.write_resource_selection(["resources-guide"], [])
+        self.write_resource_selection(["editor-context"], [])
         self.write_category_settings(True, [])
 
         instructions = mcp.build_initialize_instructions()
@@ -146,7 +146,7 @@ class CategoryResourceTests(unittest.TestCase):
 
     def test_server_lists_and_reads_category_resource(self) -> None:
         self.write_tool_selection(FRAME_DEBUGGER_TOOLS)
-        self.write_resource_selection(["resources-guide"], [])
+        self.write_resource_selection(["editor-context"], [])
 
         server = mcp.McpServer("http://127.0.0.1:1", str(self.temp_dir.name) + "/bridge", timeout_ms=1000)
 
@@ -180,7 +180,7 @@ class CategoryResourceTests(unittest.TestCase):
     def test_templates_fold_into_resources_count(self) -> None:
         self.write_tool_selection([])
         self.write_resource_selection(
-            ["resources-guide"],
+            ["editor-context"],
             ["assets-name-contains", "assets-type", "assets-label", "assets-filter"],
         )
 
@@ -193,7 +193,7 @@ class CategoryResourceTests(unittest.TestCase):
 
     def test_essentials_never_collapses_by_default(self) -> None:
         self.write_tool_selection([])
-        self.write_resource_selection(["resources-guide"], [])
+        self.write_resource_selection(["editor-context"], [])
 
         instructions = mcp.build_initialize_instructions()
 

@@ -1,3 +1,4 @@
+import os
 import sys
 import tempfile
 import threading
@@ -186,4 +187,77 @@ class BridgeToolTimeoutTests(unittest.TestCase):
         self.assertFalse(thread.is_alive())
         self.assertIsInstance(results["payload"], dict)
         self.assertEqual(results["payload"]["result"]["entries"], [])
+
+    def test_timeout_writes_cancel_marker_and_removes_queued_request(self) -> None:
+        operation_id = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        request_path = self.bridge_dir / "requests" / f"{operation_id}.json"
+        cancel_path = self.bridge_dir / "cancel" / f"{operation_id}.json"
+
+        with mock.patch.object(mcp.uuid, "uuid4", return_value=uuid.UUID(hex=operation_id)):
+            with self.assertRaises(RuntimeError):
+                self.server.call_unity_bridge(
+                    "console-get-logs",
+                    {"timeoutMs": 1000},
+                    request_id="timeout-cleanup",
+                )
+
+        self.assertTrue(cancel_path.exists(), "timeout should leave a cancel marker for Unity")
+        self.assertFalse(request_path.exists(), "timeout should remove the still-queued request")
+
+    def test_timeout_keeps_request_already_picked_up_by_unity(self) -> None:
+        operation_id = "ffffffffffffffffffffffffffffffff"
+        request_path = self.bridge_dir / "requests" / f"{operation_id}.json"
+        processing_path = self.bridge_dir / "requests" / f"{operation_id}.json.processing"
+
+        def simulate_unity_pickup() -> None:
+            for _ in range(400):
+                if request_path.exists():
+                    request_path.replace(processing_path)
+                    return
+                time.sleep(0.005)
+
+        picker = threading.Thread(target=simulate_unity_pickup)
+        picker.start()
+        with mock.patch.object(mcp.uuid, "uuid4", return_value=uuid.UUID(hex=operation_id)):
+            with self.assertRaises(RuntimeError):
+                self.server.call_unity_bridge(
+                    "console-get-logs",
+                    {"timeoutMs": 1000},
+                    request_id="timeout-inflight",
+                )
+        picker.join(timeout=1)
+
+        self.assertTrue(processing_path.exists(), "an in-flight request must be left for Unity to finish")
+
+    def test_prune_removes_orphan_request_for_terminal_operation(self) -> None:
+        request_dir = self.bridge_dir / "requests"
+        request_dir.mkdir(parents=True, exist_ok=True)
+        orphan = request_dir / "orphan-terminal.json"
+        orphan.write_text("{}", encoding="utf-8")
+        mcp.write_json_file_atomic(
+            self.bridge_dir / "operations" / "orphan-terminal.json",
+            {"state": "stale"},
+        )
+        old = time.time() - (mcp.ORPHAN_RESPONSE_STALE_SECONDS + 5)
+        os.utime(orphan, (old, old))
+
+        self.server.prune_stale_transport_files()
+
+        self.assertFalse(orphan.exists())
+
+    def test_prune_keeps_old_queued_request_for_live_operation(self) -> None:
+        request_dir = self.bridge_dir / "requests"
+        request_dir.mkdir(parents=True, exist_ok=True)
+        queued = request_dir / "still-queued.json"
+        queued.write_text("{}", encoding="utf-8")
+        mcp.write_json_file_atomic(
+            self.bridge_dir / "operations" / "still-queued.json",
+            {"state": "queued"},
+        )
+        old = time.time() - (mcp.ORPHAN_RESPONSE_STALE_SECONDS + 5)
+        os.utime(queued, (old, old))
+
+        self.server.prune_stale_transport_files()
+
+        self.assertTrue(queued.exists(), "a non-terminal queued request must survive pruning")
 

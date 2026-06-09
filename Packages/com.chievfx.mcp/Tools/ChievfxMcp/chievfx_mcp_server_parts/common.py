@@ -83,6 +83,10 @@ BRIDGE_POST_RECOVERY_RESPONSE_GRACE_SECONDS = 10.0
 # Orphan response/processing files older than this are removed before queueing
 # a new request to keep the file transport from looking permanently "busy".
 ORPHAN_RESPONSE_STALE_SECONDS = 30.0
+# Short backoff retries for Windows AV / concurrent bridge file access.
+FILE_IO_RETRY_ATTEMPTS = 8
+FILE_IO_RETRY_BASE_SECONDS = 0.015
+FILE_IO_RETRY_MAX_SECONDS = 0.25
 PROGRESS_INTERVAL_SECONDS = 1.0
 MAX_STATUS_OPERATIONS = 12
 HARD_EVENTS_MAX_ENTRIES = 200

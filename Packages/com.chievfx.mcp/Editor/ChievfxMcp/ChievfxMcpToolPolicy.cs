@@ -83,7 +83,7 @@ namespace Chievfx.Mcp.Editor
 
         public const int DefaultBridgePort = 27248;
 
-        public const int DefaultTimeoutMs = 10000;
+        public const int DefaultTimeoutMs = 120000;
 
         public const string AutoReloadExternallyChangedScenesKey = ServerName + ".autoReloadExternallyChangedScenes";
 

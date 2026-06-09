@@ -19,7 +19,6 @@ namespace Chievfx.Mcp.Editor
     {
         private const string TransportStdio = "stdio";
         private const string TransportHttp = "http";
-        private const string PythonCommand = "python3";
         private const string AllInfoEditorPrefsKey = "ChievfxMcp.Selection.AllInfo";
         private const string ShowExperimentalPromptsEditorPrefsKey = "ChievfxMcp.Experimental.ShowPromptsTab";
 
@@ -738,7 +737,7 @@ namespace Chievfx.Mcp.Editor
             }
 
             server["type"] = TransportStdio;
-            server["command"] = PythonCommand;
+            server["command"] = ChievfxMcpPythonLauncher.ExecutablePath;
             server["args"] = new JArray(
                 ServerScriptPath,
                 "--transport",
@@ -939,7 +938,7 @@ namespace Chievfx.Mcp.Editor
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = PythonCommand,
+                    FileName = ChievfxMcpPythonLauncher.ExecutablePath,
                     WorkingDirectory = ProjectRoot,
                     Arguments = BuildHttpServerArguments(port, timeout),
                     UseShellExecute = false,

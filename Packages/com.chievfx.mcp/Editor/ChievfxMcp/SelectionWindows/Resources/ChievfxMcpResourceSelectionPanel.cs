@@ -19,7 +19,6 @@ namespace Chievfx.Mcp.Editor
     internal sealed class ChievfxMcpResourceSelectionPanel
     {
         private const string AllInfoEditorPrefsKey = "ChievfxMcp.Selection.AllInfo";
-        private const string PythonCommand = "python3";
         private const string ResourceKind = "Resource";
         private const string TemplateKind = "Template";
 
@@ -178,7 +177,7 @@ namespace Chievfx.Mcp.Editor
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = PythonCommand,
+                    FileName = ChievfxMcpPythonLauncher.ExecutablePath,
                     WorkingDirectory = ChievfxMcpToolPolicy.ProjectRoot,
                     Arguments = $"{QuoteArg(ChievfxMcpToolPolicy.ServerScriptPath)} --resource-metadata",
                     UseShellExecute = false,

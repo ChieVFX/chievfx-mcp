@@ -29,9 +29,40 @@ def parse_utc_iso(value: Any) -> float | None:
         return None
 
 
+def is_transient_file_lock_error(exc: BaseException) -> bool:
+    if isinstance(exc, PermissionError):
+        return True
+    if isinstance(exc, OSError):
+        winerror = getattr(exc, "winerror", None)
+        if winerror in (5, 32):
+            return True
+        if exc.errno in (13, 16):
+            return True
+    return False
+
+
+def file_io_retry_delay(attempt: int) -> float:
+    return min(FILE_IO_RETRY_MAX_SECONDS, FILE_IO_RETRY_BASE_SECONDS * (2 ** attempt))
+
+
+def read_text_file(path: Path, encoding: str = "utf-8") -> str:
+    last_error: OSError | None = None
+    for attempt in range(FILE_IO_RETRY_ATTEMPTS):
+        try:
+            return path.read_text(encoding=encoding)
+        except OSError as exc:
+            if not is_transient_file_lock_error(exc) or attempt >= FILE_IO_RETRY_ATTEMPTS - 1:
+                raise
+            last_error = exc
+            time.sleep(file_io_retry_delay(attempt))
+    if last_error is not None:
+        raise last_error
+    raise OSError(f"Could not read file: {path}")
+
+
 def read_json_file(path: Path) -> dict[str, Any] | None:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(read_text_file(path))
     except (OSError, json.JSONDecodeError):
         return None
 
@@ -41,8 +72,21 @@ def read_json_file(path: Path) -> dict[str, Any] | None:
 def write_json_file_atomic(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
-    temp_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
-    temp_path.replace(path)
+    serialized = json.dumps(payload, separators=(",", ":"))
+    for attempt in range(FILE_IO_RETRY_ATTEMPTS):
+        try:
+            if not temp_path.exists():
+                temp_path.write_text(serialized, encoding="utf-8")
+            temp_path.replace(path)
+            return
+        except OSError as exc:
+            if not is_transient_file_lock_error(exc) or attempt >= FILE_IO_RETRY_ATTEMPTS - 1:
+                try:
+                    temp_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                raise
+            time.sleep(file_io_retry_delay(attempt))
 
 
 def file_age_seconds(path: Path, now: float | None = None) -> float | None:

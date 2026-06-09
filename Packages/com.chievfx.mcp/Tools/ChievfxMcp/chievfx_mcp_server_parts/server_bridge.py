@@ -362,7 +362,7 @@ class BridgeTransportMixin:
             next_recovery_record_at = started
             while True:
                 if response_path.exists():
-                    payload = json.loads(response_path.read_text(encoding="utf-8"))
+                    payload = json.loads(read_text_file(response_path))
                     response_path.unlink(missing_ok=True)
                     if not payload.get("ok"):
                         error_message = payload.get("error") or "Unity bridge returned an error."

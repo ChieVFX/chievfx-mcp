@@ -19,7 +19,6 @@ namespace Chievfx.Mcp.Editor
     internal sealed class ChievfxMcpPromptSelectionPanel
     {
         private const string AllInfoEditorPrefsKey = "ChievfxMcp.Selection.AllInfo";
-        private const string PythonCommand = "python3";
 
         private readonly List<PromptRow> promptRows = new();
         private readonly Dictionary<string, Toggle> toggles = new(StringComparer.Ordinal);
@@ -170,7 +169,7 @@ namespace Chievfx.Mcp.Editor
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = PythonCommand,
+                    FileName = ChievfxMcpPythonLauncher.ExecutablePath,
                     WorkingDirectory = ChievfxMcpToolPolicy.ProjectRoot,
                     Arguments = $"{QuoteArg(ChievfxMcpToolPolicy.ServerScriptPath)} --prompt-metadata",
                     UseShellExecute = false,

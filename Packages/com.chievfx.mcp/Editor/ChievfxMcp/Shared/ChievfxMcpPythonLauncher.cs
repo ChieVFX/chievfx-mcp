@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Debug = UnityEngine.Debug;
 
@@ -44,7 +45,7 @@ namespace Chievfx.Mcp.Editor
                     return;
                 }
 
-                var trimmed = path.Trim().Trim('"');
+                var trimmed = path!.Trim().Trim('"');
                 try
                 {
                     trimmed = Path.GetFullPath(trimmed);
@@ -93,11 +94,12 @@ namespace Chievfx.Mcp.Editor
             return candidates;
         }
 
-        private static IEnumerable<string> QueryWhereExecutable(string command)
+        private static List<string> QueryWhereExecutable(string command)
         {
-            if (!OperatingSystem.IsWindows())
+            var results = new List<string>();
+            if (!IsWindows())
             {
-                yield break;
+                return results;
             }
 
             try
@@ -119,25 +121,28 @@ namespace Chievfx.Mcp.Editor
                 process.WaitForExit(2000);
                 if (process.ExitCode != 0)
                 {
-                    yield break;
+                    return results;
                 }
 
                 foreach (var line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
                 {
-                    yield return line;
+                    results.Add(line);
                 }
             }
             catch (Exception ex)
             {
                 Debug.LogWarning($"ChievFX MCP could not resolve '{command}' via where.exe. {ex.Message}");
             }
+
+            return results;
         }
 
-        private static IEnumerable<string> QueryPyLauncherPaths()
+        private static List<string> QueryPyLauncherPaths()
         {
-            if (!OperatingSystem.IsWindows())
+            var results = new List<string>();
+            if (!IsWindows())
             {
-                yield break;
+                return results;
             }
 
             try
@@ -159,7 +164,7 @@ namespace Chievfx.Mcp.Editor
                 process.WaitForExit(2000);
                 if (process.ExitCode != 0)
                 {
-                    yield break;
+                    return results;
                 }
 
                 var pattern = new Regex(@"^\s*-V:\d+\.\d+.*?\s+(.+\.exe)\s*$", RegexOptions.IgnoreCase);
@@ -168,7 +173,7 @@ namespace Chievfx.Mcp.Editor
                     var match = pattern.Match(line);
                     if (match.Success)
                     {
-                        yield return match.Groups[1].Value;
+                        results.Add(match.Groups[1].Value);
                     }
                 }
             }
@@ -176,6 +181,13 @@ namespace Chievfx.Mcp.Editor
             {
                 // py launcher is optional on Windows.
             }
+
+            return results;
+        }
+
+        private static bool IsWindows()
+        {
+            return RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
         }
 
         private static bool IsRunnablePython(string path)

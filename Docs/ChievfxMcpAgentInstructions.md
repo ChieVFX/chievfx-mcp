@@ -7,7 +7,7 @@ Short reference for how agent-facing MCP text is assembled and how it respects t
 | Capability | Selection file | Required defaults |
 |------------|----------------|-------------------|
 | Tools | `UserSettings/ChievfxMcpToolSelection.json` | Essentials + policy-required tools |
-| Resources / templates | `UserSettings/ChievfxMcpResourceSelection.json` | `resources-guide` |
+| Resources / templates | `UserSettings/ChievfxMcpResourceSelection.json` | none required |
 | Prompts | `UserSettings/ChievfxMcpPromptSelection.json` | policy-required prompts |
 
 Unity windows under `Window > ChievFX > MCP *` write these files. The Python MCP server reads them at runtime.
@@ -29,6 +29,33 @@ Two layers, both filtered to **enabled** capabilities only:
    - Tools: `name`, `description`, compressed `inputSchema` args
    - Resources/templates: `uri` or `uriTemplate`, `description`
    - Prompts: `name`, `description`, argument names
+   - Items in a collapsed category (see below) are omitted here and their curated blurbs are skipped
+
+## Category auto-collapse
+
+Built in `chievfx_mcp_server_parts/category_resources.py`.
+
+To cut token cost, large optional categories are collapsed in `initialize.instructions`. Tool and resource/template categories that share a case-folded name merge into one category (e.g. `GameObject`, `Scene`, `cinemachine-and-timeline`). A merged category collapses when its enabled item count (tools + resources + templates) exceeds `CATEGORY_COLLAPSE_THRESHOLD` (3) and it is not flagged always-supplied.
+
+When collapsed:
+
+- The per-item descriptor lines (in the `Tools:`/`Resources:`/`Resource templates:` blocks) and curated blurbs are omitted.
+- One header line is emitted in a separate `Extra API capabilities (...)` section placed below the `Enabled ChievFX MCP descriptors` block: `- <Name> (<n> tools, <m> resources): <description> -> chievfx://categories/<slug>`. Resource templates are folded into the resources count (the agent treats them as parameterized resources).
+- A dynamic, non-template resource `chievfx://categories/<slug>` is advertised in `resources/list` and served locally by `read_resource`. Its body lists the full compact tool/resource/template lines for that category's enabled items. These resources are not part of the user-selectable catalog, metadata, selection files, or the guide.
+
+Always-supplied control lives in `UserSettings/ChievfxMcpCategorySelection.json`:
+
+```json
+{
+  "schemaVersion": 1,
+  "forceAllCategoriesAlwaysSupplied": false,
+  "alwaysSuppliedCategories": ["Essentials", "Editor Window", "Script Execution / Tests", "Control"]
+}
+```
+
+- A category is always-supplied (never collapses, full inline) when `forceAllCategoriesAlwaysSupplied` is true or its name is in `alwaysSuppliedCategories`.
+- Missing file falls back to those four default categories on, force-all off.
+- Unity writes the file: per-category "Always supply" toggle in the Tools and Resources tabs (info mode / "i"), and a global "Force all categories always-supplied" toggle in the Connection tab "Advanced details" foldout. Both trigger the debug dump.
 
 ## Descriptor sources
 
@@ -41,25 +68,19 @@ Two layers, both filtered to **enabled** capabilities only:
 Full descriptors are advertised through normal MCP list methods:
 
 - `tools/list` → `enabled_tools()`
-- `resources/list` → `enabled_resources()`
+- `resources/list` → `enabled_resources()` + `dynamic_category_resources()` (collapsed-category resources)
 - `resources/templates/list` → `enabled_resource_templates()`
 - `prompts/list` → `enabled_prompts()`
 
 Disabled items are omitted from lists and from `initialize.instructions`. `resources/read` rejects disabled URIs via `ensure_resource_enabled()`.
 
-## `chievfx://resources/guide`
+## URI encoding rules
 
-Required static resource. Body built by `resource_guide_text()` in `resource_text.py`.
-
-Behavior mirrors the compact initialize/resource list layer:
-
-- **Static resource and template sections** are generated from the same enabled descriptors as `resources/list` and `resources/templates/list`
-- Line format reuses `format_resource_for_initialize_instructions()` and `format_resource_template_for_initialize_instructions()` (`uri: description`)
-- **Encoding and output rules** remain static trailing prose (URI grammar, filterSpec, TOON output notes)
-
-Previously the guide hard-coded the full catalog and could mention resources that were disabled in the Unity selection window. It now tracks the current selection.
-
-Read path: `server_core.py` serves the guide locally without calling the Unity bridge.
+There is no global guide resource. Per the capability-block model, URI grammar travels with the
+capabilities that use it: any collapsed `chievfx://categories/<slug>` resource that exposes resource
+templates appends the shared `RESOURCE_URI_ENCODING_NOTES` block (percent-encoding, GameObject path
+grammar, component-key suffixing, asset `filterSpec` clauses, TOON output notes) defined in
+`category_resources.py`. Inline (non-collapsed) templates carry their own per-descriptor encoding hints.
 
 ## Debug dump
 
@@ -69,7 +90,7 @@ When tool/resource/prompt selection changes (Unity selection windows or MCP `too
 .temp/debug_instructions.md
 ```
 
-Contents: selection snapshot, exact `initialize.instructions` payload, and exact `chievfx://resources/guide` body for the current project state.
+Contents: selection snapshot and the exact `initialize.instructions` payload for the current project state.
 
 Manual refresh:
 
@@ -83,7 +104,8 @@ python3 Tools/ChievfxMcp/chievfx_mcp_server.py --project-root . --dump-debug-ins
 |------|------|
 | `chievfx_mcp_initialize_instructions.md` | Curated initialize blurbs |
 | `initialize_instructions.py` | Assembles `initialize.instructions` |
-| `resource_text.py` | Formats dynamic resource payloads, including the guide |
+| `category_resources.py` | Category merge/collapse plan + `chievfx://categories/<slug>` resources |
+| `resource_text.py` | Formats dynamic resource payloads |
 | `resource_metadata.py` | Loads selection, exposes `enabled_resources()` / `enabled_resource_templates()` |
 | `tool_selection.py` | Tool enablement + `enabled_tools()` |
 | `prompt_metadata.py` | Prompt enablement + `enabled_prompts()` |

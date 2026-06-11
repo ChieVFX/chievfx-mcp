@@ -9,7 +9,6 @@ namespace Chievfx.Mcp.Editor
 {
     internal static class ChievfxMcpDebugInstructionsDumper
     {
-        private const string PythonCommand = "python3";
 
         public static string DebugInstructionsPath => Path.Combine(ChievfxMcpToolPolicy.ProjectRoot, ".temp", "debug_instructions.md");
 
@@ -35,7 +34,7 @@ namespace Chievfx.Mcp.Editor
                 {
                     StartInfo = new ProcessStartInfo
                     {
-                        FileName = PythonCommand,
+                        FileName = ChievfxMcpPythonLauncher.ExecutablePath,
                         WorkingDirectory = ChievfxMcpToolPolicy.ProjectRoot,
                         Arguments = arguments,
                         UseShellExecute = false,

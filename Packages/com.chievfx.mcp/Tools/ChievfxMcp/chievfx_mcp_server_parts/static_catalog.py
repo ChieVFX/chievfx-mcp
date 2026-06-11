@@ -3,13 +3,6 @@
 
 RESOURCES: list[dict[str, Any]] = [
     {
-        "id": "resources-guide",
-        "uri": "chievfx://resources/guide",
-        "name": "ChievFX MCP resource guide",
-        "description": "Static guide for ChievFX resource URIs, drill-down links, and encoding rules.",
-        "mimeType": RESOURCE_MIME_TYPE,
-    },
-    {
         "id": "editor-context",
         "uri": "chievfx://editor/context",
         "name": "Unity editor context",
@@ -240,7 +233,7 @@ PROMPTS: list[dict[str, Any]] = [
                     "Shader name or target asset: {shaderName}\n"
                     "Extra context: {context}\n\n"
                     "Before drafting, read relevant ChievFX MCP resources: chievfx://editor/context, "
-                    "chievfx://resources/guide, matching material/shader/texture asset searches, and asset-detail "
+                    "matching material/shader/texture asset searches, and asset-detail "
                     "resources for referenced GUIDs. Confirm the project really targets the Built-in Render Pipeline; "
                     "if URP or HDRP packages/render pipeline assets are active, stop and recommend the matching prompt. "
                     "Account for Unity version, graphics API/platform, shader model target, lighting path, instancing, "
@@ -282,7 +275,7 @@ PROMPTS: list[dict[str, Any]] = [
                     "Shader name or target asset: {shaderName}\n"
                     "Extra context: {context}\n\n"
                     "Before drafting, read relevant ChievFX MCP resources: chievfx://editor/context, "
-                    "chievfx://resources/guide, matching material/shader/texture asset searches, and asset-detail "
+                    "matching material/shader/texture asset searches, and asset-detail "
                     "resources for referenced GUIDs. Confirm URP is the target render pipeline and check the installed "
                     "URP package/version, Unity version, renderer asset settings, target platforms, shader model, "
                     "lighting/shadow needs, additional lights, depth/normal texture availability, GPU instancing, "
@@ -325,7 +318,7 @@ PROMPTS: list[dict[str, Any]] = [
                     "Shader name or target asset: {shaderName}\n"
                     "Extra context: {context}\n\n"
                     "Before drafting, read relevant ChievFX MCP resources: chievfx://editor/context, "
-                    "chievfx://resources/guide, matching material/shader/texture asset searches, and asset-detail "
+                    "matching material/shader/texture asset searches, and asset-detail "
                     "resources for referenced GUIDs. Confirm HDRP is the target render pipeline and check the installed "
                     "HDRP package/version, Unity version, HDRenderPipelineAsset settings, platform, shader model, "
                     "lighting model, ray tracing or path tracing requirements, decals, tessellation, transparency, "
@@ -368,7 +361,7 @@ PROMPTS: list[dict[str, Any]] = [
                     "Target render pipeline: {pipeline}\n"
                     "Extra context: {context}\n\n"
                     "Before planning, read relevant ChievFX MCP resources: chievfx://editor/context, "
-                    "chievfx://resources/guide, matching Shader Graph/material/texture asset searches, and asset-detail "
+                    "matching Shader Graph/material/texture asset searches, and asset-detail "
                     "resources for referenced GUIDs. Verify Unity version, installed Shader Graph package/version, "
                     "target pipeline and graph target, supported shader model/features, platform limits, precision, "
                     "keywords, instancing, SRP Batcher expectations, transparency, shadows, depth/normal texture needs, "
@@ -412,7 +405,7 @@ PROMPTS: list[dict[str, Any]] = [
                     "Asset hint: {assetHint}\n"
                     "Focus: {focus}\n\n"
                     "Before reviewing, read relevant ChievFX MCP resources: chievfx://editor/context, "
-                    "chievfx://resources/guide, scene usage resources for materials/shaders, matching asset searches, "
+                    "scene usage resources for materials/shaders, matching asset searches, "
                     "and asset-detail resources for referenced GUIDs. Identify active render pipeline, package/version "
                     "state, pipeline asset or quality-level overrides, material shader assignment, missing textures, "
                     "keywords, render queue, instancing, SRP Batcher compatibility, shader model/platform support, "

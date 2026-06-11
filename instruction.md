@@ -142,19 +142,16 @@ Then send JSON-RPC `initialize` followed by `tools/list`.
 
 ## Resource Discovery
 
-Open `Window > ChievFX > MCP Resources` to choose advertised MCP resources/templates and inspect descriptor-token estimates. Static resources and templates are grouped into `Guide`, `Editor`, `Scene`, and `GameObject`; each category has controls to enable or disable optional rows together. Required resources are locked enabled. The selection is stored in project-local user settings:
+Open `Window > ChievFX > MCP Resources` to choose advertised MCP resources/templates and inspect descriptor-token estimates. Static resources and templates are grouped into `Editor`, `Scene`, and `GameObject`; each category has controls to enable or disable optional rows together. Required resources are locked enabled. The selection is stored in project-local user settings:
 
 ```text
 UserSettings/ChievfxMcpResourceSelection.json
 ```
 
-Fresh `resources/list` and `resources/templates/list` advertise enabled resources only. The required `chievfx://resources/guide` resource lists the same enabled static resources and templates plus static URI-encoding rules. See `Docs/ChievfxMcpAgentInstructions.md` for how `initialize.instructions` and the guide are assembled. Default required resource:
-
-- `chievfx://resources/guide`
+Fresh `resources/list` and `resources/templates/list` advertise enabled resources only, plus a `chievfx://categories/<slug>` resource for each collapsed category. See `Docs/ChievfxMcpAgentInstructions.md` for how `initialize.instructions` and category resources are assembled. No resources are required by default.
 
 Static resources:
 
-- `chievfx://resources/guide`
 - `chievfx://editor/context`
 - `chievfx://scene/opened`
 

@@ -10,7 +10,6 @@ namespace Chievfx.Mcp.Editor
 {
     internal static class ChievfxMcpToolMetadataRepository
     {
-        private const string PythonCommand = "python3";
 
         public static ChievfxMcpToolMetadata LoadMetadata(
             string descriptorEstimateBasis,
@@ -29,7 +28,7 @@ namespace Chievfx.Mcp.Editor
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = PythonCommand,
+                    FileName = ChievfxMcpPythonLauncher.ExecutablePath,
                     WorkingDirectory = ChievfxMcpToolPolicy.ProjectRoot,
                     Arguments = $"{QuoteArg(ChievfxMcpToolPolicy.ServerScriptPath)} --tool-metadata",
                     UseShellExecute = false,

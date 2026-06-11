@@ -19,7 +19,6 @@ namespace Chievfx.Mcp.Editor
     {
         private const string TransportStdio = "stdio";
         private const string TransportHttp = "http";
-        private const string PythonCommand = "python3";
         private const string AllInfoEditorPrefsKey = "ChievfxMcp.Selection.AllInfo";
         private const string ShowExperimentalPromptsEditorPrefsKey = "ChievfxMcp.Experimental.ShowPromptsTab";
 
@@ -303,6 +302,18 @@ namespace Chievfx.Mcp.Editor
             advanced.style.marginTop = 4;
             advanced.Add(CreateMutedLabel($"Server script: {ServerScriptPath}"));
             advanced.Add(CreateMutedLabel($"Bridge IPC: {ChievfxMcpToolPolicy.BridgeDirectory}"));
+            var forceAllCategoriesToggle = new Toggle("Force all categories always-supplied")
+            {
+                value = ChievfxMcpCategorySettings.ForceAll,
+                tooltip = "When on, no category auto-collapses in MCP instructions; every enabled tool/resource is listed inline. Costs more tokens. Default off."
+            };
+            forceAllCategoriesToggle.RegisterValueChangedCallback(evt =>
+            {
+                ChievfxMcpCategorySettings.SetForceAll(evt.newValue);
+                ChievfxMcpDebugInstructionsDumper.TryDump("unity-force-all-categories");
+            });
+            advanced.Add(forceAllCategoriesToggle);
+            advanced.Add(CreateMutedLabel("Categories with more than 3 enabled items collapse into a chievfx://categories link unless marked always-supplied (per-category toggle in Tools/Resources info mode)."));
             advanced.Add(CreateExperimentalFoldout());
             content.Add(advanced);
 
@@ -726,7 +737,7 @@ namespace Chievfx.Mcp.Editor
             }
 
             server["type"] = TransportStdio;
-            server["command"] = PythonCommand;
+            server["command"] = ChievfxMcpPythonLauncher.ExecutablePath;
             server["args"] = new JArray(
                 ServerScriptPath,
                 "--transport",
@@ -927,7 +938,7 @@ namespace Chievfx.Mcp.Editor
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = PythonCommand,
+                    FileName = ChievfxMcpPythonLauncher.ExecutablePath,
                     WorkingDirectory = ProjectRoot,
                     Arguments = BuildHttpServerArguments(port, timeout),
                     UseShellExecute = false,

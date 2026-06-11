@@ -1,49 +1,6 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
-def resource_guide_text() -> str:
-    lines = [
-        "ChievFX MCP resources v2",
-        "Guide covers enabled v2 GameObject, AssetDatabase, and scene-usage resources for this project.",
-        "Static resource and template lists match resources/list and resources/templates/list for the current selection.",
-        "",
-        "Static resources:",
-    ]
-
-    resource_descriptors = sorted(enabled_resources(), key=lambda item: item.get("uri", ""))
-    if resource_descriptors:
-        lines.extend(format_resource_for_initialize_instructions(descriptor) for descriptor in resource_descriptors)
-    else:
-        lines.append("- (none enabled)")
-
-    lines.extend(["", "Templates:"])
-
-    template_descriptors = sorted(enabled_resource_templates(), key=lambda item: item.get("uriTemplate", ""))
-    if template_descriptors:
-        lines.extend(
-            format_resource_template_for_initialize_instructions(descriptor) for descriptor in template_descriptors
-        )
-    else:
-        lines.append("- (none enabled)")
-
-    lines.extend(
-        [
-            "",
-            "Encode every scene path, GameObject hierarchy path, component key, and asset filterSpec as one URI segment.",
-            "Use percent-encoding with no safe slash: quote(value, safe='').",
-            "GameObject paths keep ChievFX grammar: / separator, \\/ literal slash, \\\\ literal backslash, [n] duplicate suffix.",
-            "Component keys use simple class names. Duplicate simple names are suffixed 1-based, e.g. BoxCollider.1.",
-            "Asset filterSpec uses semicolon key=value clauses: name, type, label, area, folder, limit, subassets.",
-            "Asset resources cover persisted AssetDatabase project/package assets, not runtime-only objects.",
-            "Current usage resources cover loaded current scene or prefab stage references; runtime-only and built-in objects have no asset GUID.",
-            "Material profile resources report exact material/reference counts separately from optional Profiler.GetRuntimeMemorySizeLong estimates.",
-            "",
-            "Outputs are compact text/plain TOON with readAt metadata, drill-down URIs, truncation flags, and hard caps.",
-        ]
-    )
-    return "\n".join(lines)
-
-
 def format_scene_opened_resource_text(result: Any) -> str:
     if not isinstance(result, dict):
         return to_toon(result)

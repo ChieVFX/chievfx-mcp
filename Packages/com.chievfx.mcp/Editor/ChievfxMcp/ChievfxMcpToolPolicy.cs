@@ -83,7 +83,7 @@ namespace Chievfx.Mcp.Editor
 
         public const int DefaultBridgePort = 27248;
 
-        public const int DefaultTimeoutMs = 10000;
+        public const int DefaultTimeoutMs = 120000;
 
         public const string AutoReloadExternallyChangedScenesKey = ServerName + ".autoReloadExternallyChangedScenes";
 
@@ -128,6 +128,8 @@ namespace Chievfx.Mcp.Editor
         public static string ResourceSelectionPath => Path.Combine(ProjectRoot, "UserSettings", "ChievfxMcpResourceSelection.json");
 
         public static string PromptSelectionPath => Path.Combine(ProjectRoot, "UserSettings", "ChievfxMcpPromptSelection.json");
+
+        public static string CategorySelectionPath => Path.Combine(ProjectRoot, "UserSettings", "ChievfxMcpCategorySelection.json");
 
         public static void EnsureBridgeStarted()
         {

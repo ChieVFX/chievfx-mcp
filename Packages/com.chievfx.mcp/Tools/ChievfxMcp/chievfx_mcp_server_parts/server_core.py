@@ -81,7 +81,9 @@ class McpServerCore:
                 return self.result_response(request_id, self.call_tool(params, request_id, notify))
 
             if method == "resources/list":
-                return self.result_response(request_id, {"resources": enabled_resources()})
+                return self.result_response(
+                    request_id, {"resources": enabled_resources() + dynamic_category_resources()}
+                )
 
             if method == "resources/templates/list":
                 return self.result_response(request_id, {"resourceTemplates": enabled_resource_templates()})
@@ -497,8 +499,8 @@ class McpServerCore:
                     raise ResourceNotFoundError(message) from exc
                 raise
 
-        if uri == "chievfx://resources/guide":
-            text = truncate_resource_text(resource_guide_text())
+        if (category_entry := get_category_resource_by_uri(uri)) is not None:
+            text = truncate_resource_text(category_resource_body(category_entry))
         elif (extension_resource := get_extension_resource_by_uri(uri)) is not None:
             mime_type = extension_resource.get("mimeType") or RESOURCE_MIME_TYPE
             if isinstance(extension_resource.get("staticText"), str):

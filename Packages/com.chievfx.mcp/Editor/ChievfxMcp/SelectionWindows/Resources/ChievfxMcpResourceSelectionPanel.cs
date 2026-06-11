@@ -19,7 +19,6 @@ namespace Chievfx.Mcp.Editor
     internal sealed class ChievfxMcpResourceSelectionPanel
     {
         private const string AllInfoEditorPrefsKey = "ChievfxMcp.Selection.AllInfo";
-        private const string PythonCommand = "python3";
         private const string ResourceKind = "Resource";
         private const string TemplateKind = "Template";
 
@@ -178,7 +177,7 @@ namespace Chievfx.Mcp.Editor
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = PythonCommand,
+                    FileName = ChievfxMcpPythonLauncher.ExecutablePath,
                     WorkingDirectory = ChievfxMcpToolPolicy.ProjectRoot,
                     Arguments = $"{QuoteArg(ChievfxMcpToolPolicy.ServerScriptPath)} --resource-metadata",
                     UseShellExecute = false,
@@ -550,6 +549,11 @@ namespace Chievfx.Mcp.Editor
 
             if (allInfo)
             {
+                header.Add(CreateAlwaysSupplyToggle(category));
+            }
+
+            if (allInfo)
+            {
                 var detail = new Label(BuildCategorySummary(rows));
                 detail.style.flexBasis = 220;
                 detail.style.flexGrow = 2;
@@ -566,6 +570,26 @@ namespace Chievfx.Mcp.Editor
             container.Add(intent);
 
             return container;
+        }
+
+        private Toggle CreateAlwaysSupplyToggle(string category)
+        {
+            var toggle = new Toggle("Always supply")
+            {
+                value = ChievfxMcpCategorySettings.IsAlwaysSupplied(category),
+                tooltip = "Keep this category's tools/resources inline in MCP instructions instead of auto-collapsing them into a chievfx://categories link when it has more than 3 enabled items."
+            };
+            toggle.style.marginLeft = 8;
+            toggle.style.marginRight = 4;
+            toggle.style.flexShrink = 0;
+            toggle.SetEnabled(!ChievfxMcpCategorySettings.ForceAll);
+            toggle.RegisterCallback<MouseUpEvent>(evt => evt.StopPropagation());
+            toggle.RegisterValueChangedCallback(evt =>
+            {
+                ChievfxMcpCategorySettings.SetCategoryAlwaysSupplied(category, evt.newValue);
+                ChievfxMcpDebugInstructionsDumper.TryDump("unity-category-always-supply");
+            });
+            return toggle;
         }
 
         private Button CreateCategoryStateButton(IReadOnlyList<ResourceRow> rows, Action toggle)
@@ -610,7 +634,6 @@ namespace Chievfx.Mcp.Editor
 
             return category switch
             {
-                "Guide" => "Operator guidance, onboarding notes, and ChievFX MCP usage references.",
                 "Editor" => "Unity Editor state and diagnostic resources used while coordinating MCP work.",
                 "Scene" => "Scene-level context for hierarchy, objects, and current editor work.",
                 "GameObject" => "GameObject-oriented templates and resources for targeted scene inspection.",
@@ -1012,7 +1035,6 @@ namespace Chievfx.Mcp.Editor
         {
             return category switch
             {
-                "Guide" => 0,
                 "Editor" => 1,
                 "Scene" => 2,
                 "GameObject" => 3,

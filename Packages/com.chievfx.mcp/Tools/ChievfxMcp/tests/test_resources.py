@@ -99,7 +99,7 @@ class ResourceTests(unittest.TestCase):
         resources = self.request("resources/list")["result"]["resources"]
         templates = self.request("resources/templates/list")["result"]["resourceTemplates"]
 
-        self.assertIn("chievfx://resources/guide", {resource["uri"] for resource in resources})
+        self.assertIn("chievfx://editor/context", {resource["uri"] for resource in resources})
         self.assertIn(
             "chievfx://scene/{scenePath}/go/{goPath}/component/{componentKey}",
             {template["uriTemplate"] for template in templates},
@@ -119,7 +119,7 @@ class ResourceTests(unittest.TestCase):
         )
 
     def test_extension_manifest_resources_merge_with_metadata_and_reads_static_text(self) -> None:
-        self.write_selection(["resources-guide"], [])
+        self.write_selection(["editor-context"], [])
         self.write_extension_manifest(
             [
                 {
@@ -164,7 +164,7 @@ class ResourceTests(unittest.TestCase):
 
     def test_dynamic_extension_resource_reads_forward_to_unity_bridge(self) -> None:
         uri = "chievfx://extensions/chievfx.ecs/worlds"
-        self.write_selection(["resources-guide", "ecs-worlds-list"], [])
+        self.write_selection(["editor-context", "ecs-worlds-list"], [])
         self.write_extension_manifest(
             [
                 {
@@ -194,7 +194,7 @@ class ResourceTests(unittest.TestCase):
 
     def test_dynamic_extension_resource_templates_forward_to_unity_bridge(self) -> None:
         uri = "chievfx://extensions/chievfx.ecs/subscene/0123456789abcdef0123456789abcdef"
-        self.write_selection(["resources-guide"], ["ecs-subscene-detail"])
+        self.write_selection(["editor-context"], ["ecs-subscene-detail"])
         self.write_extension_manifest(
             [
                 {
@@ -224,7 +224,7 @@ class ResourceTests(unittest.TestCase):
 
     def test_disabled_extension_resource_template_is_not_found(self) -> None:
         uri = "chievfx://extensions/chievfx.ecs/entities/query/Position"
-        self.write_selection(["resources-guide"], [])
+        self.write_selection(["editor-context"], [])
         self.write_extension_manifest(
             [
                 {
@@ -255,8 +255,8 @@ class ResourceTests(unittest.TestCase):
                     "displayName": "Bad",
                     "resources": [
                         {
-                            "id": "resources-guide",
-                            "uri": "chievfx://extensions/bad.extension/guide",
+                            "id": "editor-context",
+                            "uri": "chievfx://extensions/bad.extension/context",
                             "name": "Bad",
                             "description": "Should be rejected.",
                         }
@@ -267,8 +267,8 @@ class ResourceTests(unittest.TestCase):
 
         metadata = mcp.build_resource_metadata()
 
-        self.assertEqual(1, sum(resource["id"] == "resources-guide" for resource in metadata["resources"]))
-        self.assertTrue(any("id collision resources-guide" in error for error in metadata["extensionErrors"]))
+        self.assertEqual(1, sum(resource["id"] == "editor-context" for resource in metadata["resources"]))
+        self.assertTrue(any("id collision editor-context" in error for error in metadata["extensionErrors"]))
 
     def test_current_gameobject_filter_templates_are_categorized(self) -> None:
         metadata = mcp.build_resource_metadata()
@@ -343,44 +343,19 @@ class ResourceTests(unittest.TestCase):
 
     def test_large_resource_response_guidance_uses_resource_copy(self) -> None:
         metadata = mcp.build_resource_metadata()
-        resources = {resource["id"]: resource for resource in metadata["resources"]}
         templates = {template["id"]: template for template in metadata["resourceTemplates"]}
 
-        guide_estimate = resources["resources-guide"]["responseEstimate"]
         component_estimate = templates["scene-component"]["responseEstimate"]
         current_component_estimate = templates["scene-current-component"]["responseEstimate"]
 
-        self.assertIn("guide text", guide_estimate["label"])
-        for estimate in [guide_estimate, component_estimate, current_component_estimate]:
+        for estimate in [component_estimate, current_component_estimate]:
             label = estimate["label"].lower()
             self.assertIn("resource payload", label)
             self.assertNotIn("script", label)
             self.assertNotIn("test output", label)
             self.assertNotIn("logs", label)
             self.assertEqual("100-300 typical; 500-2000+ on larger resource payloads", estimate["typicalTokens"])
-
-        for estimate in [component_estimate, current_component_estimate]:
             self.assertIn("serialized component data", estimate["label"])
-
-    def test_reads_static_guide_without_unity_bridge(self) -> None:
-        result = self.request("resources/read", {"uri": "chievfx://resources/guide"})["result"]
-
-        content = result["contents"][0]
-        self.assertEqual(content["mimeType"], "text/plain")
-        self.assertIn("ChievFX MCP resources v2", content["text"])
-        self.assertIn("enabled v2 GameObject, AssetDatabase, and scene-usage resources", content["text"])
-        self.assertEqual(self.server.calls, [])
-
-    def test_guide_lists_only_enabled_resources_and_templates(self) -> None:
-        self.write_selection(["resources-guide", "editor-context"], ["scene-current-go"])
-
-        text = self.request("resources/read", {"uri": "chievfx://resources/guide"})["result"]["contents"][0]["text"]
-
-        self.assertIn("chievfx://resources/guide", text)
-        self.assertIn("chievfx://editor/context", text)
-        self.assertNotIn("chievfx://scene/opened", text)
-        self.assertIn("chievfx://scene/current/go/{goPath}", text)
-        self.assertNotIn("chievfx://assets/type/{assetType}", text)
 
     def test_dynamic_resource_read_forwards_hidden_bridge_command(self) -> None:
         uri = "chievfx://scene/Assets%2FScenes%2FSample.unity/go/Root%2FChild/component/BoxCollider.1"
@@ -458,7 +433,7 @@ class ResourceTests(unittest.TestCase):
                 self.assertIn(uri, result["contents"][0]["text"])
 
     def test_disabled_static_resource_is_not_listed_or_readable(self) -> None:
-        self.write_selection(["resources-guide"], [])
+        self.write_selection(["editor-context"], [])
 
         resources = self.request("resources/list")["result"]["resources"]
         response = self.request("resources/read", {"uri": "chievfx://scene/opened"})
@@ -467,7 +442,7 @@ class ResourceTests(unittest.TestCase):
         self.assertEqual(response["error"]["code"], -32002)
 
     def test_disabled_matching_template_is_not_found(self) -> None:
-        self.write_selection(["resources-guide"], [])
+        self.write_selection(["editor-context"], [])
 
         response = self.request("resources/read", {"uri": "chievfx://scene/Assets%2FMain.unity/hierarchy"})
 
@@ -475,7 +450,7 @@ class ResourceTests(unittest.TestCase):
         self.assertEqual(self.server.calls, [])
 
     def test_disabled_current_filter_template_is_not_found(self) -> None:
-        self.write_selection(["resources-guide"], ["scene-current-go"])
+        self.write_selection(["editor-context"], ["scene-current-go"])
 
         response = self.request("resources/read", {"uri": "chievfx://scene/current/go/name-contains/Door"})
 
@@ -483,7 +458,7 @@ class ResourceTests(unittest.TestCase):
         self.assertEqual(self.server.calls, [])
 
     def test_disabled_asset_filter_template_is_not_found(self) -> None:
-        self.write_selection(["resources-guide"], ["assets-type"])
+        self.write_selection(["editor-context"], ["assets-type"])
 
         response = self.request("resources/read", {"uri": "chievfx://assets/label/ui"})
 
@@ -491,7 +466,7 @@ class ResourceTests(unittest.TestCase):
         self.assertEqual(self.server.calls, [])
 
     def test_disabled_current_scene_usage_template_is_not_found(self) -> None:
-        self.write_selection(["resources-guide"], ["scene-current-usage-assets"])
+        self.write_selection(["editor-context"], ["scene-current-usage-assets"])
 
         response = self.request("resources/read", {"uri": "chievfx://scene/current/usage/asset/0123456789abcdef0123456789abcdef"})
 
@@ -499,7 +474,7 @@ class ResourceTests(unittest.TestCase):
         self.assertEqual(self.server.calls, [])
 
     def test_disabled_current_scene_material_profile_template_is_not_found(self) -> None:
-        self.write_selection(["resources-guide"], ["scene-current-material-profile-shader"])
+        self.write_selection(["editor-context"], ["scene-current-material-profile-shader"])
 
         response = self.request("resources/read", {"uri": "chievfx://scene/current/material-profile/material/abc%3A123"})
 

@@ -109,7 +109,7 @@ namespace Chievfx.Mcp.Editor
                 return false;
             }
 
-            var token = contains.Trim();
+            var token = contains!.Trim();
             if (token.IndexOf(' ') >= 0)
             {
                 return false;

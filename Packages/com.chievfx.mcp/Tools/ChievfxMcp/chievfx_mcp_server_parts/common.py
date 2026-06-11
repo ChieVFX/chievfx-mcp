@@ -40,6 +40,7 @@ TOOL_ROLE_PRESETS_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_ro
 TOOL_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpToolSelection.json"
 RESOURCE_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpResourceSelection.json"
 PROMPT_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpPromptSelection.json"
+CATEGORY_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpCategorySelection.json"
 CATALOGS_MD_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_text_prompts_resources.md"
 INITIALIZE_INSTRUCTIONS_MD_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_initialize_instructions.md"
 EXTENSION_CAPABILITY_MANIFEST_PATH = PROJECT_ROOT / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
@@ -47,6 +48,18 @@ DEBUG_INSTRUCTIONS_PATH = PROJECT_ROOT / ".temp" / "debug_instructions.md"
 TOOL_SELECTION_SCHEMA_VERSION = 1
 RESOURCE_SELECTION_SCHEMA_VERSION = 1
 PROMPT_SELECTION_SCHEMA_VERSION = 1
+CATEGORY_SELECTION_SCHEMA_VERSION = 1
+# A merged category (tools + resources + templates sharing a case-folded name)
+# whose enabled item count exceeds this is collapsed in initialize.instructions
+# into a single header line plus a chievfx://categories/<slug> resource, unless
+# it is flagged always-supplied.
+CATEGORY_COLLAPSE_THRESHOLD = 3
+DEFAULT_ALWAYS_SUPPLIED_CATEGORIES = [
+    "Essentials",
+    "Editor Window",
+    "Script Execution / Tests",
+    "Control",
+]
 EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION = 1
 EXTENSION_URI_PREFIX = "chievfx://extensions/"
 RESOURCE_MIME_TYPE = "text/plain"
@@ -70,6 +83,10 @@ BRIDGE_POST_RECOVERY_RESPONSE_GRACE_SECONDS = 10.0
 # Orphan response/processing files older than this are removed before queueing
 # a new request to keep the file transport from looking permanently "busy".
 ORPHAN_RESPONSE_STALE_SECONDS = 30.0
+# Short backoff retries for Windows AV / concurrent bridge file access.
+FILE_IO_RETRY_ATTEMPTS = 8
+FILE_IO_RETRY_BASE_SECONDS = 0.015
+FILE_IO_RETRY_MAX_SECONDS = 0.25
 PROGRESS_INTERVAL_SECONDS = 1.0
 MAX_STATUS_OPERATIONS = 12
 HARD_EVENTS_MAX_ENTRIES = 200
@@ -97,6 +114,7 @@ def configure_project_root(project_root: str | os.PathLike[str] | None) -> None:
     global TOOL_SELECTION_PATH
     global RESOURCE_SELECTION_PATH
     global PROMPT_SELECTION_PATH
+    global CATEGORY_SELECTION_PATH
     global EXTENSION_CAPABILITY_MANIFEST_PATH
     global DEBUG_INSTRUCTIONS_PATH
 
@@ -107,6 +125,7 @@ def configure_project_root(project_root: str | os.PathLike[str] | None) -> None:
     TOOL_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpToolSelection.json"
     RESOURCE_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpResourceSelection.json"
     PROMPT_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpPromptSelection.json"
+    CATEGORY_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpCategorySelection.json"
     EXTENSION_CAPABILITY_MANIFEST_PATH = PROJECT_ROOT / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
     DEBUG_INSTRUCTIONS_PATH = PROJECT_ROOT / ".temp" / "debug_instructions.md"
 
@@ -233,11 +252,10 @@ TOOL_CATEGORY_DESCRIPTIONS = {
     "ugui-runtime-control": "Optional Play Mode uGUI probing and control helpers: hit stacks, clicks, drags, selection, and control values.",
     "OBSOLETE": "Deprecated compatibility tools. Only enable explicitly; bulk enable skips this category.",
 }
-DEFAULT_REQUIRED_RESOURCE_IDS = {"resources-guide"}
+DEFAULT_REQUIRED_RESOURCE_IDS: set[str] = set()
 DEFAULT_REQUIRED_RESOURCE_TEMPLATE_IDS: set[str] = set()
 DEFAULT_REQUIRED_PROMPT_NAMES: set[str] = set()
 RESOURCE_CATEGORIES = {
-    "resources-guide": "Guide",
     "editor-context": "Editor",
     "scene-opened": "Scene",
     "scene-current-material-profile-summary": "Asset",
@@ -265,7 +283,6 @@ RESOURCE_TEMPLATE_CATEGORIES = {
     "scene-current-usage-subasset": "Asset",
 }
 RESOURCE_CATEGORY_DESCRIPTIONS = {
-    "Guide": "Static usage notes for ChievFX MCP resources and URI encoding.",
     "Editor": "Compact current Unity editor context.",
     "Scene": "Opened scenes and scene context resources.",
     "GameObject": "GameObject and component drill-down resources.",
@@ -436,7 +453,6 @@ RESPONSE_PROFILE_BY_TOOL = {
     "frame-debugger-event-get": "status",
 }
 RESPONSE_PROFILE_BY_RESOURCE = {
-    "resources-guide": "guide",
     "editor-context": "status",
     "scene-opened": "row-list",
     "scene-go": "row-list",

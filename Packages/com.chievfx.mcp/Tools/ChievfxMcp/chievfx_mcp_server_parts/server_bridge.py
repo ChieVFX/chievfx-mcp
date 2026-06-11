@@ -175,6 +175,43 @@ class BridgeTransportMixin:
         self.emit_progress(progress_token, notify, 1.0, "recompile completed.")
         return result
 
+    def discard_timed_out_request(self, request_id: str) -> None:
+        """After the MCP server gives up waiting, stop Unity from later draining
+        the orphaned request and re-running a tool nobody is listening for.
+
+        Writes a cancel marker so Unity skips the request if it has not started
+        it yet, and deletes the still-queued request file directly. A request
+        already moved to ``.processing`` is left for Unity to finish; the stale
+        ``.processing`` file is reaped by prune_stale_transport_files."""
+        cancel_path = self.cancel_dir / f"{request_id}.json"
+        try:
+            self.cancel_dir.mkdir(parents=True, exist_ok=True)
+            write_json_file_atomic(
+                cancel_path,
+                {
+                    "operationId": request_id,
+                    "requestedAtUtc": utc_now_iso(),
+                    "reason": "MCP server timed out waiting for Unity bridge response.",
+                },
+            )
+        except OSError:
+            pass
+
+        request_path = self.request_dir / f"{request_id}.json"
+        processing_path = self.request_dir / f"{request_id}.json.processing"
+        if request_path.exists() and not processing_path.exists():
+            try:
+                request_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    def read_operation_state(self, operation_id: str) -> str | None:
+        record = read_json_file(self.operation_dir / f"{operation_id}.json")
+        if not isinstance(record, dict):
+            return None
+        state = record.get("state")
+        return state if isinstance(state, str) else None
+
     def prune_stale_transport_files(self) -> None:
         """Remove leftover transport files that can survive crashes or domain
         reloads. Without this, pendingResponses can accumulate and make the
@@ -196,6 +233,45 @@ class BridgeTransportMixin:
         for path in self._safe_glob(self.request_dir, "*.processing"):
             age = file_age_seconds(path, now)
             if age is None or age <= PROCESSING_STALE_SECONDS:
+                continue
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                continue
+
+        # Orphan request files for operations that already reached a terminal
+        # state (or have no live record) keep Unity draining backlog after the
+        # MCP server gave up. Reap them so the bridge does not re-run abandoned
+        # tools in a death-spiral loop.
+        for path in self._safe_glob(self.request_dir, "*.json"):
+            stem = path.stem
+            if stem in active_ids:
+                continue
+            processing_path = self.request_dir / f"{stem}.json.processing"
+            if processing_path.exists():
+                continue
+            age = file_age_seconds(path, now)
+            if age is None or age <= ORPHAN_RESPONSE_STALE_SECONDS:
+                continue
+            state = self.read_operation_state(stem)
+            if state is not None and state not in TERMINAL_OPERATION_STATES:
+                continue
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                continue
+
+        # Cancel markers whose operation is terminal/gone just accumulate; clear
+        # the old ones so the cancel directory does not grow without bound.
+        for path in self._safe_glob(self.cancel_dir, "*.json"):
+            stem = path.stem
+            if stem in active_ids:
+                continue
+            age = file_age_seconds(path, now)
+            if age is None or age <= ORPHAN_RESPONSE_STALE_SECONDS:
+                continue
+            state = self.read_operation_state(stem)
+            if state is not None and state not in TERMINAL_OPERATION_STATES:
                 continue
             try:
                 path.unlink(missing_ok=True)
@@ -286,7 +362,7 @@ class BridgeTransportMixin:
             next_recovery_record_at = started
             while True:
                 if response_path.exists():
-                    payload = json.loads(response_path.read_text(encoding="utf-8"))
+                    payload = json.loads(read_text_file(response_path))
                     response_path.unlink(missing_ok=True)
                     if not payload.get("ok"):
                         error_message = payload.get("error") or "Unity bridge returned an error."
@@ -370,6 +446,7 @@ class BridgeTransportMixin:
                 state="stale",
                 progressMessage="MCP server timed out waiting for Unity bridge response.",
             )
+            self.discard_timed_out_request(request_id)
             status = self.get_bridge_status({})
             raise RuntimeError(
                 f"Unity bridge timed out waiting for operation {request_id} ({name}) at {response_path}. "

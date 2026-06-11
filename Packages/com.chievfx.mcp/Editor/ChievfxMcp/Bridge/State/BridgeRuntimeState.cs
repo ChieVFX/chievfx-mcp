@@ -208,12 +208,42 @@ namespace Chievfx.Mcp.Editor
 
             var tempPath = Path.Combine(directory ?? string.Empty, "." + Path.GetFileName(path) + "." + Guid.NewGuid().ToString("N") + ".tmp");
             File.WriteAllText(tempPath, contents);
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
 
-            File.Move(tempPath, path);
+            // On Windows a reader (the Python MCP server polling state.json) can
+            // briefly hold a share lock. Delete-then-move then races and throws
+            // "used by another process". File.Replace performs the swap in one
+            // call and tolerates a concurrent reader; retry a few times before
+            // falling back to delete-then-move for first-write (no target yet).
+            const int maxAttempts = 5;
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    if (File.Exists(path))
+                    {
+                        File.Replace(tempPath, path, null, ignoreMetadataErrors: true);
+                    }
+                    else
+                    {
+                        File.Move(tempPath, path);
+                    }
+
+                    return;
+                }
+                catch (IOException) when (attempt < maxAttempts)
+                {
+                    Thread.Sleep(10 * attempt);
+                }
+                catch (UnauthorizedAccessException) when (attempt < maxAttempts)
+                {
+                    Thread.Sleep(10 * attempt);
+                }
+                catch
+                {
+                    TryDeleteFile(tempPath);
+                    throw;
+                }
+            }
         }
 
         private static string[] BuildBusyReasons(IReadOnlyDictionary<string, object?> busy)

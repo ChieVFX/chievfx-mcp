@@ -10,9 +10,14 @@ def build_initialize_instructions() -> str:
     enabled_resource_ids, enabled_template_ids = load_enabled_resource_ids()
     enabled_prompt_names = load_enabled_prompt_names()
 
+    plan = build_category_plan()
+    collapsed_ids = collapsed_item_ids(plan)
+
     tool_records = records.get("tool", {})
     if isinstance(tool_records, dict):
         for tool_id in sorted(enabled_tool_ids):
+            if tool_id in collapsed_ids["tools"]:
+                continue
             text = tool_records.get(tool_id)
             if isinstance(text, str) and text.strip():
                 lines.append(text.strip())
@@ -20,6 +25,8 @@ def build_initialize_instructions() -> str:
     resource_records = records.get("resource", {})
     if isinstance(resource_records, dict):
         for resource_id in sorted(enabled_resource_ids):
+            if resource_id in collapsed_ids["resources"]:
+                continue
             text = resource_records.get(resource_id)
             if isinstance(text, str) and text.strip():
                 lines.append(text.strip())
@@ -27,6 +34,8 @@ def build_initialize_instructions() -> str:
     template_records = records.get("resourceTemplate", {})
     if isinstance(template_records, dict):
         for template_id in sorted(enabled_template_ids):
+            if template_id in collapsed_ids["templates"]:
+                continue
             text = template_records.get(template_id)
             if isinstance(text, str) and text.strip():
                 lines.append(text.strip())
@@ -38,30 +47,52 @@ def build_initialize_instructions() -> str:
             if isinstance(text, str) and text.strip():
                 lines.append(text.strip())
 
-    descriptor_blob = build_enabled_descriptor_instructions()
+    descriptor_blob = build_enabled_descriptor_instructions(plan)
     if descriptor_blob:
         lines.append(descriptor_blob)
+
+    extra_capabilities_blob = build_extra_capabilities_section(plan)
+    if extra_capabilities_blob:
+        lines.append(extra_capabilities_blob)
 
     return "\n".join(lines).strip()
 
 
-def build_enabled_descriptor_instructions() -> str:
+def build_enabled_descriptor_instructions(plan: dict[str, Any] | None = None) -> str:
+    if plan is None:
+        plan = build_category_plan()
+    collapsed_lines = collapsed_item_lines(plan)
     sections: list[str] = ["Enabled ChievFX MCP descriptors (compact instruction form):"]
 
     tool_descriptors = sorted(enabled_tools(), key=lambda item: item.get("name", ""))
-    if tool_descriptors:
+    tool_lines = [
+        line
+        for descriptor in tool_descriptors
+        if (line := format_tool_for_initialize_instructions(descriptor)) not in collapsed_lines["tools"]
+    ]
+    if tool_lines:
         sections.append("Tools:")
-        sections.extend(format_tool_for_initialize_instructions(descriptor) for descriptor in tool_descriptors)
+        sections.extend(tool_lines)
 
     resource_descriptors = sorted(enabled_resources(), key=lambda item: item.get("uri", ""))
-    if resource_descriptors:
+    resource_lines = [
+        line
+        for descriptor in resource_descriptors
+        if (line := format_resource_for_initialize_instructions(descriptor)) not in collapsed_lines["resources"]
+    ]
+    if resource_lines:
         sections.append("Resources:")
-        sections.extend(format_resource_for_initialize_instructions(descriptor) for descriptor in resource_descriptors)
+        sections.extend(resource_lines)
 
     template_descriptors = sorted(enabled_resource_templates(), key=lambda item: item.get("uriTemplate", ""))
-    if template_descriptors:
+    template_lines = [
+        line
+        for descriptor in template_descriptors
+        if (line := format_resource_template_for_initialize_instructions(descriptor)) not in collapsed_lines["templates"]
+    ]
+    if template_lines:
         sections.append("Resource templates:")
-        sections.extend(format_resource_template_for_initialize_instructions(descriptor) for descriptor in template_descriptors)
+        sections.extend(template_lines)
 
     prompt_descriptors = sorted(enabled_prompts(), key=lambda item: item.get("name", ""))
     if prompt_descriptors:

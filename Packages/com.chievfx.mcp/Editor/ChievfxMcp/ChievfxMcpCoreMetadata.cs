@@ -6,7 +6,6 @@ namespace Chievfx.Mcp.Editor
     // Runtime metadata lives in Core/Metadata/ChievfxMcpCoreMetadata.cs.
     internal static class ChievfxMcpCoreMetadataCatalogMirror
     {
-        // Resource("resources-guide", "chievfx://resources/guide")
         // Resource("editor-context", "chievfx://editor/context")
         // Resource("scene-opened", "chievfx://scene/opened")
         // Resource("scene-current-usage-counts", "chievfx://scene/current/usage/counts")

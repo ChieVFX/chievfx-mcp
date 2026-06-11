@@ -1,8 +1,8 @@
 # ChievFX MCP debug instructions
 
-Generated at (UTC): 2026-06-10T08:52:35Z
-Project root: C:\Users\chiev\AppData\Local\Temp\tmpkgri0bt3
-Trigger: tool-selection-save
+Generated at (UTC): 2026-06-10T06:01:31Z
+Project root: C:\_code_\chievfx-mcp\Packages\com.chievfx.mcp
+Trigger: remove-guide
 
 ## Selection snapshot
 
@@ -10,9 +10,9 @@ Trigger: tool-selection-save
 - Enabled resources: 4
 - Enabled resource templates: 19
 - Enabled prompts: 0
-- Tool selection: `C:\Users\chiev\AppData\Local\Temp\tmpkgri0bt3\UserSettings\ChievfxMcpToolSelection.json`
-- Resource selection: `C:\_code_\chievfx-mcp\Packages\com.chievfx.mcp\Tools\ChievfxMcp\UserSettings\ChievfxMcpResourceSelection.json`
-- Prompt selection: `C:\_code_\chievfx-mcp\Packages\com.chievfx.mcp\Tools\ChievfxMcp\UserSettings\ChievfxMcpPromptSelection.json`
+- Tool selection: `C:\_code_\chievfx-mcp\Packages\com.chievfx.mcp\UserSettings\ChievfxMcpToolSelection.json`
+- Resource selection: `C:\_code_\chievfx-mcp\Packages\com.chievfx.mcp\UserSettings\ChievfxMcpResourceSelection.json`
+- Prompt selection: `C:\_code_\chievfx-mcp\Packages\com.chievfx.mcp\UserSettings\ChievfxMcpPromptSelection.json`
 
 ## initialize.instructions
 

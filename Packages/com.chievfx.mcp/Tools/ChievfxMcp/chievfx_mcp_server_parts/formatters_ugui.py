@@ -454,11 +454,16 @@ def format_editor_playmode_set_text(result: dict[str, Any]) -> str:
 
     is_playing = result.get("isPlaying")
     requested = result.get("requestedIsPlaying")
+    cursor_before = result.get("eventCursorBefore")
+    cursor_hint = ""
+    if isinstance(cursor_before, int):
+        # Surface the pre-toggle cursor so callers can events-wait from it and catch boot logs.
+        cursor_hint = f" eventCursorBefore:{cursor_before} (use as events-wait sinceEventId to catch boot logs)"
     if result.get("status") == "unchanged":
-        return f"playmode already {format_toon_atom(is_playing)}"
+        return f"playmode already {format_toon_atom(is_playing)}{cursor_hint}"
     if requested is not None:
-        return f"playmode switching to {format_toon_atom(requested)}"
-    return f"playmode {format_toon_atom(is_playing)}"
+        return f"playmode switching to {format_toon_atom(requested)}{cursor_hint}"
+    return f"playmode {format_toon_atom(is_playing)}{cursor_hint}"
 
 
 def format_ugui_runtime_probe_text(result: dict[str, Any]) -> str:

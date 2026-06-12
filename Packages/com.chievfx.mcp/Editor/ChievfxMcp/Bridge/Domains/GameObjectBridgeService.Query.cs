@@ -28,7 +28,30 @@ namespace Chievfx.Mcp.Editor
 {
     internal sealed partial class GameObjectBridgeService
     {
+        internal const string SceneFilterAll = "all";
+        internal const string SceneFilterActive = "active";
+
+        /// <summary>
+        /// Active-scene (or current prefab stage) context. Preserved for callers, such as resource reads,
+        /// that always operate on the "current" scene.
+        /// </summary>
         internal static GameObjectQueryContext GetGameObjectQueryContext()
+        {
+            return BuildGameObjectQueryContext(SceneFilterActive);
+        }
+
+        /// <summary>
+        /// Builds a query context for the requested scene scope: "all" (every loaded scene, default),
+        /// "active" (active scene only), or a loaded scene name/path. While a prefab stage is open the
+        /// prefab contents are always used and the scene filter is ignored.
+        /// </summary>
+        internal static GameObjectQueryContext GetGameObjectQueryContext(string? sceneFilter)
+        {
+            var filter = string.IsNullOrWhiteSpace(sceneFilter) ? SceneFilterAll : sceneFilter!.Trim();
+            return BuildGameObjectQueryContext(filter);
+        }
+
+        private static GameObjectQueryContext BuildGameObjectQueryContext(string filter)
         {
             var prefabStage = PrefabStageUtility.GetCurrentPrefabStage();
             if (prefabStage != null && prefabStage.prefabContentsRoot != null)
@@ -42,24 +65,117 @@ namespace Chievfx.Mcp.Editor
                     SceneName = prefabStage.scene.name,
                     ScenePath = prefabStage.scene.path,
                     PrefabAssetPath = prefabStage.assetPath,
-                    Roots = stageRoots.Length > 0 ? stageRoots : new[] { prefabStage.prefabContentsRoot }
+                    Roots = stageRoots.Length > 0 ? stageRoots : new[] { prefabStage.prefabContentsRoot },
+                    SceneFilter = "prefabStage",
+                    CreationScene = prefabStage.scene,
+                    Scenes = new[] { new SceneContextInfo { Name = prefabStage.scene.name, Path = prefabStage.scene.path } }
                 };
             }
 
-            var scene = SceneManager.GetActiveScene();
-            if (!scene.IsValid() || !scene.isLoaded)
+            var openScenes = SceneBridgeService.GetOpenScenes()
+                .Where(scene => scene.IsValid() && scene.isLoaded)
+                .ToArray();
+            if (openScenes.Length == 0)
             {
-                throw new InvalidOperationException("No valid loaded active scene is available for GameObject queries.");
+                throw new InvalidOperationException("No valid loaded scene is available for GameObject queries.");
             }
 
+            var activeScene = SceneManager.GetActiveScene();
+
+            if (string.Equals(filter, SceneFilterActive, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!activeScene.IsValid() || !activeScene.isLoaded)
+                {
+                    throw new InvalidOperationException("No valid loaded active scene is available for GameObject queries.");
+                }
+
+                return CreateSceneContext("activeScene", filter, new[] { activeScene }, activeScene);
+            }
+
+            if (string.Equals(filter, SceneFilterAll, StringComparison.OrdinalIgnoreCase))
+            {
+                var creationScene = activeScene.IsValid() && activeScene.isLoaded ? activeScene : openScenes[0];
+                return CreateSceneContext("allScenes", filter, openScenes, creationScene);
+            }
+
+            var matched = openScenes
+                .Where(scene => SceneMatchesFilter(scene, filter))
+                .ToArray();
+            if (matched.Length == 0)
+            {
+                throw new InvalidOperationException(
+                    $"No loaded scene matches scene '{filter}'. Use '{SceneFilterAll}', '{SceneFilterActive}', or a loaded scene name. "
+                    + $"Loaded scenes: {FormatLoadedSceneNames(openScenes)}.");
+            }
+
+            var namedCreationScene = matched.FirstOrDefault(scene => scene == activeScene);
+            if (!namedCreationScene.IsValid())
+            {
+                namedCreationScene = matched[0];
+            }
+
+            return CreateSceneContext(matched.Length == 1 ? "scene" : "scenes", filter, matched, namedCreationScene);
+        }
+
+        private static GameObjectQueryContext CreateSceneContext(string source, string filter, Scene[] scenes, Scene creationScene)
+        {
+            var roots = scenes.SelectMany(scene => scene.GetRootGameObjects()).ToArray();
+            var single = scenes.Length == 1;
             return new GameObjectQueryContext
             {
-                Source = "activeScene",
-                SceneName = scene.name,
-                ScenePath = scene.path,
+                Source = source,
+                SceneName = single ? scenes[0].name : string.Empty,
+                ScenePath = single ? scenes[0].path : string.Empty,
                 PrefabAssetPath = string.Empty,
-                Roots = scene.GetRootGameObjects()
+                Roots = roots,
+                SceneFilter = filter,
+                CreationScene = creationScene,
+                Scenes = scenes
+                    .Select(scene => new SceneContextInfo { Name = scene.name, Path = scene.path })
+                    .ToArray()
             };
+        }
+
+        private static bool SceneMatchesFilter(Scene scene, string filter)
+        {
+            if (string.Equals(scene.name, filter, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(scene.path)
+                && (string.Equals(scene.path, filter, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(Path.GetFileNameWithoutExtension(scene.path), filter, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Returns the per-scene breakdown for responses, but only when the context spans more than one
+        /// scene. Single-scene contexts already report sceneName/scenePath, so this stays null to keep
+        /// existing output compact.
+        /// </summary>
+        internal static object[]? DescribeContextScenes(GameObjectQueryContext context)
+        {
+            if (context.Scenes.Length <= 1)
+            {
+                return null;
+            }
+
+            return context.Scenes
+                .Select(scene => (object)new { name = scene.Name, path = scene.Path })
+                .ToArray();
+        }
+
+        private static string FormatLoadedSceneNames(IEnumerable<Scene> scenes)
+        {
+            var names = scenes
+                .Select(scene => string.IsNullOrWhiteSpace(scene.name) ? "<untitled>" : scene.name)
+                .ToArray();
+            return names.Length > 0 ? string.Join(", ", names) : "<none>";
         }
 
         private static Dictionary<string, object?>? BuildHierarchyNode(
@@ -129,7 +245,16 @@ namespace Chievfx.Mcp.Editor
 
             if (!string.IsNullOrWhiteSpace(path) && instanceId.HasValue)
             {
-                throw new ArgumentException("Provide either path or instanceId, not both.");
+                var byPath = ResolveGameObjectByPath(context, path!);
+                var byInstanceId = ResolveGameObjectByInstanceId(context, instanceId.Value);
+                if (ReferenceEquals(byPath, byInstanceId))
+                {
+                    return byPath;
+                }
+
+                throw new ArgumentException(
+                    $"path '{path}' resolved to GameObject instanceId {GetLegacyInstanceId(byPath)}, "
+                    + $"but instanceId {instanceId.Value} resolved to '{GetHierarchyPath(byInstanceId, context)}'.");
             }
 
             return instanceId.HasValue

@@ -30,7 +30,8 @@ namespace Chievfx.Mcp.Editor
     {
         public object Create(JToken args)
         {
-            var context = GetGameObjectQueryContext();
+            var sceneFilter = ReadString(args, "scene");
+            var context = GetGameObjectQueryContext(sceneFilter);
             var path = ReadString(args, "path");
             if (string.IsNullOrWhiteSpace(path))
             {
@@ -61,9 +62,9 @@ namespace Chievfx.Mcp.Editor
             {
                 gameObject.transform.SetParent(parent.transform, false);
             }
-            else if (context.Roots.Length > 0 && context.Roots[0].scene.IsValid())
+            else if (context.CreationScene.IsValid())
             {
-                SceneManager.MoveGameObjectToScene(gameObject, context.Roots[0].scene);
+                SceneManager.MoveGameObjectToScene(gameObject, context.CreationScene);
             }
 
             MarkGameObjectMutationDirty(gameObject);
@@ -74,7 +75,7 @@ namespace Chievfx.Mcp.Editor
 
             RepaintEditorAfterMutation();
 
-            var afterContext = GetGameObjectQueryContext();
+            var afterContext = GetGameObjectQueryContext(sceneFilter);
             return new
             {
                 success = true,
@@ -85,7 +86,7 @@ namespace Chievfx.Mcp.Editor
 
         public object Hierarchy(JToken args)
         {
-            var context = GetGameObjectQueryContext();
+            var context = GetGameObjectQueryContext(ReadString(args, "scene"));
             var path = ReadString(args, "path");
             var maxDepth = ClampInt(ReadInt(args, "maxDepth", DefaultGameObjectMaxDepth), 0, HardGameObjectMaxDepth);
             var includeComponents = ReadBool(args, "includeComponents", false);
@@ -116,8 +117,10 @@ namespace Chievfx.Mcp.Editor
             return new
             {
                 source = context.Source,
+                sceneFilter = context.SceneFilter,
                 sceneName = context.SceneName,
                 scenePath = context.ScenePath,
+                scenes = DescribeContextScenes(context),
                 prefabAssetPath = context.PrefabAssetPath,
                 count = emitted,
                 totalObjects,
@@ -131,7 +134,7 @@ namespace Chievfx.Mcp.Editor
 
         public object Find(JToken args)
         {
-            var context = GetGameObjectQueryContext();
+            var context = GetGameObjectQueryContext(ReadString(args, "scene"));
             var path = ReadString(args, "path");
             var name = ReadString(args, "name");
             var namePattern = ReadString(args, "namePattern");
@@ -165,8 +168,10 @@ namespace Chievfx.Mcp.Editor
             return new
             {
                 source = context.Source,
+                sceneFilter = context.SceneFilter,
                 sceneName = context.SceneName,
                 scenePath = context.ScenePath,
+                scenes = DescribeContextScenes(context),
                 prefabAssetPath = context.PrefabAssetPath,
                 count = selected.Length,
                 totalMatches = matches.Count,
@@ -179,7 +184,7 @@ namespace Chievfx.Mcp.Editor
 
         public object GetComponent(JToken args)
         {
-            var context = GetGameObjectQueryContext();
+            var context = GetGameObjectQueryContext(ReadString(args, "scene"));
             var componentType = ReadString(args, "componentType");
             ValidateComponentTypeText(componentType, required: true);
             var componentIndex = ReadComponentIndex(args);
@@ -204,6 +209,7 @@ namespace Chievfx.Mcp.Editor
             return new
             {
                 source = context.Source,
+                sceneFilter = context.SceneFilter,
                 sceneName = context.SceneName,
                 scenePath = context.ScenePath,
                 prefabAssetPath = context.PrefabAssetPath,
@@ -216,7 +222,8 @@ namespace Chievfx.Mcp.Editor
 
         public object Update(JToken args)
         {
-            var context = GetGameObjectQueryContext();
+            var sceneFilter = ReadString(args, "scene");
+            var context = GetGameObjectQueryContext(sceneFilter);
             var gameObject = ResolveSingleGameObject(context, args);
             var changed = false;
 
@@ -286,7 +293,7 @@ namespace Chievfx.Mcp.Editor
             MarkGameObjectMutationDirty(gameObject);
             RepaintEditorAfterMutation();
 
-            var afterContext = GetGameObjectQueryContext();
+            var afterContext = GetGameObjectQueryContext(sceneFilter);
             return new
             {
                 success = true,
@@ -297,7 +304,7 @@ namespace Chievfx.Mcp.Editor
 
         public object UpdateOrCreateComponent(JToken args)
         {
-            var context = GetGameObjectQueryContext();
+            var context = GetGameObjectQueryContext(ReadString(args, "scene"));
             var componentType = ReadString(args, "componentType");
             ValidateComponentTypeText(componentType, required: true);
 
@@ -355,7 +362,7 @@ namespace Chievfx.Mcp.Editor
 
         public object GetTransform(JToken args)
         {
-            var context = GetGameObjectQueryContext();
+            var context = GetGameObjectQueryContext(ReadString(args, "scene"));
             var gameObject = ResolveSingleGameObject(context, args);
             var transform = gameObject.transform;
             var isWorld = ReadBool(args, "isWorld", false);
@@ -370,7 +377,7 @@ namespace Chievfx.Mcp.Editor
 
         public object UpdateTransform(JToken args)
         {
-            var context = GetGameObjectQueryContext();
+            var context = GetGameObjectQueryContext(ReadString(args, "scene"));
             var gameObject = ResolveSingleGameObject(context, args);
             var transform = gameObject.transform;
             var isWorld = ReadBool(args, "isWorld", false);
@@ -428,7 +435,7 @@ namespace Chievfx.Mcp.Editor
 
         public object SetParent(JToken args)
         {
-            var context = GetGameObjectQueryContext();
+            var context = GetGameObjectQueryContext(ReadString(args, "scene"));
             var gameObject = ResolveSingleGameObject(context, args);
             var parent = ResolveOptionalParentGameObject(context, args);
             ValidateParenting(gameObject, parent);
@@ -463,7 +470,8 @@ namespace Chievfx.Mcp.Editor
 
         public object Duplicate(JToken args)
         {
-            var context = GetGameObjectQueryContext();
+            var sceneFilter = ReadString(args, "scene");
+            var context = GetGameObjectQueryContext(sceneFilter);
             var source = ResolveSingleGameObject(context, args);
             var newName = ReadString(args, "newName");
             ValidateOptionalGameObjectName(newName, "newName");
@@ -512,7 +520,7 @@ namespace Chievfx.Mcp.Editor
 
             RepaintEditorAfterMutation();
 
-            var afterContext = GetGameObjectQueryContext();
+            var afterContext = GetGameObjectQueryContext(sceneFilter);
             var duplicates = clones
                 .Select(clone => new Dictionary<string, object?>
                 {

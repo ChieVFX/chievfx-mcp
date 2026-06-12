@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 namespace Chievfx.Mcp.Editor
@@ -17,6 +18,28 @@ namespace Chievfx.Mcp.Editor
         public string PrefabAssetPath { get; set; } = string.Empty;
 
         public GameObject[] Roots { get; set; } = Array.Empty<GameObject>();
+
+        /// <summary>
+        /// Normalized scene scope that produced this context ("all", "active", "prefabStage", or a scene name).
+        /// </summary>
+        public string SceneFilter { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Scene that root-level creations (e.g. gameobject-create with no parent) are placed into.
+        /// </summary>
+        public Scene CreationScene { get; set; }
+
+        /// <summary>
+        /// Scenes contributing roots to this context. Length &gt; 1 indicates the context spans multiple scenes.
+        /// </summary>
+        public SceneContextInfo[] Scenes { get; set; } = Array.Empty<SceneContextInfo>();
+    }
+
+    internal sealed class SceneContextInfo
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public string Path { get; set; } = string.Empty;
     }
 
     internal sealed class ResourceGameObjectFilter

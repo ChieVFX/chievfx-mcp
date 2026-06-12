@@ -76,12 +76,68 @@ namespace Chievfx.Mcp.Editor.Tests
             CollectionAssert.AreEqual(new[] { "Copy 1", "Copy 2", "Copy 3" }, duplicates.Select(row => (string)row["name"]!).ToArray());
         }
 
+        [Test]
+        public void TransformUpdateAcceptsMatchingPathAndInstanceId()
+        {
+            var target = new GameObject("Target");
+            var args = new JObject
+            {
+                ["path"] = "Target",
+                ["instanceId"] = target.GetInstanceID(),
+                ["position"] = new JObject
+                {
+                    ["x"] = 1,
+                    ["y"] = 2,
+                    ["z"] = 3
+                }
+            };
+
+            var result = UpdateTransform(args);
+
+            Assert.AreEqual(true, result["success"]);
+            Assert.AreEqual(new Vector3(1, 2, 3), target.transform.localPosition);
+        }
+
+        [Test]
+        public void TransformUpdateRejectsMismatchedPathAndInstanceId()
+        {
+            var target = new GameObject("Target");
+            var other = new GameObject("Other");
+            var args = new JObject
+            {
+                ["path"] = "Target",
+                ["instanceId"] = other.GetInstanceID(),
+                ["position"] = new JObject
+                {
+                    ["x"] = 1,
+                    ["y"] = 2,
+                    ["z"] = 3
+                }
+            };
+
+            var ex = Assert.Throws<TargetInvocationException>(() => UpdateTransform(args));
+
+            Assert.IsInstanceOf<ArgumentException>(ex!.InnerException);
+            StringAssert.Contains("path 'Target' resolved to GameObject instanceId", ex.InnerException!.Message);
+            StringAssert.Contains("but instanceId", ex.InnerException.Message);
+            Assert.AreEqual(Vector3.zero, target.transform.localPosition);
+        }
+
         private static JObject Duplicate(string argsJson)
         {
             var serviceType = typeof(ChievfxMcpBridge).Assembly.GetType("Chievfx.Mcp.Editor.GameObjectBridgeService", throwOnError: true)!;
             var service = Activator.CreateInstance(serviceType, nonPublic: true)!;
             var method = serviceType.GetMethod("Duplicate", BindingFlags.Public | BindingFlags.Instance)!;
             var result = method.Invoke(service, new object[] { JObject.Parse(argsJson) })!;
+            return JObject.FromObject(result);
+        }
+
+        private static JObject UpdateTransform(JToken args)
+        {
+            var serviceType = typeof(ChievfxMcpBridge).Assembly.GetType("Chievfx.Mcp.Editor.GameObjectBridgeService", throwOnError: true)!;
+            var service = Activator.CreateInstance(serviceType, nonPublic: true)!;
+            var method = serviceType.GetMethod("UpdateTransform", BindingFlags.Public | BindingFlags.Instance)!;
+            var result = method.Invoke(service, new object[] { args })!;
             return JObject.FromObject(result);
         }
     }

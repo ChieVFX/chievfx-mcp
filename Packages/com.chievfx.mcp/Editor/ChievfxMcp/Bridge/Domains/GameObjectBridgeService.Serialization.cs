@@ -299,9 +299,15 @@ namespace Chievfx.Mcp.Editor
                 yield break;
             }
 
+            // Root-level duplicate indexing is scoped to siblings in the same scene so that a
+            // GameObject's path stays stable regardless of how many other scenes are loaded.
+            var scene = transform.gameObject.scene;
             foreach (var root in context.Roots)
             {
-                yield return root.transform;
+                if (root.scene == scene)
+                {
+                    yield return root.transform;
+                }
             }
         }
 
@@ -322,9 +328,12 @@ namespace Chievfx.Mcp.Editor
 
         private static string FormatGameObjectCandidates(IEnumerable<GameObject> gameObjects, GameObjectQueryContext context)
         {
+            var multiScene = context.Scenes.Length > 1;
             var candidates = gameObjects
                 .Take(8)
-                .Select(gameObject => $"{GetHierarchyPath(gameObject, context)} (instanceId:{GetLegacyInstanceId(gameObject)})")
+                .Select(gameObject => multiScene
+                    ? $"{GetHierarchyPath(gameObject, context)} (instanceId:{GetLegacyInstanceId(gameObject)}, scene:{gameObject.scene.name})"
+                    : $"{GetHierarchyPath(gameObject, context)} (instanceId:{GetLegacyInstanceId(gameObject)})")
                 .ToArray();
             return string.Join(", ", candidates);
         }

@@ -1,7 +1,7 @@
 # ChievFX MCP debug instructions
 
-Generated at (UTC): 2026-06-10T08:52:35Z
-Project root: C:\Users\chiev\AppData\Local\Temp\tmpkgri0bt3
+Generated at (UTC): 2026-06-13T06:22:00Z
+Project root: /var/folders/nr/g2tn040175lcc8xflfx_08cm0000gn/T/tmpiq20f1fz
 Trigger: tool-selection-save
 
 ## Selection snapshot
@@ -10,9 +10,9 @@ Trigger: tool-selection-save
 - Enabled resources: 4
 - Enabled resource templates: 19
 - Enabled prompts: 0
-- Tool selection: `C:\Users\chiev\AppData\Local\Temp\tmpkgri0bt3\UserSettings\ChievfxMcpToolSelection.json`
-- Resource selection: `C:\_code_\chievfx-mcp\Packages\com.chievfx.mcp\Tools\ChievfxMcp\UserSettings\ChievfxMcpResourceSelection.json`
-- Prompt selection: `C:\_code_\chievfx-mcp\Packages\com.chievfx.mcp\Tools\ChievfxMcp\UserSettings\ChievfxMcpPromptSelection.json`
+- Tool selection: `/var/folders/nr/g2tn040175lcc8xflfx_08cm0000gn/T/tmpiq20f1fz/UserSettings/ChievfxMcpToolSelection.json`
+- Resource selection: `/Users/evgeniy_skvortsov/_code_/chievfx-mcp/Packages/com.chievfx.mcp/Tools/ChievfxMcp/UserSettings/ChievfxMcpResourceSelection.json`
+- Prompt selection: `/Users/evgeniy_skvortsov/_code_/chievfx-mcp/Packages/com.chievfx.mcp/Tools/ChievfxMcp/UserSettings/ChievfxMcpPromptSelection.json`
 
 ## initialize.instructions
 
@@ -39,8 +39,8 @@ Tools:
 - editor-window-focus: Focuses/selects an existing Unity EditorWindow tab. args=(instanceId?:int, typeName?:str, titleContains?:str, focused?:bool, mouseOver?:bool)
 - editor-window-list: Lists open Unity EditorWindow instances and docked tabs. args=(typeName?:str, titleContains?:str, maxResults?:int)
 - editor-window-open: Opens a Unity EditorWindow by typeName or menuPath. args=(typeName?:str, menuPath?:str, focus?:bool, title?:str)
-- events-check-since: Checks bridge events since a wait. args=(sinceEventId:int, sinceTimestampUtc:str, source?:log|bridge|editor|structured, contains?:str, marker?:str)
-- events-wait: Long-polls bridge events. Subagents must be write-capable. args=(sinceEventId?:int, timeoutMs?:int, source?:log|bridge|editor|structured, contains?:str)
+- events-check-since: Checks bridge events since a wait. args=(sinceEventId:int, sinceTimestampUtc:str, source?:log|bridge|editor|structured, type?:str, level?:str, contains?:str, marker?:str)
+- events-wait: Long-polls bridge events. Subagents must be write-capable. args=(sinceEventId?:int, timeoutMs?:int, source?:log|bridge|editor|structured, type?:str, level?:str, contains?:str, marker?:str, includeRecentMs?:int)
 - folder-ensure: Creates missing Unity project folders for a path starting with Assets/. args=(path:str)
 - recompile: Refreshes scripts, requests Unity script compilation, and returns only after Unity is idle again. args=(timeoutMs?:int)
 - reflection-method-call: Calls one loaded C# method. Instance calls need targetObject.value. args=(filter:obj, targetObject?:{value}, timeoutMs?:int)

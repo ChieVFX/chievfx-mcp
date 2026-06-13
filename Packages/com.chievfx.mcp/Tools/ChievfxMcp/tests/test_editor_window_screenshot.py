@@ -187,8 +187,8 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
             "bridge-get-status": {"verbose"},
             "console-get-logs": {"lastMinutes", "stack"},
             "console-get-logs-single": {"includeUnityConsole"},
-            "events-check-since": {"includeData", "level", "maxEntries", "type"},
-            "events-wait": {"includeData", "includeRecentMs", "level", "marker", "type"},
+            "events-check-since": {"includeData", "maxEntries"},
+            "events-wait": {"includeData"},
             "profiler-window-control": {"moduleIdentifier", "selectedModuleIdentifier", "stayOnLatestFrame"},
             "reflection-method-call": {"executeInMainThread", "inputParameters"},
             "script-execute": {"includeLogs", "logType", "parameters"},
@@ -212,6 +212,13 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
         self.assertIn("timeoutMs", tools["script-execute"]["inputSchema"]["properties"])
         self.assertIn("timeoutMs", tools["reflection-method-call"]["inputSchema"]["properties"])
         self.assertIn("timeoutMs", tools["tests-run"]["inputSchema"]["properties"])
+        events_wait_advertised = mcp.advertised_input_schema(tools["events-wait"])["properties"]
+        for recovery_knob in ("marker", "includeRecentMs", "level", "type"):
+            self.assertIn(recovery_knob, events_wait_advertised)
+        events_check_advertised = mcp.advertised_input_schema(tools["events-check-since"])["properties"]
+        for recovery_knob in ("marker", "level", "type"):
+            self.assertIn(recovery_knob, events_check_advertised)
+
         self.assertIn("timeoutMs", mcp.advertised_input_schema(tools["script-execute"])["properties"])
         self.assertIn("timeoutMs", mcp.advertised_input_schema(tools["reflection-method-call"])["properties"])
         self.assertIn("timeoutMs", mcp.advertised_input_schema(tools["tests-run"])["properties"])

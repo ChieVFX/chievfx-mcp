@@ -33,6 +33,7 @@ namespace Chievfx.Mcp.Editor
             var sceneFilter = ReadString(args, "scene");
             var context = GetGameObjectQueryContext(sceneFilter);
             var path = ReadString(args, "path");
+            var createType = ReadGameObjectCreateType(args);
             if (string.IsNullOrWhiteSpace(path))
             {
                 throw new ArgumentException("path is required.", nameof(path));
@@ -56,7 +57,7 @@ namespace Chievfx.Mcp.Editor
                 ? ResolveGameObjectByPath(context, string.Join("/", segments.Take(segments.Length - 1)))
                 : null;
 
-            var gameObject = new GameObject(name);
+            var gameObject = CreateGameObjectByType(createType, name);
             Undo.RegisterCreatedObjectUndo(gameObject, "ChievFX MCP Create GameObject");
             if (parent != null)
             {
@@ -80,7 +81,8 @@ namespace Chievfx.Mcp.Editor
             {
                 success = true,
                 path = GetHierarchyPath(gameObject, afterContext),
-                instanceId = GetLegacyInstanceId(gameObject)
+                instanceId = GetLegacyInstanceId(gameObject),
+                type = createType
             };
         }
 

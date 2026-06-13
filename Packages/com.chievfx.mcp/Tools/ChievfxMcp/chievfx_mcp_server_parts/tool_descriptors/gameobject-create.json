@@ -10,6 +10,20 @@
       "path": {
         "type": "string",
         "description": "Hierarchy path for the new GameObject. Intermediate parent path must already exist."
+      },
+      "type": {
+        "type": "string",
+        "description": "Object type to create. Defaults to empty.",
+        "enum": [
+          "empty",
+          "cube",
+          "sphere",
+          "capsule",
+          "cylinder",
+          "plane",
+          "quad"
+        ],
+        "default": "empty"
       }
     },
     "required": [

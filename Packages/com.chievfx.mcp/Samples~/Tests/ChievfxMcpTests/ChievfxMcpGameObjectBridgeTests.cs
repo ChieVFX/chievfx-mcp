@@ -123,6 +123,35 @@ namespace Chievfx.Mcp.Editor.Tests
             Assert.AreEqual(Vector3.zero, target.transform.localPosition);
         }
 
+        [Test]
+        public void CreateDefaultsToEmptyGameObject()
+        {
+            var result = Create("{'path':'EmptyRoot'}");
+            var created = GameObject.Find("EmptyRoot");
+
+            Assert.AreEqual("EmptyRoot", (string)result["path"]!);
+            Assert.AreEqual("empty", (string)result["type"]!);
+            Assert.IsNotNull(created);
+            Assert.IsNull(created!.GetComponent<MeshFilter>());
+            Assert.IsNull(created.GetComponent<Collider>());
+        }
+
+        [Test]
+        public void CreateCanCreatePrimitiveGameObject()
+        {
+            var parent = new GameObject("Parent");
+
+            var result = Create("{'path':'Parent/CubeChild','type':'cube'}");
+            var created = GameObject.Find("Parent/CubeChild");
+
+            Assert.AreEqual("Parent/CubeChild", (string)result["path"]!);
+            Assert.AreEqual("cube", (string)result["type"]!);
+            Assert.IsNotNull(created);
+            Assert.AreSame(parent.transform, created!.transform.parent);
+            Assert.IsNotNull(created.GetComponent<MeshFilter>());
+            Assert.IsNotNull(created.GetComponent<BoxCollider>());
+        }
+
         private static JObject Duplicate(string argsJson)
         {
             var serviceType = typeof(ChievfxMcpBridge).Assembly.GetType("Chievfx.Mcp.Editor.GameObjectBridgeService", throwOnError: true)!;
@@ -138,6 +167,15 @@ namespace Chievfx.Mcp.Editor.Tests
             var service = Activator.CreateInstance(serviceType, nonPublic: true)!;
             var method = serviceType.GetMethod("UpdateTransform", BindingFlags.Public | BindingFlags.Instance)!;
             var result = method.Invoke(service, new object[] { args })!;
+            return JObject.FromObject(result);
+        }
+
+        private static JObject Create(string argsJson)
+        {
+            var serviceType = typeof(ChievfxMcpBridge).Assembly.GetType("Chievfx.Mcp.Editor.GameObjectBridgeService", throwOnError: true)!;
+            var service = Activator.CreateInstance(serviceType, nonPublic: true)!;
+            var method = serviceType.GetMethod("Create", BindingFlags.Public | BindingFlags.Instance)!;
+            var result = method.Invoke(service, new object[] { JObject.Parse(argsJson) })!;
             return JObject.FromObject(result);
         }
     }

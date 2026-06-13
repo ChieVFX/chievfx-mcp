@@ -14,6 +14,53 @@ namespace Chievfx.Mcp.Editor
 {
     internal sealed partial class GameObjectBridgeService
     {
+        private static string ReadGameObjectCreateType(JToken args)
+        {
+            var type = ReadString(args, "type") ?? "empty";
+            if (string.IsNullOrWhiteSpace(type))
+            {
+                throw new ArgumentException("type cannot be empty.", nameof(type));
+            }
+
+            switch (type.Trim().ToLowerInvariant())
+            {
+                case "empty":
+                    return "empty";
+                case "cube":
+                    return "cube";
+                case "sphere":
+                    return "sphere";
+                case "capsule":
+                    return "capsule";
+                case "cylinder":
+                    return "cylinder";
+                case "plane":
+                    return "plane";
+                case "quad":
+                    return "quad";
+                default:
+                    throw new ArgumentException("type must be one of: empty, cube, sphere, capsule, cylinder, plane, quad.", nameof(type));
+            }
+        }
+
+        private static GameObject CreateGameObjectByType(string type, string name)
+        {
+            var gameObject = type switch
+            {
+                "empty" => new GameObject(name),
+                "cube" => GameObject.CreatePrimitive(PrimitiveType.Cube),
+                "sphere" => GameObject.CreatePrimitive(PrimitiveType.Sphere),
+                "capsule" => GameObject.CreatePrimitive(PrimitiveType.Capsule),
+                "cylinder" => GameObject.CreatePrimitive(PrimitiveType.Cylinder),
+                "plane" => GameObject.CreatePrimitive(PrimitiveType.Plane),
+                "quad" => GameObject.CreatePrimitive(PrimitiveType.Quad),
+                _ => throw new ArgumentException("Unsupported GameObject create type.", nameof(type))
+            };
+
+            gameObject.name = name;
+            return gameObject;
+        }
+
         private static bool TryResolveGameObjectByPath(GameObjectQueryContext context, string path, out GameObject gameObject)
         {
             var exactMatches = EnumerateContextGameObjects(context)

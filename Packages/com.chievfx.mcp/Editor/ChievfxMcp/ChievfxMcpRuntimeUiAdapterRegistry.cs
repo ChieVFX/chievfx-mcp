@@ -32,6 +32,7 @@ namespace Chievfx.Mcp.Editor
     {
         private const string ExtensionId = "chievfx.runtime-ui";
         private const string Category = "Runtime UI";
+        private const string EssentialsCategory = "Essentials";
         private const string UriPrefix = "chievfx://extensions/chievfx.runtime-ui/";
         private const string StatusUri = UriPrefix + "status";
         private const string ProbeToolName = "runtime-ui-probe-screen-position";
@@ -95,7 +96,7 @@ namespace Chievfx.Mcp.Editor
                 Name = "Runtime UI adapter status",
                 Description = "Compact runtime UI capability summary, current hierarchy counts, and Play Mode drill-down hints.",
                 MimeType = "application/json",
-                Category = Category,
+                Category = EssentialsCategory,
             });
             descriptor.Tools.Add(new ChievfxMcpToolDescriptor
             {

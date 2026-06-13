@@ -270,6 +270,48 @@ class ResourceTests(unittest.TestCase):
         self.assertEqual(1, sum(resource["id"] == "editor-context" for resource in metadata["resources"]))
         self.assertTrue(any("id collision editor-context" in error for error in metadata["extensionErrors"]))
 
+    def test_essentials_resources_are_required_and_always_enabled(self) -> None:
+        self.write_extension_manifest(
+            [
+                {
+                    "id": "chievfx.control",
+                    "displayName": "ChievFX MCP Control",
+                    "resources": [
+                        {
+                            "id": "control-status",
+                            "uri": "chievfx://extensions/chievfx.control/status",
+                            "name": "Control extension status",
+                            "description": "Reports control status.",
+                            "category": "Control",
+                        }
+                    ],
+                },
+                {
+                    "id": "chievfx.runtime-ui",
+                    "displayName": "ChievFX MCP Runtime UI",
+                    "resources": [
+                        {
+                            "id": "runtime-ui-status",
+                            "uri": "chievfx://extensions/chievfx.runtime-ui/status",
+                            "name": "Runtime UI adapter status",
+                            "description": "Reports runtime UI status.",
+                            "category": "Runtime UI",
+                        }
+                    ],
+                },
+            ]
+        )
+        self.write_selection([], [])
+
+        metadata = mcp.build_resource_metadata()
+        resources = {resource["id"]: resource for resource in metadata["resources"]}
+        enabled_resource_ids, _ = mcp.load_enabled_resource_ids()
+
+        for resource_id in ["editor-context", "scenes-opened", "runtime-ui-status", "control-status"]:
+            self.assertTrue(resources[resource_id]["required"])
+            self.assertEqual(resources[resource_id]["category"], "Essentials")
+            self.assertIn(resource_id, enabled_resource_ids)
+
     def test_current_gameobject_filter_templates_are_categorized(self) -> None:
         metadata = mcp.build_resource_metadata()
         templates = {template["id"]: template for template in metadata["resourceTemplates"]}

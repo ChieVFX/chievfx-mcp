@@ -12,7 +12,7 @@ namespace Chievfx.Mcp.Editor
             new[]
             {
                 Resource("editor-context", "chievfx://editor/context", "Unity editor context", "Compact Unity editor, play mode, active scene, prefab stage, and selection context."),
-                Resource("scene-opened", "chievfx://scene/opened", "Opened scenes", "Opened Unity scenes and their load/dirty/build state."),
+                Resource("scenes-opened", "chievfx://scene/opened", "Opened scenes", "Opened Unity scenes and their load/dirty/build state."),
                 Resource("scene-current-usage-counts", "chievfx://scene/current/usage/counts", "Current scene asset usage counts", "Asset usage totals for the current prefab stage or active scene, grouped by common asset type."),
                 Resource("scene-current-material-profile-summary", "chievfx://scene/current/material-profile/summary", "Current scene material profile", "Read-only material profile for the current prefab stage or active scene with exact shader/material counts and profiler memory estimates."),
             };

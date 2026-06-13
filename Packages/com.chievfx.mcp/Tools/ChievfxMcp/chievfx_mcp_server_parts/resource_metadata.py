@@ -78,7 +78,7 @@ def build_resource_metadata() -> dict[str, Any]:
                 "name": resource.get("name", ""),
                 "description": resource.get("description", ""),
                 "mimeType": resource.get("mimeType", RESOURCE_MIME_TYPE),
-                "category": resource.get("category") or RESOURCE_CATEGORIES.get(resource["id"], "General"),
+                "category": RESOURCE_CATEGORIES.get(resource["id"]) or resource.get("category") or "General",
                 "descriptorHash": hashlib.sha256(descriptor_json.encode("utf-8")).hexdigest(),
                 "descriptorPreview": descriptor_json,
                 "descriptorBytes": descriptor_bytes,

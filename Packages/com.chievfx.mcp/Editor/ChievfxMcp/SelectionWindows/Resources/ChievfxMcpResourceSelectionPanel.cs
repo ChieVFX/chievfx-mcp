@@ -455,7 +455,8 @@ namespace Chievfx.Mcp.Editor
         {
             return resourceRows
                 .GroupBy(row => row.Category)
-                .OrderBy(group => GetCategorySortOrder(group.Key))
+                .OrderByDescending(group => group.All(row => row.Required))
+                .ThenBy(group => GetCategorySortOrder(group.Key))
                 .ThenBy(group => group.Key, StringComparer.Ordinal)
                 .Select(group => new CategoryRows<ResourceRow>(
                     group.Key,
@@ -1035,6 +1036,7 @@ namespace Chievfx.Mcp.Editor
         {
             return category switch
             {
+                "Essentials" => 0,
                 "Editor" => 1,
                 "Scene" => 2,
                 "GameObject" => 3,

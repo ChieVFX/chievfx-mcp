@@ -252,12 +252,19 @@ TOOL_CATEGORY_DESCRIPTIONS = {
     "ugui-runtime-control": "Optional Play Mode uGUI probing and control helpers: hit stacks, clicks, drags, selection, and control values.",
     "OBSOLETE": "Deprecated compatibility tools. Only enable explicitly; bulk enable skips this category.",
 }
-DEFAULT_REQUIRED_RESOURCE_IDS: set[str] = set()
+DEFAULT_REQUIRED_RESOURCE_IDS: set[str] = {
+    "control-status",
+    "editor-context",
+    "runtime-ui-status",
+    "scenes-opened",
+}
 DEFAULT_REQUIRED_RESOURCE_TEMPLATE_IDS: set[str] = set()
 DEFAULT_REQUIRED_PROMPT_NAMES: set[str] = set()
 RESOURCE_CATEGORIES = {
-    "editor-context": "Editor",
-    "scene-opened": "Scene",
+    "control-status": "Essentials",
+    "editor-context": "Essentials",
+    "runtime-ui-status": "Essentials",
+    "scenes-opened": "Essentials",
     "scene-current-material-profile-summary": "Asset",
     "scene-current-usage-counts": "Asset",
 }
@@ -287,8 +294,7 @@ RESOURCE_TEMPLATE_CATEGORIES = {
     "scene-current-usage-subasset": "Asset",
 }
 RESOURCE_CATEGORY_DESCRIPTIONS = {
-    "Editor": "Compact current Unity editor context.",
-    "Scene": "Opened scenes and scene context resources.",
+    "Essentials": "Always-on editor, scene, runtime UI, and control status resources.",
     "GameObject": "GameObject and component drill-down resources.",
     "Asset": "Persisted AssetDatabase search and asset drill-down resources.",
     "cinemachine-and-timeline": "Cinemachine and Timeline extension resources for camera/cutscene inspection.",
@@ -458,7 +464,7 @@ RESPONSE_PROFILE_BY_TOOL = {
 }
 RESPONSE_PROFILE_BY_RESOURCE = {
     "editor-context": "status",
-    "scene-opened": "row-list",
+    "scenes-opened": "row-list",
     "scene-go": "row-list",
     "scene-component": "serialized-component",
     "scene-current-go": "row-list",

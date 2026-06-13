@@ -38,7 +38,7 @@ def _tool_category(tool: dict[str, Any]) -> str:
 
 
 def _resource_category(resource: dict[str, Any]) -> str:
-    return resource.get("category") or RESOURCE_CATEGORIES.get(resource.get("id", ""), "General")
+    return RESOURCE_CATEGORIES.get(resource.get("id", "")) or resource.get("category") or "General"
 
 
 def _template_category(template: dict[str, Any]) -> str:

@@ -10,7 +10,7 @@ RESOURCES: list[dict[str, Any]] = [
         "mimeType": RESOURCE_MIME_TYPE,
     },
     {
-        "id": "scene-opened",
+        "id": "scenes-opened",
         "uri": "chievfx://scene/opened",
         "name": "Opened scenes",
         "description": "Opened Unity scenes and their load/dirty/build state.",

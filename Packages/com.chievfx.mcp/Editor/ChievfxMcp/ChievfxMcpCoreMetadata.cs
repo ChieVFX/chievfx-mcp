@@ -7,7 +7,7 @@ namespace Chievfx.Mcp.Editor
     internal static class ChievfxMcpCoreMetadataCatalogMirror
     {
         // Resource("editor-context", "chievfx://editor/context")
-        // Resource("scene-opened", "chievfx://scene/opened")
+        // Resource("scenes-opened", "chievfx://scene/opened")
         // Resource("scene-current-usage-counts", "chievfx://scene/current/usage/counts")
         // Resource("scene-current-material-profile-summary", "chievfx://scene/current/material-profile/summary")
 

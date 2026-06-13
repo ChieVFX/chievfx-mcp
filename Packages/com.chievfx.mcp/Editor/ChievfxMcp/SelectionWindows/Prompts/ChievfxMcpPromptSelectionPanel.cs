@@ -328,7 +328,8 @@ namespace Chievfx.Mcp.Editor
         {
             return promptRows
                 .GroupBy(row => row.Category)
-                .OrderBy(group => GetCategorySortOrder(group.Key))
+                .OrderByDescending(group => group.All(row => row.Required))
+                .ThenBy(group => GetCategorySortOrder(group.Key))
                 .ThenBy(group => group.Key, StringComparer.Ordinal)
                 .Select(group => new CategoryRows<PromptRow>(
                     group.Key,

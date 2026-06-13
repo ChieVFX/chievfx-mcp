@@ -139,7 +139,7 @@ namespace Chievfx.Mcp.Extensions.Control
                 Name = "Control extension status",
                 Description = "Reports Input System availability, Play Mode state, current devices, and mutation gate requirements.",
                 MimeType = "application/json",
-                Category = Category,
+                Category = EssentialsCategory,
             });
             descriptor.Tools.Add(Tool("editor-playmode-set", "Enter or exit Unity Play Mode.", PlayModeSetSchema(), EssentialsCategory));
             if (api)

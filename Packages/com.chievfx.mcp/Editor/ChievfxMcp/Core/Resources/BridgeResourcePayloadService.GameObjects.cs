@@ -261,7 +261,7 @@ namespace Chievfx.Mcp.Editor
         private static Dictionary<string, object?> CreateResourceFilterGameObjectRow(GameObject gameObject, GameObjectQueryContext context)
         {
             var path = GameObjectBridgeService.GetHierarchyPath(gameObject, context);
-            var gameObjectUri = GetCurrentGameObjectResourceUri(path);
+            var gameObjectUri = GetGameObjectResourceUri(gameObject, context);
             var components = CreateResourceComponentSummaries(gameObject, gameObjectUri, MaxComponentPreviewTypes, out var componentsTruncated);
             return new Dictionary<string, object?>
             {
@@ -270,6 +270,7 @@ namespace Chievfx.Mcp.Editor
                 ["instanceId"] = GetLegacyInstanceId(gameObject),
                 ["activeSelf"] = gameObject.activeSelf,
                 ["activeInHierarchy"] = gameObject.activeInHierarchy,
+                ["scenePath"] = gameObject.scene.path,
                 ["componentTypes"] = components.Select(component => component["type"]).ToArray(),
                 ["componentsTruncated"] = componentsTruncated,
                 ["resourceUri"] = gameObjectUri,
@@ -289,13 +290,25 @@ namespace Chievfx.Mcp.Editor
 
         private static Dictionary<string, object?> CreateResourceContext(GameObjectQueryContext context)
         {
-            return new Dictionary<string, object?>
+            var output = new Dictionary<string, object?>
             {
                 ["source"] = context.Source,
                 ["sceneName"] = context.SceneName,
                 ["scenePath"] = context.ScenePath,
                 ["prefabAssetPath"] = context.PrefabAssetPath,
             };
+            if (!string.IsNullOrEmpty(context.SceneFilter))
+            {
+                output["sceneFilter"] = context.SceneFilter;
+            }
+
+            var scenes = GameObjectBridgeService.DescribeContextScenes(context);
+            if (scenes != null)
+            {
+                output["scenes"] = scenes;
+            }
+
+            return output;
         }
 
         internal static GameObjectQueryContext ResolveResourceSceneContext(string sceneSegment)
@@ -305,16 +318,27 @@ namespace Chievfx.Mcp.Editor
                 return GameObjectBridgeService.GetGameObjectQueryContext();
             }
 
-            return GetSceneContextByPath(DecodeResourceSegment(sceneSegment, "scenePath"));
+            if (string.Equals(sceneSegment, GameObjectBridgeService.SceneFilterAll, StringComparison.Ordinal)
+                || string.Equals(sceneSegment, GameObjectBridgeService.SceneFilterActive, StringComparison.Ordinal))
+            {
+                return GameObjectBridgeService.GetGameObjectQueryContext(sceneSegment);
+            }
+
+            return GetSceneContextByPathOrName(DecodeResourceSegment(sceneSegment, "scene"));
         }
 
-        private static GameObjectQueryContext GetSceneContextByPath(string scenePath)
+        private static GameObjectQueryContext GetSceneContextByPathOrName(string sceneRef)
         {
             var scene = SceneBridgeService.GetOpenScenes()
-                .FirstOrDefault(candidate => string.Equals(candidate.path, scenePath, StringComparison.Ordinal));
+                .FirstOrDefault(candidate => candidate.IsValid()
+                    && candidate.isLoaded
+                    && (string.Equals(candidate.path, sceneRef, StringComparison.Ordinal)
+                        || string.Equals(candidate.name, sceneRef, StringComparison.Ordinal)
+                        || (!string.IsNullOrEmpty(candidate.path)
+                            && string.Equals(System.IO.Path.GetFileNameWithoutExtension(candidate.path), sceneRef, StringComparison.Ordinal))));
             if (!scene.IsValid() || !scene.isLoaded)
             {
-                throw new InvalidOperationException($"No opened scene found at '{scenePath}'.");
+                throw new InvalidOperationException($"No opened scene found matching '{sceneRef}'. Use all, active, current, a loaded scene name, or an encoded scene path.");
             }
 
             return CreateSceneContext(scene, "scene");
@@ -523,15 +547,13 @@ namespace Chievfx.Mcp.Editor
         private static string GetGameObjectResourceUri(GameObject gameObject, GameObjectQueryContext context)
         {
             var path = GameObjectBridgeService.GetHierarchyPath(gameObject, context);
-            var sceneSegment = string.IsNullOrWhiteSpace(context.ScenePath) || string.Equals(context.Source, "prefabStage", StringComparison.Ordinal)
+            // Prefer the GameObject's own scene so follow-up URIs stay correct when the context
+            // spans multiple scenes ("all") and context.ScenePath is therefore empty.
+            var scenePath = string.IsNullOrWhiteSpace(context.ScenePath) ? gameObject.scene.path : context.ScenePath;
+            var sceneSegment = string.Equals(context.Source, "prefabStage", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(scenePath)
                 ? "current"
-                : EncodeResourceSegment(context.ScenePath);
+                : EncodeResourceSegment(scenePath);
             return $"chievfx://scene/{sceneSegment}/go/{EncodeResourceSegment(path)}";
-        }
-
-        private static string GetCurrentGameObjectResourceUri(string path)
-        {
-            return $"chievfx://scene/current/go/{EncodeResourceSegment(path)}";
         }
 
         private static string EncodeResourceSegment(string value)

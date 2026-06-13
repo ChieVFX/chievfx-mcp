@@ -76,45 +76,23 @@ def resolve_resource_uri(uri: str) -> tuple[str, str]:
             and parts[3]
         ):
             return "template", "scene-current-material-profile-material"
-        if len(parts) == 3 and parts[1] == "go" and parts[0] not in {"active", ""} and parts[2]:
+        if len(parts) == 3 and parts[1] == "go" and parts[0] and parts[2]:
             return "template", "scene-current-go" if parts[0] == "current" else "scene-go"
-        if (
-            len(parts) == 4
-            and parts[0] == "current"
-            and parts[1] == "go"
-            and parts[2] == "name-contains"
-            and parts[3]
-        ):
-            return "template", "scene-current-go-name-contains"
-        if (
-            len(parts) == 4
-            and parts[0] == "current"
-            and parts[1] == "go"
-            and parts[2] == "name-pattern"
-            and parts[3]
-        ):
-            return "template", "scene-current-go-name-pattern"
-        if (
-            len(parts) == 4
-            and parts[0] == "current"
-            and parts[1] == "go"
-            and parts[2] == "component"
-            and parts[3]
-        ):
-            return "template", "scene-current-go-component"
-        if (
-            len(parts) == 4
-            and parts[0] == "current"
-            and parts[1] == "go"
-            and parts[2] == "filter"
-            and parts[3]
-        ):
-            return "template", "scene-current-go-filter"
+        if len(parts) == 4 and parts[1] == "go" and parts[0] and parts[3]:
+            filter_template_ids = {
+                "name-contains": ("scene-current-go-name-contains", "scene-go-name-contains"),
+                "name-pattern": ("scene-current-go-name-pattern", "scene-go-name-pattern"),
+                "component": ("scene-current-go-component", "scene-go-component"),
+                "filter": ("scene-current-go-filter", "scene-go-filter"),
+            }
+            template_ids = filter_template_ids.get(parts[2])
+            if template_ids is not None:
+                return "template", template_ids[0] if parts[0] == "current" else template_ids[1]
         if (
             len(parts) == 5
             and parts[1] == "go"
             and parts[3] == "component"
-            and parts[0] not in {"active", ""}
+            and parts[0]
             and parts[2]
             and parts[4]
         ):

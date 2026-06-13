@@ -175,10 +175,9 @@ namespace Chievfx.Mcp.Editor
                 }
 
                 if (parts.Length == 4
-                    && string.Equals(parts[0], "current", StringComparison.Ordinal)
                     && string.Equals(parts[1], "go", StringComparison.Ordinal))
                 {
-                    var context = GameObjectBridgeService.GetGameObjectQueryContext();
+                    var context = BridgeResourcePayloadService.ResolveResourceSceneContext(parts[0]);
                     if (string.Equals(parts[2], "name-contains", StringComparison.Ordinal))
                     {
                         var text = BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[3], "text", MaxResourceFilterValueChars);

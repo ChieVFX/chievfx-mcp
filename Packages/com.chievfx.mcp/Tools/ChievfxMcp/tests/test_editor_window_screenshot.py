@@ -187,8 +187,8 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
             "bridge-get-status": {"verbose"},
             "console-get-logs": {"lastMinutes", "stack"},
             "console-get-logs-single": {"includeUnityConsole"},
-            "events-check-since": {"includeData", "maxEntries"},
-            "events-wait": {"includeData"},
+            "events-check-since": {"includeData", "level", "maxEntries", "source", "type"},
+            "events-wait": {"includeData", "level", "source", "type"},
             "profiler-window-control": {"moduleIdentifier", "selectedModuleIdentifier", "stayOnLatestFrame"},
             "reflection-method-call": {"executeInMainThread", "inputParameters"},
             "script-execute": {"includeLogs", "logType", "parameters"},
@@ -213,11 +213,22 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
         self.assertIn("timeoutMs", tools["reflection-method-call"]["inputSchema"]["properties"])
         self.assertIn("timeoutMs", tools["tests-run"]["inputSchema"]["properties"])
         events_wait_advertised = mcp.advertised_input_schema(tools["events-wait"])["properties"]
-        for recovery_knob in ("marker", "includeRecentMs", "level", "type"):
-            self.assertIn(recovery_knob, events_wait_advertised)
+        self.assertEqual(
+            set(events_wait_advertised),
+            {"contains", "marker", "sinceEventId", "includeRecentMs", "timeoutMs"},
+        )
         events_check_advertised = mcp.advertised_input_schema(tools["events-check-since"])["properties"]
-        for recovery_knob in ("marker", "level", "type"):
-            self.assertIn(recovery_knob, events_check_advertised)
+        self.assertEqual(
+            set(events_check_advertised),
+            {"contains", "marker", "sinceEventId", "sinceTimestampUtc"},
+        )
+        # These two tools keep per-property descriptions in the advertised schema (self-documenting),
+        # while default/min/max noise is still stripped.
+        for property_name in ("contains", "marker"):
+            self.assertIn("description", events_wait_advertised[property_name])
+            self.assertIn("description", events_check_advertised[property_name])
+        self.assertNotIn("default", events_wait_advertised["timeoutMs"])
+        self.assertNotIn("maximum", events_wait_advertised["timeoutMs"])
 
         self.assertIn("timeoutMs", mcp.advertised_input_schema(tools["script-execute"])["properties"])
         self.assertIn("timeoutMs", mcp.advertised_input_schema(tools["reflection-method-call"])["properties"])
@@ -251,10 +262,16 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
         metadata = mcp.build_tool_metadata()
         estimates = {tool["name"]: tool["estimatedTokens"] for tool in metadata["tools"]}
 
-        self.assertLessEqual(max(estimates.values()), 130)
+        # events-wait/events-check-since intentionally keep per-property descriptions because
+        # correct usage is intuition-critical; they are exempt from the lean-descriptor cap.
+        documented_tools = mcp.ADVERTISED_SCHEMA_DESCRIPTION_TOOLS
+        lean_estimates = {name: value for name, value in estimates.items() if name not in documented_tools}
+        self.assertLessEqual(max(lean_estimates.values()), 130)
         self.assertLessEqual(estimates["tests-run"], 130)
         self.assertLessEqual(estimates["screenshot-editor-window"], 100)
         self.assertLessEqual(estimates["gameobject-transform-update"], 100)
+        for name in documented_tools:
+            self.assertLessEqual(estimates[name], 500)
 
     def test_frame_debugger_control_documents_one_based_event_limit(self) -> None:
         tool = next(tool for tool in mcp.TOOLS if tool["name"] == "frame-debugger-control")

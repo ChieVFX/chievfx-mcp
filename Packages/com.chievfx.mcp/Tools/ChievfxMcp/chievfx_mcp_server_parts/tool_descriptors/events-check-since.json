@@ -1,6 +1,6 @@
 {
   "name": "events-check-since",
-  "description": "Checks bridge events since a wait.",
+  "description": "Retro-check whether a matching event already occurred since a prior events-wait cursor. Pass sinceEventId and sinceTimestampUtc from the wait result and the same contains/marker matcher. Use to recover after a wait timed out or was cancelled. Returns all matches in the window, not just the first.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -9,11 +9,20 @@
       },
       "sinceEventId": {
         "type": "integer",
-        "minimum": 0
+        "minimum": 0,
+        "description": "Only return events with eventId greater than this. Use the sinceEventId returned by the prior events-wait."
       },
       "sinceTimestampUtc": {
         "type": "string",
-        "description": "UTC timestamp returned by events-wait as startedAtUtc."
+        "description": "UTC timestamp returned by events-wait as startedAtUtc. Events must be newer than both this and sinceEventId."
+      },
+      "contains": {
+        "type": "string",
+        "description": "Match when an event's MESSAGE contains this text (case-insensitive substring). Same matcher as events-wait."
+      },
+      "marker": {
+        "type": "string",
+        "description": "Match an exact beacon NAME planted via the marker API (compared exactly against the event's marker field). Same matcher as events-wait."
       },
       "maxEntries": {
         "type": "integer",
@@ -23,7 +32,8 @@
         },
         "default": {
           "$chievfxConst": "DEFAULT_EVENTS_CHECK_MAX_ENTRIES"
-        }
+        },
+        "description": "Max number of matching events to return."
       },
       "source": {
         "type": "string",
@@ -32,23 +42,21 @@
           "bridge",
           "editor",
           "structured"
-        ]
+        ],
+        "description": "Advanced: restrict to one event origin. Defaults to any source."
       },
       "type": {
-        "type": "string"
+        "type": "string",
+        "description": "Advanced: restrict to one internal event type."
       },
       "level": {
-        "type": "string"
-      },
-      "contains": {
-        "type": "string"
-      },
-      "marker": {
-        "type": "string"
+        "type": "string",
+        "description": "Advanced: restrict by severity (e.g. Error, Warning, Log)."
       },
       "includeData": {
         "type": "boolean",
-        "default": false
+        "default": false,
+        "description": "Include each event's structured data payload in the result."
       }
     },
     "required": [

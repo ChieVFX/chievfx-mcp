@@ -1,7 +1,7 @@
 # ChievFX MCP debug instructions
 
-Generated at (UTC): 2026-06-13T06:22:00Z
-Project root: /var/folders/nr/g2tn040175lcc8xflfx_08cm0000gn/T/tmpiq20f1fz
+Generated at (UTC): 2026-06-13T06:50:49Z
+Project root: /var/folders/nr/g2tn040175lcc8xflfx_08cm0000gn/T/tmp_xmgvyp4
 Trigger: tool-selection-save
 
 ## Selection snapshot
@@ -10,7 +10,7 @@ Trigger: tool-selection-save
 - Enabled resources: 4
 - Enabled resource templates: 19
 - Enabled prompts: 0
-- Tool selection: `/var/folders/nr/g2tn040175lcc8xflfx_08cm0000gn/T/tmpiq20f1fz/UserSettings/ChievfxMcpToolSelection.json`
+- Tool selection: `/var/folders/nr/g2tn040175lcc8xflfx_08cm0000gn/T/tmp_xmgvyp4/UserSettings/ChievfxMcpToolSelection.json`
 - Resource selection: `/Users/evgeniy_skvortsov/_code_/chievfx-mcp/Packages/com.chievfx.mcp/Tools/ChievfxMcp/UserSettings/ChievfxMcpResourceSelection.json`
 - Prompt selection: `/Users/evgeniy_skvortsov/_code_/chievfx-mcp/Packages/com.chievfx.mcp/Tools/ChievfxMcp/UserSettings/ChievfxMcpPromptSelection.json`
 
@@ -24,7 +24,7 @@ ChievFX Unity MCP is project-local. Prefer enabled ChievFX MCP tools/resources w
 bridge-get-status: inspect Unity bridge heartbeat, compile/import busy state, recent operations, and event-wait liveness before longer orchestration.
 console-get-logs: filter console severity with levels, not contains. Default levels are Error, Exception, Assert, Warning. Exact contains tokens error, exception, warning, or issue are reinterpreted as severity filters so Assert rows like "Map must be contained in state" still match.
 events-check-since: recover after waits/timeouts using sinceEventId and sinceTimestampUtc from prior wait results.
-events-wait: wait for specific Unity events or markers; timeout is a normal branch, not failure. Default cursor is lastEventId (future-only), so boot/early logs that fire during the triggering op (Play-mode enter, recompile, script-execute) are skipped. For such logs capture sinceEventId from the trigger result (editor-playmode-set returns eventCursorBefore) or bridge-get-status BEFORE the trigger, or use includeRecentMs with no sinceEventId. Debug.Log lines are source:log; pass source:"log" for clarity. Prefer ASCII-only contains substrings (e.g. "Turn 1", "Player Turn") or a marker: filter over Unicode punctuation (em dash —, smart quotes) in log text, since encoding mismatches can break substring matches. On timeout, inspect result.diagnostic: matchBelowCursor means it fired below your cursor (retry from earlier cursor), nonAsciiContains means your filter had non-ASCII that may have been mangled (retry ASCII-only), possiblyTruncated means it was evicted (verify via console-get-logs contains).
+events-wait: long-poll for the next matching Unity event; timeout is a normal branch, not failure. Match by contains (case-insensitive substring of a log/event message) or marker (exact name of a beacon you planted via the marker API; collision-free, best for orchestrated checks). Default cursor is the latest event (future-only), so logs that fire DURING the triggering op (Play-mode enter, recompile, script-execute) are skipped: capture sinceEventId from the trigger result (editor-playmode-set returns eventCursorBefore) or bridge-get-status BEFORE the trigger, or pass includeRecentMs with no sinceEventId. Prefer ASCII-only contains substrings (e.g. "Turn 1", "Player Turn") over Unicode punctuation (em dash —, smart quotes) in log text, since encoding mismatches can break substring matches. On timeout, inspect result.diagnostic: matchBelowCursor means it fired below your cursor (retry from earlier cursor), nonAsciiContains means your filter had non-ASCII that may have been mangled (retry ASCII-only), possiblyTruncated means it was evicted (verify via console-get-logs contains). Advanced filters source/type/level are still accepted but omitted from the advertised schema for clarity.
 chievfx://editor/context: compact current Unity editor, play mode, active scene, prefab stage, and selection context.
 Enabled ChievFX MCP descriptors (compact instruction form):
 Tools:
@@ -39,8 +39,8 @@ Tools:
 - editor-window-focus: Focuses/selects an existing Unity EditorWindow tab. args=(instanceId?:int, typeName?:str, titleContains?:str, focused?:bool, mouseOver?:bool)
 - editor-window-list: Lists open Unity EditorWindow instances and docked tabs. args=(typeName?:str, titleContains?:str, maxResults?:int)
 - editor-window-open: Opens a Unity EditorWindow by typeName or menuPath. args=(typeName?:str, menuPath?:str, focus?:bool, title?:str)
-- events-check-since: Checks bridge events since a wait. args=(sinceEventId:int, sinceTimestampUtc:str, source?:log|bridge|editor|structured, type?:str, level?:str, contains?:str, marker?:str)
-- events-wait: Long-polls bridge events. Subagents must be write-capable. args=(sinceEventId?:int, timeoutMs?:int, source?:log|bridge|editor|structured, type?:str, level?:str, contains?:str, marker?:str, includeRecentMs?:int)
+- events-check-since: Retro-check whether a matching event already occurred since a prior events-wait cursor. Pass sinceEventId and sinceTimestampUtc from the wait result and the same contains/marker matcher. Use to recover after a wait timed out or was cancelled. Returns all matches in the window, not just the first. args=(sinceEventId:int, sinceTimestampUtc:str, contains?:str, marker?:str)
+- events-wait: Long-poll until the NEXT Unity event matches your filter, then return that event. Pick one matcher: contains (free-text log substring) or marker (exact planted-beacon name). By default it waits only for FUTURE events; set sinceEventId for retro-search or includeRecentMs to catch an event that fired just before you armed the wait. timedOut:true is a normal outcome, not an error - on timeout read result.diagnostic and optionally recover with events-check-since. Subagents must be write-capable (not read-only/Ask mode). args=(contains?:str, marker?:str, sinceEventId?:int, includeRecentMs?:int, timeoutMs?:int)
 - folder-ensure: Creates missing Unity project folders for a path starting with Assets/. args=(path:str)
 - recompile: Refreshes scripts, requests Unity script compilation, and returns only after Unity is idle again. args=(timeoutMs?:int)
 - reflection-method-call: Calls one loaded C# method. Instance calls need targetObject.value. args=(filter:obj, targetObject?:{value}, timeoutMs?:int)

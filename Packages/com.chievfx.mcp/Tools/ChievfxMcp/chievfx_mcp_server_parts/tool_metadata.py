@@ -26,17 +26,17 @@ def required_tool_ids_for_tools(tools: list[dict[str, Any]]) -> set[str]:
     }
 
 
-def slim_advertised_schema_detail(value: Any) -> Any:
+def slim_advertised_schema_detail(value: Any, detail_keys: set[str] = ADVERTISED_SCHEMA_DETAIL_KEYS) -> Any:
     if isinstance(value, dict):
         if value == VECTOR3_REF:
             return ADVERTISED_VECTOR3_SCHEMA.copy()
         return {
-            key: slim_advertised_schema_detail(item)
+            key: slim_advertised_schema_detail(item, detail_keys)
             for key, item in value.items()
-            if key not in ADVERTISED_SCHEMA_DETAIL_KEYS
+            if key not in detail_keys
         }
     if isinstance(value, list):
-        return [slim_advertised_schema_detail(item) for item in value]
+        return [slim_advertised_schema_detail(item, detail_keys) for item in value]
     return value
 
 
@@ -347,7 +347,11 @@ def advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
         if str(tool_name).startswith("reflection-method-") and "filter" in properties:
             properties["filter"] = {"type": "object"}
 
-    return slim_advertised_schema_detail(schema)
+    detail_keys = ADVERTISED_SCHEMA_DETAIL_KEYS
+    if tool_name in ADVERTISED_SCHEMA_DESCRIPTION_TOOLS:
+        # Keep per-property descriptions for these tools; still drop default/min/max/$defs noise.
+        detail_keys = ADVERTISED_SCHEMA_DETAIL_KEYS - {"description"}
+    return slim_advertised_schema_detail(schema, detail_keys)
 
 
 def compact_tool_descriptor(tool: dict[str, Any]) -> dict[str, Any]:

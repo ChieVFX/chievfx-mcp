@@ -1,15 +1,29 @@
 {
   "name": "events-wait",
-  "description": "Long-polls bridge events. Subagents must be write-capable.",
+  "description": "Long-poll until the NEXT Unity event matches your filter, then return that event. Pick one matcher: contains (free-text log substring) or marker (exact planted-beacon name). By default it waits only for FUTURE events; set sinceEventId for retro-search or includeRecentMs to catch an event that fired just before you armed the wait. timedOut:true is a normal outcome, not an error - on timeout read result.diagnostic and optionally recover with events-check-since. Subagents must be write-capable (not read-only/Ask mode).",
   "inputSchema": {
     "type": "object",
     "properties": {
       "outputFormat": {
         "$chievfxSchema": "outputFormat"
       },
+      "contains": {
+        "type": "string",
+        "description": "Match when an event's MESSAGE contains this text (case-insensitive substring). Use for free-text Unity/console logs you do not control. Prefer ASCII-only substrings (e.g. 'Wave 2 started') over Unicode punctuation."
+      },
+      "marker": {
+        "type": "string",
+        "description": "Match an exact beacon NAME (a string like 'level-loaded') that you planted via the marker API; compared exactly against the event's marker field. Collision-free alternative to contains for orchestrated/QA waits. This is the marker value, not a boolean toggle."
+      },
       "sinceEventId": {
         "type": "integer",
-        "minimum": 0
+        "minimum": 0,
+        "description": "Only match events with eventId greater than this. Capture it from bridge-get-status (lastEventId) or a trigger result BEFORE the action, so events that fire during the trigger are not missed. Omit to wait only for future events (retro-search knob)."
+      },
+      "includeRecentMs": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Also match events from the last N milliseconds (look-back window) for races where the event may land just before the wait arms. Keep small (e.g. 500-2000). Prefer capturing sinceEventId before the trigger when you can."
       },
       "timeoutMs": {
         "type": "integer",
@@ -19,7 +33,8 @@
         },
         "default": {
           "$chievfxConst": "DEFAULT_EVENTS_WAIT_TIMEOUT_MS"
-        }
+        },
+        "description": "Max milliseconds to wait before returning timedOut:true (a normal branch). Client cancellation returns early. Use longer values for subscription-style waits."
       },
       "source": {
         "type": "string",
@@ -28,27 +43,21 @@
           "bridge",
           "editor",
           "structured"
-        ]
+        ],
+        "description": "Advanced: restrict to one event origin. Defaults to any source."
       },
       "type": {
-        "type": "string"
+        "type": "string",
+        "description": "Advanced: restrict to one internal event type."
       },
       "level": {
-        "type": "string"
-      },
-      "contains": {
-        "type": "string"
-      },
-      "marker": {
-        "type": "string"
-      },
-      "includeRecentMs": {
-        "type": "integer",
-        "minimum": 0
+        "type": "string",
+        "description": "Advanced: restrict by severity (e.g. Error, Warning, Log)."
       },
       "includeData": {
         "type": "boolean",
-        "default": false
+        "default": false,
+        "description": "Include the event's structured data payload in the result."
       }
     }
   }

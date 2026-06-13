@@ -530,14 +530,17 @@ VECTOR3_REF: dict[str, str] = {"$ref": "#/$defs/Vector3"}
 
 
 ADVERTISED_SCHEMA_DETAIL_KEYS = {"$defs", "default", "description", "maximum", "minimum"}
+# Tools that are intuition-critical enough to justify keeping per-property descriptions in the
+# advertised schema (the agent-facing surface), instead of stripping them for leanness.
+ADVERTISED_SCHEMA_DESCRIPTION_TOOLS = {"events-wait", "events-check-since"}
 ADVERTISED_VECTOR3_SCHEMA: dict[str, str] = {"type": "object"}
 ADVERTISED_PROPERTY_OMISSIONS: dict[str, set[str]] = {
     "assets-refresh": {"options"},
     "bridge-get-status": {"maxOperations", "verbose"},
     "console-get-logs": {"lastMinutes", "stack"},
     "console-get-logs-single": {"includeUnityConsole"},
-    "events-check-since": {"includeData", "maxEntries"},
-    "events-wait": {"includeData"},
+    "events-check-since": {"includeData", "level", "maxEntries", "source", "type"},
+    "events-wait": {"includeData", "level", "source", "type"},
     "profiler-window-control": {"moduleIdentifier", "selectedModuleIdentifier", "stayOnLatestFrame"},
     "reflection-method-call": {"executeInMainThread", "inputParameters"},
     "script-execute": {"includeLogs", "logType", "parameters"},

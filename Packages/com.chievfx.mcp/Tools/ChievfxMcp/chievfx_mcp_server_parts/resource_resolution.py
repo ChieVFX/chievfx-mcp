@@ -92,18 +92,6 @@ def resolve_resource_uri(uri: str) -> tuple[str, str]:
                 return "template", "scene-all-component"
             return "template", "scene-component"
 
-    if uri.startswith("chievfx://assets/"):
-        rest = uri[len("chievfx://assets/") :]
-        parts = rest.split("/")
-        if len(parts) == 2 and parts[0] == "name-contains" and parts[1]:
-            return "template", "assets-name-contains"
-        if len(parts) == 2 and parts[0] == "type" and parts[1]:
-            return "template", "assets-type"
-        if len(parts) == 2 and parts[0] == "label" and parts[1]:
-            return "template", "assets-label"
-        if len(parts) == 2 and parts[0] == "filter" and parts[1]:
-            return "template", "assets-filter"
-
     if uri.startswith("chievfx://asset/"):
         rest = uri[len("chievfx://asset/") :]
         parts = rest.split("/")

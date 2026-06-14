@@ -4,6 +4,7 @@
     "screenshot-camera",
     "screenshot-editor-window",
     "tool-batch",
+    "asset-find",
     "asset-create",
     "folder-ensure",
     "assets-refresh",

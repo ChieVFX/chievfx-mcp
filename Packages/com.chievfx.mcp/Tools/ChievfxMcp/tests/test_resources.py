@@ -391,16 +391,20 @@ class ResourceTests(unittest.TestCase):
         ]:
             self.assertNotIn(template_id, templates)
 
-    def test_asset_filter_templates_are_categorized_and_not_listed_as_resources(self) -> None:
+    def test_asset_detail_templates_are_categorized_and_search_templates_removed(self) -> None:
         metadata = mcp.build_resource_metadata()
         templates = {template["id"]: template for template in metadata["resourceTemplates"]}
         resources = self.request("resources/list")["result"]["resources"]
 
-        for template_id in [
+        for removed_template_id in [
             "assets-name-contains",
             "assets-type",
             "assets-label",
             "assets-filter",
+        ]:
+            self.assertNotIn(removed_template_id, templates)
+
+        for template_id in [
             "asset-detail",
             "asset-subasset-detail",
             "scene-current-material-profile-shader",
@@ -493,12 +497,8 @@ class ResourceTests(unittest.TestCase):
                 self.assertEqual(response["error"]["code"], -32002)
                 self.assertEqual(self.server.calls, [])
 
-    def test_asset_filter_resource_reads_are_enabled(self) -> None:
+    def test_asset_detail_resource_reads_are_enabled(self) -> None:
         uris = [
-            "chievfx://assets/name-contains/Wood",
-            "chievfx://assets/type/material",
-            "chievfx://assets/label/ui",
-            "chievfx://assets/filter/name%3Dwood%3Btype%3DMaterial%2CTexture2D%3Blabel%3Dui%3Barea%3Dassets%3Bfolder%3DAssets%2FArt%3Blimit%3D80%3Bsubassets%3D0",
             "chievfx://asset/0123456789abcdef0123456789abcdef",
             "chievfx://asset/0123456789abcdef0123456789abcdef/id/123456789",
         ]
@@ -509,7 +509,23 @@ class ResourceTests(unittest.TestCase):
                 result = self.request("resources/read", {"uri": uri})["result"]
 
                 self.assertEqual(self.server.calls, [("resource-read", {"uri": uri})])
-                self.assertIn(uri, result["contents"][0]["text"])
+                self.assertTrue(result["contents"][0]["text"])
+
+    def test_asset_search_resource_reads_are_not_found(self) -> None:
+        uris = [
+            "chievfx://assets/name-contains/Wood",
+            "chievfx://assets/type/material",
+            "chievfx://assets/label/ui",
+            "chievfx://assets/filter/name%3Dwood%3Btype%3DMaterial%2CTexture2D%3Blabel%3Dui%3Barea%3Dassets%3Bfolder%3DAssets%2FArt%3Blimit%3D80%3Bsubassets%3D0",
+        ]
+
+        for uri in uris:
+            with self.subTest(uri=uri):
+                self.server.calls.clear()
+                response = self.request("resources/read", {"uri": uri})
+
+                self.assertEqual(response["error"]["code"], -32002)
+                self.assertEqual(self.server.calls, [])
 
     def test_current_scene_usage_resource_reads_are_enabled(self) -> None:
         uris = [

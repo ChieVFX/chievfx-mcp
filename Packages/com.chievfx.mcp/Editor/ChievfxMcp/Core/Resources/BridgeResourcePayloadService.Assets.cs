@@ -28,112 +28,6 @@ namespace Chievfx.Mcp.Editor
 {
     internal sealed partial class BridgeResourcePayloadService
     {
-        internal static ResourceAssetFilter CreateAssetNameContainsResourceFilter(string text)
-        {
-            GameObjectBridgeService.ValidateResourceFilterText(text, "text");
-            return new ResourceAssetFilter
-            {
-                Kind = "name-contains",
-                NameTerms = SplitAssetNameTerms(text),
-                MaxResults = DefaultResourceFilterMaxResults
-            };
-        }
-
-        internal static ResourceAssetFilter CreateAssetTypeResourceFilter(string assetType)
-        {
-            GameObjectBridgeService.ValidateResourceFilterText(assetType, "assetType");
-            return new ResourceAssetFilter
-            {
-                Kind = "type",
-                TypeNames = ResolveAssetTypeAliases(new[] { assetType }),
-                MaxResults = DefaultResourceFilterMaxResults
-            };
-        }
-
-        internal static ResourceAssetFilter CreateAssetLabelResourceFilter(string label)
-        {
-            GameObjectBridgeService.ValidateResourceFilterText(label, "label");
-            return new ResourceAssetFilter
-            {
-                Kind = "label",
-                Labels = new[] { label },
-                MaxResults = DefaultResourceFilterMaxResults
-            };
-        }
-
-        internal static ResourceAssetFilter ParseAssetResourceFilterSpec(string filterSpec)
-        {
-            if (string.IsNullOrWhiteSpace(filterSpec))
-            {
-                throw new ArgumentException("filterSpec cannot be empty.", nameof(filterSpec));
-            }
-
-            if (filterSpec.Length > MaxResourceFilterSegmentChars)
-            {
-                throw new ArgumentException($"filterSpec must be {MaxResourceFilterSegmentChars} characters or fewer.", nameof(filterSpec));
-            }
-
-            var filter = new ResourceAssetFilter
-            {
-                Kind = "filter",
-                MaxResults = DefaultResourceFilterMaxResults
-            };
-            var nameTerms = new List<string>();
-
-            foreach (var clause in filterSpec.Split(';'))
-            {
-                if (string.IsNullOrWhiteSpace(clause))
-                {
-                    continue;
-                }
-
-                var separator = clause.IndexOf('=');
-                if (separator <= 0)
-                {
-                    throw new ArgumentException($"Invalid filter clause '{clause}'. Use key=value syntax.", nameof(filterSpec));
-                }
-
-                var key = clause.Substring(0, separator).Trim().ToLowerInvariant();
-                var value = clause.Substring(separator + 1).Trim();
-                switch (key)
-                {
-                    case "name":
-                        foreach (var item in ParseResourceFilterValues(value, "name"))
-                        {
-                            nameTerms.AddRange(SplitAssetNameTerms(item));
-                        }
-
-                        break;
-                    case "type":
-                        filter.TypeNames = ResolveAssetTypeAliases(ParseResourceFilterValues(value, "type"));
-                        break;
-                    case "label":
-                        filter.Labels = ParseResourceFilterValues(value, "label");
-                        break;
-                    case "area":
-                        filter.Area = ParseAssetResourceArea(value);
-                        filter.AreaExplicit = true;
-                        break;
-                    case "folder":
-                        filter.Folders = ParseAssetResourceFolders(value);
-                        break;
-                    case "limit":
-                        filter.MaxResults = ParseResourceFilterLimit(value);
-                        break;
-                    case "subassets":
-                        filter.IncludeSubassets = ParseResourceFilterBool(value, "subassets");
-                        break;
-                    default:
-                        throw new ArgumentException($"Unsupported filterSpec key '{key}'.", nameof(filterSpec));
-                }
-            }
-
-            filter.NameTerms = nameTerms
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            return filter;
-        }
-
         private static string CreateAssetDatabaseFilterQuery(ResourceAssetFilter filter)
         {
             var tokens = new List<string>();
@@ -148,7 +42,7 @@ namespace Chievfx.Mcp.Editor
             return string.Join(" ", tokens.Where(token => !string.IsNullOrWhiteSpace(token)));
         }
 
-        private static string[] SplitAssetNameTerms(string text)
+        internal static string[] SplitAssetNameTerms(string text)
         {
             return Regex.Split(text, "\\s+")
                 .Select(term => term.Trim())
@@ -157,7 +51,7 @@ namespace Chievfx.Mcp.Editor
                 .ToArray();
         }
 
-        private static string[] ResolveAssetTypeAliases(IEnumerable<string> values)
+        internal static string[] ResolveAssetTypeAliases(IEnumerable<string> values)
         {
             var typeNames = new List<string>();
             foreach (var value in values)
@@ -200,7 +94,7 @@ namespace Chievfx.Mcp.Editor
                 .ToArray();
         }
 
-        private static string ParseAssetResourceArea(string value)
+        internal static string ParseAssetResourceArea(string value)
         {
             var area = value.Trim().ToLowerInvariant();
             if (string.Equals(area, "assets", StringComparison.Ordinal)
@@ -213,7 +107,7 @@ namespace Chievfx.Mcp.Editor
             throw new ArgumentException("area must be assets, packages, or all.", nameof(value));
         }
 
-        private static string[] ParseAssetResourceFolders(string value)
+        internal static string[] ParseAssetResourceFolders(string value)
         {
             var folders = ParseResourceFilterValues(value, "folder");
             if (folders.Length > MaxResourceFilterFolders)
@@ -342,6 +236,21 @@ namespace Chievfx.Mcp.Editor
             }
 
             return output;
+        }
+
+        private static bool AssetResourceRowMatchesFilter(Dictionary<string, object?> row, ResourceAssetFilter filter)
+        {
+            if (filter.TypeNames.Length == 0 || filter.TypeNames.Any(typeName => string.Equals(typeName, "Object", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            var rowType = row.TryGetValue("type", out var subassetType) && subassetType is string subassetTypeText
+                ? subassetTypeText
+                : row.TryGetValue("mainType", out var mainType) && mainType is string mainTypeText
+                    ? mainTypeText
+                    : string.Empty;
+            return filter.TypeNames.Any(typeName => string.Equals(typeName, rowType, StringComparison.OrdinalIgnoreCase));
         }
 
         private static Dictionary<string, object?> CreateAssetDetail(Object asset, string path, string guid)

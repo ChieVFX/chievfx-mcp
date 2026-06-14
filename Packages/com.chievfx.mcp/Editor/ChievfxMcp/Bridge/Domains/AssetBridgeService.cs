@@ -221,10 +221,75 @@ namespace Chievfx.Mcp.Editor
             };
         }
 
+        public object Find(JToken args)
+        {
+            var filter = new ResourceAssetFilter
+            {
+                Kind = "tool",
+                Area = BridgeResourcePayloadService.ParseAssetResourceArea(ReadString(args, "area") ?? "assets"),
+                AreaExplicit = HasProperty(args, "area"),
+                IncludeSubassets = ReadBool(args, "includeSubassets", ReadBool(args, "subassets", false)),
+                MaxResults = ClampInt(
+                    ReadInt(args, "maxResults", ReadInt(args, "limit", McpLimits.DefaultResourceFilterMaxResults)),
+                    1,
+                    McpLimits.HardResourceFilterMaxResults)
+            };
+
+            var nameTerms = new List<string>();
+            foreach (var name in ReadStringValues(args, "name"))
+            {
+                nameTerms.AddRange(BridgeResourcePayloadService.SplitAssetNameTerms(name));
+            }
+
+            filter.NameTerms = nameTerms
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            filter.TypeNames = BridgeResourcePayloadService.ResolveAssetTypeAliases(ReadStringValues(args, "type"));
+            filter.Labels = ReadStringValues(args, "label")
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            filter.Folders = ReadStringValues(args, "folder")
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            if (filter.Folders.Length > 0)
+            {
+                // Reuse resource folder validation by parsing the same comma grammar.
+                filter.Folders = BridgeResourcePayloadService.ParseAssetResourceFolders(string.Join(",", filter.Folders));
+            }
+
+            return BridgeResourcePayloadService.FindAssets("tool:asset-find", filter);
+        }
+
         public object EnsureFolder(JToken args)
         {
             var path = NormalizeAssetPath(FirstNonEmpty(ReadString(args, "path"), ReadString(args, "folder")));
             return EnsureFolderPath(path);
+        }
+
+        private static string[] ReadStringValues(JToken args, string name)
+        {
+            var token = ReadProperty(args, name);
+            if (token == null || token.Type == JTokenType.Null)
+            {
+                return Array.Empty<string>();
+            }
+
+            if (token.Type == JTokenType.String)
+            {
+                var value = token.Value<string>();
+                return string.IsNullOrWhiteSpace(value) ? Array.Empty<string>() : new[] { value! };
+            }
+
+            if (token.Type == JTokenType.Array)
+            {
+                return token
+                    .Values<string>()
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Select(value => value!)
+                    .ToArray();
+            }
+
+            throw new ArgumentException($"{name} must be a string or array of strings.", nameof(args));
         }
 
         public object Recompile(JToken args)

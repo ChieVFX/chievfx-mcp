@@ -406,6 +406,8 @@ class McpServerCore:
             if name == "package-search" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_package_mutation_text(result)
             if name in {"package-add", "package-remove"} and arguments.get("outputFormat") != "json" and isinstance(result, dict)
+            else format_asset_find_text(result)
+            if name == "asset-find" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_frame_debugger_control_text(result)
             if name == "frame-debugger-control" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_frame_debugger_groups_list_text(result)
@@ -554,6 +556,8 @@ class McpServerCore:
                 text = truncate_resource_text(format_gameobject_get_text(bridge_result.get("result")))
             elif resource_kind == "template" and resource_id in {"scene-component", "scene-all-component"}:
                 text = truncate_resource_text(format_gameobject_component_get_text(bridge_result.get("result")))
+            elif resource_kind == "template" and resource_id in {"asset-detail", "asset-subasset-detail"}:
+                text = truncate_resource_text(format_asset_detail_text(bridge_result.get("result")))
             else:
                 text = format_resource_text(bridge_result.get("result"))
 

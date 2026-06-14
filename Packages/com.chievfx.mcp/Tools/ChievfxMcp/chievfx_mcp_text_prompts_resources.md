@@ -88,42 +88,6 @@ mimeType: text/plain
 
 ---
 type: resourceTemplate
-id: assets-name-contains
-uriTemplate: chievfx://assets/name-contains/{text}
-name: Assets by name substring
-description: Find persisted project assets whose names match percent-encoded AssetDatabase name text. Defaults to area=assets.
-mimeType: text/plain
----
-
----
-type: resourceTemplate
-id: assets-type
-uriTemplate: chievfx://assets/type/{assetType}
-name: Assets by type
-description: Find persisted project assets by AssetDatabase type or supported alias such as material, texture, prefab, scene, or mesh.
-mimeType: text/plain
----
-
----
-type: resourceTemplate
-id: assets-label
-uriTemplate: chievfx://assets/label/{label}
-name: Assets by label
-description: Find persisted project assets by AssetDatabase label. Defaults to area=assets.
-mimeType: text/plain
----
-
----
-type: resourceTemplate
-id: assets-filter
-uriTemplate: chievfx://assets/filter/{filterSpec}
-name: Assets by compact AssetDatabase filter
-description: Find persisted assets with encoded name/type/label/area/folder/limit/subassets filter text.
-mimeType: text/plain
----
-
----
-type: resourceTemplate
 id: asset-detail
 uriTemplate: chievfx://asset/{guid}
 name: Asset detail by GUID

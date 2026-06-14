@@ -10,6 +10,8 @@ import chievfx_mcp_server as mcp  # noqa: E402
 class GameObjectFormattingTests(unittest.TestCase):
     def test_gameobject_get_is_not_advertised(self) -> None:
         names = [tool["name"] for tool in mcp.TOOLS]
+        self.assertIn("asset-find", names)
+        self.assertIn("asset-find", mcp.DEFAULT_REQUIRED_TOOL_IDS)
         self.assertIn("asset-create", names)
         self.assertIn("asset-create", mcp.DEFAULT_REQUIRED_TOOL_IDS)
         self.assertIn("asset-delete", names)
@@ -50,6 +52,49 @@ class GameObjectFormattingTests(unittest.TestCase):
 
         asset_create_tool = next(tool for tool in mcp.TOOLS if tool["name"] == "asset-create")
         self.assertIn("Scripts, shaders, uxml, uss, json", asset_create_tool["description"])
+
+        asset_find_tool = next(tool for tool in mcp.TOOLS if tool["name"] == "asset-find")
+        asset_find_properties = asset_find_tool["inputSchema"]["properties"]
+        self.assertIn("includeSubassets", asset_find_properties)
+        self.assertIn("maxResults", asset_find_properties)
+
+    def test_asset_find_text_uses_compact_rows(self) -> None:
+        result = {
+            "count": 2,
+            "totalAssetGuids": 1,
+            "maxResults": 80,
+            "truncated": False,
+            "assetDatabaseFilter": "wood t:Material",
+            "assets": [
+                {
+                    "name": "Wood",
+                    "path": "Assets/Materials/Wood.mat",
+                    "guid": "0123456789abcdef0123456789abcdef",
+                    "mainType": "Material",
+                    "labels": ["ui"],
+                    "isMainAsset": True,
+                    "localId": 2100000,
+                    "resourceUri": "chievfx://asset/0123456789abcdef0123456789abcdef",
+                },
+                {
+                    "name": "Preview",
+                    "path": "Assets/Materials/Wood.mat",
+                    "guid": "0123456789abcdef0123456789abcdef",
+                    "type": "Texture2D",
+                    "labels": [],
+                    "isMainAsset": False,
+                    "localId": 2800000,
+                    "resourceUri": "chievfx://asset/0123456789abcdef0123456789abcdef/id/2800000",
+                },
+            ],
+        }
+
+        text = mcp.format_asset_find_text(result)
+
+        self.assertIn("(2 shown, 1 asset guid) filter:wood t:Material", text)
+        self.assertIn("- Assets/Materials/Wood.mat name:Wood guid:0123456789abcdef0123456789abcdef [Material, labels:ui]", text)
+        self.assertIn("detail: chievfx://asset/0123456789abcdef0123456789abcdef", text)
+        self.assertIn("[Texture2D, localId:2800000]", text)
 
     def test_gameobject_find_text_uses_compact_rows(self) -> None:
         result = {

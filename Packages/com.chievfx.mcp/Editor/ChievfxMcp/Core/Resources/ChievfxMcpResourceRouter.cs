@@ -54,34 +54,6 @@ namespace Chievfx.Mcp.Editor
                     return sceneResources.ReadOpenedScenesResource(uri);
                 }
 
-                if (uri.StartsWith("chievfx://assets/", StringComparison.Ordinal))
-                {
-                    var assetParts = uri.Substring("chievfx://assets/".Length).Split('/');
-                    if (assetParts.Length == 2 && string.Equals(assetParts[0], "name-contains", StringComparison.Ordinal))
-                    {
-                        var text = BridgeResourcePayloadService.DecodeResourceFilterSegment(assetParts[1], "text", MaxResourceFilterValueChars);
-                        return assetResources.ReadFilteredAssetsResource(uri, BridgeResourcePayloadService.CreateAssetNameContainsResourceFilter(text));
-                    }
-
-                    if (assetParts.Length == 2 && string.Equals(assetParts[0], "type", StringComparison.Ordinal))
-                    {
-                        var assetType = BridgeResourcePayloadService.DecodeResourceFilterSegment(assetParts[1], "assetType", MaxResourceFilterValueChars);
-                        return assetResources.ReadFilteredAssetsResource(uri, BridgeResourcePayloadService.CreateAssetTypeResourceFilter(assetType));
-                    }
-
-                    if (assetParts.Length == 2 && string.Equals(assetParts[0], "label", StringComparison.Ordinal))
-                    {
-                        var label = BridgeResourcePayloadService.DecodeResourceFilterSegment(assetParts[1], "label", MaxResourceFilterValueChars);
-                        return assetResources.ReadFilteredAssetsResource(uri, BridgeResourcePayloadService.CreateAssetLabelResourceFilter(label));
-                    }
-
-                    if (assetParts.Length == 2 && string.Equals(assetParts[0], "filter", StringComparison.Ordinal))
-                    {
-                        var filterSpec = BridgeResourcePayloadService.DecodeResourceFilterSegment(assetParts[1], "filterSpec", MaxResourceFilterSegmentChars);
-                        return assetResources.ReadFilteredAssetsResource(uri, BridgeResourcePayloadService.ParseAssetResourceFilterSpec(filterSpec));
-                    }
-                }
-
                 if (uri.StartsWith("chievfx://asset/", StringComparison.Ordinal))
                 {
                     var assetParts = uri.Substring("chievfx://asset/".Length).Split('/');

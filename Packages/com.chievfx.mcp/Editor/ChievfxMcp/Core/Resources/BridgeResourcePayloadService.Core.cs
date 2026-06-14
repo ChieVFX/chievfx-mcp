@@ -133,6 +133,11 @@ namespace Chievfx.Mcp.Editor
 
         internal static object ReadFilteredAssetsResource(string uri, ResourceAssetFilter filter)
         {
+            return FindAssets(uri, filter);
+        }
+
+        internal static Dictionary<string, object?> FindAssets(string uri, ResourceAssetFilter filter)
+        {
             var query = CreateAssetDatabaseFilterQuery(filter);
             var guids = filter.Folders.Length > 0
                 ? AssetDatabase.FindAssets(query, filter.Folders)
@@ -149,7 +154,8 @@ namespace Chievfx.Mcp.Editor
                     continue;
                 }
 
-                foreach (var row in CreateAssetResourceRows(path, guid, filter.IncludeSubassets))
+                foreach (var row in CreateAssetResourceRows(path, guid, filter.IncludeSubassets)
+                    .Where(row => AssetResourceRowMatchesFilter(row, filter)))
                 {
                     if (rows.Count >= filter.MaxResults)
                     {

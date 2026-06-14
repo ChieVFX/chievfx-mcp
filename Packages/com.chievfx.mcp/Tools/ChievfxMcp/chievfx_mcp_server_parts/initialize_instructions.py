@@ -69,7 +69,20 @@ def build_initialize_server_info(instructions: str | None = None) -> dict[str, s
     if instructions is None:
         instructions = build_initialize_instructions()
     fingerprint = hashlib.sha256(instructions.encode("utf-8")).hexdigest()[:12]
-    return {"name": CURSOR_SERVER_NAME, "version": f"{SERVER_VERSION}+instructions.{fingerprint}"}
+    # Cursor caches initialize.instructions per server identity and only adopts a fresh
+    # payload when serverInfo.version is semver-NEWER. Two consequences shape this:
+    #   1. Build metadata (the "+..." suffix) is ignored by semver precedence, so a
+    #      fingerprint placed there is invisible and the version looks constant.
+    #   2. A lower/equal version is ignored; only a strictly higher one triggers a refresh.
+    # Cursor also relaunches this process on every reconnect, so no in-process counter
+    # survives. A monotonic wall-clock patch guarantees the version increases across
+    # reconnects, so Cursor refreshes instructions whenever the selection changed. The
+    # instruction fingerprint stays in build metadata purely for human/debug visibility.
+    base = SERVER_VERSION.split("+", 1)[0].split(".")
+    major = base[0] if len(base) > 0 else "0"
+    minor = base[1] if len(base) > 1 else "1"
+    patch = int(time.time())
+    return {"name": CURSOR_SERVER_NAME, "version": f"{major}.{minor}.{patch}+instructions.{fingerprint}"}
 
 
 def build_enabled_descriptor_instructions(plan: dict[str, Any] | None = None) -> str:

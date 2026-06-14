@@ -562,6 +562,10 @@ namespace Chievfx.Mcp.Editor
                 ["gameObjectCount"] = matches.SelectMany(entry => entry.GameObjectIds).Distinct().Count(),
                 ["loadedDependencyCount"] = matches.Count(entry => entry.LoadedDependency),
                 ["savedDependencyCount"] = matches.Count(entry => entry.SavedDependency),
+                ["memoryEstimate"] = CreateMaterialProfileMemoryEstimate(matches
+                    .Select(entry => entry.UnityObject)
+                    .Where(unityObject => unityObject != null)
+                    .Select(unityObject => unityObject!)),
                 ["resourceUri"] = $"chievfx://scene/all/usage/assets/{assetType}"
             };
         }
@@ -631,6 +635,7 @@ namespace Chievfx.Mcp.Editor
                 output["sampleLocationsTruncated"] = entry.ReferenceCount > MaxSceneUsageSampleLocations;
             }
 
+            output["memoryEstimate"] = CreateMaterialProfileMemoryEstimate(entry.UnityObject);
             return output;
         }
 

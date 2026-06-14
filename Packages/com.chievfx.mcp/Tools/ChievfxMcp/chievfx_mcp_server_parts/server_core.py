@@ -566,8 +566,10 @@ class McpServerCore:
                 text = truncate_resource_text(format_scene_usage_assets_text(bridge_result.get("result")))
             elif resource_kind == "template" and resource_id in {"scene-all-usage-asset", "scene-all-usage-subasset"}:
                 text = truncate_resource_text(format_scene_usage_asset_detail_text(bridge_result.get("result")))
-            elif resource_kind == "template" and resource_id in {"scene-all-material-profile-shader", "scene-all-material-profile-material"}:
-                text = truncate_resource_text(format_material_profile_summary_text(bridge_result.get("result")))
+            elif resource_kind == "template" and resource_id == "scene-all-material-profile-shader":
+                text = truncate_resource_text(format_material_profile_shader_text(bridge_result.get("result")))
+            elif resource_kind == "template" and resource_id == "scene-all-material-profile-material":
+                text = truncate_resource_text(format_material_profile_material_text(bridge_result.get("result")))
             else:
                 text = format_resource_text(bridge_result.get("result"))
 

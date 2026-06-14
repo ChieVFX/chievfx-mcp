@@ -142,8 +142,7 @@ namespace Chievfx.Mcp.Editor
                 if (parts.Length == 3 && string.Equals(parts[1], "go", StringComparison.Ordinal))
                 {
                     var context = BridgeResourcePayloadService.ResolveResourceSceneContext(parts[0]);
-                    var gameObject = GameObjectBridgeService.ResolveGameObjectByPath(context, BridgeResourcePayloadService.DecodeResourceSegment(parts[2], "goPath"));
-                    return sceneResources.ReadGameObjectResource(uri, context, gameObject);
+                    return sceneResources.ReadGameObjectPathResource(uri, context, BridgeResourcePayloadService.DecodeResourceSegment(parts[2], "goPath"));
                 }
 
                 if (parts.Length == 4

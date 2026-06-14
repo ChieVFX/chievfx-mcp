@@ -108,6 +108,7 @@ def format_scene_usage_counts_text(result: dict[str, Any]) -> str:
             lines.append(
                 f"- {format_toon_atom(row.get('assetType'))}: assets:{format_toon_atom(row.get('assetCount'))} "
                 f"refs:{format_toon_atom(row.get('referenceCount'))} objects:{format_toon_atom(row.get('gameObjectCount'))}"
+                f"{format_memory_suffix(row.get('memoryEstimate'))}"
             )
     return "\n".join(line for line in lines if line)
 
@@ -166,9 +167,31 @@ def format_scene_usage_asset_row_lines(asset: dict[str, Any]) -> list[str]:
     suffix = f" [{', '.join(part for part in badges if part)}]" if badges else ""
     lines = [
         f"- {path} name:{name} guid:{guid}{suffix} refs:{format_toon_atom(asset.get('referenceCount'))} "
-        f"objects:{format_toon_atom(asset.get('gameObjectCount'))}"
+        f"objects:{format_toon_atom(asset.get('gameObjectCount'))}{format_memory_suffix(asset.get('memoryEstimate'))}"
     ]
     return lines
+
+
+def format_memory_suffix(memory: Any) -> str:
+    if not isinstance(memory, dict):
+        return ""
+    bytes_value = memory.get("bytes")
+    if should_omit_toon_value(bytes_value):
+        return ""
+    suffix = f" mem:{format_memory_value(bytes_value)}"
+    if memory.get("available") is False:
+        suffix += "?"
+    return suffix
+
+
+def format_memory_value(bytes_value: Any) -> str:
+    try:
+        numeric = float(bytes_value)
+    except (TypeError, ValueError):
+        return f"{format_toon_atom(bytes_value)}B"
+    if numeric >= 1024 * 1024:
+        return f"{numeric / (1024 * 1024):.2f} MB"
+    return f"{numeric / 1024:.2f} KB"
 
 
 def format_material_profile_summary_text(result: dict[str, Any]) -> str:
@@ -185,6 +208,74 @@ def format_material_profile_summary_text(result: dict[str, Any]) -> str:
                 continue
             lines.append(
                 f"- shader:{format_toon_atom(group.get('shaderName'))} materials:{format_toon_atom(group.get('materialCount'))} "
-                f"refs:{format_toon_atom(group.get('rendererReferenceCount'))} detail:{format_asset_text_value(group.get('followUpUri'))}"
+                f"refs:{format_toon_atom(group.get('rendererReferenceCount'))} textures:{format_toon_atom(group.get('textureCount'))}"
+                f"{format_memory_suffix(group.get('memoryEstimate'))} detail:{format_asset_text_value(group.get('followUpUri'))}"
             )
     return "\n".join(line for line in lines if line)
+
+
+def format_material_profile_shader_text(result: dict[str, Any]) -> str:
+    if not isinstance(result, dict) or "shader" not in result:
+        return to_toon(result)
+    shader = result.get("shader")
+    if not isinstance(shader, dict):
+        return to_toon(result)
+    lines = [
+        f"shader:{format_toon_atom(shader.get('shaderName'))} materials:{format_toon_atom(result.get('materialCount'))}/"
+        f"{format_toon_atom(result.get('totalMaterials'))} refs:{format_toon_atom(shader.get('rendererReferenceCount'))} "
+        f"serialized:{format_toon_atom(shader.get('serializedReferenceCount'))} textures:{format_toon_atom(shader.get('textureCount'))}"
+        f"{format_memory_suffix(shader.get('memoryEstimate'))}"
+    ]
+    if result.get("materialsTruncated") is True:
+        lines.append(f"truncated at maxMaterials:{format_toon_atom(result.get('maxMaterials'))}")
+    materials = result.get("materials")
+    if isinstance(materials, list):
+        for material in materials:
+            if isinstance(material, dict):
+                lines.extend(format_material_profile_material_row_lines(material))
+    texture_links = result.get("textureLinks")
+    if isinstance(texture_links, list) and texture_links:
+        lines.append(f"textures[{len(texture_links)}]:")
+        for link in texture_links:
+            if not isinstance(link, dict):
+                continue
+            lines.append(
+                f"- {format_asset_text_value(link.get('propertyName'))}: {format_asset_text_value(link.get('textureName'))} "
+                f"[{format_asset_text_value(link.get('textureType'))}] asset:{format_asset_text_value(link.get('assetResourceUri'))}"
+            )
+    return "\n".join(line for line in lines if line)
+
+
+def format_material_profile_material_text(result: dict[str, Any]) -> str:
+    if not isinstance(result, dict) or "material" not in result:
+        return to_toon(result)
+    material = result.get("material")
+    if not isinstance(material, dict):
+        return to_toon(result)
+    lines = format_material_profile_material_row_lines(material)
+    lines.append(
+        f"locations:{format_toon_atom(result.get('locationCount'))}/{format_toon_atom(result.get('totalLocations'))} "
+        f"textures:{format_toon_atom(material.get('textureCount'))}{format_memory_suffix(material.get('memoryEstimate'))}"
+    )
+    locations = result.get("locations")
+    if isinstance(locations, list):
+        for location in locations:
+            if not isinstance(location, dict):
+                continue
+            lines.append(
+                f"- {format_asset_text_value(location.get('gameObjectPath'))} "
+                f"{format_asset_text_value(location.get('componentKey'))}.{format_asset_text_value(location.get('propertyPath'))} "
+                f"source:{format_toon_atom(location.get('source'))}"
+            )
+    return "\n".join(line for line in lines if line)
+
+
+def format_material_profile_material_row_lines(material: dict[str, Any]) -> list[str]:
+    lines = format_scene_usage_asset_row_lines(material)
+    lines.append(
+        f"  shader:{format_toon_atom(material.get('shaderName'))} "
+        f"refs:{format_toon_atom(material.get('rendererReferenceCount'))}+{format_toon_atom(material.get('serializedReferenceCount'))} "
+        f"textures:{format_toon_atom(material.get('textureCount'))}{format_memory_suffix(material.get('memoryEstimate'))} "
+        f"profile:{format_asset_text_value(material.get('materialProfileUri'))}"
+    )
+    return lines

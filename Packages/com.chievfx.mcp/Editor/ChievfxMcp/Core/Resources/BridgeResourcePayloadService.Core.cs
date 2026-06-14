@@ -92,6 +92,58 @@ namespace Chievfx.Mcp.Editor
             return result;
         }
 
+        internal static object ReadGameObjectPathResource(string uri, GameObjectQueryContext context, string path)
+        {
+            var normalizedPath = GameObjectBridgeService.NormalizeHierarchyPath(path);
+            var allObjects = GameObjectBridgeService.EnumerateContextGameObjects(context).ToArray();
+            var exactMatches = allObjects
+                .Where(gameObject => string.Equals(GameObjectBridgeService.GetHierarchyPath(gameObject, context), normalizedPath, StringComparison.Ordinal))
+                .ToArray();
+            if (exactMatches.Length == 1)
+            {
+                return ReadGameObjectResource(uri, context, exactMatches[0]);
+            }
+
+            if (exactMatches.Length > 1)
+            {
+                return CreateGameObjectPathCandidatesResource(uri, context, normalizedPath, exactMatches, "duplicate-path");
+            }
+
+            var unindexedMatches = allObjects
+                .Where(gameObject => string.Equals(GameObjectBridgeService.RemoveDuplicateIndexes(GameObjectBridgeService.GetHierarchyPath(gameObject, context)), normalizedPath, StringComparison.Ordinal))
+                .ToArray();
+            if (unindexedMatches.Length == 1)
+            {
+                return ReadGameObjectResource(uri, context, unindexedMatches[0]);
+            }
+
+            if (unindexedMatches.Length > 1)
+            {
+                return CreateGameObjectPathCandidatesResource(uri, context, normalizedPath, unindexedMatches, "ambiguous-unindexed-path");
+            }
+
+            throw new InvalidOperationException($"No GameObject found at hierarchy path '{path}' in {context.Source}.");
+        }
+
+        private static object CreateGameObjectPathCandidatesResource(
+            string uri,
+            GameObjectQueryContext context,
+            string path,
+            GameObject[] matches,
+            string reason)
+        {
+            var result = CreateResourceEnvelope(uri, CreateResourceContext(context));
+            result["path"] = path;
+            result["reason"] = reason;
+            result["count"] = matches.Length;
+            result["matches"] = matches
+                .OrderBy(gameObject => gameObject.scene.path, StringComparer.Ordinal)
+                .ThenBy(gameObject => GameObjectBridgeService.GetHierarchyPath(gameObject, context), StringComparer.Ordinal)
+                .Select(gameObject => CreateResourceGameObjectSummary(gameObject, context, includeComponents: true))
+                .ToArray();
+            return result;
+        }
+
         internal static object ReadComponentResource(
             string uri,
             GameObjectQueryContext context,

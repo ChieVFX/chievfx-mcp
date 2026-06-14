@@ -132,6 +132,94 @@ class GameObjectFormattingTests(unittest.TestCase):
         self.assertNotIn("scenePath", text)
         self.assertNotIn("componentTypesTruncated", text)
 
+    def test_gameobject_get_text_lists_duplicate_matches(self) -> None:
+        result = {
+            "path": "Canvas",
+            "reason": "duplicate-path",
+            "count": 2,
+            "matches": [
+                {
+                    "path": "Canvas",
+                    "instanceId": 1,
+                    "activeSelf": True,
+                    "activeInHierarchy": True,
+                    "scenePath": "Assets/A.unity",
+                    "components": [{"type": "Canvas", "enabled": True}],
+                },
+                {
+                    "path": "Canvas",
+                    "instanceId": 2,
+                    "activeSelf": True,
+                    "activeInHierarchy": True,
+                    "scenePath": "Assets/B.unity",
+                    "components": [{"type": "Canvas", "enabled": True}],
+                },
+            ],
+        }
+
+        text = mcp.format_gameobject_get_text(result)
+
+        self.assertIn("duplicate-path path:Canvas matches:2", text)
+        self.assertIn("- Canvas (id: 1)", text)
+        self.assertIn("- Canvas (id: 2)", text)
+
+    def test_scene_usage_formatters_include_memory(self) -> None:
+        result = {
+            "totalAssets": 1,
+            "totalReferences": 2,
+            "totalObjects": 3,
+            "counts": [
+                {
+                    "assetType": "material",
+                    "assetCount": 1,
+                    "referenceCount": 2,
+                    "gameObjectCount": 3,
+                    "memoryEstimate": {"bytes": 1764, "available": True},
+                }
+            ],
+        }
+
+        text = mcp.format_scene_usage_counts_text(result)
+
+        self.assertIn("- material: assets:1 refs:2 objects:3 mem:1.72 KB", text)
+
+    def test_material_profile_shader_formatter_is_compact(self) -> None:
+        result = {
+            "shader": {
+                "shaderName": "TextMeshPro/Mobile/Distance Field",
+                "materialCount": 1,
+                "rendererReferenceCount": 0,
+                "serializedReferenceCount": 4,
+                "textureCount": 1,
+                "memoryEstimate": {"bytes": 1764, "available": True},
+            },
+            "materialCount": 1,
+            "totalMaterials": 1,
+            "materials": [
+                {
+                    "path": "Assets/Font.asset",
+                    "name": "Font Material",
+                    "guid": "abc",
+                    "type": "Material",
+                    "isMainAsset": False,
+                    "localId": 2100000,
+                    "referenceCount": 4,
+                    "gameObjectCount": 4,
+                    "shaderName": "TextMeshPro/Mobile/Distance Field",
+                    "rendererReferenceCount": 0,
+                    "serializedReferenceCount": 4,
+                    "textureCount": 1,
+                    "memoryEstimate": {"bytes": 1764, "available": True},
+                    "materialProfileUri": "chievfx://scene/all/material-profile/material/abc%3A2100000",
+                }
+            ],
+        }
+
+        text = mcp.format_material_profile_shader_text(result)
+
+        self.assertIn("shader:\"TextMeshPro/Mobile/Distance Field\" materials:1/1 refs:0 serialized:4 textures:1 mem:1.72 KB", text)
+        self.assertIn("profile:chievfx://scene/all/material-profile/material/abc%3A2100000", text)
+
     def test_gameobject_find_text_marks_inactive_and_truncated_components(self) -> None:
         result = {
             "source": "activeScene",
@@ -254,7 +342,7 @@ class GameObjectFormattingTests(unittest.TestCase):
             "(1 shown, 1 match)\n"
             "- Main Camera/Some_Light (id: -187268)\n"
             "  details: tag: Untagged, layer: 0, children: 0\n"
-            "  components[2]: Transform, Light enabled",
+            "  components[2]: Transform, Light",
         )
         self.assertNotIn("scenePath", text)
 

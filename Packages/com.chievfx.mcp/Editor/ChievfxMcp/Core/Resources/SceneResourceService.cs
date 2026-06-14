@@ -20,6 +20,11 @@ namespace Chievfx.Mcp.Editor
             return BridgeResourcePayloadService.ReadGameObjectResource(uri, context, gameObject);
         }
 
+        public object ReadGameObjectPathResource(string uri, GameObjectQueryContext context, string path)
+        {
+            return BridgeResourcePayloadService.ReadGameObjectPathResource(uri, context, path);
+        }
+
         public object ReadComponentResource(
             string uri,
             GameObjectQueryContext context,

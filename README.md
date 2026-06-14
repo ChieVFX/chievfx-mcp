@@ -57,6 +57,13 @@ After the package is installed in your Unity project:
 
 The MCP server appears as `unity-mcp-chievfx`.
 
+## Documentation
+
+These guides ship inside the package (`Packages/com.chievfx.mcp/Documentation~/`), so they travel with both the UPM and Python installs:
+
+- [Extending ChievFX MCP](Packages/com.chievfx.mcp/Documentation~/ChievfxMcpExtensions.md) — author custom tools, resources, and prompts (including the `Custom` category and dynamic prompts).
+- [Agent instructions internals](Packages/com.chievfx.mcp/Documentation~/ChievfxMcpAgentInstructions.md) — how `initialize.instructions` and category resources are assembled.
+
 ## License
 
 [MIT](LICENSE.md) © Evgeniy Skvortsov

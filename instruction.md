@@ -148,7 +148,7 @@ Open `Window > ChievFX > MCP Resources` to choose advertised MCP resources/templ
 UserSettings/ChievfxMcpResourceSelection.json
 ```
 
-Fresh `resources/list` and `resources/templates/list` advertise enabled resources only, plus a `chievfx://categories/<slug>` resource for each collapsed category. See `Docs/ChievfxMcpAgentInstructions.md` for how `initialize.instructions` and category resources are assembled. No resources are required by default.
+Fresh `resources/list` and `resources/templates/list` advertise enabled resources only, plus a `chievfx://categories/<slug>` resource for each collapsed category. See `Packages/com.chievfx.mcp/Documentation~/ChievfxMcpAgentInstructions.md` for how `initialize.instructions` and category resources are assembled. No resources are required by default.
 
 Static resources:
 

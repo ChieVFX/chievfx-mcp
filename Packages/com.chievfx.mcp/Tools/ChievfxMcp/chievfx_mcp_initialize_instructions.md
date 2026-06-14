@@ -1,7 +1,7 @@
 ## ChievFX MCP Initialize Instructions
 
 This file feeds the MCP `initialize.instructions` field.
-See `Docs/ChievfxMcpAgentInstructions.md` for the full assembly flow and how the resource guide mirrors enabled selection.
+See `../../Documentation~/ChievfxMcpAgentInstructions.md` for the full assembly flow and how the resource guide mirrors enabled selection.
 
 Record format:
 - Records are delimited by a line containing only `---`.

@@ -368,6 +368,249 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             throw new ArgumentException("Unsupported UI Toolkit value type: " + targetType.FullName);
         }
 
+        internal static Dictionary<string, object?> TypeTextIntoFocusedTextField(JToken args, UiToolkitDependencyStatus status, bool requireTarget)
+        {
+            var warnings = new List<string>();
+            var dryRun = ReadBool(args, "dryRun", false);
+            var append = ReadBool(args, "append", false);
+            var submit = ReadBool(args, "submit", false);
+            var focus = ReadBool(args, "focus", true);
+            var invokeCallbacks = ReadBool(args, "invokeCallbacks", true);
+            var text = ReadString(args, "text") ?? ReadString(args, "value")
+                ?? throw new ArgumentException("ui-runtime-type-text requires 'text'.");
+
+            var result = CreateEnvelope("tool://ui-runtime-type-text#uitoolkit", status);
+            result["framework"] = "uitoolkit";
+            result["dryRun"] = dryRun;
+            result["playMode"] = IsRuntimePlayModeActive();
+            result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
+            result["allowStateMutation"] = ReadBool(args, "allowStateMutation", false);
+            result["focusedElementBefore"] = CreateFocusedElementRow(status);
+
+            var resolution = ResolveRuntimeInteractionTarget(args, status, warnings);
+            result["stack"] = resolution.Stack;
+            result["resolvedBy"] = resolution.ResolvedBy;
+
+            var element = resolution.Target as VisualElement;
+            var group = resolution.Group ?? (element == null ? null : PanelGroup.FromElement(element));
+            var valueProperty = element?.GetType().GetProperty("value", BindingFlags.Public | BindingFlags.Instance);
+            var isTextField = element != null
+                && valueProperty != null
+                && valueProperty.CanWrite
+                && (Nullable.GetUnderlyingType(valueProperty.PropertyType) ?? valueProperty.PropertyType) == typeof(string);
+            result["resolved"] = isTextField;
+            result["target"] = element == null ? null : CreateVisualElementRow(element, status, group!, includeTextAndValue: true);
+            result["targetStateBefore"] = element == null ? null : CreateVisualElementStateRow(element, status);
+
+            if (!isTextField)
+            {
+                if (requireTarget)
+                {
+                    throw new ArgumentException(element == null
+                        ? "ui-runtime-type-text could not resolve a UI Toolkit target from targetPath/name/visualElementRef or screenPosition."
+                        : $"Target '{GetVisualElementPath(element)}' has no writable string value (not a TextField).");
+                }
+
+                result["warnings"] = warnings.Distinct().ToArray();
+                return result;
+            }
+
+            var textBefore = valueProperty!.GetValue(element) as string ?? string.Empty;
+            var resultingText = append ? textBefore + text : text;
+            result["controlType"] = element!.GetType().Name;
+            result["textBefore"] = textBefore;
+            result["plan"] = new Dictionary<string, object?>
+            {
+                ["controlType"] = element.GetType().Name,
+                ["targetRef"] = CreateVisualElementRef(element),
+                ["focus"] = focus,
+                ["append"] = append,
+                ["submit"] = submit,
+                ["invokeCallbacks"] = invokeCallbacks,
+                ["textToType"] = text,
+                ["resultingText"] = resultingText,
+                ["method"] = invokeCallbacks
+                    ? "focus + per-character KeyDownEvent (imitates real player typing, fires ChangeEvent)"
+                    : "SetValueWithoutNotify (silent, no keystroke simulation)",
+                ["guard"] = "dryRun must be false, Play Mode active, and allowStateMutation true before focusing or typing.",
+            };
+
+            if (!dryRun)
+            {
+                EnsureRuntimeMutationAllowed(args);
+
+                if (invokeCallbacks)
+                {
+                    TypeWithRealKeyboard(element, status, text, append, focus, warnings);
+                }
+                else
+                {
+                    if (focus)
+                    {
+                        element.Focus();
+                    }
+
+                    var setWithoutNotify = element.GetType().GetMethod("SetValueWithoutNotify", BindingFlags.Public | BindingFlags.Instance, null, new[] { typeof(string) }, null);
+                    if (setWithoutNotify != null)
+                    {
+                        setWithoutNotify.Invoke(element, new object[] { resultingText });
+                    }
+                    else
+                    {
+                        valueProperty.SetValue(element, resultingText);
+                        warnings.Add("SetValueWithoutNotify was not found; used value property setter which fires ChangeEvent.");
+                    }
+
+                    TrySetCaretToEnd(element, resultingText.Length);
+                }
+
+                if (submit)
+                {
+                    DispatchNavigationSubmit(element);
+                    element.Blur();
+                }
+            }
+
+            result["textAfter"] = valueProperty.GetValue(element) as string;
+            result["focusedElementAfter"] = CreateFocusedElementRow(status);
+            result["targetStateAfter"] = CreateVisualElementStateRow(element, status);
+            result["warnings"] = warnings.Distinct().ToArray();
+            return result;
+        }
+
+        /// <summary>
+        /// Imitates a real player: focuses the field, then dispatches one KeyDownEvent per character
+        /// so the text-editing engine inserts characters and repaints the visible field (placeholder
+        /// hides, value commits, ChangeEvents fire). Uses only API stable since Unity 2019/2022.
+        /// </summary>
+        private static void TypeWithRealKeyboard(VisualElement element, UiToolkitDependencyStatus status, string text, bool append, bool focus, List<string> warnings)
+        {
+            if (focus)
+            {
+                element.Focus();
+            }
+
+            // Replace mode: select existing text so the first keystroke overwrites it, just like a
+            // player pressing Ctrl+A. Append mode: drop the selection and place the caret at the end.
+            if (!append)
+            {
+                if (!TryInvokeNoArg(element, "SelectAll"))
+                {
+                    var current = (element.GetType().GetProperty("value", BindingFlags.Public | BindingFlags.Instance)?.GetValue(element) as string) ?? string.Empty;
+                    TrySetCaretToEnd(element, current.Length);
+                }
+            }
+            else
+            {
+                var current = (element.GetType().GetProperty("value", BindingFlags.Public | BindingFlags.Instance)?.GetValue(element) as string) ?? string.Empty;
+                TrySetCaretToEnd(element, current.Length);
+            }
+
+            // Dispatch key events to the element that actually holds focus (the inner text input),
+            // falling back to the field itself when the focus controller does not expose one.
+            var editTarget = GetCurrentFocusedElement(status) as VisualElement ?? element;
+            var dispatched = 0;
+            foreach (var character in text)
+            {
+                var keyCode = MapCharToKeyCode(character);
+                try
+                {
+                    using (var keyDown = KeyDownEvent.GetPooled(character, keyCode, EventModifiers.None))
+                    {
+                        editTarget.SendEvent(keyDown);
+                    }
+
+                    dispatched++;
+                }
+                catch (Exception ex)
+                {
+                    warnings.Add($"KeyDownEvent dispatch failed at character {dispatched}: {ex.Message}");
+                    break;
+                }
+            }
+
+            // Fallback: if real key events did not change the value (some controls block synthetic key
+            // input), commit the text directly so the QA flow still produces the intended state.
+            var valueProperty = element.GetType().GetProperty("value", BindingFlags.Public | BindingFlags.Instance);
+            var produced = valueProperty?.GetValue(element) as string ?? string.Empty;
+            var expected = append ? text /* suffix */ : text;
+            var matched = append ? produced.EndsWith(text, StringComparison.Ordinal) : string.Equals(produced, expected, StringComparison.Ordinal);
+            if (!matched && valueProperty != null && valueProperty.CanWrite)
+            {
+                warnings.Add("Synthetic keystrokes did not update the field; committed text via value setter as a fallback.");
+                var fallbackText = append ? produced + text : text;
+                valueProperty.SetValue(element, fallbackText);
+                TrySetCaretToEnd(element, fallbackText.Length);
+            }
+        }
+
+        private static object? GetCurrentFocusedElement(UiToolkitDependencyStatus status)
+        {
+            return FindRuntimePanelGroups(status)
+                .Select(group =>
+                {
+                    var focusController = group.Panel == null ? null : GetMemberValue(group.Panel, "focusController");
+                    return focusController == null ? null : GetMemberValue(focusController, "focusedElement");
+                })
+                .FirstOrDefault(focused => focused != null);
+        }
+
+        private static bool TryInvokeNoArg(object target, string methodName)
+        {
+            var method = target.GetType().GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
+            if (method == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                method.Invoke(target, null);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static KeyCode MapCharToKeyCode(char character)
+        {
+            switch (character)
+            {
+                case '\n':
+                case '\r':
+                    return KeyCode.Return;
+                case '\t':
+                    return KeyCode.Tab;
+                case ' ':
+                    return KeyCode.Space;
+                case '\b':
+                    return KeyCode.Backspace;
+                default:
+                    return KeyCode.None;
+            }
+        }
+
+        private static void TrySetCaretToEnd(VisualElement element, int caretIndex)
+        {
+            foreach (var propertyName in new[] { "cursorIndex", "selectIndex" })
+            {
+                var property = element.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
+                if (property != null && property.CanWrite && property.PropertyType == typeof(int))
+                {
+                    try
+                    {
+                        property.SetValue(element, caretIndex);
+                    }
+                    catch
+                    {
+                        // Best-effort caret placement; some controls expose caret state differently.
+                    }
+                }
+            }
+        }
+
         internal static Dictionary<string, object?>? CreateFocusedElementRow(UiToolkitDependencyStatus status)
         {
             var focused = FindRuntimePanelGroups(status)

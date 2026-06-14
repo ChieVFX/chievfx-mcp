@@ -112,6 +112,8 @@ InitTestScene*.unity*
 .vibe-kanban/
 .cursor/mcp.json
 /.temp/
+# Generated MCP debug dumps live in .temp/ at any depth (project root and package).
+**/.temp/
 
 /Generated/
 Generated.meta

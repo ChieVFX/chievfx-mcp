@@ -14,8 +14,7 @@ Keep text compact. This content is injected into agent context at MCP startup.
 ---
 type: global
 text: |
-  ChievFX Unity MCP is project-local. Prefer enabled ChievFX MCP tools/resources when they provide live Unity evidence.
-  Before calling a ChievFX MCP tool, inspect its descriptor/schema from Cursor's MCP tool folder and use exact tool names.
+  Prefer enabled ChievFX MCP tools/resources when they provide live Unity evidence.
 ---
 
 ---
@@ -29,7 +28,7 @@ text: |
 type: tool
 id: events-wait
 text: |
-  events-wait: long-poll for the next matching Unity event; timeout is a normal branch, not failure. Match by contains (case-insensitive substring of a log/event message) or marker (exact name of a beacon you planted via the marker API; collision-free, best for orchestrated checks). Default cursor is the latest event (future-only), so logs that fire DURING the triggering op (Play-mode enter, recompile, script-execute) are skipped: capture sinceEventId from the trigger result (editor-playmode-set returns eventCursorBefore) or bridge-get-status BEFORE the trigger, or pass includeRecentMs with no sinceEventId. Prefer ASCII-only contains substrings (e.g. "Turn 1", "Player Turn") over Unicode punctuation (em dash —, smart quotes) in log text, since encoding mismatches can break substring matches. On timeout, inspect result.diagnostic: matchBelowCursor means it fired below your cursor (retry from earlier cursor), nonAsciiContains means your filter had non-ASCII that may have been mangled (retry ASCII-only), possiblyTruncated means it was evicted (verify via console-get-logs contains). Advanced filters source/type/level are still accepted but omitted from the advertised schema for clarity.
+  events-wait: long-poll for the next matching Unity event; an elapsed timeoutMs is a normal branch, not a failure. Match by contains (case-insensitive log substring) or marker (exact planted-beacon name). Events that fire DURING a trigger (Play-mode enter, recompile, script-execute) are skipped unless you capture sinceEventId before the trigger (e.g. bridge-get-status lastEventId) or pass includeRecentMs. On timeout, read result.diagnostic and recover via events-check-since.
 ---
 
 ---

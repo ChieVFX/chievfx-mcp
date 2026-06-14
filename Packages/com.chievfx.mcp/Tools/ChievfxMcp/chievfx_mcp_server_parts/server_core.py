@@ -51,6 +51,7 @@ class McpServerCore:
 
         try:
             if method == "initialize":
+                instructions = build_initialize_instructions()
                 # Always advertise listChanged so selection edits in Unity can push
                 # notifications/*/list_changed and the client re-fetches. Prompts must be
                 # advertised even when currently empty, otherwise a 0 -> N change cannot be
@@ -66,8 +67,8 @@ class McpServerCore:
                     {
                         "protocolVersion": params.get("protocolVersion", "2024-11-05"),
                         "capabilities": capabilities,
-                        "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
-                        "instructions": build_initialize_instructions(),
+                        "serverInfo": build_initialize_server_info(instructions),
+                        "instructions": instructions,
                     },
                 )
 

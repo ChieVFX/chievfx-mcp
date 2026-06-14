@@ -199,6 +199,26 @@ class CategoryResourceTests(unittest.TestCase):
 
         self.assertNotIn("chievfx://categories/essentials", instructions)
 
+    def test_server_info_version_tracks_initialize_instructions(self) -> None:
+        self.write_tool_selection([])
+        self.write_resource_selection(["editor-context"], [])
+        server = mcp.McpServer("http://127.0.0.1:1", str(self.temp_dir.name) + "/bridge", timeout_ms=1000)
+
+        before = server.handle_message(
+            {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05"}}
+        )["result"]
+
+        self.write_tool_selection(FRAME_DEBUGGER_TOOLS)
+        after = server.handle_message(
+            {"jsonrpc": "2.0", "id": 2, "method": "initialize", "params": {"protocolVersion": "2024-11-05"}}
+        )["result"]
+
+        self.assertEqual(before["serverInfo"]["name"], mcp.SERVER_NAME)
+        self.assertTrue(before["serverInfo"]["version"].startswith(f"{mcp.SERVER_VERSION}+instructions."))
+        self.assertNotEqual(before["serverInfo"]["version"], after["serverInfo"]["version"])
+        self.assertNotIn("chievfx://categories/frame-debugger", before["instructions"])
+        self.assertIn("chievfx://categories/frame-debugger", after["instructions"])
+
 
 if __name__ == "__main__":
     unittest.main()

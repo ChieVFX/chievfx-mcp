@@ -58,6 +58,20 @@ def build_initialize_instructions() -> str:
     return "\n".join(lines).strip()
 
 
+def build_initialize_server_info(instructions: str | None = None) -> dict[str, str]:
+    """Expose a changing version when generated startup instructions change.
+
+    Cursor materializes initialize.instructions into its MCP file-system cache.
+    Selection and extension availability affect those instructions, but MCP has
+    no instructions/list_changed notification. A deterministic version suffix
+    gives reload/re-handshake flows a cheap cache-busting signal.
+    """
+    if instructions is None:
+        instructions = build_initialize_instructions()
+    fingerprint = hashlib.sha256(instructions.encode("utf-8")).hexdigest()[:12]
+    return {"name": SERVER_NAME, "version": f"{SERVER_VERSION}+instructions.{fingerprint}"}
+
+
 def build_enabled_descriptor_instructions(plan: dict[str, Any] | None = None) -> str:
     if plan is None:
         plan = build_category_plan()

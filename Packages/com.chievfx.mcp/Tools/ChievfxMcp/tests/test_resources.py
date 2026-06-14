@@ -66,6 +66,18 @@ class ResourceTests(unittest.TestCase):
         )
         mcp.invalidate_extension_manifest_cache()
 
+    def overwrite_extension_manifest_without_invalidating(self, extensions: list[dict[str, object]]) -> None:
+        self.extension_manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        self.extension_manifest_path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": mcp.EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION,
+                    "extensions": extensions,
+                }
+            ),
+            encoding="utf-8",
+        )
+
     def write_selection(
         self,
         enabled_resources: list[str],
@@ -161,6 +173,52 @@ class ResourceTests(unittest.TestCase):
         self.assertGreater(static_resource["estimatedTokens"], 0)
         self.assertEqual(content["text"], "extension registry active")
         self.assertEqual(self.server.calls, [])
+
+    def test_extension_manifest_watcher_invalidation_refreshes_cached_manifest(self) -> None:
+        self.write_selection(["editor-context"], [])
+        self.write_extension_manifest(
+            [
+                {
+                    "id": "test.one",
+                    "displayName": "Test One",
+                    "resources": [
+                        {
+                            "id": "test-one-resource",
+                            "uri": "chievfx://extensions/test.one/resource",
+                            "name": "Test one resource",
+                            "description": "Cached manifest resource.",
+                            "category": "Extensions",
+                        }
+                    ],
+                }
+            ]
+        )
+        self.assertIn("test-one-resource", {resource["id"] for resource in mcp.all_resources()})
+
+        self.overwrite_extension_manifest_without_invalidating(
+            [
+                {
+                    "id": "test.two",
+                    "displayName": "Test Two",
+                    "resources": [
+                        {
+                            "id": "test-two-resource",
+                            "uri": "chievfx://extensions/test.two/resource",
+                            "name": "Test two resource",
+                            "description": "Fresh manifest resource.",
+                            "category": "Extensions",
+                        }
+                    ],
+                }
+            ]
+        )
+        self.assertNotIn("test-two-resource", {resource["id"] for resource in mcp.all_resources()})
+
+        mcp.handle_selection_target_changed(str(self.extension_manifest_path))
+
+        resource_ids = {resource["id"] for resource in mcp.all_resources()}
+        self.assertIn("test-two-resource", resource_ids)
+        self.assertNotIn("test-one-resource", resource_ids)
 
     def test_dynamic_extension_resource_reads_forward_to_unity_bridge(self) -> None:
         uri = "chievfx://extensions/chievfx.ecs/worlds"

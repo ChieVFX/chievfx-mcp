@@ -50,6 +50,18 @@ def selection_file_signature(path_str: str) -> tuple[float, int] | None:
     return (stat_result.st_mtime, stat_result.st_size)
 
 
+def handle_selection_target_changed(path_str: str) -> None:
+    try:
+        changed_path = Path(path_str).expanduser().resolve()
+        manifest_path = EXTENSION_CAPABILITY_MANIFEST_PATH.expanduser().resolve()
+    except OSError:
+        changed_path = Path(path_str).expanduser().absolute()
+        manifest_path = EXTENSION_CAPABILITY_MANIFEST_PATH.expanduser().absolute()
+
+    if changed_path == manifest_path:
+        invalidate_extension_manifest_cache()
+
+
 def watch_selection_files(send: Any, poll_seconds: float = SELECTION_WATCH_POLL_SECONDS) -> None:
     """Polls selection files and pushes list_changed notifications when they change.
 
@@ -69,6 +81,7 @@ def watch_selection_files(send: Any, poll_seconds: float = SELECTION_WATCH_POLL_
             if previous == "__unset__":
                 continue
             if current != previous:
+                handle_selection_target_changed(path_str)
                 changed_kinds.update(kinds)
 
         for kind in ("tools", "resources", "prompts"):

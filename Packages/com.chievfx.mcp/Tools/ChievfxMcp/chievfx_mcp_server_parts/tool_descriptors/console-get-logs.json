@@ -1,6 +1,6 @@
 {
   "name": "console-get-logs",
-  "description": "Recent Unity Console entries (first-line only, no time). Each row has an id; duplicates collapse via stack=true. Filter severity with levels (default: Error, Exception, Assert, Warning). Exact contains values error/exception/warning/issue are treated as severity filters, not message substring search.",
+  "description": "Recent Unity Console entries. Filter severity with levels. Exact contains values error/exception/warning/issue are severity filters, not text search.",
   "inputSchema": {
     "type": "object",
     "properties": {

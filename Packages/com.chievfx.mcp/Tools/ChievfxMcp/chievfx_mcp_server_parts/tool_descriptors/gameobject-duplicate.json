@@ -1,6 +1,6 @@
 {
   "name": "gameobject-duplicate",
-  "description": "Duplicates a GameObject hierarchy/subtree. By default the duplicate is a sibling of the source; provide parentPath/parentInstanceId to clone the branch under another parent.",
+  "description": "Duplicates a GameObject hierarchy/subtree as sibling or under parentPath/parentInstanceId.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -17,7 +17,7 @@
       },
       "newName": {
         "type": "string",
-        "description": "Optional name for the duplicate. With count > 1, numeric suffixes are added."
+        "description": "Optional name for the duplicate."
       },
       "parentPath": {
         "type": [

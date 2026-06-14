@@ -111,9 +111,11 @@ def format_ugui_rect_get_text(result: dict[str, Any]) -> str:
         rect = row.get("rectTransform")
         if isinstance(rect, dict):
             lines.append(f"- {path} (id: {format_toon_atom(row.get('instanceId'))})")
-            lines.append(f"  anchors {format_vector2_inline(rect.get('anchorMin'))}->{format_vector2_inline(rect.get('anchorMax'))}")
-            lines.append(f"  pos {format_vector2_inline(rect.get('anchoredPosition') or rect.get('position'))}")
-            lines.append(f"  sizeDelta {format_vector2_inline(rect.get('sizeDelta') or rect.get('size'))}")
+            lines.append(
+                f"  anchors {format_vector2_inline(rect.get('anchorMin'))}->{format_vector2_inline(rect.get('anchorMax'))}"
+                f" pos {format_vector2_inline(rect.get('anchoredPosition') or rect.get('position'))}"
+                f" size {format_vector2_inline(rect.get('sizeDelta') or rect.get('size'))}"
+            )
             lines.append(f"  pivot {format_vector2_inline(rect.get('pivot'))}")
             if isinstance(rect.get("rect"), dict):
                 rect_size = rect["rect"]

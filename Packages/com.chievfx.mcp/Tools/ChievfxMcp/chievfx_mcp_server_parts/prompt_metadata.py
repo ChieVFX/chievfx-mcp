@@ -126,6 +126,7 @@ def build_prompt_metadata() -> dict[str, Any]:
 def load_enabled_prompt_names() -> set[str]:
     prompts = all_prompts()
     prompt_names = {prompt["name"] for prompt in prompts}
+    extension_prompt_names = {prompt["name"] for prompt in prompts if prompt.get("source") == "extension"}
     # Required prompts are locked enabled in UI.
     # Exception: diagnostics prompts should not be locked (can be toggled off).
     required_prompt_names = (DEFAULT_REQUIRED_PROMPT_NAMES & prompt_names) | {
@@ -139,7 +140,7 @@ def load_enabled_prompt_names() -> set[str]:
     try:
         payload = json.loads(PROMPT_SELECTION_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return set()
+        return extension_prompt_names
 
     if payload.get("promptsHidden") is True:
         return set()

@@ -33,7 +33,8 @@ class GameObjectFormattingTests(unittest.TestCase):
         self.assertNotIn("requireSingle", properties)
 
         duplicate_tool = next(tool for tool in mcp.TOOLS if tool["name"] == "gameobject-duplicate")
-        self.assertNotIn("count", duplicate_tool["inputSchema"]["properties"])
+        self.assertIn("count", duplicate_tool["inputSchema"]["properties"])
+        self.assertNotIn("count", mcp.advertised_input_schema(duplicate_tool)["properties"])
 
         component_get_tool = next(tool for tool in mcp.TOOLS if tool["name"] == "gameobject-component-get")
         self.assertIn("componentIndex", component_get_tool["inputSchema"]["properties"])

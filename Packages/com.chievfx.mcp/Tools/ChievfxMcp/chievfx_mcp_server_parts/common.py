@@ -274,6 +274,10 @@ DEFAULT_REQUIRED_RESOURCE_IDS: set[str] = {
     "scenes-opened",
 }
 DEFAULT_REQUIRED_RESOURCE_TEMPLATE_IDS: set[str] = set()
+RESOURCE_TEMPLATE_SELECTION_ALIASES: dict[str, str] = {
+    "scene-current-go": "scene-all-go",
+    "scene-current-component": "scene-all-component",
+}
 DEFAULT_REQUIRED_PROMPT_NAMES: set[str] = set()
 RESOURCE_CATEGORIES = {
     "control-status": "Essentials",
@@ -286,16 +290,8 @@ RESOURCE_CATEGORIES = {
 RESOURCE_TEMPLATE_CATEGORIES = {
     "scene-go": "GameObject",
     "scene-component": "GameObject",
-    "scene-current-go": "GameObject",
-    "scene-current-component": "GameObject",
-    "scene-current-go-name-contains": "GameObject",
-    "scene-current-go-name-pattern": "GameObject",
-    "scene-current-go-component": "GameObject",
-    "scene-current-go-filter": "GameObject",
-    "scene-go-name-contains": "GameObject",
-    "scene-go-name-pattern": "GameObject",
-    "scene-go-component": "GameObject",
-    "scene-go-filter": "GameObject",
+    "scene-all-go": "GameObject",
+    "scene-all-component": "GameObject",
     "assets-name-contains": "Asset",
     "assets-type": "Asset",
     "assets-label": "Asset",
@@ -482,16 +478,8 @@ RESPONSE_PROFILE_BY_RESOURCE = {
     "scenes-opened": "row-list",
     "scene-go": "row-list",
     "scene-component": "serialized-component",
-    "scene-current-go": "row-list",
-    "scene-current-component": "serialized-component",
-    "scene-current-go-name-contains": "row-list",
-    "scene-current-go-name-pattern": "row-list",
-    "scene-current-go-component": "row-list",
-    "scene-current-go-filter": "row-list",
-    "scene-go-name-contains": "row-list",
-    "scene-go-name-pattern": "row-list",
-    "scene-go-component": "row-list",
-    "scene-go-filter": "row-list",
+    "scene-all-go": "row-list",
+    "scene-all-component": "serialized-component",
     "assets-name-contains": "row-list",
     "assets-type": "row-list",
     "assets-label": "row-list",

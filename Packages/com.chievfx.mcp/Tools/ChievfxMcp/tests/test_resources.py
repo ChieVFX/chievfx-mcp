@@ -122,7 +122,7 @@ class ResourceTests(unittest.TestCase):
             {template["uriTemplate"] for template in templates},
         )
         self.assertIn(
-            "chievfx://scene/current/go/name-contains/{text}",
+            "chievfx://scene/all/go/{goPath}",
             {template["uriTemplate"] for template in templates},
         )
         self.assertIn("chievfx://scene/current/usage/counts", {resource["uri"] for resource in resources})
@@ -375,7 +375,7 @@ class ResourceTests(unittest.TestCase):
             self.assertEqual(resources[resource_id]["category"], "Essentials")
             self.assertIn(resource_id, enabled_resource_ids)
 
-    def test_current_gameobject_filter_templates_are_categorized(self) -> None:
+    def test_gameobject_search_resource_templates_are_removed(self) -> None:
         metadata = mcp.build_resource_metadata()
         templates = {template["id"]: template for template in metadata["resourceTemplates"]}
 
@@ -384,9 +384,12 @@ class ResourceTests(unittest.TestCase):
             "scene-current-go-name-pattern",
             "scene-current-go-component",
             "scene-current-go-filter",
+            "scene-go-name-contains",
+            "scene-go-name-pattern",
+            "scene-go-component",
+            "scene-go-filter",
         ]:
-            self.assertEqual(templates[template_id]["category"], "GameObject")
-            self.assertLess(templates[template_id]["estimatedTokens"], 80)
+            self.assertNotIn(template_id, templates)
 
     def test_asset_filter_templates_are_categorized_and_not_listed_as_resources(self) -> None:
         metadata = mcp.build_resource_metadata()
@@ -451,7 +454,7 @@ class ResourceTests(unittest.TestCase):
         templates = {template["id"]: template for template in metadata["resourceTemplates"]}
 
         component_estimate = templates["scene-component"]["responseEstimate"]
-        current_component_estimate = templates["scene-current-component"]["responseEstimate"]
+        current_component_estimate = templates["scene-all-component"]["responseEstimate"]
 
         for estimate in [component_estimate, current_component_estimate]:
             label = estimate["label"].lower()
@@ -470,21 +473,25 @@ class ResourceTests(unittest.TestCase):
         self.assertEqual(self.server.calls, [("resource-read", {"uri": uri})])
         self.assertIn(uri, result["contents"][0]["text"])
 
-    def test_current_gameobject_filter_resource_reads_are_enabled(self) -> None:
+    def test_gameobject_search_resource_reads_are_not_found(self) -> None:
         uris = [
             "chievfx://scene/current/go/name-contains/Door",
             "chievfx://scene/current/go/name-pattern/%2ADoor%3F",
             "chievfx://scene/current/go/component/MeshRenderer",
             "chievfx://scene/current/go/filter/name%3D%2ADoor%2A%3Bcomponent%3DMeshRenderer",
+            "chievfx://scene/all/go/name-contains/Door",
+            "chievfx://scene/all/go/name-pattern/%2ADoor%3F",
+            "chievfx://scene/all/go/component/MeshRenderer",
+            "chievfx://scene/all/go/filter/name%3D%2ADoor%2A%3Bcomponent%3DMeshRenderer",
         ]
 
         for uri in uris:
             with self.subTest(uri=uri):
                 self.server.calls.clear()
-                result = self.request("resources/read", {"uri": uri})["result"]
+                response = self.request("resources/read", {"uri": uri})
 
-                self.assertEqual(self.server.calls, [("resource-read", {"uri": uri})])
-                self.assertIn(uri, result["contents"][0]["text"])
+                self.assertEqual(response["error"]["code"], -32002)
+                self.assertEqual(self.server.calls, [])
 
     def test_asset_filter_resource_reads_are_enabled(self) -> None:
         uris = [
@@ -555,7 +562,7 @@ class ResourceTests(unittest.TestCase):
         self.assertEqual(self.server.calls, [])
 
     def test_disabled_current_filter_template_is_not_found(self) -> None:
-        self.write_selection(["editor-context"], ["scene-current-go"])
+        self.write_selection(["editor-context"], ["scene-all-go"])
 
         response = self.request("resources/read", {"uri": "chievfx://scene/current/go/name-contains/Door"})
 

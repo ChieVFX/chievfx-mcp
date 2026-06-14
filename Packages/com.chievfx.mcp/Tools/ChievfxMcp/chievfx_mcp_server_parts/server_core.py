@@ -519,6 +519,7 @@ class McpServerCore:
         if not isinstance(uri, str):
             raise ResourceNotFoundError("resources/read requires string param 'uri'.")
 
+        resource_kind, resource_id = resolve_resource_uri(uri)
         ensure_resource_enabled(uri)
         mime_type = RESOURCE_MIME_TYPE
 
@@ -549,6 +550,10 @@ class McpServerCore:
             bridge_result = fetch_via_bridge()
             if uri == "chievfx://scene/opened":
                 text = format_scene_opened_resource_text(bridge_result.get("result"))
+            elif resource_kind == "template" and resource_id in {"scene-go", "scene-all-go"}:
+                text = truncate_resource_text(format_gameobject_get_text(bridge_result.get("result")))
+            elif resource_kind == "template" and resource_id in {"scene-component", "scene-all-component"}:
+                text = truncate_resource_text(format_gameobject_component_get_text(bridge_result.get("result")))
             else:
                 text = format_resource_text(bridge_result.get("result"))
 

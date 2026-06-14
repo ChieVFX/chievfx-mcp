@@ -177,32 +177,7 @@ namespace Chievfx.Mcp.Editor
                 if (parts.Length == 4
                     && string.Equals(parts[1], "go", StringComparison.Ordinal))
                 {
-                    var context = BridgeResourcePayloadService.ResolveResourceSceneContext(parts[0]);
-                    if (string.Equals(parts[2], "name-contains", StringComparison.Ordinal))
-                    {
-                        var text = BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[3], "text", MaxResourceFilterValueChars);
-                        return sceneResources.ReadFilteredGameObjectsResource(uri, context, BridgeResourcePayloadService.CreateNameContainsResourceFilter(text));
-                    }
-
-                    if (string.Equals(parts[2], "name-pattern", StringComparison.Ordinal))
-                    {
-                        var pattern = BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[3], "pattern", MaxResourceFilterValueChars);
-                        GameObjectBridgeService.ValidateWildcardPattern(pattern, "pattern");
-                        return sceneResources.ReadFilteredGameObjectsResource(uri, context, BridgeResourcePayloadService.CreateNamePatternResourceFilter(pattern));
-                    }
-
-                    if (string.Equals(parts[2], "component", StringComparison.Ordinal))
-                    {
-                        var componentType = BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[3], "componentType", MaxResourceFilterValueChars);
-                        GameObjectBridgeService.ValidateComponentTypeText(componentType, required: true);
-                        return sceneResources.ReadFilteredGameObjectsResource(uri, context, BridgeResourcePayloadService.CreateComponentResourceFilter(componentType));
-                    }
-
-                    if (string.Equals(parts[2], "filter", StringComparison.Ordinal))
-                    {
-                        var filterSpec = BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[3], "filterSpec", MaxResourceFilterSegmentChars);
-                        return sceneResources.ReadFilteredGameObjectsResource(uri, context, BridgeResourcePayloadService.ParseResourceFilterSpec(filterSpec));
-                    }
+                    throw new InvalidOperationException($"Unsupported ChievFX MCP resource URI '{uri}'.");
                 }
 
                 if (parts.Length == 5

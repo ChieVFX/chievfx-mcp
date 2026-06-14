@@ -182,6 +182,11 @@ def load_enabled_resource_ids() -> tuple[set[str], set[str]]:
         if isinstance(enabled_templates, list)
         else set(template_ids)
     )
+    selected_template_ids.update(
+        replacement
+        for legacy, replacement in RESOURCE_TEMPLATE_SELECTION_ALIASES.items()
+        if legacy in selected_template_ids
+    )
     return (selected_resource_ids & resource_ids) | required_resource_ids, (
         selected_template_ids & template_ids
     ) | required_template_ids

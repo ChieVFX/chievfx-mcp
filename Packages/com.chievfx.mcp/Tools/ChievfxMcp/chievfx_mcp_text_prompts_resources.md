@@ -70,55 +70,19 @@ mimeType: text/plain
 
 ---
 type: resourceTemplate
-id: scene-current-go
-uriTemplate: chievfx://scene/current/go/{goPath}
-name: Current GameObject summary
-description: Compact GameObject summary in the current prefab stage or active scene.
+id: scene-all-go
+uriTemplate: chievfx://scene/all/go/{goPath}
+name: GameObject summary across loaded scenes
+description: Compact GameObject summary across all loaded scenes. Prefer this default when scene scope is unknown.
 mimeType: text/plain
 ---
 
 ---
 type: resourceTemplate
-id: scene-current-component
-uriTemplate: chievfx://scene/current/go/{goPath}/component/{componentKey}
-name: Current component serialized values
-description: Serialized values for one component in the current prefab stage or active scene.
-mimeType: text/plain
----
-
----
-type: resourceTemplate
-id: scene-current-go-name-contains
-uriTemplate: chievfx://scene/current/go/name-contains/{text}
-name: Current GameObjects by name substring
-description: Find current hierarchy GameObjects whose names contain literal percent-encoded text.
-mimeType: text/plain
----
-
----
-type: resourceTemplate
-id: scene-current-go-name-pattern
-uriTemplate: chievfx://scene/current/go/name-pattern/{pattern}
-name: Current GameObjects by name wildcard
-description: Find current hierarchy GameObjects by anchored * and ? wildcard pattern in one encoded segment.
-mimeType: text/plain
----
-
----
-type: resourceTemplate
-id: scene-current-go-component
-uriTemplate: chievfx://scene/current/go/component/{componentType}
-name: Current GameObjects by component type
-description: Find current hierarchy GameObjects by simple or full component type name.
-mimeType: text/plain
----
-
----
-type: resourceTemplate
-id: scene-current-go-filter
-uriTemplate: chievfx://scene/current/go/filter/{filterSpec}
-name: Current GameObjects by compact filter
-description: Find current hierarchy GameObjects with encoded name/component/inactive/case/limit filter text.
+id: scene-all-component
+uriTemplate: chievfx://scene/all/go/{goPath}/component/{componentKey}
+name: Component serialized values across loaded scenes
+description: Serialized values for one component across all loaded scenes. Prefer this default when scene scope is unknown.
 mimeType: text/plain
 ---
 

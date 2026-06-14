@@ -139,11 +139,14 @@ def load_enabled_prompt_names() -> set[str]:
     try:
         payload = json.loads(PROMPT_SELECTION_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return set(required_prompt_names)
+        return set()
+
+    if payload.get("promptsHidden") is True:
+        return set()
 
     enabled_names = payload.get("enabledPromptNames")
     if not isinstance(enabled_names, list):
-        return set(required_prompt_names)
+        return set()
 
     selected_prompt_names = {item for item in enabled_names if isinstance(item, str)}
     return (selected_prompt_names & prompt_names) | required_prompt_names

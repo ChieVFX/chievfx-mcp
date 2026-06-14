@@ -92,7 +92,7 @@ class ResourceTests(unittest.TestCase):
         response = self.request("initialize", {"protocolVersion": "2024-11-05"})
 
         capabilities = response["result"]["capabilities"]
-        self.assertEqual(capabilities["resources"], {})
+        self.assertEqual(capabilities["resources"], {"listChanged": True})
         self.assertIn("tools", capabilities)
 
     def test_lists_enabled_resources_and_templates_by_default(self) -> None:

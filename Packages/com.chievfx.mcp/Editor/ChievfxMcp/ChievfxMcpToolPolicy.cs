@@ -17,6 +17,7 @@ namespace Chievfx.Mcp.Editor
             ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
             ChievfxMcpFirstPartyExtensionLoader.EnsureLoaded();
             EditorApplication.delayCall += StartBridgeSafely;
+            EditorApplication.delayCall += EnforceExperimentalVisibilitySafely;
         }
 
         private static void StartBridgeSafely()
@@ -28,6 +29,18 @@ namespace Chievfx.Mcp.Editor
             catch (Exception ex)
             {
                 Debug.LogWarning($"ChievFX MCP bridge could not start on load. {ex.Message}");
+            }
+        }
+
+        private static void EnforceExperimentalVisibilitySafely()
+        {
+            try
+            {
+                ChievfxMcpWindow.EnforceExperimentalVisibility();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"ChievFX MCP experimental visibility enforcement failed. {ex.Message}");
             }
         }
 

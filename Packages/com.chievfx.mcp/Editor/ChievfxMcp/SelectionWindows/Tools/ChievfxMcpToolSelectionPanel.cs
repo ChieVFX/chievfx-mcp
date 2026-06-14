@@ -792,6 +792,12 @@ namespace Chievfx.Mcp.Editor
 
         private static void SavePromptSelectionForRole(RoleDefinition role)
         {
+            if (!ChievfxMcpWindow.ShowExperimentalPromptsTab)
+            {
+                ChievfxMcpPromptSelectionPanel.DisableAllSavedPrompts();
+                return;
+            }
+
             Directory.CreateDirectory(Path.GetDirectoryName(ChievfxMcpToolPolicy.PromptSelectionPath)!);
             var root = new JObject
             {

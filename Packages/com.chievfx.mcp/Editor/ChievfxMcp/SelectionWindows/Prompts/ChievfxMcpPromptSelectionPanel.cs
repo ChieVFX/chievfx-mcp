@@ -125,6 +125,48 @@ namespace Chievfx.Mcp.Editor
             ReloadMetadata();
         }
 
+        public static void DisableAllSavedPrompts()
+        {
+            if (SavedPromptsAlreadyDisabled())
+            {
+                return;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(ChievfxMcpToolPolicy.PromptSelectionPath)!);
+            var root = new JObject
+            {
+                ["schemaVersion"] = 1,
+                ["updatedAtUtc"] = DateTime.UtcNow.ToString("O"),
+                ["source"] = "Tools/ChievfxMcp/chievfx_mcp_server.py:PROMPTS",
+                ["promptsHidden"] = true,
+                ["enabledPromptNames"] = new JArray()
+            };
+            File.WriteAllText(ChievfxMcpToolPolicy.PromptSelectionPath, root.ToString(Formatting.Indented) + Environment.NewLine, new UTF8Encoding(false));
+            ChievfxMcpDebugInstructionsDumper.TryDump("unity-prompts-hidden");
+        }
+
+        private static bool SavedPromptsAlreadyDisabled()
+        {
+            if (!File.Exists(ChievfxMcpToolPolicy.PromptSelectionPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                var root = JToken.Parse(File.ReadAllText(ChievfxMcpToolPolicy.PromptSelectionPath));
+                return root is JObject rootObj
+                    && rootObj["promptsHidden"]?.Value<bool>() == true
+                    && rootObj["enabledPromptNames"] is JArray enabled
+                    && enabled.Count == 0;
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is JsonException)
+            {
+                Debug.LogWarning($"ChievFX MCP could not inspect prompt selection. {ex.Message}");
+                return false;
+            }
+        }
+
         private void SetAllInfo(bool value)
         {
             allInfo = value;
@@ -512,6 +554,7 @@ namespace Chievfx.Mcp.Editor
                 return;
             }
 
+            ForceHiddenPromptsOff();
             Directory.CreateDirectory(Path.GetDirectoryName(ChievfxMcpToolPolicy.PromptSelectionPath)!);
             using (var stream = new FileStream(ChievfxMcpToolPolicy.PromptSelectionPath, FileMode.Create, FileAccess.Write))
             using (var streamWriter = new StreamWriter(stream, new UTF8Encoding(false)))
@@ -538,6 +581,8 @@ namespace Chievfx.Mcp.Editor
                 writer.WriteValue(responseEstimateNote);
                 writer.WritePropertyName("guidance");
                 writer.WriteValue(reloadGuidance);
+                writer.WritePropertyName("promptsHidden");
+                writer.WriteValue(false);
 
                 writer.WritePropertyName("enabledPromptNames");
                 writer.WriteStartArray();
@@ -618,6 +663,19 @@ namespace Chievfx.Mcp.Editor
             SaveSelection();
             RenderPrompts();
             RefreshSummary();
+        }
+
+        private void ForceHiddenPromptsOff()
+        {
+            if (ChievfxMcpWindow.ShowExperimentalPromptsTab)
+            {
+                return;
+            }
+
+            foreach (var row in promptRows.Where(row => !row.Required))
+            {
+                row.Enabled = false;
+            }
         }
 
         private void SetCategoryOptional(string category, bool enabled)

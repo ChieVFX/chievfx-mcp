@@ -71,6 +71,19 @@ class PromptTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def write_hidden_selection(self, enabled_prompt_names: list[str]) -> None:
+        self.selection_path.parent.mkdir(parents=True, exist_ok=True)
+        self.selection_path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": mcp.PROMPT_SELECTION_SCHEMA_VERSION,
+                    "promptsHidden": True,
+                    "enabledPromptNames": enabled_prompt_names,
+                }
+            ),
+            encoding="utf-8",
+        )
+
     def enable_all_prompts(self) -> None:
         self.write_selection([prompt["name"] for prompt in mcp.all_prompts()])
 
@@ -98,14 +111,22 @@ class PromptTests(unittest.TestCase):
         response = self.request("initialize", {"protocolVersion": "2024-11-05"})
 
         capabilities = response["result"]["capabilities"]
-        self.assertEqual(capabilities["prompts"], {})
+        self.assertEqual(capabilities["prompts"], {"listChanged": True})
         self.assertIn("tools", capabilities)
         self.assertIn("resources", capabilities)
 
-    def test_initialize_omits_prompts_by_default(self) -> None:
+    def test_initialize_advertises_prompts_listchanged_even_when_empty(self) -> None:
+        # Prompts capability must be advertised even with zero prompts, otherwise a later
+        # 0 -> N change cannot be signaled to the client via prompts/list_changed.
         response = self.request("initialize", {"protocolVersion": "2024-11-05"})
 
-        self.assertNotIn("prompts", response["result"]["capabilities"])
+        capabilities = response["result"]["capabilities"]
+        self.assertEqual(capabilities["prompts"], {"listChanged": True})
+
+    def test_prompts_list_is_empty_by_default(self) -> None:
+        prompts = self.request("prompts/list")["result"]["prompts"]
+
+        self.assertEqual(prompts, [])
 
     def test_prompts_list_and_get_static_prompt(self) -> None:
         self.write_selection(["unity-scene-review"])
@@ -210,6 +231,42 @@ class PromptTests(unittest.TestCase):
         self.assertNotIn("unity-shader-hdrp-draft", {prompt["name"] for prompt in prompts})
         self.assertEqual(response["error"]["code"], -32003)
 
+    def test_hidden_prompts_selection_forces_all_prompts_off(self) -> None:
+        self.write_hidden_selection([prompt["name"] for prompt in mcp.all_prompts()])
+
+        prompts = self.request("prompts/list")["result"]["prompts"]
+        response = self.request("prompts/get", {"name": "unity-scene-review", "arguments": {"goal": "wire UI"}})
+
+        self.assertEqual(prompts, [])
+        self.assertEqual(response["error"]["code"], -32003)
+
+    def test_bridge_fetch_failure_falls_back_to_extension_snapshot(self) -> None:
+        self.write_extension_manifest(
+            [
+                {
+                    "id": "chievfx.snapshot",
+                    "displayName": "Snapshot Extension",
+                    "version": "1.0.0",
+                    "prompts": [
+                        {
+                            "name": "snapshot-review",
+                            "title": "Snapshot review",
+                            "description": "Loaded from snapshot.",
+                            "staticText": "snapshot active",
+                            "arguments": [],
+                        }
+                    ],
+                }
+            ]
+        )
+        self.write_selection(["snapshot-review"])
+        mcp.configure_extension_manifest_bridge_fetcher(lambda: None)
+        self.addCleanup(lambda: mcp.configure_extension_manifest_bridge_fetcher(None))
+
+        prompts = self.request("prompts/list")["result"]["prompts"]
+
+        self.assertIn("snapshot-review", {prompt["name"] for prompt in prompts})
+
     def test_extension_slowmo_prompt_renders_literal_csharp_braces(self) -> None:
         self.write_extension_manifest(
             [
@@ -271,7 +328,7 @@ class PromptTests(unittest.TestCase):
         self.assertNotIn("gamefeel-ending-session-slowmo", disabled_prompts)
         self.assertEqual(disabled_response["error"]["code"], -32003)
 
-    def test_required_extension_prompt_stays_enabled_with_empty_selection(self) -> None:
+    def test_required_extension_prompt_stays_enabled_when_selected(self) -> None:
         self.write_extension_manifest(
             [
                 {
@@ -293,7 +350,7 @@ class PromptTests(unittest.TestCase):
                 }
             ]
         )
-        self.write_selection([])
+        self.write_selection(["sample-required-review"])
 
         prompts = self.request("prompts/list")["result"]["prompts"]
         result = self.request("prompts/get", {"name": "sample-required-review"})["result"]

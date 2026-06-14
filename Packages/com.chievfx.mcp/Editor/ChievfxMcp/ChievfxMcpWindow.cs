@@ -76,6 +76,19 @@ namespace Chievfx.Mcp.Editor
             Open(ChievfxMcpTab.Prompts);
         }
 
+        public static void EnforceExperimentalVisibility()
+        {
+            if (!ShowExperimentalPromptsTab)
+            {
+                ChievfxMcpPromptSelectionPanel.DisableAllSavedPrompts();
+            }
+
+            if (!ShowExperimentalAutonomyTools)
+            {
+                ChievfxMcpToolSelectionPanel.RemoveAutonomyToolsFromSavedSelection();
+            }
+        }
+
         private static void Open(ChievfxMcpTab tab)
         {
             var window = GetWindow<ChievfxMcpWindow>();
@@ -106,6 +119,8 @@ namespace Chievfx.Mcp.Editor
 
         private void BuildWindow()
         {
+            EnforceExperimentalVisibility();
+
             if (activeTab == ChievfxMcpTab.Prompts && !ShowExperimentalPromptsTab)
             {
                 activeTab = ChievfxMcpTab.Status;
@@ -336,6 +351,10 @@ namespace Chievfx.Mcp.Editor
             showPromptsTabToggle.RegisterValueChangedCallback(evt =>
             {
                 EditorPrefs.SetBool(ShowExperimentalPromptsEditorPrefsKey, evt.newValue);
+                if (!evt.newValue)
+                {
+                    ChievfxMcpPromptSelectionPanel.DisableAllSavedPrompts();
+                }
                 BuildWindow();
             });
             experimental.Add(showPromptsTabToggle);
@@ -377,7 +396,7 @@ namespace Chievfx.Mcp.Editor
             return $"http://127.0.0.1:{port}";
         }
 
-        private static bool ShowExperimentalPromptsTab => EditorPrefs.GetBool(ShowExperimentalPromptsEditorPrefsKey, false);
+        public static bool ShowExperimentalPromptsTab => EditorPrefs.GetBool(ShowExperimentalPromptsEditorPrefsKey, false);
 
         public static bool ShowExperimentalAutonomyTools => EditorPrefs.GetBool(ShowExperimentalAutonomyToolsEditorPrefsKey, false);
 

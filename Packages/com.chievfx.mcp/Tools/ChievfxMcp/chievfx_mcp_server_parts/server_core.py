@@ -51,9 +51,16 @@ class McpServerCore:
 
         try:
             if method == "initialize":
-                capabilities = {"tools": {}, "resources": {}}
-                if enabled_prompts():
-                    capabilities["prompts"] = {}
+                # Always advertise listChanged so selection edits in Unity can push
+                # notifications/*/list_changed and the client re-fetches. Prompts must be
+                # advertised even when currently empty, otherwise a 0 -> N change cannot be
+                # signaled (the client would have been told prompts are unsupported).
+                list_changed = {"listChanged": True}
+                capabilities = {
+                    "tools": dict(list_changed),
+                    "resources": dict(list_changed),
+                    "prompts": dict(list_changed),
+                }
                 return self.result_response(
                     request_id,
                     {
@@ -92,7 +99,8 @@ class McpServerCore:
                 return self.result_response(request_id, self.read_resource(params, request_id))
 
             if method == "prompts/list":
-                return self.result_response(request_id, {"prompts": enabled_prompts()})
+                prompts = enabled_prompts()
+                return self.result_response(request_id, {"prompts": prompts})
 
             if method == "prompts/get":
                 return self.result_response(request_id, self.get_prompt(params, request_id))

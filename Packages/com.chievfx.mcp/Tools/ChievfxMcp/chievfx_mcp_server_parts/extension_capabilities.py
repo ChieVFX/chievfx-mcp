@@ -83,16 +83,25 @@ def load_extension_capability_manifest() -> dict[str, Any]:
                 return _extension_manifest_cache
         except Exception:
             pass
-        return empty_extension_capability_manifest()
 
+        # If the live bridge is briefly unavailable during MCP startup, keep
+        # extension descriptors stable by falling back to the latest snapshot.
+        file_manifest = load_extension_capability_manifest_from_file()
+        _extension_manifest_cache = file_manifest
+        return _extension_manifest_cache
+
+    normalized = load_extension_capability_manifest_from_file()
+    _extension_manifest_cache = normalized
+    return normalized
+
+
+def load_extension_capability_manifest_from_file() -> dict[str, Any]:
     try:
         payload = json.loads(EXTENSION_CAPABILITY_MANIFEST_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return empty_extension_capability_manifest()
 
-    normalized = normalize_extension_manifest_payload(payload)
-    _extension_manifest_cache = normalized
-    return normalized
+    return normalize_extension_manifest_payload(payload)
 
 
 def coerce_extension_category(value: Any, fallback: str = "Extensions") -> str:

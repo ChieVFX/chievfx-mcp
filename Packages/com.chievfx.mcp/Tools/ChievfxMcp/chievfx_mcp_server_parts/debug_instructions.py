@@ -45,7 +45,11 @@ def build_debug_instructions_markdown(trigger: str = "", instructions: str | Non
 
 def dump_debug_instructions(trigger: str = "") -> Path:
     instructions = build_initialize_instructions()
-    path = DEBUG_INSTRUCTIONS_PATH
+    # Always anchor the dump to the live PROJECT_ROOT rather than the module-level
+    # DEBUG_INSTRUCTIONS_PATH snapshot. Callers/tests that repoint PROJECT_ROOT
+    # without reconfiguring derived paths would otherwise clobber the packaged
+    # .temp/debug_instructions.md that ships in version control.
+    path = PROJECT_ROOT / ".temp" / "debug_instructions.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(build_debug_instructions_markdown(trigger, instructions), encoding="utf-8")
     return path

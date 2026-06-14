@@ -220,6 +220,60 @@ class GameObjectFormattingTests(unittest.TestCase):
         self.assertIn("shader:\"TextMeshPro/Mobile/Distance Field\" materials:1/1 refs:0 serialized:4 textures:1 mem:1.72 KB", text)
         self.assertIn("profile:chievfx://scene/all/material-profile/material/abc%3A2100000", text)
 
+    def test_cameras_extension_formatter_compacts_inventory_rows(self) -> None:
+        result = {
+            "count": 1,
+            "maxRows": 96,
+            "cameras": [
+                {
+                    "path": "Rig/Wide",
+                    "instanceId": 42,
+                    "priority": 20,
+                    "fieldOfView": 35,
+                    "detailUri": "chievfx://extensions/chievfx.cameras/cinemachine/camera/42",
+                }
+            ],
+        }
+
+        text = mcp.format_cameras_extension_resource_text("cameras-cinemachine-cameras", result)
+
+        self.assertEqual(
+            text,
+            "cameras:1 max:96\n"
+            "- Rig/Wide (id:42) priority:20 fov:35 detail:chievfx://extensions/chievfx.cameras/cinemachine/camera/42",
+        )
+
+    def test_cameras_extension_formatter_compacts_timeline_asset_detail(self) -> None:
+        result = {
+            "asset": {
+                "name": "ShotTimeline",
+                "path": "Assets/Cuts/ShotTimeline.playable",
+                "guid": "abcdef",
+                "detailUri": "chievfx://extensions/chievfx.cameras/timeline/asset/abcdef",
+                "tracks": [
+                    {
+                        "name": "Cinemachine Track",
+                        "type": "Unity.Cinemachine.CinemachineTrack",
+                        "clipCount": 2,
+                    }
+                ],
+                "clips": [{"name": "Wide"}, {"name": "Tight"}],
+            }
+        }
+
+        text = mcp.format_cameras_extension_resource_text("cameras-timeline-asset-detail", result)
+
+        self.assertIn("- Assets/Cuts/ShotTimeline.playable guid:abcdef tracks:1 clips:2 detail:chievfx://extensions/chievfx.cameras/timeline/asset/abcdef", text)
+        self.assertIn("  - track:\"Cinemachine Track\" type:CinemachineTrack clips:2", text)
+
+    def test_cameras_extension_formatter_compacts_unavailable(self) -> None:
+        text = mcp.format_cameras_extension_resource_text(
+            "cameras-cinemachine-cameras",
+            {"ok": False, "status": {"packageName": "com.unity.cinemachine"}, "reason": "package missing"},
+        )
+
+        self.assertEqual(text, "unavailable package:com.unity.cinemachine reason:\"package missing\"")
+
     def test_gameobject_find_text_marks_inactive_and_truncated_components(self) -> None:
         result = {
             "source": "activeScene",

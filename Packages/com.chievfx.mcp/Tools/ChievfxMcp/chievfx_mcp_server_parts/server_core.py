@@ -543,11 +543,11 @@ class McpServerCore:
                 text = truncate_resource_text(extension_resource["staticText"])
             else:
                 bridge_result = fetch_via_bridge()
-                text = format_resource_text(bridge_result.get("result"))
+                text = truncate_resource_text(format_cameras_extension_resource_text(extension_resource.get("id"), bridge_result.get("result")))
         elif (extension_template := get_extension_resource_template_by_uri(uri)) is not None:
             mime_type = extension_template.get("mimeType") or RESOURCE_MIME_TYPE
             bridge_result = fetch_via_bridge()
-            text = format_resource_text(bridge_result.get("result"))
+            text = truncate_resource_text(format_cameras_extension_resource_text(extension_template.get("id"), bridge_result.get("result")))
         else:
             bridge_result = fetch_via_bridge()
             if uri == "chievfx://scene/opened":

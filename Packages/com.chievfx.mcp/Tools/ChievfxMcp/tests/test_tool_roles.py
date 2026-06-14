@@ -134,6 +134,17 @@ class ToolRoleTests(unittest.TestCase):
         self.assertIn("events-check-since", mcp.load_enabled_tool_ids())
         self.assertIn("tool-batch", mcp.load_enabled_tool_ids())
 
+    def test_tool_policy_locks_all_essentials(self) -> None:
+        policy = json.loads(mcp.TOOL_POLICY_PATH.read_text(encoding="utf-8"))
+        required_tool_ids = set(policy["requiredToolIds"])
+        essentials_tool_ids = {
+            tool["name"]
+            for tool in mcp.build_tool_metadata()["tools"]
+            if tool["category"] == "Essentials"
+        }
+
+        self.assertEqual(set(), essentials_tool_ids - required_tool_ids)
+
     def test_tools_list_categories_default_output_is_compact(self) -> None:
         text = self.call_tool("tools-list-categories")["result"]["content"][0]["text"]
 

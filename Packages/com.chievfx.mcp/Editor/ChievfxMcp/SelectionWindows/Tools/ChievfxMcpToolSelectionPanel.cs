@@ -253,6 +253,9 @@ namespace Chievfx.Mcp.Editor
         private void ApplySavedSelection()
         {
             var requiredIds = new HashSet<string>(ChievfxMcpToolPolicy.RequiredToolIds, StringComparer.Ordinal);
+            requiredIds.UnionWith(toolRows
+                .Where(row => string.Equals(row.Category, "Essentials", StringComparison.Ordinal))
+                .Select(row => row.Id));
             var enabledIds = new HashSet<string>(requiredIds, StringComparer.Ordinal);
             var hasSavedEnabledIds = false;
             activeRoleKind = "manual";

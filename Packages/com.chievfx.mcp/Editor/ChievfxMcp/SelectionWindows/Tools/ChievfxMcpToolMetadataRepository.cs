@@ -83,11 +83,12 @@ namespace Chievfx.Mcp.Editor
                     ? FormatJson(schemaElement)
                     : "{}";
 
+                var category = ReadString(toolElement, "category", "General");
                 tools.Add(new ToolRow
                 {
                     Id = name,
                     Description = ReadString(toolElement, "description"),
-                    Category = ReadString(toolElement, "category", "General"),
+                    Category = category,
                     DescriptorHash = ReadString(toolElement, "descriptorHash"),
                     DescriptorPreview = ReadString(toolElement, "descriptorPreview", "{}"),
                     DescriptorBytes = ReadInt(toolElement, "descriptorBytes"),
@@ -98,7 +99,7 @@ namespace Chievfx.Mcp.Editor
                     CallEnvelopeEstimatedTokens = ReadInt(toolElement, "callEnvelopeEstimatedTokens"),
                     ResponseEstimateLabel = ReadResponseEstimateLabel(toolElement),
                     SchemaJson = inputSchema,
-                    Required = requiredIds.Contains(name)
+                    Required = requiredIds.Contains(name) || string.Equals(category, "Essentials", StringComparison.Ordinal)
                 });
             }
 

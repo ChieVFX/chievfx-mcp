@@ -133,6 +133,14 @@ namespace Chievfx.Mcp.Editor
 
         public static bool AutoReloadExternallyChangedScenes => EditorPrefs.GetBool(AutoReloadExternallyChangedScenesKey, false);
 
+        public const string AutoReloadCursorOnAvailabilityChangeKey = ServerName + ".autoReloadCursorOnAvailabilityChange";
+
+        // Default ON: when tool/resource/prompt availability changes, drop a reload signal
+        // file so the reload-mcps extension reconnects Cursor's MCP client. Cursor only
+        // re-reads initialize.instructions on a handshake, so without a reconnect the live
+        // edit never reaches the agent's instructions.
+        public static bool AutoReloadCursorOnAvailabilityChange => EditorPrefs.GetBool(AutoReloadCursorOnAvailabilityChangeKey, true);
+
         public static string BridgeUrl => $"http://127.0.0.1:{DefaultBridgePort}";
 
         public static string ProjectRoot => Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
@@ -171,6 +179,10 @@ namespace Chievfx.Mcp.Editor
         public static string ExtensionCapabilitySnapshotPath => Path.Combine(BridgeDirectory, "extension-capabilities.snapshot.json");
 
         public static string CursorConfigPath => Path.Combine(ProjectRoot, ".cursor", "mcp.json");
+
+        // Watched by the reload-mcps extension (when its file-reload setting is on). Writing
+        // {"serverName": CursorServerName} here asks Cursor to reload just this project's MCP.
+        public static string CursorReloadSignalPath => Path.Combine(ProjectRoot, ".cursor", "reload-mcps.json");
 
         public static string ServerScriptPath => Path.Combine(PackageToolsDirectory, "chievfx_mcp_server.py");
 

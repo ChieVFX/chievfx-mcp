@@ -307,6 +307,16 @@ namespace Chievfx.Mcp.Editor
             autoReloadExternallyChangedScenesToggle.RegisterValueChangedCallback(_ => RefreshUi());
             automation.Add(autoReloadExternallyChangedScenesToggle);
             automation.Add(CreateMutedLabel("When scene files change on disk, reload them automatically so Unity's modal reload prompt does not block MCP work."));
+
+            var autoReloadCursorToggle = new Toggle("Auto-reload Cursor MCP on availability change")
+            {
+                value = ChievfxMcpToolPolicy.AutoReloadCursorOnAvailabilityChange,
+                tooltip = "When on, changing tool/resource/prompt availability writes .cursor/reload-mcps.json so the reload-mcps extension reconnects Cursor and refreshes its instructions without a manual reload. Default on."
+            };
+            autoReloadCursorToggle.RegisterValueChangedCallback(evt =>
+                EditorPrefs.SetBool(ChievfxMcpToolPolicy.AutoReloadCursorOnAvailabilityChangeKey, evt.newValue));
+            automation.Add(autoReloadCursorToggle);
+            automation.Add(CreateMutedLabel("Cursor only re-reads MCP instructions on a reconnect, so a live availability edit otherwise stays stale until you reload manually. Requires the reload-mcps extension installed to watch the signal file."));
             content.Add(automation);
 
             content.Add(CreateConfigPreviewFoldout());

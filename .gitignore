@@ -111,6 +111,9 @@ InitTestScene*.unity*
 !.vkb/memory/
 .vibe-kanban/
 .cursor/mcp.json
+# Transient reload-mcps request/result handshake files (consumed by the extension).
+.cursor/reload-mcps.json
+.cursor/reload-mcps.result.json
 /.temp/
 # Generated MCP debug dumps live in .temp/ at any depth (project root and package).
 **/.temp/

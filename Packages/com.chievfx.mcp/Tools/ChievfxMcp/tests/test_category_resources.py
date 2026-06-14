@@ -1,3 +1,4 @@
+import hashlib
 import json
 import sys
 import tempfile
@@ -216,7 +217,14 @@ class CategoryResourceTests(unittest.TestCase):
         )["result"]
 
         self.assertEqual(before["serverInfo"]["name"], mcp.CURSOR_SERVER_NAME)
-        self.assertTrue(before["serverInfo"]["version"].startswith(f"{mcp.SERVER_VERSION}+instructions."))
+        # Version is "{major}.{minor}.{monotonic_patch}+instructions.{fingerprint}": the
+        # monotonic patch guarantees a strictly-newer version across reconnects (Cursor only
+        # adopts fresh instructions on a higher semver), and the build-metadata fingerprint
+        # is derived from the instructions for human/debug traceability.
+        major_minor = ".".join(mcp.SERVER_VERSION.split("+", 1)[0].split(".")[:2])
+        before_fingerprint = hashlib.sha256(before["instructions"].encode("utf-8")).hexdigest()[:12]
+        self.assertTrue(before["serverInfo"]["version"].startswith(f"{major_minor}."))
+        self.assertTrue(before["serverInfo"]["version"].endswith(f"+instructions.{before_fingerprint}"))
         self.assertNotEqual(before["serverInfo"]["version"], after["serverInfo"]["version"])
         self.assertNotIn("chievfx://categories/frame-debugger", before["instructions"])
         self.assertIn("chievfx://categories/frame-debugger", after["instructions"])

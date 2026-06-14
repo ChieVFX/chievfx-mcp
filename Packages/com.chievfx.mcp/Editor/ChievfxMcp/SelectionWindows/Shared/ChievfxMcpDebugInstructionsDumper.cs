@@ -19,6 +19,11 @@ namespace Chievfx.Mcp.Editor
                 trigger = "unity-selection-change";
             }
 
+            // Every TryDump trigger is an availability change (tool/resource/prompt/category
+            // edit). Signal Cursor to reconnect first so the on-disk dump and the agent's
+            // instructions converge; this is independent of whether the debug dump succeeds.
+            ChievfxMcpReloadSignal.RequestReload(trigger);
+
             try
             {
                 if (!File.Exists(ChievfxMcpToolPolicy.ServerScriptPath))

@@ -1,7 +1,62 @@
 # ChievFX MCP
 
-Work in progress.
+> Work in progress.
 
-This repository contains MCP (Model Context Protocol) tooling for ChievFX Unity workflows. The goal is to connect AI agents and editor automation to Unity project context, assets, scenes, console output, and common editor operations through MCP tools and resources.
+A Unity Editor bridge and [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that lets AI agents drive the Unity Editor: read project context, query and edit assets and scenes, inspect the console, run editor operations, capture screenshots, run tests, and more.
 
-More documentation will be added as the project stabilizes.
+## Why this exists
+
+I tried the existing Unity MCP extensions and kept hitting the same walls:
+
+- **Unstable for LLM agents.** Tool surfaces that were hard for an agent to use reliably — ambiguous arguments, noisy results, surprising failure modes.
+- **Unstable connection.** The bridge between the editor and the MCP server would drop, hang, or need restarts.
+- **Slow and bloated.** Heavy tool sets, large payloads, sluggish round-trips.
+
+Things in that space have gotten better over time. But after building this out for my own workflows, in a lot of ways this extension still feels better to me: a leaner, more predictable tool surface designed around how agents actually call tools, a more resilient editor↔server bridge, and compact results that keep token usage and latency down.
+
+Concrete comparison cases are planned — benchmarks and side-by-side examples will be added here as the project stabilizes.
+
+## Installation
+
+### Option A — Unity Package Manager (git URL)
+
+1. In Unity, open **Window > Package Manager**.
+2. Click **+ > Add package from git URL...**
+3. Paste:
+
+```
+https://github.com/ChieVFX/chievfx-mcp.git?path=Packages/com.chievfx.mcp
+```
+
+To pin a specific revision, append `#<branch|tag|commit>`, e.g. `...com.chievfx.mcp#main`.
+
+> Requires Unity `2022.3`+. Dependencies (`com.unity.nuget.newtonsoft-json`, `com.unity.test-framework`) are declared in the package and resolved automatically by Unity.
+
+### Option B — Manual install (Python installer)
+
+For copying the package into an existing Unity project (e.g. to vendor a local copy), use the drag-and-drop installer in the [`Install/`](Install/) folder.
+
+```bash
+cd Install
+python3 -m venv .venv
+source .venv/bin/activate          # macOS / Linux
+# .venv\Scripts\activate           # Windows
+pip install -r requirements.txt
+python chievfx_mcp_installer.py
+```
+
+Then drag the source repo into **FROM** and one or more target Unity projects into **TO**, and click **Install**. See [`Install/README.md`](Install/README.md) for details.
+
+## Getting started
+
+After the package is installed in your Unity project:
+
+1. Open the project and wait for compile + domain reload.
+2. **Window > ChievFX > MCP** → **Start Bridge** → **Write Cursor Config**.
+3. Reload your MCP client's tools (or restart it).
+
+The MCP server appears as `unity-mcp-chievfx`.
+
+## License
+
+[MIT](LICENSE.md) © Evgeniy Skvortsov

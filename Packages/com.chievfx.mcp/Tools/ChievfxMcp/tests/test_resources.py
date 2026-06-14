@@ -15,6 +15,11 @@ class ResourceServer(mcp.McpServer):
         super().__init__("http://127.0.0.1:1", str(bridge_dir), timeout_ms=1000)
         self.calls: list[tuple[str, dict[str, object]]] = []
 
+    def wait_for_bridge_ready(self, *args: object, **kwargs: object) -> bool:
+        # No real bridge heartbeat file exists in tests; skip the 30s poll so
+        # resource reads forward to the stubbed bridge immediately.
+        return True
+
     def call_unity_bridge(
         self,
         name: str,
@@ -536,9 +541,9 @@ class ResourceTests(unittest.TestCase):
         self.write_selection(["editor-context"], [])
 
         resources = self.request("resources/list")["result"]["resources"]
-        response = self.request("resources/read", {"uri": "chievfx://scene/opened"})
+        response = self.request("resources/read", {"uri": "chievfx://scene/current/usage/counts"})
 
-        self.assertNotIn("chievfx://scene/opened", {resource["uri"] for resource in resources})
+        self.assertNotIn("chievfx://scene/current/usage/counts", {resource["uri"] for resource in resources})
         self.assertEqual(response["error"]["code"], -32002)
 
     def test_disabled_matching_template_is_not_found(self) -> None:

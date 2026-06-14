@@ -3795,13 +3795,7 @@ namespace Chievfx.Mcp.Extensions.Cameras
 
         private static Dictionary<string, object?> CreateEnvelope(string uri, DependencyStatus status)
         {
-            return new Dictionary<string, object?>
-            {
-                ["uri"] = uri,
-                ["readAtUtc"] = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture),
-                ["extensionId"] = ExtensionId,
-                ["dependency"] = status.ToDictionary(),
-            };
+            return new Dictionary<string, object?>();
         }
 
         private static Dictionary<string, object?> CreateUnavailable(string statusUri, DependencyStatus status, string message)
@@ -3812,7 +3806,7 @@ namespace Chievfx.Mcp.Extensions.Cameras
                 ["unavailable"] = true,
                 ["message"] = message,
                 ["statusUri"] = statusUri,
-                ["status"] = status.ToDictionary(),
+                ["reason"] = status.Reason,
             };
         }
 

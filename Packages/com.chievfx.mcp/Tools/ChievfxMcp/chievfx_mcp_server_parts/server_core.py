@@ -462,6 +462,8 @@ class McpServerCore:
             if name in {"ugui-create-simple", "ugui-create-control"} and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_ugui_canvas_ensure_text(result)
             if name == "ugui-canvas-ensure" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
+            else format_camera_tool_text(name, result)
+            if name in CAMERA_TOOL_NAMES and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_tool_text(result, arguments)
         )
         return {

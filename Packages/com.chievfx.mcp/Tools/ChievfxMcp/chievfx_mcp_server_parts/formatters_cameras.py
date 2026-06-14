@@ -16,6 +16,20 @@ CAMERA_RESOURCE_ROW_KEYS: dict[str, str] = {
 }
 
 
+CAMERA_TOOL_NAMES = {
+    "brain-ensure",
+    "cinemachine-blender-settings-set",
+    "cinemachine-confiner-set",
+    "cinemachine-create",
+    "cinemachine-sequencer-create",
+    "cinemachine-set",
+    "cinemachine-spline-dolly-set",
+    "timeline-director-create",
+    "timeline-director-preview",
+    "timeline-shot-sequence-create",
+}
+
+
 def format_cameras_extension_resource_text(resource_id: str | None, result: dict[str, Any]) -> str:
     if not isinstance(result, dict):
         return to_toon(result)
@@ -41,6 +55,124 @@ def format_cameras_extension_resource_text(resource_id: str | None, result: dict
                 lines.extend(format_camera_inventory_row_lines(resource_id or "", row))
     lines.extend(format_camera_secondary_sections(resource_id or "", result, row_key))
     return "\n".join(line for line in lines if line)
+
+
+def format_camera_tool_text(tool_name: str, result: dict[str, Any]) -> str:
+    if result.get("ok") is False or "error" in result:
+        return format_camera_unavailable_text(result)
+
+    lines: list[str] = []
+    header = [tool_name, f"ok:{format_toon_atom(result.get('ok', True))}"]
+    if result.get("dryRun") is True:
+        header.append("dryRun:true")
+    for key in ("action", "wouldCreate", "wouldCreateCamera", "wouldCreateBrain", "wouldCreateAsset", "createdAsset", "addedConfiner", "addedSplineDolly"):
+        value = result.get(key)
+        if not should_omit_toon_value(value):
+            header.append(f"{key}:{format_toon_atom(value)}")
+    lines.append(" ".join(header))
+
+    target_label = "director" if tool_name.startswith("timeline-") else "target"
+    for label, key in (
+        (target_label, "target"),
+        ("camera", "camera"),
+        ("brain", "brain"),
+        ("asset", "asset"),
+        ("confiner", "confiner"),
+        ("splineDolly", "splineDolly"),
+        ("spline", "splineContainer"),
+    ):
+        row = result.get(key)
+        if isinstance(row, dict):
+            lines.append(f"{label} {format_camera_tool_row(row)}")
+
+    for key in ("changedFields", "safeSetFields"):
+        values = result.get(key)
+        if isinstance(values, list) and values:
+            lines.append(f"{key}:{','.join(str(value) for value in values if not should_omit_toon_value(value))}")
+
+    clips = result.get("clips")
+    target = result.get("target")
+    if not isinstance(clips, list) and isinstance(target, dict):
+        clips = target.get("clips")
+    if isinstance(clips, list) and clips:
+        lines.append(f"clips[{len(clips)}]:")
+        for clip in clips[:8]:
+            if isinstance(clip, dict):
+                parts = []
+                for key in ("displayName", "start", "duration", "end", "assetType"):
+                    value = clip.get(key)
+                    if not should_omit_toon_value(value):
+                        label = "name" if key == "displayName" else key
+                        parts.append(f"{label}:{format_toon_atom(format_short_type(value) if key == 'assetType' else value)}")
+                if parts:
+                    lines.append("- " + " ".join(parts))
+
+    tracks = result.get("tracks")
+    if isinstance(tracks, list) and tracks and not clips:
+        lines.append(f"tracks[{len(tracks)}]:")
+        for track in tracks[:8]:
+            if isinstance(track, dict):
+                lines.append("- " + format_camera_tool_row(track))
+
+    for key in ("warnings", "notes", "blendSafeNotes"):
+        values = result.get(key)
+        if isinstance(values, list) and values:
+            prefix = "!" if key == "warnings" else "note"
+            for value in values[:6]:
+                if not should_omit_toon_value(value):
+                    lines.append(f"{prefix} {value}")
+
+    return "\n".join(line for line in lines if line)
+
+
+def format_camera_tool_row(row: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for key, label in (
+        ("path", "path"),
+        ("name", "name"),
+        ("instanceId", "id"),
+        ("type", "type"),
+        ("enabled", "enabled"),
+        ("duration", "duration"),
+        ("time", "time"),
+        ("state", "state"),
+        ("clipCount", "clips"),
+        ("instructionCount", "instructions"),
+        ("fieldOfView", "fov"),
+    ):
+        value = row.get(key)
+        if should_omit_toon_value(value):
+            continue
+        if key == "type":
+            value = format_short_type(value)
+        parts.append(f"{label}:{format_toon_atom(value)}")
+    for key, label in (("priority", "priority"), ("lens", "lens"), ("asset", "asset"), ("camera", "camera"), ("boundingVolume", "bounds")):
+        value = row.get(key)
+        if isinstance(value, dict):
+            compact = format_camera_nested_value(value)
+            if compact:
+                parts.append(f"{label}:{compact}")
+    return " ".join(parts)
+
+
+def format_camera_nested_value(value: dict[str, Any]) -> str:
+    if not isinstance(value, dict):
+        return ""
+    if not should_omit_toon_value(value.get("path")):
+        return format_camera_text(value.get("path"))
+    if not should_omit_toon_value(value.get("name")):
+        return format_camera_text(value.get("name"))
+    if "fieldOfView" in value:
+        return "fov=" + format_toon_atom(value.get("fieldOfView"))
+    if "Value" in value:
+        enabled = value.get("Enabled")
+        prefix = "" if enabled is True else "disabled:"
+        return prefix + format_toon_atom(value.get("Value"))
+    pairs = []
+    for key, nested in value.items():
+        if not should_omit_toon_value(nested):
+            pairs.append(f"{key}={format_toon_atom(nested)}")
+    return ",".join(pairs[:4])
 
 
 def format_camera_unavailable_text(result: dict[str, Any]) -> str:
@@ -127,7 +259,15 @@ def format_camera_detail_bits(row: dict[str, Any]) -> str:
     ):
         value = row.get(key)
         if not should_omit_toon_value(value):
-            bits.append(f"{label}:{format_toon_atom(value)}")
+            if isinstance(value, dict):
+                compact = format_camera_nested_value(value)
+                if compact:
+                    if key == "lens":
+                        bits.append(compact)
+                    else:
+                        bits.append(f"{label}:{compact}")
+            else:
+                bits.append(f"{label}:{format_toon_atom(value)}")
     asset = row.get("asset") or row.get("customBlendsAsset")
     if isinstance(asset, dict):
         asset_path = asset.get("path") or asset.get("name")
@@ -136,9 +276,6 @@ def format_camera_detail_bits(row: dict[str, Any]) -> str:
     camera = row.get("camera")
     if isinstance(camera, dict) and not should_omit_toon_value(camera.get("path")):
         bits.append(f"camera:{format_camera_text(camera.get('path'))}")
-    detail_uri = row.get("detailUri")
-    if not should_omit_toon_value(detail_uri):
-        bits.append(f"detail:{format_camera_text(detail_uri)}")
     return "" if not bits else " " + " ".join(bits)
 
 
@@ -167,7 +304,6 @@ def format_timeline_asset_row_lines(asset: dict[str, Any]) -> list[str]:
         f"guid:{guid}" if guid else "",
         f"tracks:{format_toon_atom(track_count)}" if not should_omit_toon_value(track_count) else "",
         f"clips:{format_toon_atom(clip_count)}" if not should_omit_toon_value(clip_count) else "",
-        f"detail:{format_camera_text(asset.get('detailUri'))}" if not should_omit_toon_value(asset.get("detailUri")) else "",
     ]
     return [f"- {path} " + " ".join(bit for bit in bits if bit)]
 

@@ -215,7 +215,7 @@ class CategoryResourceTests(unittest.TestCase):
             {"jsonrpc": "2.0", "id": 2, "method": "initialize", "params": {"protocolVersion": "2024-11-05"}}
         )["result"]
 
-        self.assertEqual(before["serverInfo"]["name"], mcp.SERVER_NAME)
+        self.assertEqual(before["serverInfo"]["name"], mcp.CURSOR_SERVER_NAME)
         self.assertTrue(before["serverInfo"]["version"].startswith(f"{mcp.SERVER_VERSION}+instructions."))
         self.assertNotEqual(before["serverInfo"]["version"], after["serverInfo"]["version"])
         self.assertNotIn("chievfx://categories/frame-debugger", before["instructions"])

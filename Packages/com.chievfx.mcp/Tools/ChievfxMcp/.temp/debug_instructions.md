@@ -1,7 +1,7 @@
 # ChievFX MCP debug instructions
 
-Generated at (UTC): 2026-06-14T09:44:25Z
-Project root: /var/folders/nr/g2tn040175lcc8xflfx_08cm0000gn/T/tmpwapdns29
+Generated at (UTC): 2026-06-14T11:45:54Z
+Project root: /var/folders/nr/g2tn040175lcc8xflfx_08cm0000gn/T/tmpxj2ep7cw
 Trigger: tool-selection-save
 
 ## Selection snapshot
@@ -10,7 +10,7 @@ Trigger: tool-selection-save
 - Enabled resources: 4
 - Enabled resource templates: 19
 - Enabled prompts: 0
-- Tool selection: `/var/folders/nr/g2tn040175lcc8xflfx_08cm0000gn/T/tmpwapdns29/UserSettings/ChievfxMcpToolSelection.json`
+- Tool selection: `/var/folders/nr/g2tn040175lcc8xflfx_08cm0000gn/T/tmpxj2ep7cw/UserSettings/ChievfxMcpToolSelection.json`
 - Resource selection: `/Users/evgeniy_skvortsov/_code_/chievfx-mcp/Packages/com.chievfx.mcp/Tools/ChievfxMcp/UserSettings/ChievfxMcpResourceSelection.json`
 - Prompt selection: `/Users/evgeniy_skvortsov/_code_/chievfx-mcp/Packages/com.chievfx.mcp/Tools/ChievfxMcp/UserSettings/ChievfxMcpPromptSelection.json`
 

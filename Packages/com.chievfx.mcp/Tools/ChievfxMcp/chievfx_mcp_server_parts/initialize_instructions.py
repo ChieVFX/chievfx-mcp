@@ -69,7 +69,7 @@ def build_initialize_server_info(instructions: str | None = None) -> dict[str, s
     if instructions is None:
         instructions = build_initialize_instructions()
     fingerprint = hashlib.sha256(instructions.encode("utf-8")).hexdigest()[:12]
-    return {"name": SERVER_NAME, "version": f"{SERVER_VERSION}+instructions.{fingerprint}"}
+    return {"name": CURSOR_SERVER_NAME, "version": f"{SERVER_VERSION}+instructions.{fingerprint}"}
 
 
 def build_enabled_descriptor_instructions(plan: dict[str, Any] | None = None) -> str:

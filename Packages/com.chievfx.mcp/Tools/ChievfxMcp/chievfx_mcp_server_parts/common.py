@@ -35,6 +35,24 @@ SERVER_NAME = "unity-mcp-chievfx"
 SERVER_VERSION = "0.1.0"
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_ROOT = Path(os.getcwd()).resolve()
+
+
+def cursor_server_name_for(project_root: str | os.PathLike[str]) -> str:
+    """Match the per-project key the Unity editor writes into Cursor's mcp.json.
+
+    The editor key is ``unity-<sha1(projectRoot)[:8]>`` and the editor passes that
+    same ``projectRoot`` string verbatim via ``--project-root``. Hashing the raw
+    argument therefore reproduces the exact key Cursor registered the server under.
+    """
+    digest = hashlib.sha1(os.fspath(project_root).encode("utf-8")).hexdigest()[:8]
+    return f"unity-{digest}"
+
+
+# serverInfo.name must equal the mcp.json key Cursor registered (not the legacy
+# shared "unity-mcp-chievfx"); a mismatched handshake name makes the reported
+# identity differ from the registered one. Recomputed in configure_project_root
+# from the exact --project-root string the editor passed.
+CURSOR_SERVER_NAME = cursor_server_name_for(PROJECT_ROOT)
 TOOL_POLICY_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_tool_policy.json"
 TOOL_ROLE_PRESETS_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_role_presets.json"
 TOOL_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpToolSelection.json"
@@ -111,6 +129,7 @@ TERMINAL_OPERATION_STATES = {"completed", "failed", "cancelled", "stale"}
 def configure_project_root(project_root: str | os.PathLike[str] | None) -> None:
     """Point runtime state paths at Unity project root, not package root."""
     global PROJECT_ROOT
+    global CURSOR_SERVER_NAME
     global TOOL_SELECTION_PATH
     global RESOURCE_SELECTION_PATH
     global PROMPT_SELECTION_PATH
@@ -121,6 +140,9 @@ def configure_project_root(project_root: str | os.PathLike[str] | None) -> None:
     if project_root is None:
         return
 
+    # Derive the Cursor key from the raw argument (byte-identical to what the editor
+    # hashed) before resolve() can alter it via symlink/normalization differences.
+    CURSOR_SERVER_NAME = cursor_server_name_for(project_root)
     PROJECT_ROOT = Path(project_root).expanduser().resolve()
     TOOL_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpToolSelection.json"
     RESOURCE_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpResourceSelection.json"

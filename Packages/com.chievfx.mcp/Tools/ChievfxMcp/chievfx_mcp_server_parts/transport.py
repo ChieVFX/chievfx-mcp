@@ -19,6 +19,11 @@ def force_utf8_stdio() -> None:
 
 SELECTION_WATCH_POLL_SECONDS = 1.0
 
+# Delay before the post-initialized list_changed nudge. Gives Cursor a moment to finish
+# wiring up the connection after it sends notifications/initialized, so the list_changed
+# (which makes it commit the just-handshaked instructions) is not dropped as too-early.
+POST_INITIALIZE_LIST_CHANGED_DELAY_SECONDS = 0.75
+
 LIST_CHANGED_METHOD_BY_KIND = {
     "tools": "notifications/tools/list_changed",
     "resources": "notifications/resources/list_changed",

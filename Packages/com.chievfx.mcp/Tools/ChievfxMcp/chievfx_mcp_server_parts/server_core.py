@@ -73,6 +73,14 @@ class McpServerCore:
                 )
 
             if method == "notifications/initialized":
+                # A bare reload re-handshakes (fresh instructions + bumped serverInfo.version),
+                # but Cursor does not COMMIT the new initialize.instructions into the agent
+                # context / INSTRUCTIONS.md dump until it receives a list_changed. Without this,
+                # users had to manually toggle a tool after every reload to force the refresh.
+                # Emitting a one-shot list_changed right after initialized provokes that commit
+                # with the just-handshaked instructions. The selection is stable post-reload
+                # (no concurrent edit), so there is no one-step lag like a live toggle has.
+                self.schedule_post_initialize_list_changed(notify)
                 return None
 
             if method == "notifications/cancelled":
@@ -119,6 +127,22 @@ class McpServerCore:
         except Exception as exc:  # noqa: BLE001 - JSON-RPC should return tool errors.
             print(traceback.format_exc(), file=sys.stderr)
             return self.error_response(request_id, -32000, str(exc))
+
+    def schedule_post_initialize_list_changed(self, notify: Any | None) -> None:
+        """Nudges Cursor to commit freshly-handshaked instructions after a reload.
+
+        HTTP transport calls handle_message without a notify sink; there is no client
+        connection to push to, so this is a stdio-only nudge.
+        """
+        if notify is None:
+            return
+
+        def emit() -> None:
+            time.sleep(POST_INITIALIZE_LIST_CHANGED_DELAY_SECONDS)
+            for kind in ("tools", "resources", "prompts"):
+                notify({"jsonrpc": "2.0", "method": LIST_CHANGED_METHOD_BY_KIND[kind]})
+
+        threading.Thread(target=emit, daemon=True).start()
 
     def handle_cancelled_notification(self, params: dict[str, Any]) -> None:
         cancelled_request_id = params.get("requestId")

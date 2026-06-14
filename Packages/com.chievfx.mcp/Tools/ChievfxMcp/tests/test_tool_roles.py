@@ -8,6 +8,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import chievfx_mcp_server as mcp  # noqa: E402
 
+AUTONOMOUS_TOOLS = {
+    "tools-list-categories",
+    "tools-list-category",
+    "tools-set-enabled-state",
+    "tools-get-roles",
+    "tools-get-role",
+    "tools-set-role",
+}
+
 
 class ToolRoleTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -36,8 +45,16 @@ class ToolRoleTests(unittest.TestCase):
         self.assertIsInstance(response, dict)
         return response
 
+    def enable_autonomous_tools(self) -> None:
+        enabled_ids = mcp.load_enabled_tool_ids() | AUTONOMOUS_TOOLS
+        mcp.save_enabled_tool_ids(enabled_ids)
+
     def call_tool(self, name: str, arguments: dict[str, object] | None = None) -> dict[str, object]:
-        return self.request("tools/call", {"name": name, "arguments": arguments or {}})
+        payload = arguments or {}
+        batched_tool = payload.get("tool") if isinstance(payload, dict) else None
+        if name in AUTONOMOUS_TOOLS or batched_tool in AUTONOMOUS_TOOLS:
+            self.enable_autonomous_tools()
+        return self.request("tools/call", {"name": name, "arguments": payload})
 
     def call_json_tool(self, name: str, arguments: dict[str, object] | None = None) -> dict[str, object]:
         payload = dict(arguments or {})
@@ -48,17 +65,18 @@ class ToolRoleTests(unittest.TestCase):
     def test_developer_role_is_default_without_saved_selection(self) -> None:
         tools = self.request("tools/list")["result"]["tools"]
         names = {tool["name"] for tool in tools}
-        inventory = self.call_json_tool("tools-list-categories")
+        role_state = mcp.load_tool_role_state()
 
         self.assertFalse(self.selection_path.exists())
-        self.assertEqual(inventory["roleState"]["kind"], "built-in")
-        self.assertEqual(inventory["roleState"]["roleId"], "developer")
-        self.assertFalse(inventory["roleState"]["manualOverride"])
+        self.assertEqual(role_state["kind"], "built-in")
+        self.assertEqual(role_state["roleId"], "developer")
+        self.assertFalse(role_state["manualOverride"])
         self.assertIn("scene-open", names)
         self.assertIn("gameobject-find", names)
         self.assertIn("prefab-open", names)
         self.assertIn("tests-run", names)
         self.assertNotIn("profiler-get-state", names)
+        self.assertNotIn("tools-list-categories", names)
 
     def test_builtin_role_applies_deterministically_and_filters_tools_list(self) -> None:
         result = self.call_json_tool("tools-set-role", {"role": "qa"})
@@ -68,7 +86,7 @@ class ToolRoleTests(unittest.TestCase):
         self.assertTrue(result["mutated"])
         self.assertEqual(result["roleState"]["roleId"], "qa")
         self.assertIn("tests-run", names)
-        self.assertIn("tools-set-role", names)
+        self.assertNotIn("tools-set-role", names)
         self.assertIn("gameobject-find", names)
         self.assertNotIn("prefab-open", names)
 

@@ -155,14 +155,7 @@ DEFAULT_REQUIRED_TOOL_IDS = {
     "editor-window-open",
     "editor-window-focus",
 }
-DEFAULT_ENABLED_TOOL_IDS = {
-    "tools-list-categories",
-    "tools-list-category",
-    "tools-set-enabled-state",
-    "tools-get-roles",
-    "tools-get-role",
-    "tools-set-role",
-}
+DEFAULT_ENABLED_TOOL_IDS: set[str] = set()
 TOOL_CATEGORIES = {
     "screenshot-game-view": "Essentials",
     "screenshot-camera": "Essentials",

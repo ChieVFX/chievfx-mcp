@@ -67,6 +67,10 @@ namespace Chievfx.Mcp.Editor
 
         public static readonly string[] DefaultEnabledToolIds =
         {
+        };
+
+        public static readonly string[] AutonomousToolIds =
+        {
             "tools-list-categories",
             "tools-list-category",
             "tools-set-enabled-state",

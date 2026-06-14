@@ -21,6 +21,7 @@ namespace Chievfx.Mcp.Editor
         private const string TransportHttp = "http";
         private const string AllInfoEditorPrefsKey = "ChievfxMcp.Selection.AllInfo";
         private const string ShowExperimentalPromptsEditorPrefsKey = "ChievfxMcp.Experimental.ShowPromptsTab";
+        private const string ShowExperimentalAutonomyToolsEditorPrefsKey = "ChievfxMcp.Experimental.ShowAutonomyTools";
 
         private static readonly string[] TransportChoices = { TransportStdio, TransportHttp };
         private static Process? httpProcess;
@@ -37,6 +38,7 @@ namespace Chievfx.Mcp.Editor
         private Button? startButton;
         private Button? stopButton;
         private Toggle? showPromptsTabToggle;
+        private Toggle? showAutonomyToolsToggle;
         private Label? serverChip;
         private Label? bridgeChip;
         private Label? httpChip;
@@ -338,6 +340,20 @@ namespace Chievfx.Mcp.Editor
             });
             experimental.Add(showPromptsTabToggle);
             experimental.Add(CreateMutedLabel("Prompts are hidden by default while the prompt catalog stays experimental."));
+            showAutonomyToolsToggle = new Toggle("Show Autonomy tools")
+            {
+                value = ShowExperimentalAutonomyTools
+            };
+            showAutonomyToolsToggle.RegisterValueChangedCallback(evt =>
+            {
+                EditorPrefs.SetBool(ShowExperimentalAutonomyToolsEditorPrefsKey, evt.newValue);
+                if (!evt.newValue)
+                {
+                    ChievfxMcpToolSelectionPanel.RemoveAutonomyToolsFromSavedSelection();
+                }
+            });
+            experimental.Add(showAutonomyToolsToggle);
+            experimental.Add(CreateMutedLabel("Autonomous self-configuration tools are off by default and hidden from manual tool selection unless explicitly shown."));
             return experimental;
         }
 
@@ -362,6 +378,8 @@ namespace Chievfx.Mcp.Editor
         }
 
         private static bool ShowExperimentalPromptsTab => EditorPrefs.GetBool(ShowExperimentalPromptsEditorPrefsKey, false);
+
+        public static bool ShowExperimentalAutonomyTools => EditorPrefs.GetBool(ShowExperimentalAutonomyToolsEditorPrefsKey, false);
 
         private static VisualElement CreateChipRow()
         {

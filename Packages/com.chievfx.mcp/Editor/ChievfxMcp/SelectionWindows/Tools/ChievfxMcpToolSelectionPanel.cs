@@ -19,6 +19,7 @@ namespace Chievfx.Mcp.Editor
     internal sealed class ChievfxMcpToolSelectionPanel
     {
         private const string AllInfoEditorPrefsKey = "ChievfxMcp.Selection.AllInfo";
+        private const string AutonomousCategoryName = "Autonomous";
 
         private readonly List<ToolRow> toolRows = new();
         private readonly Dictionary<string, Toggle> toggles = new(StringComparer.Ordinal);
@@ -177,6 +178,42 @@ namespace Chievfx.Mcp.Editor
             root.Add(roleControls);
 
             ReloadMetadata();
+        }
+
+        public static void RemoveAutonomyToolsFromSavedSelection()
+        {
+            if (!File.Exists(ChievfxMcpToolPolicy.ToolSelectionPath))
+            {
+                return;
+            }
+
+            try
+            {
+                var root = JToken.Parse(File.ReadAllText(ChievfxMcpToolPolicy.ToolSelectionPath));
+                if (root is not JObject rootObj)
+                {
+                    return;
+                }
+
+                var removed = RemoveAutonomyToolIds(rootObj["enabledToolIds"]);
+                if (rootObj["roleState"] is JObject roleState)
+                {
+                    removed |= RemoveAutonomyToolIds(roleState["appliedEnabledToolIds"]);
+                }
+
+                if (!removed)
+                {
+                    return;
+                }
+
+                rootObj["updatedAtUtc"] = DateTime.UtcNow.ToString("O");
+                File.WriteAllText(ChievfxMcpToolPolicy.ToolSelectionPath, rootObj.ToString(Formatting.Indented) + Environment.NewLine, new UTF8Encoding(false));
+                ChievfxMcpDebugInstructionsDumper.TryDump("unity-autonomy-tools-hidden");
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is JsonException)
+            {
+                Debug.LogWarning($"ChievFX MCP could not force hidden Autonomy tools off. {ex.Message}");
+            }
         }
 
         private void ReloadMetadata()
@@ -497,16 +534,17 @@ namespace Chievfx.Mcp.Editor
         {
             var defaultEnabledIds = new HashSet<string>(ChievfxMcpToolPolicy.DefaultEnabledToolIds, StringComparer.Ordinal);
             return toolRows.Where(row =>
-                    row.Required
+                    (ChievfxMcpWindow.ShowExperimentalAutonomyTools || !IsAutonomyTool(row) || row.Required)
+                    && (row.Required
                     || defaultEnabledIds.Contains(row.Id)
                     || role.EnabledCategoryIds.Contains(row.Category)
-                    || role.EnabledToolIds.Contains(row.Id))
+                    || role.EnabledToolIds.Contains(row.Id)))
                 .ToList();
         }
 
         private void AddCurrentProfileSummary(VisualElement parent)
         {
-            var selectedToolRows = toolRows.Where(row => row.Enabled || row.Required).ToList();
+            var selectedToolRows = GetEffectiveSelectedRows().ToList();
             var toolTotals = SelectionTotals.FromRows(
                 "Tools",
                 selectedToolRows.Count,
@@ -618,7 +656,7 @@ namespace Chievfx.Mcp.Editor
             }
 
             var currentIds = new HashSet<string>(
-                toolRows.Where(row => row.Enabled || row.Required).Select(row => row.Id),
+                GetEffectiveSelectedRows().Select(row => row.Id),
                 StringComparer.Ordinal);
             var roleIds = new HashSet<string>(GetRowsForRole(role).Select(row => row.Id), StringComparer.Ordinal);
             return currentIds.SetEquals(roleIds);
@@ -920,6 +958,8 @@ namespace Chievfx.Mcp.Editor
         private IEnumerable<CategoryRows<ToolRow>> GetToolGroups()
         {
             return toolRows
+                .Where(row => ChievfxMcpWindow.ShowExperimentalAutonomyTools
+                    || !string.Equals(row.Category, AutonomousCategoryName, StringComparison.Ordinal))
                 .GroupBy(row => row.Category)
                 .OrderByDescending(group => group.All(row => row.Required))
                 .ThenBy(group => GetCategorySortOrder(group.Key))
@@ -1185,6 +1225,7 @@ namespace Chievfx.Mcp.Editor
                 return;
             }
 
+            ForceHiddenAutonomyToolsOff();
             Directory.CreateDirectory(Path.GetDirectoryName(ChievfxMcpToolPolicy.ToolSelectionPath)!);
             using (var stream = new FileStream(ChievfxMcpToolPolicy.ToolSelectionPath, FileMode.Create, FileAccess.Write))
             using (var streamWriter = new StreamWriter(stream, new UTF8Encoding(false)))
@@ -1333,6 +1374,47 @@ namespace Chievfx.Mcp.Editor
             return string.Equals(row.Category, "OBSOLETE", StringComparison.Ordinal);
         }
 
+        private void ForceHiddenAutonomyToolsOff()
+        {
+            if (ChievfxMcpWindow.ShowExperimentalAutonomyTools)
+            {
+                return;
+            }
+
+            foreach (var row in toolRows.Where(row => !row.Required && IsAutonomyTool(row)))
+            {
+                row.Enabled = false;
+            }
+        }
+
+        private static bool IsAutonomyTool(ToolRow row)
+        {
+            return string.Equals(row.Category, AutonomousCategoryName, StringComparison.Ordinal)
+                || ChievfxMcpToolPolicy.AutonomousToolIds.Contains(row.Id, StringComparer.Ordinal);
+        }
+
+        private static bool RemoveAutonomyToolIds(JToken? token)
+        {
+            if (token is not JArray array)
+            {
+                return false;
+            }
+
+            var autonomyToolIds = new HashSet<string>(ChievfxMcpToolPolicy.AutonomousToolIds, StringComparer.Ordinal);
+            var removed = false;
+            for (var index = array.Count - 1; index >= 0; index--)
+            {
+                if (array[index]?.Type == JTokenType.String
+                    && autonomyToolIds.Contains(array[index]!.Value<string>() ?? string.Empty))
+                {
+                    array.RemoveAt(index);
+                    removed = true;
+                }
+            }
+
+            return removed;
+        }
+
         private void SetCategoryOptional(string category, bool enabled)
         {
             MarkManualOverride();
@@ -1400,7 +1482,7 @@ namespace Chievfx.Mcp.Editor
 
         private void RefreshSummary()
         {
-            var selectedRows = toolRows.Where(row => row.Enabled || row.Required).ToList();
+            var selectedRows = GetEffectiveSelectedRows().ToList();
             var selectedDescriptorTokens = selectedRows.Sum(row => row.EstimatedTokens);
             var allDescriptorTokens = toolRows.Sum(row => row.EstimatedTokens);
             var selectedDescriptionTokens = selectedRows.Sum(row => row.DescriptionEstimatedTokens);
@@ -1448,6 +1530,21 @@ namespace Chievfx.Mcp.Editor
             saveFeedbackLabel.text = lastSavedAtLocal.HasValue
                 ? $"Saved at {lastSavedAtLocal.Value:HH:mm:ss}."
                 : "Optional tool changes auto-save.";
+        }
+
+        private IEnumerable<ToolRow> GetEffectiveSelectedRows()
+        {
+            return toolRows.Where(row => IsEffectivelySelected(row));
+        }
+
+        private static bool IsEffectivelySelected(ToolRow row)
+        {
+            if (!ChievfxMcpWindow.ShowExperimentalAutonomyTools && IsAutonomyTool(row))
+            {
+                return row.Required;
+            }
+
+            return row.Enabled || row.Required;
         }
 
         private readonly struct SelectionTotals

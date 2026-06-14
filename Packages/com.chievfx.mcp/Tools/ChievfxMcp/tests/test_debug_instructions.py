@@ -51,7 +51,7 @@ class DebugInstructionsTests(unittest.TestCase):
         self.assertIn("## initialize.instructions", text)
         self.assertIn("Enabled ChievFX MCP descriptors (compact instruction form):", text)
         self.assertIn("chievfx://editor/context", text)
-        self.assertNotIn("chievfx://scene/opened", text)
+        self.assertIn("chievfx://scene/opened", text)
         # The enabled scene-current-go template folds into the collapsed GameObject category
         # (10 default-enabled tools + 1 template), surfaced as its category resource link.
         self.assertIn("chievfx://categories/gameobject", text)

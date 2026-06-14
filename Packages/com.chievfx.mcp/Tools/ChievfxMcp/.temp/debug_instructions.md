@@ -1,7 +1,7 @@
 # ChievFX MCP debug instructions
 
-Generated at (UTC): 2026-06-13T06:50:49Z
-Project root: /var/folders/nr/g2tn040175lcc8xflfx_08cm0000gn/T/tmp_xmgvyp4
+Generated at (UTC): 2026-06-14T09:44:25Z
+Project root: /var/folders/nr/g2tn040175lcc8xflfx_08cm0000gn/T/tmpwapdns29
 Trigger: tool-selection-save
 
 ## Selection snapshot
@@ -10,7 +10,7 @@ Trigger: tool-selection-save
 - Enabled resources: 4
 - Enabled resource templates: 19
 - Enabled prompts: 0
-- Tool selection: `/var/folders/nr/g2tn040175lcc8xflfx_08cm0000gn/T/tmp_xmgvyp4/UserSettings/ChievfxMcpToolSelection.json`
+- Tool selection: `/var/folders/nr/g2tn040175lcc8xflfx_08cm0000gn/T/tmpwapdns29/UserSettings/ChievfxMcpToolSelection.json`
 - Resource selection: `/Users/evgeniy_skvortsov/_code_/chievfx-mcp/Packages/com.chievfx.mcp/Tools/ChievfxMcp/UserSettings/ChievfxMcpResourceSelection.json`
 - Prompt selection: `/Users/evgeniy_skvortsov/_code_/chievfx-mcp/Packages/com.chievfx.mcp/Tools/ChievfxMcp/UserSettings/ChievfxMcpPromptSelection.json`
 
@@ -54,10 +54,11 @@ Tools:
 - tool-batch: Runs one enabled tool for many item argument objects. One tool only, no mixed operations. args=(tool:str, items:obj[], stopOnError?:bool)
 Resources:
 - chievfx://editor/context: Compact Unity editor, play mode, active scene, prefab stage, and selection context.
+- chievfx://scene/opened: Opened Unity scenes and their load/dirty/build state.
 Extra API capabilities (batched by category to save tokens; read the linked chievfx://categories resource for full tool/resource details):
 - Asset (13 resources): Persisted AssetDatabase search and asset drill-down resources. -> chievfx://categories/asset
 - Autonomous (6 tools): Optional discovery and enablement helpers for agents to inspect and change optional MCP tool exposure. -> chievfx://categories/autonomous
 - GameObject (10 tools, 8 resources): Optional GameObject hierarchy, lookup, creation, metadata/component mutation, transform, parenting, and duplication tools. -> chievfx://categories/gameobject
 - Prefab (5 tools): Optional prefab-stage and prefab asset workflows. -> chievfx://categories/prefab
-- Scene (5 tools, 1 resources): Optional scene inventory and open/save control. -> chievfx://categories/scene
+- Scene (5 tools): Optional scene inventory and open/save control. -> chievfx://categories/scene
 ```

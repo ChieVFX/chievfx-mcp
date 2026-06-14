@@ -35,11 +35,13 @@ class CategoryResourceTests(unittest.TestCase):
             "RESOURCE_SELECTION_PATH": mcp.RESOURCE_SELECTION_PATH,
             "CATEGORY_SELECTION_PATH": mcp.CATEGORY_SELECTION_PATH,
             "EXTENSION_CAPABILITY_MANIFEST_PATH": mcp.EXTENSION_CAPABILITY_MANIFEST_PATH,
+            "PROJECT_ROOT": mcp.PROJECT_ROOT,
         }
         mcp.TOOL_SELECTION_PATH = self.tool_selection_path
         mcp.RESOURCE_SELECTION_PATH = self.resource_selection_path
         mcp.CATEGORY_SELECTION_PATH = self.category_selection_path
         mcp.EXTENSION_CAPABILITY_MANIFEST_PATH = self.extension_manifest_path
+        mcp.PROJECT_ROOT = root
         mcp.configure_extension_manifest_bridge_fetcher(None)
         mcp.invalidate_extension_manifest_cache()
         self.addCleanup(self.restore_paths)

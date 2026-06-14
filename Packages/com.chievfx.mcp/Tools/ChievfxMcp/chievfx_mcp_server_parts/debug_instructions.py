@@ -1,8 +1,9 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
-def build_debug_instructions_markdown(trigger: str = "") -> str:
-    instructions = build_initialize_instructions()
+def build_debug_instructions_markdown(trigger: str = "", instructions: str | None = None) -> str:
+    if instructions is None:
+        instructions = build_initialize_instructions()
     enabled_tool_count = len(enabled_tools())
     enabled_resource_count = len(enabled_resources())
     enabled_template_count = len(enabled_resource_templates())
@@ -43,7 +44,8 @@ def build_debug_instructions_markdown(trigger: str = "") -> str:
 
 
 def dump_debug_instructions(trigger: str = "") -> Path:
+    instructions = build_initialize_instructions()
     path = DEBUG_INSTRUCTIONS_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(build_debug_instructions_markdown(trigger), encoding="utf-8")
+    path.write_text(build_debug_instructions_markdown(trigger, instructions), encoding="utf-8")
     return path

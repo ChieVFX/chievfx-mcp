@@ -1,6 +1,8 @@
 #nullable enable
 using System;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -74,6 +76,31 @@ namespace Chievfx.Mcp.Editor
     {
         public const string ServerName = "unity-mcp-chievfx";
 
+        // Cursor shares MCP snapshot state (including initialize.instructions) by
+        // server name across every open project/window. When multiple projects use
+        // the same bare name, one project's instructions overwrite the others'
+        // cached INSTRUCTIONS.md. A per-project suffix keeps each project's MCP
+        // server distinct so Cursor cannot collide them. Kept short ("unity-<hash>")
+        // because Cursor prefixes tool names with the server name, and overly long
+        // fully-qualified tool names get filtered out. Used only as the mcp.json
+        // key; EditorPrefs keys stay on the stable bare ServerName.
+        public static string CursorServerName => $"unity-{ProjectKeySuffix()}";
+
+        // True for any Cursor mcp.json key this package has ever written for the
+        // current project (current short form, the legacy bare name, and the prior
+        // "unity-mcp-chievfx-<hash>" form) so writing config migrates old entries.
+        public static bool IsManagedCursorServerName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return false;
+            }
+
+            return string.Equals(name, CursorServerName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, ServerName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, $"{ServerName}-{ProjectKeySuffix()}", StringComparison.OrdinalIgnoreCase);
+        }
+
         public const string PackageName = "com.chievfx.mcp";
 
         public static readonly string[] RequiredToolIds = LoadRequiredToolIds();
@@ -109,6 +136,19 @@ namespace Chievfx.Mcp.Editor
         public static string BridgeUrl => $"http://127.0.0.1:{DefaultBridgePort}";
 
         public static string ProjectRoot => Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+
+        private static string ProjectKeySuffix()
+        {
+            using var sha1 = SHA1.Create();
+            var hash = sha1.ComputeHash(Encoding.UTF8.GetBytes(ProjectRoot));
+            var builder = new StringBuilder(8);
+            for (var i = 0; i < 4; i++)
+            {
+                builder.Append(hash[i].ToString("x2"));
+            }
+
+            return builder.ToString();
+        }
 
         public static string PackageRoot => ResolvePackageRoot();
 

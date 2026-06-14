@@ -733,7 +733,7 @@ namespace Chievfx.Mcp.Editor
             RefreshUi();
             EditorUtility.DisplayDialog(
                 "ChievFX MCP",
-                "Cursor config written. Reload Cursor MCP tools or restart Cursor before unity-mcp-chievfx appears in the current Cursor session.",
+                $"Cursor config written. Reload Cursor MCP tools or restart Cursor before {ChievfxMcpToolPolicy.CursorServerName} appears in the current Cursor session.",
                 "OK");
         }
 
@@ -757,7 +757,7 @@ namespace Chievfx.Mcp.Editor
                 mcpServers[existingServer.Name] = existingServer.Value;
             }
 
-            mcpServers[ChievfxMcpToolPolicy.ServerName] = BuildExpectedCursorServerEntry(transport, port, timeout);
+            mcpServers[ChievfxMcpToolPolicy.CursorServerName] = BuildExpectedCursorServerEntry(transport, port, timeout);
 
             var root = new JObject { ["mcpServers"] = mcpServers };
             return root.ToString(Formatting.Indented);
@@ -825,8 +825,10 @@ namespace Chievfx.Mcp.Editor
 
         private static bool ShouldSkipExistingServer(string name, JToken value, int port)
         {
-            if (string.Equals(name, ChievfxMcpToolPolicy.ServerName, StringComparison.OrdinalIgnoreCase))
+            if (ChievfxMcpToolPolicy.IsManagedCursorServerName(name))
             {
+                // Skip the current project-unique entry (rewritten below) and any
+                // legacy entry this package wrote, so writing config migrates them.
                 return true;
             }
 
@@ -944,7 +946,7 @@ namespace Chievfx.Mcp.Editor
                 var root = JToken.Parse(File.ReadAllText(CursorConfigPath));
                 if (root is not JObject rootObj
                     || rootObj["mcpServers"] is not JObject mcpServers
-                    || mcpServers[ChievfxMcpToolPolicy.ServerName] is not JToken server)
+                    || mcpServers[ChievfxMcpToolPolicy.CursorServerName] is not JToken server)
                 {
                     return false;
                 }

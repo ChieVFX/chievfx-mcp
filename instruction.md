@@ -159,8 +159,8 @@ Resource templates:
 
 - `chievfx://scene/{scenePath}/go/{goPath}`
 - `chievfx://scene/{scenePath}/go/{goPath}/component/{componentKey}`
-- `chievfx://scene/current/go/{goPath}`
-- `chievfx://scene/current/go/{goPath}/component/{componentKey}`
+- `chievfx://scene/all/go/{goPath}`
+- `chievfx://scene/all/go/{goPath}/component/{componentKey}`
 
 URI rule: encode every scene path, GameObject hierarchy path, and component key as one URI segment. Use percent-encoding with no safe slash, for example Python `quote(value, safe='')`. GameObject hierarchy paths keep ChievFX grammar: `/` separator, `\/` literal slash, `\\` literal backslash, and `[n]` duplicate suffix. Component keys use simple class names; duplicate simple names are suffixed 1-based, for example `BoxCollider.1`.
 

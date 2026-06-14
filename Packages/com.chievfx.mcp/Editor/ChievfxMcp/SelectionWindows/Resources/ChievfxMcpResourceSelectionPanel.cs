@@ -317,7 +317,6 @@ namespace Chievfx.Mcp.Editor
                     var root = JToken.Parse(File.ReadAllText(ChievfxMcpToolPolicy.ResourceSelectionPath));
                     enabledResourceIds = ReadEnabledIds(root, "enabledResourceIds", allResourceIds);
                     enabledTemplateIds = ReadEnabledIds(root, "enabledResourceTemplateIds", allTemplateIds);
-                    ApplyTemplateSelectionAliases(enabledTemplateIds);
                 }
                 catch (JsonException ex)
                 {
@@ -353,19 +352,6 @@ namespace Chievfx.Mcp.Editor
             }
 
             return enabledIds;
-        }
-
-        private static void ApplyTemplateSelectionAliases(HashSet<string> enabledTemplateIds)
-        {
-            if (enabledTemplateIds.Contains("scene-current-go"))
-            {
-                enabledTemplateIds.Add("scene-all-go");
-            }
-
-            if (enabledTemplateIds.Contains("scene-current-component"))
-            {
-                enabledTemplateIds.Add("scene-all-component");
-            }
         }
 
         private static HashSet<string> ReadStringSet(JToken root, string propertyName)

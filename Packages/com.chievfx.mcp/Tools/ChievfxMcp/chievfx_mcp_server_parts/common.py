@@ -276,18 +276,16 @@ DEFAULT_REQUIRED_RESOURCE_IDS: set[str] = {
     "scenes-opened",
 }
 DEFAULT_REQUIRED_RESOURCE_TEMPLATE_IDS: set[str] = set()
-RESOURCE_TEMPLATE_SELECTION_ALIASES: dict[str, str] = {
-    "scene-current-go": "scene-all-go",
-    "scene-current-component": "scene-all-component",
-}
+RESOURCE_SELECTION_ALIASES: dict[str, str] = {}
+RESOURCE_TEMPLATE_SELECTION_ALIASES: dict[str, str] = {}
 DEFAULT_REQUIRED_PROMPT_NAMES: set[str] = set()
 RESOURCE_CATEGORIES = {
     "control-status": "Essentials",
     "editor-context": "Essentials",
     "runtime-ui-status": "Essentials",
     "scenes-opened": "Essentials",
-    "scene-current-material-profile-summary": "Asset",
-    "scene-current-usage-counts": "Asset",
+    "scene-all-material-profile-summary": "Asset",
+    "scene-all-usage-counts": "Asset",
 }
 RESOURCE_TEMPLATE_CATEGORIES = {
     "scene-go": "GameObject",
@@ -296,11 +294,11 @@ RESOURCE_TEMPLATE_CATEGORIES = {
     "scene-all-component": "GameObject",
     "asset-detail": "Asset",
     "asset-subasset-detail": "Asset",
-    "scene-current-material-profile-shader": "Asset",
-    "scene-current-material-profile-material": "Asset",
-    "scene-current-usage-assets": "Asset",
-    "scene-current-usage-asset": "Asset",
-    "scene-current-usage-subasset": "Asset",
+    "scene-all-material-profile-shader": "Asset",
+    "scene-all-material-profile-material": "Asset",
+    "scene-all-usage-assets": "Asset",
+    "scene-all-usage-asset": "Asset",
+    "scene-all-usage-subasset": "Asset",
 }
 RESOURCE_CATEGORY_DESCRIPTIONS = {
     "Essentials": "Always-on editor, scene, runtime UI, and control status resources.",

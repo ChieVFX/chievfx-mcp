@@ -208,7 +208,7 @@ namespace Chievfx.Mcp.Editor
 
         private static Dictionary<string, object?> CreateAssetResourceRow(Object asset, string path, string guid, bool isMainAsset)
         {
-            var mainType = AssetDatabase.GetMainAssetTypeAtPath(path);
+            var mainType = GetAssetMainTypeName(path);
             TryGetAssetLocalId(asset, out var localId);
             var detailUri = isMainAsset
                 ? $"chievfx://asset/{guid}"
@@ -218,7 +218,7 @@ namespace Chievfx.Mcp.Editor
                 ["name"] = asset.name,
                 ["path"] = path,
                 ["guid"] = guid,
-                ["mainType"] = mainType?.Name ?? string.Empty,
+                ["mainType"] = mainType,
                 ["labels"] = GetAssetLabels(path),
                 ["isMainAsset"] = isMainAsset,
                 ["localId"] = localId,
@@ -236,6 +236,16 @@ namespace Chievfx.Mcp.Editor
             }
 
             return output;
+        }
+
+        private static string GetAssetMainTypeName(string path)
+        {
+            if (string.Equals(Path.GetExtension(path), ".unity", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Scene";
+            }
+
+            return AssetDatabase.GetMainAssetTypeAtPath(path)?.Name ?? string.Empty;
         }
 
         private static bool AssetResourceRowMatchesFilter(Dictionary<string, object?> row, ResourceAssetFilter filter)

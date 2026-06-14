@@ -46,36 +46,36 @@ def resolve_resource_uri(uri: str) -> tuple[str, str]:
     if uri.startswith("chievfx://scene/"):
         rest = uri[len("chievfx://scene/") :]
         parts = rest.split("/")
-        if len(parts) == 4 and parts[0] == "current" and parts[1] == "usage" and parts[2] == "assets" and parts[3]:
-            return "template", "scene-current-usage-assets"
-        if len(parts) == 4 and parts[0] == "current" and parts[1] == "usage" and parts[2] == "asset" and parts[3]:
-            return "template", "scene-current-usage-asset"
+        if len(parts) == 4 and parts[0] == "all" and parts[1] == "usage" and parts[2] == "assets" and parts[3]:
+            return "template", "scene-all-usage-assets"
+        if len(parts) == 4 and parts[0] == "all" and parts[1] == "usage" and parts[2] == "asset" and parts[3]:
+            return "template", "scene-all-usage-asset"
         if (
             len(parts) == 6
-            and parts[0] == "current"
+            and parts[0] == "all"
             and parts[1] == "usage"
             and parts[2] == "asset"
             and parts[3]
             and parts[4] == "id"
             and parts[5]
         ):
-            return "template", "scene-current-usage-subasset"
+            return "template", "scene-all-usage-subasset"
         if (
             len(parts) == 4
-            and parts[0] == "current"
+            and parts[0] == "all"
             and parts[1] == "material-profile"
             and parts[2] == "shader"
             and parts[3]
         ):
-            return "template", "scene-current-material-profile-shader"
+            return "template", "scene-all-material-profile-shader"
         if (
             len(parts) == 4
-            and parts[0] == "current"
+            and parts[0] == "all"
             and parts[1] == "material-profile"
             and parts[2] == "material"
             and parts[3]
         ):
-            return "template", "scene-current-material-profile-material"
+            return "template", "scene-all-material-profile-material"
         if len(parts) == 3 and parts[1] == "go" and parts[0] and parts[2]:
             if parts[0] == "all":
                 return "template", "scene-all-go"

@@ -92,8 +92,9 @@ class GameObjectFormattingTests(unittest.TestCase):
         text = mcp.format_asset_find_text(result)
 
         self.assertIn("(2 shown, 1 asset guid) filter:wood t:Material", text)
+        self.assertIn("detail: chievfx://asset/{guid} or chievfx://asset/{guid}/id/{localId}", text)
         self.assertIn("- Assets/Materials/Wood.mat name:Wood guid:0123456789abcdef0123456789abcdef [Material, labels:ui]", text)
-        self.assertIn("detail: chievfx://asset/0123456789abcdef0123456789abcdef", text)
+        self.assertNotIn("detail: chievfx://asset/0123456789abcdef0123456789abcdef", text)
         self.assertIn("[Texture2D, localId:2800000]", text)
 
     def test_gameobject_find_text_uses_compact_rows(self) -> None:

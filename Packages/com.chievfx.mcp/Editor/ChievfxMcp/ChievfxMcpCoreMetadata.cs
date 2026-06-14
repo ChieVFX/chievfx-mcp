@@ -8,8 +8,8 @@ namespace Chievfx.Mcp.Editor
     {
         // Resource("editor-context", "chievfx://editor/context")
         // Resource("scenes-opened", "chievfx://scene/opened")
-        // Resource("scene-current-usage-counts", "chievfx://scene/current/usage/counts")
-        // Resource("scene-current-material-profile-summary", "chievfx://scene/current/material-profile/summary")
+        // Resource("scene-all-usage-counts", "chievfx://scene/all/usage/counts")
+        // Resource("scene-all-material-profile-summary", "chievfx://scene/all/material-profile/summary")
 
         // Template("scene-go", "chievfx://scene/{scenePath}/go/{goPath}")
         // Template("scene-component", "chievfx://scene/{scenePath}/go/{goPath}/component/{componentKey}")
@@ -17,11 +17,11 @@ namespace Chievfx.Mcp.Editor
         // Template("scene-all-component", "chievfx://scene/all/go/{goPath}/component/{componentKey}")
         // Template("asset-detail", "chievfx://asset/{guid}")
         // Template("asset-subasset-detail", "chievfx://asset/{guid}/id/{localId}")
-        // Template("scene-current-material-profile-shader", "chievfx://scene/current/material-profile/shader/{shaderKey}")
-        // Template("scene-current-material-profile-material", "chievfx://scene/current/material-profile/material/{materialKey}")
-        // Template("scene-current-usage-assets", "chievfx://scene/current/usage/assets/{assetType}")
-        // Template("scene-current-usage-asset", "chievfx://scene/current/usage/asset/{guid}")
-        // Template("scene-current-usage-subasset", "chievfx://scene/current/usage/asset/{guid}/id/{localId}")
+        // Template("scene-all-material-profile-shader", "chievfx://scene/all/material-profile/shader/{shaderKey}")
+        // Template("scene-all-material-profile-material", "chievfx://scene/all/material-profile/material/{materialKey}")
+        // Template("scene-all-usage-assets", "chievfx://scene/all/usage/assets/{assetType}")
+        // Template("scene-all-usage-asset", "chievfx://scene/all/usage/asset/{guid}")
+        // Template("scene-all-usage-subasset", "chievfx://scene/all/usage/asset/{guid}/id/{localId}")
 
         // Prompt("unity-scene-review")
         // Prompt("unity-shader-built-in-draft")

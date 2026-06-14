@@ -78,25 +78,25 @@ namespace Chievfx.Mcp.Editor
 
                 var parts = uri.Substring("chievfx://scene/".Length).Split('/');
                 if (parts.Length >= 3
-                    && string.Equals(parts[0], "current", StringComparison.Ordinal)
                     && string.Equals(parts[1], "usage", StringComparison.Ordinal))
                 {
+                    var context = BridgeResourcePayloadService.ResolveResourceSceneContext(parts[0]);
                     if (parts.Length == 3 && string.Equals(parts[2], "counts", StringComparison.Ordinal))
                     {
-                        return sceneResources.ReadSceneUsageCountsResource(uri, GameObjectBridgeService.GetGameObjectQueryContext());
+                        return sceneResources.ReadSceneUsageCountsResource(uri, context);
                     }
 
                     if (parts.Length == 4 && string.Equals(parts[2], "assets", StringComparison.Ordinal))
                     {
                         var assetType = BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[3], "assetType", MaxResourceFilterValueChars);
-                        return sceneResources.ReadSceneUsageAssetsResource(uri, GameObjectBridgeService.GetGameObjectQueryContext(), assetType);
+                        return sceneResources.ReadSceneUsageAssetsResource(uri, context, assetType);
                     }
 
                     if (parts.Length == 4 && string.Equals(parts[2], "asset", StringComparison.Ordinal))
                     {
                         return sceneResources.ReadSceneUsageAssetResource(
                             uri,
-                            GameObjectBridgeService.GetGameObjectQueryContext(),
+                            context,
                             BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[3], "guid", MaxResourceFilterValueChars),
                             null);
                     }
@@ -107,26 +107,26 @@ namespace Chievfx.Mcp.Editor
                     {
                         return sceneResources.ReadSceneUsageAssetResource(
                             uri,
-                            GameObjectBridgeService.GetGameObjectQueryContext(),
+                            context,
                             BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[3], "guid", MaxResourceFilterValueChars),
                             BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[5], "localId", MaxResourceFilterValueChars));
                     }
                 }
 
                 if (parts.Length >= 3
-                    && string.Equals(parts[0], "current", StringComparison.Ordinal)
                     && string.Equals(parts[1], "material-profile", StringComparison.Ordinal))
                 {
+                    var context = BridgeResourcePayloadService.ResolveResourceSceneContext(parts[0]);
                     if (parts.Length == 3 && string.Equals(parts[2], "summary", StringComparison.Ordinal))
                     {
-                        return materialProfileResources.ReadCurrentSceneMaterialProfileSummaryResource(uri, GameObjectBridgeService.GetGameObjectQueryContext());
+                        return materialProfileResources.ReadCurrentSceneMaterialProfileSummaryResource(uri, context);
                     }
 
                     if (parts.Length == 4 && string.Equals(parts[2], "shader", StringComparison.Ordinal))
                     {
                         return materialProfileResources.ReadCurrentSceneMaterialProfileShaderResource(
                             uri,
-                            GameObjectBridgeService.GetGameObjectQueryContext(),
+                            context,
                             BridgeResourcePayloadService.DecodeResourceSegment(parts[3], "shaderKey"));
                     }
 
@@ -134,7 +134,7 @@ namespace Chievfx.Mcp.Editor
                     {
                         return materialProfileResources.ReadCurrentSceneMaterialProfileMaterialResource(
                             uri,
-                            GameObjectBridgeService.GetGameObjectQueryContext(),
+                            context,
                             BridgeResourcePayloadService.DecodeResourceSegment(parts[3], "materialKey"));
                     }
                 }

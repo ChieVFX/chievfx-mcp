@@ -552,12 +552,22 @@ class McpServerCore:
             bridge_result = fetch_via_bridge()
             if uri == "chievfx://scene/opened":
                 text = format_scene_opened_resource_text(bridge_result.get("result"))
+            elif resource_kind == "resource" and resource_id == "scene-all-usage-counts":
+                text = truncate_resource_text(format_scene_usage_counts_text(bridge_result.get("result")))
+            elif resource_kind == "resource" and resource_id == "scene-all-material-profile-summary":
+                text = truncate_resource_text(format_material_profile_summary_text(bridge_result.get("result")))
             elif resource_kind == "template" and resource_id in {"scene-go", "scene-all-go"}:
                 text = truncate_resource_text(format_gameobject_get_text(bridge_result.get("result")))
             elif resource_kind == "template" and resource_id in {"scene-component", "scene-all-component"}:
                 text = truncate_resource_text(format_gameobject_component_get_text(bridge_result.get("result")))
             elif resource_kind == "template" and resource_id in {"asset-detail", "asset-subasset-detail"}:
                 text = truncate_resource_text(format_asset_detail_text(bridge_result.get("result")))
+            elif resource_kind == "template" and resource_id == "scene-all-usage-assets":
+                text = truncate_resource_text(format_scene_usage_assets_text(bridge_result.get("result")))
+            elif resource_kind == "template" and resource_id in {"scene-all-usage-asset", "scene-all-usage-subasset"}:
+                text = truncate_resource_text(format_scene_usage_asset_detail_text(bridge_result.get("result")))
+            elif resource_kind == "template" and resource_id in {"scene-all-material-profile-shader", "scene-all-material-profile-material"}:
+                text = truncate_resource_text(format_material_profile_summary_text(bridge_result.get("result")))
             else:
                 text = format_resource_text(bridge_result.get("result"))
 

@@ -33,19 +33,19 @@ mimeType: text/plain
 
 --- 
 type: resource
-id: scene-current-usage-counts
-uri: chievfx://scene/current/usage/counts
-name: Current scene asset usage counts
-description: Asset usage totals for the current prefab stage or active scene, grouped by common asset type.
+id: scene-all-usage-counts
+uri: chievfx://scene/all/usage/counts
+name: Asset usage counts across loaded scenes
+description: Asset usage totals across all loaded scenes, grouped by common asset type.
 mimeType: text/plain
 ---
 
 --- 
 type: resource
-id: scene-current-material-profile-summary
-uri: chievfx://scene/current/material-profile/summary
-name: Current scene material profile
-description: Read-only material profile for the current prefab stage or active scene with exact shader/material counts and profiler memory estimates.
+id: scene-all-material-profile-summary
+uri: chievfx://scene/all/material-profile/summary
+name: Material profile across loaded scenes
+description: Read-only material profile across all loaded scenes with exact shader/material counts and profiler memory estimates.
 mimeType: text/plain
 ---
 
@@ -106,46 +106,46 @@ mimeType: text/plain
 
 ---
 type: resourceTemplate
-id: scene-current-material-profile-shader
-uriTemplate: chievfx://scene/current/material-profile/shader/{shaderKey}
-name: Current material profile by shader
-description: Drill into materials using one shader key from the current material profile summary.
+id: scene-all-material-profile-shader
+uriTemplate: chievfx://scene/all/material-profile/shader/{shaderKey}
+name: Material profile by shader across loaded scenes
+description: Drill into materials using one shader key from the material profile summary across loaded scenes.
 mimeType: text/plain
 ---
 
 ---
 type: resourceTemplate
-id: scene-current-material-profile-material
-uriTemplate: chievfx://scene/current/material-profile/material/{materialKey}
-name: Current material profile material detail
-description: Drill into one material key from the current material profile summary, including locations and texture links.
+id: scene-all-material-profile-material
+uriTemplate: chievfx://scene/all/material-profile/material/{materialKey}
+name: Material profile material detail across loaded scenes
+description: Drill into one material key from the material profile summary across loaded scenes, including locations and texture links.
 mimeType: text/plain
 ---
 
 ---
 type: resourceTemplate
-id: scene-current-usage-assets
-uriTemplate: chievfx://scene/current/usage/assets/{assetType}
-name: Current scene asset usage by type
-description: Summarize current scene or prefab-stage references for material, mesh, texture, renderTexture, or all assets.
+id: scene-all-usage-assets
+uriTemplate: chievfx://scene/all/usage/assets/{assetType}
+name: Asset usage by type across loaded scenes
+description: Summarize loaded-scene references for material, mesh, texture, renderTexture, or all assets.
 mimeType: text/plain
 ---
 
 ---
 type: resourceTemplate
-id: scene-current-usage-asset
-uriTemplate: chievfx://scene/current/usage/asset/{guid}
-name: Current scene asset usage by GUID
-description: Drill into current scene or prefab-stage GameObject/component references to an asset GUID.
+id: scene-all-usage-asset
+uriTemplate: chievfx://scene/all/usage/asset/{guid}
+name: Asset usage by GUID across loaded scenes
+description: Drill into loaded-scene GameObject/component references to an asset GUID.
 mimeType: text/plain
 ---
 
 ---
 type: resourceTemplate
-id: scene-current-usage-subasset
-uriTemplate: chievfx://scene/current/usage/asset/{guid}/id/{localId}
-name: Current scene subasset usage by GUID and local file identifier
-description: Drill into current scene or prefab-stage references to one subasset local file identifier.
+id: scene-all-usage-subasset
+uriTemplate: chievfx://scene/all/usage/asset/{guid}/id/{localId}
+name: Subasset usage by GUID and local file identifier across loaded scenes
+description: Drill into loaded-scene references to one subasset local file identifier.
 mimeType: text/plain
 ---
 

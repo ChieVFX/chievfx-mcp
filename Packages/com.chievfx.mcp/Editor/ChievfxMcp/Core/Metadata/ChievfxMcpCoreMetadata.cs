@@ -13,8 +13,8 @@ namespace Chievfx.Mcp.Editor
             {
                 Resource("editor-context", "chievfx://editor/context", "Unity editor context", "Compact Unity editor, play mode, active scene, prefab stage, and selection context."),
                 Resource("scenes-opened", "chievfx://scene/opened", "Opened scenes", "Opened Unity scenes and their load/dirty/build state."),
-                Resource("scene-current-usage-counts", "chievfx://scene/current/usage/counts", "Current scene asset usage counts", "Asset usage totals for the current prefab stage or active scene, grouped by common asset type."),
-                Resource("scene-current-material-profile-summary", "chievfx://scene/current/material-profile/summary", "Current scene material profile", "Read-only material profile for the current prefab stage or active scene with exact shader/material counts and profiler memory estimates."),
+                Resource("scene-all-usage-counts", "chievfx://scene/all/usage/counts", "Asset usage counts across loaded scenes", "Asset usage totals across all loaded scenes, grouped by common asset type."),
+                Resource("scene-all-material-profile-summary", "chievfx://scene/all/material-profile/summary", "Material profile across loaded scenes", "Read-only material profile across all loaded scenes with exact shader/material counts and profiler memory estimates."),
             };
 
         public static IReadOnlyList<ChievfxMcpResourceTemplateDescriptor> ResourceTemplates { get; } =
@@ -26,11 +26,11 @@ namespace Chievfx.Mcp.Editor
                 Template("scene-all-component", "chievfx://scene/all/go/{goPath}/component/{componentKey}", "Component serialized values across loaded scenes", "Serialized values for one component across all loaded scenes. Prefer this default when scene scope is unknown."),
                 Template("asset-detail", "chievfx://asset/{guid}", "Asset detail by GUID", "Load one persisted main asset by GUID with AssetImporter metadata and subasset drill-down hints."),
                 Template("asset-subasset-detail", "chievfx://asset/{guid}/id/{localId}", "Subasset detail by GUID and local file identifier", "Load one persisted subasset by GUID and long local file identifier."),
-                Template("scene-current-material-profile-shader", "chievfx://scene/current/material-profile/shader/{shaderKey}", "Current material profile by shader", "Drill into materials using one shader key from the current material profile summary."),
-                Template("scene-current-material-profile-material", "chievfx://scene/current/material-profile/material/{materialKey}", "Current material profile material detail", "Drill into one material key from the current material profile summary, including locations and texture links."),
-                Template("scene-current-usage-assets", "chievfx://scene/current/usage/assets/{assetType}", "Current scene asset usage by type", "Summarize current scene or prefab-stage references for material, mesh, texture, renderTexture, or all assets."),
-                Template("scene-current-usage-asset", "chievfx://scene/current/usage/asset/{guid}", "Current scene asset usage by GUID", "Drill into current scene or prefab-stage GameObject/component references to an asset GUID."),
-                Template("scene-current-usage-subasset", "chievfx://scene/current/usage/asset/{guid}/id/{localId}", "Current scene subasset usage by GUID and local file identifier", "Drill into current scene or prefab-stage references to one subasset local file identifier."),
+                Template("scene-all-material-profile-shader", "chievfx://scene/all/material-profile/shader/{shaderKey}", "Material profile by shader across loaded scenes", "Drill into materials using one shader key from the material profile summary across loaded scenes."),
+                Template("scene-all-material-profile-material", "chievfx://scene/all/material-profile/material/{materialKey}", "Material profile material detail across loaded scenes", "Drill into one material key from the material profile summary across loaded scenes, including locations and texture links."),
+                Template("scene-all-usage-assets", "chievfx://scene/all/usage/assets/{assetType}", "Asset usage by type across loaded scenes", "Summarize loaded-scene references for material, mesh, texture, renderTexture, or all assets."),
+                Template("scene-all-usage-asset", "chievfx://scene/all/usage/asset/{guid}", "Asset usage by GUID across loaded scenes", "Drill into loaded-scene GameObject/component references to an asset GUID."),
+                Template("scene-all-usage-subasset", "chievfx://scene/all/usage/asset/{guid}/id/{localId}", "Subasset usage by GUID and local file identifier across loaded scenes", "Drill into loaded-scene references to one subasset local file identifier."),
             };
 
         public static IReadOnlyList<ChievfxMcpPromptDescriptor> Prompts { get; } =

@@ -562,7 +562,7 @@ namespace Chievfx.Mcp.Editor
                 ["gameObjectCount"] = matches.SelectMany(entry => entry.GameObjectIds).Distinct().Count(),
                 ["loadedDependencyCount"] = matches.Count(entry => entry.LoadedDependency),
                 ["savedDependencyCount"] = matches.Count(entry => entry.SavedDependency),
-                ["resourceUri"] = $"chievfx://scene/current/usage/assets/{assetType}"
+                ["resourceUri"] = $"chievfx://scene/all/usage/assets/{assetType}"
             };
         }
 

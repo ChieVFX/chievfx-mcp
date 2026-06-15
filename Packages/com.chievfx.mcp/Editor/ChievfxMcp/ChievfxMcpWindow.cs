@@ -861,9 +861,71 @@ namespace Chievfx.Mcp.Editor
 
         private static bool IsClientAvailable(McpClientInfo clientInfo)
         {
-            return !clientInfo.RequiresToolProbe
-                || string.IsNullOrWhiteSpace(clientInfo.ProbeExecutableName)
-                || IsExecutableAvailable(clientInfo.ProbeExecutableName!);
+            if (!clientInfo.RequiresToolProbe || string.IsNullOrWhiteSpace(clientInfo.ProbeExecutableName))
+            {
+                return true;
+            }
+
+            if (IsExecutableAvailable(clientInfo.ProbeExecutableName!))
+            {
+                return true;
+            }
+
+            // Claude Code's Store (MSIX) build installs under a package-redirected AppData
+            // path that non-packaged processes like the Unity editor cannot see, so a plain
+            // executable probe fails even when it is installed. Fall back to signals that are
+            // not affected by package redirection.
+            return string.Equals(clientInfo.ProbeExecutableName, "claude", StringComparison.OrdinalIgnoreCase)
+                && IsClaudeCodeInstalled();
+        }
+
+        private static bool IsClaudeCodeInstalled()
+        {
+            // Claude Code creates a ~/.claude home directory on first run. It is a plain
+            // user-profile directory, unaffected by MSIX package redirection.
+            var userProfile = Environment.GetEnvironmentVariable("USERPROFILE");
+            if (string.IsNullOrWhiteSpace(userProfile))
+            {
+                try
+                {
+                    userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                }
+                catch (PlatformNotSupportedException)
+                {
+                    userProfile = null;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(userProfile) && Directory.Exists(Path.Combine(userProfile!, ".claude")))
+            {
+                return true;
+            }
+
+            // Definitive when Claude Code (or the desktop app's bundled CLI) is running.
+            try
+            {
+                var processes = Process.GetProcessesByName("claude");
+                try
+                {
+                    if (processes.Length > 0)
+                    {
+                        return true;
+                    }
+                }
+                finally
+                {
+                    foreach (var process in processes)
+                    {
+                        process.Dispose();
+                    }
+                }
+            }
+            catch
+            {
+                // Process enumeration can fail under restricted environments; ignore.
+            }
+
+            return false;
         }
 
         private string BuildClientConfigPreview(McpClientInfo clientInfo, string transport, int port, int timeout)
@@ -1256,10 +1318,46 @@ namespace Chievfx.Mcp.Editor
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                foreach (var candidate in ExecutablePathVariants(Path.Combine(appData, "npm", executableName)))
+                // Resolve well-known roots from environment variables first because Unity's
+                // Mono returns inconsistent results from Environment.GetFolderPath; fall back
+                // to GetFolderPath so detection still works if a variable is unset.
+                var appDataRoots = ResolveWindowsRoots("APPDATA", Environment.SpecialFolder.ApplicationData, Path.Combine("AppData", "Roaming"));
+                var localAppDataRoots = ResolveWindowsRoots("LOCALAPPDATA", Environment.SpecialFolder.LocalApplicationData, Path.Combine("AppData", "Local"));
+
+                foreach (var appData in appDataRoots)
                 {
-                    YieldPath(results, candidate);
+                    foreach (var candidate in ExecutablePathVariants(Path.Combine(appData, "npm", executableName)))
+                    {
+                        YieldPath(results, candidate);
+                    }
+                }
+
+                // The native Claude Code installer (and the desktop-bundled CLI) places the
+                // executable under a versioned directory that is not added to PATH, e.g.
+                // %APPDATA%\Claude\claude-code\<version>\claude.exe. Scan those roots so the
+                // client is detected even without a PATH shim.
+                if (string.Equals(executableName, "claude", StringComparison.OrdinalIgnoreCase))
+                {
+                    var installRoots = new List<string>();
+                    foreach (var appData in appDataRoots)
+                    {
+                        installRoots.Add(Path.Combine(appData, "Claude", "claude-code"));
+                        installRoots.Add(Path.Combine(appData, "Claude", "claude-code-vm"));
+                    }
+
+                    foreach (var localAppData in localAppDataRoots)
+                    {
+                        installRoots.Add(Path.Combine(localAppData, "Claude", "claude-code"));
+                        installRoots.Add(Path.Combine(localAppData, "Claude", "claude-code-vm"));
+                    }
+
+                    foreach (var root in installRoots)
+                    {
+                        foreach (var candidate in EnumerateVersionedExecutables(root, executableName))
+                        {
+                            YieldPath(results, candidate);
+                        }
+                    }
                 }
             }
             else
@@ -1287,6 +1385,86 @@ namespace Chievfx.Mcp.Editor
             yield return basePath + ".cmd";
             yield return basePath + ".exe";
             yield return basePath + ".bat";
+        }
+
+        private static IReadOnlyList<string> ResolveWindowsRoots(string environmentVariable, Environment.SpecialFolder specialFolder, string userProfileRelative)
+        {
+            var roots = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            void Add(string? value)
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    return;
+                }
+
+                var trimmed = value!.Trim();
+                if (seen.Add(trimmed))
+                {
+                    roots.Add(trimmed);
+                }
+            }
+
+            Add(Environment.GetEnvironmentVariable(environmentVariable));
+            try
+            {
+                Add(Environment.GetFolderPath(specialFolder));
+            }
+            catch (PlatformNotSupportedException)
+            {
+                // GetFolderPath can throw under some Mono configurations; other sources cover us.
+            }
+
+            // Unity's Mono runtime frequently leaves APPDATA/LOCALAPPDATA unset and returns
+            // empty strings from GetFolderPath, so derive the folder from USERPROFILE (which is
+            // reliably present) as a final fallback.
+            var userProfile = Environment.GetEnvironmentVariable("USERPROFILE");
+            if (string.IsNullOrWhiteSpace(userProfile))
+            {
+                try
+                {
+                    userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                }
+                catch (PlatformNotSupportedException)
+                {
+                    userProfile = null;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(userProfile))
+            {
+                Add(Path.Combine(userProfile!, userProfileRelative));
+            }
+
+            return roots;
+        }
+
+        private static IEnumerable<string> EnumerateVersionedExecutables(string root, string executableName)
+        {
+            string[] versionDirectories;
+            try
+            {
+                versionDirectories = Directory.Exists(root)
+                    ? Directory.GetDirectories(root)
+                    : Array.Empty<string>();
+            }
+            catch (IOException)
+            {
+                versionDirectories = Array.Empty<string>();
+            }
+            catch (UnauthorizedAccessException)
+            {
+                versionDirectories = Array.Empty<string>();
+            }
+
+            foreach (var versionDirectory in versionDirectories)
+            {
+                foreach (var candidate in ExecutablePathVariants(Path.Combine(versionDirectory, executableName)))
+                {
+                    yield return candidate;
+                }
+            }
         }
 
         private static bool IsSameLocalHttpEndpoint(string? url, int port)

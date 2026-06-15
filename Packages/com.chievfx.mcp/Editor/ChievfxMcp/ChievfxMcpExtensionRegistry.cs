@@ -112,6 +112,7 @@ namespace Chievfx.Mcp.Editor
 
         private static readonly HashSet<string> CoreToolIds = new(StringComparer.Ordinal)
         {
+            "asset-find",
             "asset-create",
             "asset-delete",
             "assets-refresh",

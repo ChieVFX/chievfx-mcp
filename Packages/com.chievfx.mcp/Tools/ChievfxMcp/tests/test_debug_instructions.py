@@ -39,7 +39,7 @@ class DebugInstructionsTests(unittest.TestCase):
         )
 
     def test_dump_debug_instructions_writes_markdown(self) -> None:
-        self.write_resource_selection(["editor-context"], ["scene-current-go"])
+        self.write_resource_selection(["editor-context"], ["scene-all-go"])
 
         path = mcp.dump_debug_instructions("test-trigger")
 
@@ -52,7 +52,7 @@ class DebugInstructionsTests(unittest.TestCase):
         self.assertIn("Enabled ChievFX MCP descriptors (compact instruction form):", text)
         self.assertIn("chievfx://editor/context", text)
         self.assertIn("chievfx://scene/opened", text)
-        # The enabled scene-current-go template folds into the collapsed GameObject category
+        # The enabled scene-all-go template folds into the collapsed GameObject category
         # (10 default-enabled tools + 1 template), surfaced as its category resource link.
         self.assertIn("chievfx://categories/gameobject", text)
 

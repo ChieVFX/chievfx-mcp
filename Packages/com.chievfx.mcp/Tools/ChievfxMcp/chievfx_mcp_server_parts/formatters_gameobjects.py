@@ -36,14 +36,23 @@ def format_gameobject_find_text(result: dict[str, Any]) -> str:
 
 def format_gameobject_get_text(result: dict[str, Any]) -> str:
     game_object = result.get("gameObject")
+    matches = result.get("matches")
+    if not isinstance(game_object, dict) and isinstance(matches, list):
+        lines = [
+            f"{format_toon_atom(result.get('reason'))} path:{format_gameobject_text_value(result.get('path'))} "
+            f"matches:{format_toon_atom(result.get('count'))}"
+        ]
+        for match in matches:
+            if isinstance(match, dict):
+                lines.extend(format_gameobject_find_object_lines(match))
+        return "\n".join(line for line in lines if line)
     if not isinstance(game_object, dict):
         return to_toon(result)
 
     lines = [format_gameobject_detail_row(game_object)]
     components = game_object.get("components")
     if isinstance(components, list):
-        component_text = ",".join(format_gameobject_component_summary(component) for component in components if isinstance(component, dict))
-        lines.append(f"components[{len(components)}]:[{component_text}]")
+        lines.append(format_gameobject_components_line(components))
     return "\n".join(lines)
 
 
@@ -179,8 +188,7 @@ def format_gameobject_hierarchy_node(game_object: dict[str, Any], depth: int) ->
             component_text += ", ..."
         lines.append(indent + f"  components[{len(component_types)}]: {component_text}")
     if isinstance(components, list):
-        component_text = ", ".join(format_gameobject_component_summary(component) for component in components if isinstance(component, dict))
-        lines.append(indent + f"  components[{len(components)}]: {component_text}")
+        lines.append(indent + "  " + format_gameobject_components_line(components))
     children = game_object.get("children")
     if isinstance(children, list):
         for child in children:
@@ -229,8 +237,7 @@ def format_gameobject_find_object_lines(game_object: dict[str, Any]) -> list[str
             component_text += ", ..."
         lines.append(f"  components[{len(component_types)}]: {component_text}")
     if isinstance(components, list):
-        component_text = ", ".join(format_gameobject_component_summary(component) for component in components if isinstance(component, dict))
-        lines.append(f"  components[{len(components)}]: {component_text}")
+        lines.append("  " + format_gameobject_components_line(components))
     screen_rect = format_ugui_screen_rect(game_object.get("screenRect"))
     if screen_rect:
         lines.append(f"  zone {screen_rect}")
@@ -294,13 +301,22 @@ def format_gameobject_text_value(value: Any) -> str:
 
 def format_gameobject_component_summary(component: dict[str, Any]) -> str:
     component_type = str(component.get("type") or "MissingScript")
-    enabled = component.get("enabled")
-    suffix = ""
-    if enabled is True:
-        suffix = " enabled"
-    elif enabled is False:
-        suffix = " disabled"
-    return component_type + suffix
+    return component_type
+
+
+def format_gameobject_components_line(components: list[Any]) -> str:
+    enabled_components = []
+    disabled_components = []
+    for component in components:
+        if not isinstance(component, dict):
+            continue
+        target = disabled_components if component.get("enabled") is False else enabled_components
+        target.append(format_gameobject_component_summary(component))
+
+    enabled_text = ", ".join(enabled_components)
+    if disabled_components:
+        return f"components[{len(components)}]: {enabled_text}; disabled: {', '.join(disabled_components)}"
+    return f"components[{len(components)}]: {enabled_text}"
 
 
 def format_gameobject_transform_get_text(result: dict[str, Any]) -> str:

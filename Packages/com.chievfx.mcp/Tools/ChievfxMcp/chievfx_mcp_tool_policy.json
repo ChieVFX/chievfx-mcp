@@ -9,6 +9,7 @@
     "bridge-get-operation",
     "events-check-since",
     "events-wait",
+    "asset-find",
     "asset-create",
     "asset-delete",
     "assets-refresh",

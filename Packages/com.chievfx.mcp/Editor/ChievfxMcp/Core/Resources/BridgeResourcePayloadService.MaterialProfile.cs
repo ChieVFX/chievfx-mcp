@@ -340,12 +340,12 @@ namespace Chievfx.Mcp.Editor
 
         private static string GetMaterialProfileShaderUri(string shaderKey)
         {
-            return $"chievfx://scene/current/material-profile/shader/{EncodeResourceSegment(shaderKey)}";
+            return $"chievfx://scene/all/material-profile/shader/{EncodeResourceSegment(shaderKey)}";
         }
 
         private static string GetMaterialProfileMaterialUri(string materialKey)
         {
-            return $"chievfx://scene/current/material-profile/material/{EncodeResourceSegment(materialKey)}";
+            return $"chievfx://scene/all/material-profile/material/{EncodeResourceSegment(materialKey)}";
         }
 
         private static void ApplySceneUsageLocationTextBudget(
@@ -433,10 +433,10 @@ namespace Chievfx.Mcp.Editor
         {
             if (entry.LocalId.HasValue && !entry.IsMainAsset)
             {
-                return $"chievfx://scene/current/usage/asset/{entry.Guid}/id/{entry.LocalId.Value.ToString(CultureInfo.InvariantCulture)}";
+                return $"chievfx://scene/all/usage/asset/{entry.Guid}/id/{entry.LocalId.Value.ToString(CultureInfo.InvariantCulture)}";
             }
 
-            return $"chievfx://scene/current/usage/asset/{entry.Guid}";
+            return $"chievfx://scene/all/usage/asset/{entry.Guid}";
         }
 
         private static void AddSceneUsageWarning(SceneUsageScan scan, string warning)

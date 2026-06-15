@@ -10,6 +10,8 @@ import chievfx_mcp_server as mcp  # noqa: E402
 class GameObjectFormattingTests(unittest.TestCase):
     def test_gameobject_get_is_not_advertised(self) -> None:
         names = [tool["name"] for tool in mcp.TOOLS]
+        self.assertIn("asset-find", names)
+        self.assertIn("asset-find", mcp.DEFAULT_REQUIRED_TOOL_IDS)
         self.assertIn("asset-create", names)
         self.assertIn("asset-create", mcp.DEFAULT_REQUIRED_TOOL_IDS)
         self.assertIn("asset-delete", names)
@@ -51,6 +53,50 @@ class GameObjectFormattingTests(unittest.TestCase):
         asset_create_tool = next(tool for tool in mcp.TOOLS if tool["name"] == "asset-create")
         self.assertIn("Scripts, shaders, uxml, uss, json", asset_create_tool["description"])
 
+        asset_find_tool = next(tool for tool in mcp.TOOLS if tool["name"] == "asset-find")
+        asset_find_properties = asset_find_tool["inputSchema"]["properties"]
+        self.assertIn("includeSubassets", asset_find_properties)
+        self.assertIn("maxResults", asset_find_properties)
+
+    def test_asset_find_text_uses_compact_rows(self) -> None:
+        result = {
+            "count": 2,
+            "totalAssetGuids": 1,
+            "maxResults": 80,
+            "truncated": False,
+            "assetDatabaseFilter": "wood t:Material",
+            "assets": [
+                {
+                    "name": "Wood",
+                    "path": "Assets/Materials/Wood.mat",
+                    "guid": "0123456789abcdef0123456789abcdef",
+                    "mainType": "Material",
+                    "labels": ["ui"],
+                    "isMainAsset": True,
+                    "localId": 2100000,
+                    "resourceUri": "chievfx://asset/0123456789abcdef0123456789abcdef",
+                },
+                {
+                    "name": "Preview",
+                    "path": "Assets/Materials/Wood.mat",
+                    "guid": "0123456789abcdef0123456789abcdef",
+                    "type": "Texture2D",
+                    "labels": [],
+                    "isMainAsset": False,
+                    "localId": 2800000,
+                    "resourceUri": "chievfx://asset/0123456789abcdef0123456789abcdef/id/2800000",
+                },
+            ],
+        }
+
+        text = mcp.format_asset_find_text(result)
+
+        self.assertIn("(2 shown, 1 asset guid) filter:wood t:Material", text)
+        self.assertIn("detail: chievfx://asset/{guid} or chievfx://asset/{guid}/id/{localId}", text)
+        self.assertIn("- Assets/Materials/Wood.mat name:Wood guid:0123456789abcdef0123456789abcdef [Material, labels:ui]", text)
+        self.assertNotIn("detail: chievfx://asset/0123456789abcdef0123456789abcdef", text)
+        self.assertIn("[Texture2D, localId:2800000]", text)
+
     def test_gameobject_find_text_uses_compact_rows(self) -> None:
         result = {
             "source": "activeScene",
@@ -85,6 +131,148 @@ class GameObjectFormattingTests(unittest.TestCase):
         self.assertNotIn("name:", text)
         self.assertNotIn("scenePath", text)
         self.assertNotIn("componentTypesTruncated", text)
+
+    def test_gameobject_get_text_lists_duplicate_matches(self) -> None:
+        result = {
+            "path": "Canvas",
+            "reason": "duplicate-path",
+            "count": 2,
+            "matches": [
+                {
+                    "path": "Canvas",
+                    "instanceId": 1,
+                    "activeSelf": True,
+                    "activeInHierarchy": True,
+                    "scenePath": "Assets/A.unity",
+                    "components": [{"type": "Canvas", "enabled": True}],
+                },
+                {
+                    "path": "Canvas",
+                    "instanceId": 2,
+                    "activeSelf": True,
+                    "activeInHierarchy": True,
+                    "scenePath": "Assets/B.unity",
+                    "components": [{"type": "Canvas", "enabled": True}],
+                },
+            ],
+        }
+
+        text = mcp.format_gameobject_get_text(result)
+
+        self.assertIn("duplicate-path path:Canvas matches:2", text)
+        self.assertIn("- Canvas (id: 1)", text)
+        self.assertIn("- Canvas (id: 2)", text)
+
+    def test_scene_usage_formatters_include_memory(self) -> None:
+        result = {
+            "totalAssets": 1,
+            "totalReferences": 2,
+            "totalObjects": 3,
+            "counts": [
+                {
+                    "assetType": "material",
+                    "assetCount": 1,
+                    "referenceCount": 2,
+                    "gameObjectCount": 3,
+                    "memoryEstimate": {"bytes": 1764, "available": True},
+                }
+            ],
+        }
+
+        text = mcp.format_scene_usage_counts_text(result)
+
+        self.assertIn("- material: assets:1 refs:2 objects:3 mem:1.72 KB", text)
+
+    def test_material_profile_shader_formatter_is_compact(self) -> None:
+        result = {
+            "shader": {
+                "shaderName": "TextMeshPro/Mobile/Distance Field",
+                "materialCount": 1,
+                "rendererReferenceCount": 0,
+                "serializedReferenceCount": 4,
+                "textureCount": 1,
+                "memoryEstimate": {"bytes": 1764, "available": True},
+            },
+            "materialCount": 1,
+            "totalMaterials": 1,
+            "materials": [
+                {
+                    "path": "Assets/Font.asset",
+                    "name": "Font Material",
+                    "guid": "abc",
+                    "type": "Material",
+                    "isMainAsset": False,
+                    "localId": 2100000,
+                    "referenceCount": 4,
+                    "gameObjectCount": 4,
+                    "shaderName": "TextMeshPro/Mobile/Distance Field",
+                    "rendererReferenceCount": 0,
+                    "serializedReferenceCount": 4,
+                    "textureCount": 1,
+                    "memoryEstimate": {"bytes": 1764, "available": True},
+                    "materialProfileUri": "chievfx://scene/all/material-profile/material/abc%3A2100000",
+                }
+            ],
+        }
+
+        text = mcp.format_material_profile_shader_text(result)
+
+        self.assertIn("shader:\"TextMeshPro/Mobile/Distance Field\" materials:1/1 refs:0 serialized:4 textures:1 mem:1.72 KB", text)
+        self.assertIn("profile:chievfx://scene/all/material-profile/material/abc%3A2100000", text)
+
+    def test_cameras_extension_formatter_compacts_inventory_rows(self) -> None:
+        result = {
+            "count": 1,
+            "maxRows": 96,
+            "cameras": [
+                {
+                    "path": "Rig/Wide",
+                    "instanceId": 42,
+                    "priority": 20,
+                    "fieldOfView": 35,
+                    "detailUri": "chievfx://extensions/chievfx.cameras/cinemachine/camera/42",
+                }
+            ],
+        }
+
+        text = mcp.format_cameras_extension_resource_text("cameras-cinemachine-cameras", result)
+
+        self.assertEqual(
+            text,
+            "cameras:1 max:96\n"
+            "- Rig/Wide (id:42) priority:20 fov:35 detail:chievfx://extensions/chievfx.cameras/cinemachine/camera/42",
+        )
+
+    def test_cameras_extension_formatter_compacts_timeline_asset_detail(self) -> None:
+        result = {
+            "asset": {
+                "name": "ShotTimeline",
+                "path": "Assets/Cuts/ShotTimeline.playable",
+                "guid": "abcdef",
+                "detailUri": "chievfx://extensions/chievfx.cameras/timeline/asset/abcdef",
+                "tracks": [
+                    {
+                        "name": "Cinemachine Track",
+                        "type": "Unity.Cinemachine.CinemachineTrack",
+                        "clipCount": 2,
+                    }
+                ],
+                "clips": [{"name": "Wide"}, {"name": "Tight"}],
+            }
+        }
+
+        text = mcp.format_cameras_extension_resource_text("cameras-timeline-asset-detail", result)
+
+        self.assertIn("- Assets/Cuts/ShotTimeline.playable guid:abcdef tracks:1 clips:2 detail:chievfx://extensions/chievfx.cameras/timeline/asset/abcdef", text)
+        self.assertIn("  - track:\"Cinemachine Track\" type:CinemachineTrack clips:2", text)
+
+    def test_cameras_extension_formatter_compacts_unavailable(self) -> None:
+        text = mcp.format_cameras_extension_resource_text(
+            "cameras-cinemachine-cameras",
+            {"ok": False, "status": {"packageName": "com.unity.cinemachine"}, "reason": "package missing"},
+        )
+
+        self.assertEqual(text, "unavailable package:com.unity.cinemachine reason:\"package missing\"")
 
     def test_gameobject_find_text_marks_inactive_and_truncated_components(self) -> None:
         result = {
@@ -208,7 +396,7 @@ class GameObjectFormattingTests(unittest.TestCase):
             "(1 shown, 1 match)\n"
             "- Main Camera/Some_Light (id: -187268)\n"
             "  details: tag: Untagged, layer: 0, children: 0\n"
-            "  components[2]: Transform, Light enabled",
+            "  components[2]: Transform, Light",
         )
         self.assertNotIn("scenePath", text)
 

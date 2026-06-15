@@ -406,6 +406,8 @@ class McpServerCore:
             if name == "package-search" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_package_mutation_text(result)
             if name in {"package-add", "package-remove"} and arguments.get("outputFormat") != "json" and isinstance(result, dict)
+            else format_asset_find_text(result)
+            if name == "asset-find" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_frame_debugger_control_text(result)
             if name == "frame-debugger-control" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_frame_debugger_groups_list_text(result)
@@ -460,6 +462,8 @@ class McpServerCore:
             if name in {"ugui-create-simple", "ugui-create-control"} and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_ugui_canvas_ensure_text(result)
             if name == "ugui-canvas-ensure" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
+            else format_camera_tool_text(name, result)
+            if name in CAMERA_TOOL_NAMES and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_tool_text(result, arguments)
         )
         return {
@@ -519,6 +523,7 @@ class McpServerCore:
         if not isinstance(uri, str):
             raise ResourceNotFoundError("resources/read requires string param 'uri'.")
 
+        resource_kind, resource_id = resolve_resource_uri(uri)
         ensure_resource_enabled(uri)
         mime_type = RESOURCE_MIME_TYPE
 
@@ -540,15 +545,33 @@ class McpServerCore:
                 text = truncate_resource_text(extension_resource["staticText"])
             else:
                 bridge_result = fetch_via_bridge()
-                text = format_resource_text(bridge_result.get("result"))
+                text = truncate_resource_text(format_cameras_extension_resource_text(extension_resource.get("id"), bridge_result.get("result")))
         elif (extension_template := get_extension_resource_template_by_uri(uri)) is not None:
             mime_type = extension_template.get("mimeType") or RESOURCE_MIME_TYPE
             bridge_result = fetch_via_bridge()
-            text = format_resource_text(bridge_result.get("result"))
+            text = truncate_resource_text(format_cameras_extension_resource_text(extension_template.get("id"), bridge_result.get("result")))
         else:
             bridge_result = fetch_via_bridge()
             if uri == "chievfx://scene/opened":
                 text = format_scene_opened_resource_text(bridge_result.get("result"))
+            elif resource_kind == "resource" and resource_id == "scene-all-usage-counts":
+                text = truncate_resource_text(format_scene_usage_counts_text(bridge_result.get("result")))
+            elif resource_kind == "resource" and resource_id == "scene-all-material-profile-summary":
+                text = truncate_resource_text(format_material_profile_summary_text(bridge_result.get("result")))
+            elif resource_kind == "template" and resource_id in {"scene-go", "scene-all-go"}:
+                text = truncate_resource_text(format_gameobject_get_text(bridge_result.get("result")))
+            elif resource_kind == "template" and resource_id in {"scene-component", "scene-all-component"}:
+                text = truncate_resource_text(format_gameobject_component_get_text(bridge_result.get("result")))
+            elif resource_kind == "template" and resource_id in {"asset-detail", "asset-subasset-detail"}:
+                text = truncate_resource_text(format_asset_detail_text(bridge_result.get("result")))
+            elif resource_kind == "template" and resource_id == "scene-all-usage-assets":
+                text = truncate_resource_text(format_scene_usage_assets_text(bridge_result.get("result")))
+            elif resource_kind == "template" and resource_id in {"scene-all-usage-asset", "scene-all-usage-subasset"}:
+                text = truncate_resource_text(format_scene_usage_asset_detail_text(bridge_result.get("result")))
+            elif resource_kind == "template" and resource_id == "scene-all-material-profile-shader":
+                text = truncate_resource_text(format_material_profile_shader_text(bridge_result.get("result")))
+            elif resource_kind == "template" and resource_id == "scene-all-material-profile-material":
+                text = truncate_resource_text(format_material_profile_material_text(bridge_result.get("result")))
             else:
                 text = format_resource_text(bridge_result.get("result"))
 

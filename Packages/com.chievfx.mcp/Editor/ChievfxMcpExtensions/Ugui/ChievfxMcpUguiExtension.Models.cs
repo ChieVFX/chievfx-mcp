@@ -243,7 +243,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
         }
     }
 
-    internal sealed class UguiRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter
+    internal sealed class UguiRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter, IChievfxMcpRuntimeUiTextInputAdapter
     {
         public string FrameworkId => "ugui";
 
@@ -260,6 +260,11 @@ namespace Chievfx.Mcp.Extensions.Ugui
         public object? ProbeScreenPosition(JToken request)
         {
             return ProbeRuntimeScreenPosition(request, GetDependencyStatus());
+        }
+
+        public object? TypeIntoFocusedTextField(JToken request, bool requireTarget)
+        {
+            return TypeTextIntoFocusedTextField(request, GetDependencyStatus(), requireTarget);
         }
     }
 }

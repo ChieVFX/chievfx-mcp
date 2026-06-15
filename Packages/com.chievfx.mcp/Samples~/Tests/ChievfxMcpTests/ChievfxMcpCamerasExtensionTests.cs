@@ -75,6 +75,7 @@ namespace Chievfx.Mcp.Editor.Tests
             Assert.IsTrue(StringArray(status, "resources").Contains("chievfx://extensions/chievfx.cameras/cinemachine/impulse"));
             Assert.IsTrue(StringArray(status, "resources").Contains("chievfx://extensions/chievfx.cameras/cinemachine/confiner-2d"));
             Assert.IsTrue(StringArray(status, "resources").Contains("chievfx://extensions/chievfx.cameras/cinemachine/confiner-3d"));
+            Assert.IsTrue(StringArray(status, "resourceTemplates").Contains("chievfx://extensions/chievfx.cameras/cinemachine/brain/{pathOrInstanceId}"));
             Assert.IsTrue(StringArray(status, "workflowNotes").Any(note => note.Contains("does not create hidden runtime owners", StringComparison.Ordinal)));
             Assert.IsTrue(StringArray(status, "workflowNotes").Any(note => note.Contains("does not invent input assets", StringComparison.Ordinal)));
             Assert.IsTrue(StringArray(status, "workflowNotes").Any(note => note.Contains("does not add hidden impulse trigger scripts", StringComparison.Ordinal)));
@@ -105,6 +106,7 @@ namespace Chievfx.Mcp.Editor.Tests
             StringAssert.Contains("\"uri\": \"chievfx://extensions/chievfx.cameras/cinemachine/impulse\"", manifest);
             StringAssert.Contains("\"uri\": \"chievfx://extensions/chievfx.cameras/cinemachine/confiner-2d\"", manifest);
             StringAssert.Contains("\"uri\": \"chievfx://extensions/chievfx.cameras/cinemachine/confiner-3d\"", manifest);
+            StringAssert.Contains("\"uriTemplate\": \"chievfx://extensions/chievfx.cameras/cinemachine/brain/{pathOrInstanceId}\"", manifest);
             StringAssert.Contains("\"uriTemplate\": \"chievfx://extensions/chievfx.cameras/cinemachine/sequencer/{pathOrInstanceId}\"", manifest);
             StringAssert.Contains("\"category\": \"Game Feel\"", manifest);
             StringAssert.Contains("Read chievfx.cameras status/resources before mutation", manifest);
@@ -149,6 +151,7 @@ namespace Chievfx.Mcp.Editor.Tests
             AssertCinemachineUnavailable(Resource("chievfx://extensions/chievfx.cameras/cinemachine/cameras"));
             AssertCinemachineUnavailable(Resource("chievfx://extensions/chievfx.cameras/cinemachine/camera/MissingCamera"));
             AssertCinemachineUnavailable(Resource("chievfx://extensions/chievfx.cameras/cinemachine/brains"));
+            AssertCinemachineUnavailable(Resource("chievfx://extensions/chievfx.cameras/cinemachine/brain/MissingBrain"));
             AssertSequencerUnavailable(Resource("chievfx://extensions/chievfx.cameras/cinemachine/sequencers"));
             AssertSequencerUnavailable(Resource("chievfx://extensions/chievfx.cameras/cinemachine/sequencer/MissingSequencer"));
             AssertAdvancedHelperUnavailable(Resource("chievfx://extensions/chievfx.cameras/cinemachine/splines-dolly"), "splinesDolly");
@@ -273,7 +276,8 @@ namespace Chievfx.Mcp.Editor.Tests
 
             var assets = Resource("chievfx://extensions/chievfx.cameras/timeline/assets");
             Assert.AreEqual(128, assets["maxRows"]);
-            Assert.IsTrue(Rows(assets, "assets").Any(row => Equals(ChievfxMcpCamerasQaFixture.TimelineAssetPath, row["path"])));
+            var assetRow = Rows(assets, "assets").First(row => Equals(ChievfxMcpCamerasQaFixture.TimelineAssetPath, row["path"]));
+            StringAssert.StartsWith("chievfx://extensions/chievfx.cameras/timeline/asset/", Convert.ToString(assetRow["detailUri"]));
 
             var assetDetail = Row(Resource("chievfx://extensions/chievfx.cameras/timeline/asset/" + Uri.EscapeDataString(ChievfxMcpCamerasQaFixture.TimelineAssetPath)), "asset");
             Assert.IsTrue(assetDetail.ContainsKey("clips"));
@@ -377,6 +381,9 @@ namespace Chievfx.Mcp.Editor.Tests
             Assert.AreEqual(64, brains["maxRows"]);
             Assert.IsTrue(Rows(brains, "brains").Any(row => Equals(ChievfxMcpCamerasQaFixture.CameraName, Row(row, "camera")["name"])));
             Assert.IsTrue(Rows(brains, "brains").Any(row => row.ContainsKey("defaultBlend")));
+            Assert.IsTrue(Rows(brains, "brains").All(row => Convert.ToString(row["detailUri"])!.Contains("/cinemachine/brain/", StringComparison.Ordinal)));
+            var brainDetail = Row(Resource("chievfx://extensions/chievfx.cameras/cinemachine/brain/" + ChievfxMcpCamerasQaFixture.CameraName), "target");
+            Assert.AreEqual(ChievfxMcpCamerasQaFixture.CameraName, Row(brainDetail, "camera")["name"]);
 
             var directorDetail = Resource("chievfx://extensions/chievfx.cameras/timeline/director/" + ChievfxMcpCamerasQaFixture.DirectorName);
             var director = Row(directorDetail, "target");

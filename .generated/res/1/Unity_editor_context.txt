@@ -1,2 +1,0 @@
-context:editor unityVersion:6000.4.7f1 isPlaying:false isPaused:false isCompiling:false isUpdating:false mode:scene
-scene isLoaded:true isDirty:false isValid:true rootCount:2 buildIndex:-1 hierarchyUri:"chievfx://scene/current/hierarchy"

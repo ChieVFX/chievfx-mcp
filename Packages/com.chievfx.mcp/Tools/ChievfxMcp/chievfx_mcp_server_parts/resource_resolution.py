@@ -46,48 +46,40 @@ def resolve_resource_uri(uri: str) -> tuple[str, str]:
     if uri.startswith("chievfx://scene/"):
         rest = uri[len("chievfx://scene/") :]
         parts = rest.split("/")
-        if len(parts) == 4 and parts[0] == "current" and parts[1] == "usage" and parts[2] == "assets" and parts[3]:
-            return "template", "scene-current-usage-assets"
-        if len(parts) == 4 and parts[0] == "current" and parts[1] == "usage" and parts[2] == "asset" and parts[3]:
-            return "template", "scene-current-usage-asset"
+        if len(parts) == 4 and parts[0] == "all" and parts[1] == "usage" and parts[2] == "assets" and parts[3]:
+            return "template", "scene-all-usage-assets"
+        if len(parts) == 4 and parts[0] == "all" and parts[1] == "usage" and parts[2] == "asset" and parts[3]:
+            return "template", "scene-all-usage-asset"
         if (
             len(parts) == 6
-            and parts[0] == "current"
+            and parts[0] == "all"
             and parts[1] == "usage"
             and parts[2] == "asset"
             and parts[3]
             and parts[4] == "id"
             and parts[5]
         ):
-            return "template", "scene-current-usage-subasset"
+            return "template", "scene-all-usage-subasset"
         if (
             len(parts) == 4
-            and parts[0] == "current"
+            and parts[0] == "all"
             and parts[1] == "material-profile"
             and parts[2] == "shader"
             and parts[3]
         ):
-            return "template", "scene-current-material-profile-shader"
+            return "template", "scene-all-material-profile-shader"
         if (
             len(parts) == 4
-            and parts[0] == "current"
+            and parts[0] == "all"
             and parts[1] == "material-profile"
             and parts[2] == "material"
             and parts[3]
         ):
-            return "template", "scene-current-material-profile-material"
+            return "template", "scene-all-material-profile-material"
         if len(parts) == 3 and parts[1] == "go" and parts[0] and parts[2]:
-            return "template", "scene-current-go" if parts[0] == "current" else "scene-go"
-        if len(parts) == 4 and parts[1] == "go" and parts[0] and parts[3]:
-            filter_template_ids = {
-                "name-contains": ("scene-current-go-name-contains", "scene-go-name-contains"),
-                "name-pattern": ("scene-current-go-name-pattern", "scene-go-name-pattern"),
-                "component": ("scene-current-go-component", "scene-go-component"),
-                "filter": ("scene-current-go-filter", "scene-go-filter"),
-            }
-            template_ids = filter_template_ids.get(parts[2])
-            if template_ids is not None:
-                return "template", template_ids[0] if parts[0] == "current" else template_ids[1]
+            if parts[0] == "all":
+                return "template", "scene-all-go"
+            return "template", "scene-go"
         if (
             len(parts) == 5
             and parts[1] == "go"
@@ -96,19 +88,9 @@ def resolve_resource_uri(uri: str) -> tuple[str, str]:
             and parts[2]
             and parts[4]
         ):
-            return "template", "scene-current-component" if parts[0] == "current" else "scene-component"
-
-    if uri.startswith("chievfx://assets/"):
-        rest = uri[len("chievfx://assets/") :]
-        parts = rest.split("/")
-        if len(parts) == 2 and parts[0] == "name-contains" and parts[1]:
-            return "template", "assets-name-contains"
-        if len(parts) == 2 and parts[0] == "type" and parts[1]:
-            return "template", "assets-type"
-        if len(parts) == 2 and parts[0] == "label" and parts[1]:
-            return "template", "assets-label"
-        if len(parts) == 2 and parts[0] == "filter" and parts[1]:
-            return "template", "assets-filter"
+            if parts[0] == "all":
+                return "template", "scene-all-component"
+            return "template", "scene-component"
 
     if uri.startswith("chievfx://asset/"):
         rest = uri[len("chievfx://asset/") :]

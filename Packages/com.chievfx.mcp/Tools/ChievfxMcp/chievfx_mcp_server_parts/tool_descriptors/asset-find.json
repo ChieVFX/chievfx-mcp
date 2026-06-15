@@ -1,0 +1,93 @@
+{
+  "name": "asset-find",
+  "description": "Finds persisted Unity project assets by AssetDatabase name, type, label, folder, area, and optional subassets. Returns compact rows with asset-detail resource URIs.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "name": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "AssetDatabase name search terms. Whitespace-separated terms are ANDed by AssetDatabase."
+      },
+      "type": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Asset type or alias such as material, texture, prefab, scene, mesh, renderTexture, object, or a Unity class name."
+      },
+      "label": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "AssetDatabase label filter."
+      },
+      "area": {
+        "type": "string",
+        "enum": [
+          "assets",
+          "packages",
+          "all"
+        ],
+        "description": "AssetDatabase search area. Defaults to assets."
+      },
+      "folder": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Project-relative folder(s) under Assets/ or Packages/ to search."
+      },
+      "includeSubassets": {
+        "type": "boolean",
+        "description": "Include subasset rows with asset/{guid}/id/{localId} detail URIs."
+      },
+      "subassets": {
+        "type": "boolean",
+        "description": "Alias for includeSubassets."
+      },
+      "maxResults": {
+        "type": "integer",
+        "description": "Maximum rows to return."
+      },
+      "limit": {
+        "type": "integer",
+        "description": "Alias for maxResults."
+      }
+    }
+  }
+}

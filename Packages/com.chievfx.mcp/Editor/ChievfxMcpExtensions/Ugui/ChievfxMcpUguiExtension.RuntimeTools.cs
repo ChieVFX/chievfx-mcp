@@ -259,6 +259,157 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return result;
         }
 
+        internal static Dictionary<string, object?> TypeTextIntoFocusedTextField(JToken args, UguiDependencyStatus status, bool requireTarget)
+        {
+            var warnings = new List<string>();
+            var dryRun = ReadBool(args, "dryRun", false);
+            var append = ReadBool(args, "append", false);
+            var submit = ReadBool(args, "submit", false);
+            var focus = ReadBool(args, "focus", true);
+            var invokeCallbacks = ReadBool(args, "invokeCallbacks", true);
+            var text = ReadString(args, "text") ?? ReadString(args, "value")
+                ?? throw new ArgumentException("ui-runtime-type-text requires 'text'.");
+
+            var result = CreateRuntimeInteractionEnvelope("tool://ui-runtime-type-text#ugui", status, dryRun, args, warnings);
+            result["framework"] = "ugui";
+
+            var position = ReadScreenPosition(args, warnings, status);
+            var eventSystem = GetCurrentEventSystem(status) as EventSystem;
+            AddRuntimeWarnings(status, warnings);
+            result["eventSystem"] = eventSystem == null ? null : CreateGameObjectRow(eventSystem.gameObject);
+
+            var target = ResolveRuntimeInteractionTarget(args, status, eventSystem, position.ScreenPosition, warnings, out var stack);
+            result["stack"] = stack;
+            var inputField = target == null ? null : ResolveTextInputComponent(target, status);
+            var resolved = inputField != null;
+            result["resolved"] = resolved;
+            result["target"] = target == null ? null : CreateRuntimeElementRow(target, status);
+            result["targetStateBefore"] = target == null ? null : CreateControlStateRow(target, status);
+
+            if (!resolved)
+            {
+                if (requireTarget)
+                {
+                    throw new ArgumentException(target == null
+                        ? "ui-runtime-type-text could not resolve a uGUI target from targetPath/instanceId or screenPosition."
+                        : $"Target '{GetTransformPath(target!.transform)}' has no uGUI InputField or TMP_InputField.");
+                }
+
+                result["warnings"] = warnings.Distinct().ToArray();
+                return result;
+            }
+
+            var controlType = inputField!.GetType().Name;
+            var textBefore = GetPropertyValue(inputField, "text") as string ?? string.Empty;
+            var resultingText = append ? textBefore + text : text;
+            result["controlType"] = controlType;
+            result["textBefore"] = textBefore;
+            result["plan"] = new Dictionary<string, object?>
+            {
+                ["controlType"] = controlType,
+                ["path"] = GetTransformPath(target!.transform),
+                ["focus"] = focus,
+                ["append"] = append,
+                ["submit"] = submit,
+                ["invokeCallbacks"] = invokeCallbacks,
+                ["textToType"] = text,
+                ["resultingText"] = resultingText,
+                ["setter"] = invokeCallbacks ? "text property (fires onValueChanged)" : "SetTextWithoutNotify when available",
+                ["guard"] = "dryRun must be false, Play Mode active, and allowStateMutation true before focusing or typing.",
+            };
+
+            if (!dryRun)
+            {
+                EnsureRuntimeMutationAllowed(args, warnings);
+                if (focus)
+                {
+                    if (eventSystem == null)
+                    {
+                        throw new InvalidOperationException("ui-runtime-type-text with focus:true requires an active EventSystem.current.");
+                    }
+
+                    eventSystem.SetSelectedGameObject(target, new BaseEventData(eventSystem));
+                    InvokeReflectedMethod(inputField, "ActivateInputField");
+                }
+
+                ApplyInputFieldText(inputField, resultingText, invokeCallbacks, warnings);
+                TrySetProperty(inputField, "caretPosition", resultingText.Length);
+                InvokeReflectedMethod(inputField, "ForceLabelUpdate");
+
+                if (submit)
+                {
+                    InvokeReflectedStringEvent(inputField, "onEndEdit", resultingText);
+                    InvokeReflectedStringEvent(inputField, "onSubmit", resultingText);
+                    InvokeReflectedMethod(inputField, "DeactivateInputField");
+                }
+            }
+
+            result["textAfter"] = GetPropertyValue(inputField, "text") as string;
+            result["selectedObjectAfter"] = CreateSelectedObjectRow(status);
+            result["targetStateAfter"] = CreateControlStateRow(target, status);
+            result["warnings"] = warnings.Distinct().ToArray();
+            return result;
+        }
+
+        internal static Component? ResolveTextInputComponent(GameObject target, UguiDependencyStatus status)
+        {
+            if (status.InputFieldType != null && target.GetComponent(status.InputFieldType) is Component inputField)
+            {
+                return inputField;
+            }
+
+            var tmpInputFieldType = FindType("TMPro.TMP_InputField");
+            return tmpInputFieldType == null ? null : target.GetComponent(tmpInputFieldType) as Component;
+        }
+
+        private static void ApplyInputFieldText(Component inputField, string text, bool invokeCallbacks, List<string> warnings)
+        {
+            if (!invokeCallbacks)
+            {
+                var method = inputField.GetType().GetMethod("SetTextWithoutNotify", BindingFlags.Public | BindingFlags.Instance, null, new[] { typeof(string) }, null);
+                if (method != null)
+                {
+                    method.Invoke(inputField, new object[] { text });
+                    return;
+                }
+
+                warnings.Add("SetTextWithoutNotify was not found; falling back to text property setter which fires onValueChanged.");
+            }
+
+            SetProperty(inputField, "text", text);
+        }
+
+        private static void InvokeReflectedMethod(Component target, string methodName)
+        {
+            target.GetType()
+                .GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null)
+                ?.Invoke(target, null);
+        }
+
+        private static void InvokeReflectedStringEvent(Component target, string eventPropertyName, string value)
+        {
+            var unityEvent = GetPropertyValue(target, eventPropertyName);
+            unityEvent?.GetType()
+                .GetMethod("Invoke", BindingFlags.Public | BindingFlags.Instance, null, new[] { typeof(string) }, null)
+                ?.Invoke(unityEvent, new object[] { value });
+        }
+
+        private static void TrySetProperty(Component target, string propertyName, object value)
+        {
+            var property = target.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
+            if (property != null && property.CanWrite)
+            {
+                try
+                {
+                    property.SetValue(target, value);
+                }
+                catch
+                {
+                    // Best-effort caret placement; ignore controls that reject the value.
+                }
+            }
+        }
+
         internal static Dictionary<string, object?> ReadRuntimeStatus(string uri, UguiDependencyStatus status)
         {
             var warnings = new List<string>();

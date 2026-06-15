@@ -316,12 +316,12 @@ namespace Chievfx.Mcp.Editor
             return name.Replace("\\", "\\\\").Replace("/", "\\/");
         }
 
-        private static string NormalizeHierarchyPath(string path)
+        internal static string NormalizeHierarchyPath(string path)
         {
             return path.Trim().Trim('/');
         }
 
-        private static string RemoveDuplicateIndexes(string path)
+        internal static string RemoveDuplicateIndexes(string path)
         {
             return Regex.Replace(path, @"(^|/)([^/]+)\[\d+\](?=/|$)", "$1$2");
         }

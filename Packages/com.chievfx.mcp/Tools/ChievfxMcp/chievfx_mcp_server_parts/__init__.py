@@ -30,6 +30,8 @@ _PART_FILES = [
     'formatters_ugui.py',
     'formatters_editor.py',
     'formatters_gameobjects.py',
+    'formatters_assets.py',
+    'formatters_cameras.py',
     'toon.py',
     'cli.py',
 ]

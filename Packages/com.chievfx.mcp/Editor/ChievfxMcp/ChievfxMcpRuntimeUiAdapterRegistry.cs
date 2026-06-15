@@ -28,14 +28,31 @@ namespace Chievfx.Mcp.Editor
         object? ProbeScreenPosition(JToken request);
     }
 
+    /// <summary>
+    /// Optional capability implemented by runtime UI adapters that can focus a runtime text
+    /// field and type text into it. Enables the shared cross-framework "ui-runtime-type-text" tool.
+    /// </summary>
+    internal interface IChievfxMcpRuntimeUiTextInputAdapter
+    {
+        /// <summary>
+        /// Focuses the resolved runtime text field (when requested) and types into it.
+        /// Must not mutate state when the request is a dry run or when no text field resolves.
+        /// When <paramref name="requireTarget"/> is true the adapter throws if it cannot resolve a
+        /// text field; otherwise it returns a result whose "resolved" flag is false.
+        /// </summary>
+        object? TypeIntoFocusedTextField(JToken request, bool requireTarget);
+    }
+
     internal static class ChievfxMcpRuntimeUiAdapterRegistry
     {
         private const string ExtensionId = "chievfx.runtime-ui";
         private const string Category = "Runtime UI";
+        private const string CommonCategory = "ui-runtime-common";
         private const string EssentialsCategory = "Essentials";
         private const string UriPrefix = "chievfx://extensions/chievfx.runtime-ui/";
         private const string StatusUri = UriPrefix + "status";
         private const string ProbeToolName = "runtime-ui-probe-screen-position";
+        private const string TypeTextToolName = "ui-runtime-type-text";
         private const int DefaultMaxRows = 256;
 
         private static readonly Regex FrameworkIdPattern = new(@"^[a-z0-9][a-z0-9._-]{0,127}$", RegexOptions.Compiled);
@@ -105,6 +122,13 @@ namespace Chievfx.Mcp.Editor
                 Category = Category,
                 InputSchema = RuntimeProbeSchema(),
             });
+            descriptor.Tools.Add(new ChievfxMcpToolDescriptor
+            {
+                Name = TypeTextToolName,
+                Description = "Focus a Play Mode text field and type text into it. Works for uGUI InputField/TMP_InputField and UI Toolkit TextField; auto-detects the framework or use framework to force one. Requires Play Mode and allowStateMutation:true to mutate.",
+                Category = CommonCategory,
+                InputSchema = TypeTextSchema(),
+            });
             return descriptor;
         }
 
@@ -113,8 +137,96 @@ namespace Chievfx.Mcp.Editor
             return toolName switch
             {
                 ProbeToolName => ProbeScreenPosition("tool://" + ProbeToolName, args),
+                TypeTextToolName => TypeText("tool://" + TypeTextToolName, args),
                 _ => throw new InvalidOperationException($"Unknown runtime UI registry tool '{toolName}'."),
             };
+        }
+
+        private static object? TypeText(string uri, JToken args)
+        {
+            var request = args is JObject obj ? obj : new JObject();
+            var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
+            var candidates = SnapshotAdapters()
+                .Where(registered => registered.Adapter is IChievfxMcpRuntimeUiTextInputAdapter)
+                .ToArray();
+            if (candidates.Length == 0)
+            {
+                throw new InvalidOperationException("No runtime UI adapter supports text input.");
+            }
+
+            if (!string.IsNullOrEmpty(framework) && !string.Equals(framework, "auto", StringComparison.Ordinal))
+            {
+                var selected = candidates.FirstOrDefault(registered => string.Equals(registered.Adapter.FrameworkId, framework, StringComparison.Ordinal));
+                if (selected == null)
+                {
+                    throw new ArgumentException($"No text-input adapter for framework '{framework}'. Available: {string.Join(", ", candidates.Select(registered => registered.Adapter.FrameworkId))}.");
+                }
+
+                if (!selected.Adapter.Available)
+                {
+                    throw new InvalidOperationException($"Text-input adapter '{framework}' is registered but unavailable.");
+                }
+
+                var forced = ((IChievfxMcpRuntimeUiTextInputAdapter)selected.Adapter).TypeIntoFocusedTextField(request.DeepClone(), requireTarget: true);
+                return WrapTypeTextResult(uri, selected.Adapter, forced);
+            }
+
+            var attempts = new List<Dictionary<string, object?>>();
+            foreach (var registered in candidates)
+            {
+                if (!registered.Adapter.Available)
+                {
+                    attempts.Add(new Dictionary<string, object?> { ["framework"] = registered.Adapter.FrameworkId, ["available"] = false });
+                    continue;
+                }
+
+                object? result;
+                try
+                {
+                    result = ((IChievfxMcpRuntimeUiTextInputAdapter)registered.Adapter).TypeIntoFocusedTextField(request.DeepClone(), requireTarget: false);
+                }
+                catch (Exception ex)
+                {
+                    attempts.Add(new Dictionary<string, object?> { ["framework"] = registered.Adapter.FrameworkId, ["error"] = RootMessage(ex) });
+                    continue;
+                }
+
+                if (ReadResolvedFlag(result))
+                {
+                    return WrapTypeTextResult(uri, registered.Adapter, result);
+                }
+
+                attempts.Add(new Dictionary<string, object?> { ["framework"] = registered.Adapter.FrameworkId, ["resolved"] = false, ["detail"] = result });
+            }
+
+            return new Dictionary<string, object?>
+            {
+                ["uri"] = uri,
+                ["resolved"] = false,
+                ["framework"] = null,
+                ["warnings"] = new[] { "No uGUI or UI Toolkit text field resolved from the supplied target or screen position. Provide targetPath/instanceId/name/visualElementRef or a screenPosition over a focusable text field, or set framework explicitly." },
+                ["attempts"] = attempts.ToArray(),
+            };
+        }
+
+        private static Dictionary<string, object?> WrapTypeTextResult(string uri, IChievfxMcpRuntimeUiAdapter adapter, object? result)
+        {
+            if (!TryReadDictionary(result, out var row))
+            {
+                row = new Dictionary<string, object?> { ["result"] = result };
+            }
+
+            row["uri"] = uri;
+            row["framework"] = adapter.FrameworkId;
+            return row;
+        }
+
+        private static bool ReadResolvedFlag(object? result)
+        {
+            return TryReadDictionary(result, out var row)
+                && row.TryGetValue("resolved", out var resolved)
+                && resolved is bool resolvedValue
+                && resolvedValue;
         }
 
         private static object? ReadResource(string uri)
@@ -458,6 +570,47 @@ namespace Chievfx.Mcp.Editor
                         ["description"] = "Maximum merged hit rows to return.",
                     },
                 },
+                ["additionalProperties"] = true,
+            };
+        }
+
+        private static JObject TypeTextSchema()
+        {
+            return new JObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JObject
+                {
+                    ["text"] = new JObject
+                    {
+                        ["type"] = "string",
+                        ["description"] = "Text to type into the focused text field.",
+                    },
+                    ["framework"] = new JObject
+                    {
+                        ["type"] = "string",
+                        ["enum"] = new JArray("auto", "ugui", "uitoolkit"),
+                        ["description"] = "Target framework. auto (default) resolves the field across registered frameworks; ugui/uitoolkit force one.",
+                    },
+                    ["targetPath"] = new JObject { ["type"] = "string", ["description"] = "uGUI GameObject transform path or UI Toolkit VisualElement path of the text field." },
+                    ["path"] = new JObject { ["type"] = "string", ["description"] = "Alias for targetPath (UI Toolkit)." },
+                    ["instanceId"] = new JObject { ["type"] = "integer", ["description"] = "uGUI target GameObject instance id." },
+                    ["name"] = new JObject { ["type"] = "string", ["description"] = "UI Toolkit VisualElement name." },
+                    ["targetName"] = new JObject { ["type"] = "string", ["description"] = "Alias for name (UI Toolkit)." },
+                    ["visualElementRef"] = new JObject { ["type"] = "string", ["description"] = "UI Toolkit visualElementRef from runtime reads/probes." },
+                    ["targetRef"] = new JObject { ["type"] = "string", ["description"] = "Alias for visualElementRef." },
+                    ["screenPosition"] = Vector2Schema("Bottom-left-origin screen position in pixels used to resolve the field when no explicit target is supplied."),
+                    ["normalized"] = Vector2Schema("Normalized bottom-left-origin screen position, where 0.5/0.5 is screen center."),
+                    ["x"] = NumberSchema("Bottom-left-origin screen x in pixels."),
+                    ["y"] = NumberSchema("Bottom-left-origin screen y in pixels."),
+                    ["append"] = new JObject { ["type"] = "boolean", ["description"] = "Append to the current text instead of replacing it. Defaults false." },
+                    ["focus"] = new JObject { ["type"] = "boolean", ["description"] = "Focus/select the text field before typing. Defaults true." },
+                    ["submit"] = new JObject { ["type"] = "boolean", ["description"] = "After typing, submit/end edit (uGUI onEndEdit, UI Toolkit NavigationSubmit + blur). Defaults false." },
+                    ["invokeCallbacks"] = new JObject { ["type"] = "boolean", ["description"] = "When true (default), use notifying setters that fire onValueChanged/ChangeEvent. When false, prefer SetTextWithoutNotify/SetValueWithoutNotify." },
+                    ["dryRun"] = new JObject { ["type"] = "boolean", ["description"] = "Report resolved target and plan without focusing, typing, or mutating. Defaults false." },
+                    ["allowStateMutation"] = new JObject { ["type"] = "boolean", ["description"] = "Required true for non-dry-run typing because callbacks may mutate game state." },
+                },
+                ["required"] = new JArray("text"),
                 ["additionalProperties"] = true,
             };
         }

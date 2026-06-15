@@ -54,34 +54,6 @@ namespace Chievfx.Mcp.Editor
                     return sceneResources.ReadOpenedScenesResource(uri);
                 }
 
-                if (uri.StartsWith("chievfx://assets/", StringComparison.Ordinal))
-                {
-                    var assetParts = uri.Substring("chievfx://assets/".Length).Split('/');
-                    if (assetParts.Length == 2 && string.Equals(assetParts[0], "name-contains", StringComparison.Ordinal))
-                    {
-                        var text = BridgeResourcePayloadService.DecodeResourceFilterSegment(assetParts[1], "text", MaxResourceFilterValueChars);
-                        return assetResources.ReadFilteredAssetsResource(uri, BridgeResourcePayloadService.CreateAssetNameContainsResourceFilter(text));
-                    }
-
-                    if (assetParts.Length == 2 && string.Equals(assetParts[0], "type", StringComparison.Ordinal))
-                    {
-                        var assetType = BridgeResourcePayloadService.DecodeResourceFilterSegment(assetParts[1], "assetType", MaxResourceFilterValueChars);
-                        return assetResources.ReadFilteredAssetsResource(uri, BridgeResourcePayloadService.CreateAssetTypeResourceFilter(assetType));
-                    }
-
-                    if (assetParts.Length == 2 && string.Equals(assetParts[0], "label", StringComparison.Ordinal))
-                    {
-                        var label = BridgeResourcePayloadService.DecodeResourceFilterSegment(assetParts[1], "label", MaxResourceFilterValueChars);
-                        return assetResources.ReadFilteredAssetsResource(uri, BridgeResourcePayloadService.CreateAssetLabelResourceFilter(label));
-                    }
-
-                    if (assetParts.Length == 2 && string.Equals(assetParts[0], "filter", StringComparison.Ordinal))
-                    {
-                        var filterSpec = BridgeResourcePayloadService.DecodeResourceFilterSegment(assetParts[1], "filterSpec", MaxResourceFilterSegmentChars);
-                        return assetResources.ReadFilteredAssetsResource(uri, BridgeResourcePayloadService.ParseAssetResourceFilterSpec(filterSpec));
-                    }
-                }
-
                 if (uri.StartsWith("chievfx://asset/", StringComparison.Ordinal))
                 {
                     var assetParts = uri.Substring("chievfx://asset/".Length).Split('/');
@@ -106,25 +78,25 @@ namespace Chievfx.Mcp.Editor
 
                 var parts = uri.Substring("chievfx://scene/".Length).Split('/');
                 if (parts.Length >= 3
-                    && string.Equals(parts[0], "current", StringComparison.Ordinal)
                     && string.Equals(parts[1], "usage", StringComparison.Ordinal))
                 {
+                    var context = BridgeResourcePayloadService.ResolveResourceSceneContext(parts[0]);
                     if (parts.Length == 3 && string.Equals(parts[2], "counts", StringComparison.Ordinal))
                     {
-                        return sceneResources.ReadSceneUsageCountsResource(uri, GameObjectBridgeService.GetGameObjectQueryContext());
+                        return sceneResources.ReadSceneUsageCountsResource(uri, context);
                     }
 
                     if (parts.Length == 4 && string.Equals(parts[2], "assets", StringComparison.Ordinal))
                     {
                         var assetType = BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[3], "assetType", MaxResourceFilterValueChars);
-                        return sceneResources.ReadSceneUsageAssetsResource(uri, GameObjectBridgeService.GetGameObjectQueryContext(), assetType);
+                        return sceneResources.ReadSceneUsageAssetsResource(uri, context, assetType);
                     }
 
                     if (parts.Length == 4 && string.Equals(parts[2], "asset", StringComparison.Ordinal))
                     {
                         return sceneResources.ReadSceneUsageAssetResource(
                             uri,
-                            GameObjectBridgeService.GetGameObjectQueryContext(),
+                            context,
                             BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[3], "guid", MaxResourceFilterValueChars),
                             null);
                     }
@@ -135,26 +107,26 @@ namespace Chievfx.Mcp.Editor
                     {
                         return sceneResources.ReadSceneUsageAssetResource(
                             uri,
-                            GameObjectBridgeService.GetGameObjectQueryContext(),
+                            context,
                             BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[3], "guid", MaxResourceFilterValueChars),
                             BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[5], "localId", MaxResourceFilterValueChars));
                     }
                 }
 
                 if (parts.Length >= 3
-                    && string.Equals(parts[0], "current", StringComparison.Ordinal)
                     && string.Equals(parts[1], "material-profile", StringComparison.Ordinal))
                 {
+                    var context = BridgeResourcePayloadService.ResolveResourceSceneContext(parts[0]);
                     if (parts.Length == 3 && string.Equals(parts[2], "summary", StringComparison.Ordinal))
                     {
-                        return materialProfileResources.ReadCurrentSceneMaterialProfileSummaryResource(uri, GameObjectBridgeService.GetGameObjectQueryContext());
+                        return materialProfileResources.ReadCurrentSceneMaterialProfileSummaryResource(uri, context);
                     }
 
                     if (parts.Length == 4 && string.Equals(parts[2], "shader", StringComparison.Ordinal))
                     {
                         return materialProfileResources.ReadCurrentSceneMaterialProfileShaderResource(
                             uri,
-                            GameObjectBridgeService.GetGameObjectQueryContext(),
+                            context,
                             BridgeResourcePayloadService.DecodeResourceSegment(parts[3], "shaderKey"));
                     }
 
@@ -162,7 +134,7 @@ namespace Chievfx.Mcp.Editor
                     {
                         return materialProfileResources.ReadCurrentSceneMaterialProfileMaterialResource(
                             uri,
-                            GameObjectBridgeService.GetGameObjectQueryContext(),
+                            context,
                             BridgeResourcePayloadService.DecodeResourceSegment(parts[3], "materialKey"));
                     }
                 }
@@ -170,39 +142,13 @@ namespace Chievfx.Mcp.Editor
                 if (parts.Length == 3 && string.Equals(parts[1], "go", StringComparison.Ordinal))
                 {
                     var context = BridgeResourcePayloadService.ResolveResourceSceneContext(parts[0]);
-                    var gameObject = GameObjectBridgeService.ResolveGameObjectByPath(context, BridgeResourcePayloadService.DecodeResourceSegment(parts[2], "goPath"));
-                    return sceneResources.ReadGameObjectResource(uri, context, gameObject);
+                    return sceneResources.ReadGameObjectPathResource(uri, context, BridgeResourcePayloadService.DecodeResourceSegment(parts[2], "goPath"));
                 }
 
                 if (parts.Length == 4
                     && string.Equals(parts[1], "go", StringComparison.Ordinal))
                 {
-                    var context = BridgeResourcePayloadService.ResolveResourceSceneContext(parts[0]);
-                    if (string.Equals(parts[2], "name-contains", StringComparison.Ordinal))
-                    {
-                        var text = BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[3], "text", MaxResourceFilterValueChars);
-                        return sceneResources.ReadFilteredGameObjectsResource(uri, context, BridgeResourcePayloadService.CreateNameContainsResourceFilter(text));
-                    }
-
-                    if (string.Equals(parts[2], "name-pattern", StringComparison.Ordinal))
-                    {
-                        var pattern = BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[3], "pattern", MaxResourceFilterValueChars);
-                        GameObjectBridgeService.ValidateWildcardPattern(pattern, "pattern");
-                        return sceneResources.ReadFilteredGameObjectsResource(uri, context, BridgeResourcePayloadService.CreateNamePatternResourceFilter(pattern));
-                    }
-
-                    if (string.Equals(parts[2], "component", StringComparison.Ordinal))
-                    {
-                        var componentType = BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[3], "componentType", MaxResourceFilterValueChars);
-                        GameObjectBridgeService.ValidateComponentTypeText(componentType, required: true);
-                        return sceneResources.ReadFilteredGameObjectsResource(uri, context, BridgeResourcePayloadService.CreateComponentResourceFilter(componentType));
-                    }
-
-                    if (string.Equals(parts[2], "filter", StringComparison.Ordinal))
-                    {
-                        var filterSpec = BridgeResourcePayloadService.DecodeResourceFilterSegment(parts[3], "filterSpec", MaxResourceFilterSegmentChars);
-                        return sceneResources.ReadFilteredGameObjectsResource(uri, context, BridgeResourcePayloadService.ParseResourceFilterSpec(filterSpec));
-                    }
+                    throw new InvalidOperationException($"Unsupported ChievFX MCP resource URI '{uri}'.");
                 }
 
                 if (parts.Length == 5

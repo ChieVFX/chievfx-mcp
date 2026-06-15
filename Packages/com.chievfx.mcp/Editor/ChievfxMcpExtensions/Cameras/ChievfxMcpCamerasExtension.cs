@@ -30,6 +30,7 @@ namespace Chievfx.Mcp.Extensions.Cameras
         private const string CinemachineCamerasUri = UriPrefix + "cinemachine/cameras";
         private const string CinemachineCameraDetailPrefix = UriPrefix + "cinemachine/camera/";
         private const string CinemachineBrainsUri = UriPrefix + "cinemachine/brains";
+        private const string CinemachineBrainDetailPrefix = UriPrefix + "cinemachine/brain/";
         private const string CinemachineSequencersUri = UriPrefix + "cinemachine/sequencers";
         private const string CinemachineSequencerDetailPrefix = UriPrefix + "cinemachine/sequencer/";
         private const string CinemachineSplinesDollyUri = UriPrefix + "cinemachine/splines-dolly";
@@ -168,6 +169,7 @@ namespace Chievfx.Mcp.Extensions.Cameras
             descriptor.Resources.Add(Resource("cameras-timeline-directors", TimelineDirectorsUri, "Timeline director summary", "Compact summary of PlayableDirector components using Timeline assets."));
             descriptor.Resources.Add(Resource("cameras-timeline-assets", TimelineAssetsUri, "Timeline asset summary", "Compact project summary of TimelineAsset assets."));
             descriptor.ResourceTemplates.Add(Template("cameras-cinemachine-camera-detail", CinemachineCameraDetailPrefix + "{pathOrInstanceId}", "Cinemachine camera detail", "CinemachineCamera detail by instance id or URL-encoded transform path."));
+            descriptor.ResourceTemplates.Add(Template("cameras-cinemachine-brain-detail", CinemachineBrainDetailPrefix + "{pathOrInstanceId}", "Cinemachine brain detail", "CinemachineBrain detail by instance id or URL-encoded transform path."));
             descriptor.ResourceTemplates.Add(Template("cameras-cinemachine-sequencer-detail", CinemachineSequencerDetailPrefix + "{pathOrInstanceId}", "Cinemachine Sequencer Camera detail", "CinemachineSequencerCamera detail by instance id or URL-encoded transform path."));
             descriptor.ResourceTemplates.Add(Template("cameras-timeline-director-detail", TimelineDirectorDetailPrefix + "{pathOrInstanceId}", "Timeline director detail", "PlayableDirector detail by instance id or URL-encoded transform path."));
             descriptor.ResourceTemplates.Add(Template("cameras-timeline-asset-detail", TimelineAssetDetailPrefix + "{guidOrPath}", "Timeline asset detail", "TimelineAsset detail by GUID or URL-encoded asset path."));
@@ -446,6 +448,11 @@ namespace Chievfx.Mcp.Extensions.Cameras
                 return status.Cinemachine.Available ? ReadCinemachineBrainsResource(uri, status) : CreateCinemachineUnavailable(status, $"Resource '{uri}'");
             }
 
+            if (uri.StartsWith(CinemachineBrainDetailPrefix, StringComparison.Ordinal))
+            {
+                return status.Cinemachine.Available ? ReadCinemachineBrainDetailResource(uri, DecodeSegment(uri.Substring(CinemachineBrainDetailPrefix.Length)), status) : CreateCinemachineUnavailable(status, $"Resource '{uri}'");
+            }
+
             if (string.Equals(uri, CinemachineSequencersUri, StringComparison.Ordinal))
             {
                 return status.Sequencer.Available ? ReadSequencersResource(uri, status) : CreateSequencerUnavailable(status, $"Resource '{uri}'");
@@ -571,6 +578,7 @@ namespace Chievfx.Mcp.Extensions.Cameras
             result["resourceTemplates"] = new[]
             {
                 CinemachineCameraDetailPrefix + "{pathOrInstanceId}",
+                CinemachineBrainDetailPrefix + "{pathOrInstanceId}",
                 CinemachineSequencerDetailPrefix + "{pathOrInstanceId}",
                 TimelineDirectorDetailPrefix + "{pathOrInstanceId}",
                 TimelineAssetDetailPrefix + "{guidOrPath}",
@@ -643,6 +651,20 @@ namespace Chievfx.Mcp.Extensions.Cameras
             result["capped"] = brains.Length > MaxBrainRows;
             result["maxRows"] = MaxBrainRows;
             result["brains"] = brains.Take(MaxBrainRows).Select(DescribeBrain).ToArray();
+            return result;
+        }
+
+        private static Dictionary<string, object?> ReadCinemachineBrainDetailResource(string uri, string pathOrInstanceId, DependencyStatus status)
+        {
+            var brain = ResolveComponent(status.Cinemachine.BrainType!, pathOrInstanceId);
+            if (brain == null)
+            {
+                return CreateNotFound(uri, status, "cinemachine-brain", pathOrInstanceId);
+            }
+
+            var result = CreateEnvelope(uri, status);
+            result["stage"] = DescribeCurrentStage();
+            result["target"] = DescribeBrain(brain);
             return result;
         }
 
@@ -2462,6 +2484,7 @@ namespace Chievfx.Mcp.Extensions.Cameras
                 ["name"] = asset != null ? asset.name : System.IO.Path.GetFileNameWithoutExtension(path),
                 ["path"] = path,
                 ["guid"] = AssetDatabase.AssetPathToGUID(path),
+                ["detailUri"] = TimelineAssetDetailUri(path),
                 ["type"] = asset != null ? asset.GetType().FullName : null,
             };
             if (detail && asset != null)
@@ -3743,7 +3766,7 @@ namespace Chievfx.Mcp.Extensions.Cameras
 
         private static string BrainDetailUri(Component brain)
         {
-            return CinemachineCameraDetailPrefix + EncodeSegment(UnityObjectIdentity.GetEntityIdText(brain));
+            return CinemachineBrainDetailPrefix + EncodeSegment(UnityObjectIdentity.GetEntityIdText(brain));
         }
 
         private static string SequencerDetailUri(Component sequencer)
@@ -3756,6 +3779,12 @@ namespace Chievfx.Mcp.Extensions.Cameras
             return TimelineDirectorDetailPrefix + EncodeSegment(UnityObjectIdentity.GetEntityIdText(director));
         }
 
+        private static string TimelineAssetDetailUri(string path)
+        {
+            var guid = AssetDatabase.AssetPathToGUID(path);
+            return TimelineAssetDetailPrefix + EncodeSegment(string.IsNullOrWhiteSpace(guid) ? path : guid);
+        }
+
         private static Dictionary<string, object?> CreateCommandEnvelope(string uri, DependencyStatus status, bool dryRun)
         {
             var result = CreateEnvelope(uri, status);
@@ -3766,13 +3795,7 @@ namespace Chievfx.Mcp.Extensions.Cameras
 
         private static Dictionary<string, object?> CreateEnvelope(string uri, DependencyStatus status)
         {
-            return new Dictionary<string, object?>
-            {
-                ["uri"] = uri,
-                ["readAtUtc"] = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture),
-                ["extensionId"] = ExtensionId,
-                ["dependency"] = status.ToDictionary(),
-            };
+            return new Dictionary<string, object?>();
         }
 
         private static Dictionary<string, object?> CreateUnavailable(string statusUri, DependencyStatus status, string message)
@@ -3783,7 +3806,7 @@ namespace Chievfx.Mcp.Extensions.Cameras
                 ["unavailable"] = true,
                 ["message"] = message,
                 ["statusUri"] = statusUri,
-                ["status"] = status.ToDictionary(),
+                ["reason"] = status.Reason,
             };
         }
 

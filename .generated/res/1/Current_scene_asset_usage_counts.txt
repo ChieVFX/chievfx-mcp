@@ -1,9 +1,0 @@
-readAt:"2026-05-17T05:56:39.5630480Z" uri:"chievfx://scene/current/usage/counts" totalReferences:0 totalObjects:2 totalComponents:6 totalAssets:0 truncated:false skippedComponentCount:0
-context source:activeScene hierarchyUri:"chievfx://scene/current/hierarchy"
-counts[5]:
-- assetType:all assetCount:0 referenceCount:0 gameObjectCount:0 loadedDependencyCount:0 savedDependencyCount:0 resourceUri:"chievfx://scene/current/usage/assets/all"
-- assetType:material assetCount:0 referenceCount:0 gameObjectCount:0 loadedDependencyCount:0 savedDependencyCount:0 resourceUri:"chievfx://scene/current/usage/assets/material"
-- assetType:mesh assetCount:0 referenceCount:0 gameObjectCount:0 loadedDependencyCount:0 savedDependencyCount:0 resourceUri:"chievfx://scene/current/usage/assets/mesh"
-- assetType:texture assetCount:0 referenceCount:0 gameObjectCount:0 loadedDependencyCount:0 savedDependencyCount:0 resourceUri:"chievfx://scene/current/usage/assets/texture"
-- assetType:renderTexture assetCount:0 referenceCount:0 gameObjectCount:0 loadedDependencyCount:0 savedDependencyCount:0 resourceUri:"chievfx://scene/current/usage/assets/renderTexture"
-dependencyStats loadedDependencyCount:0 savedDependencyCount:0 dependencyOnlyCount:0

@@ -210,7 +210,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         }
     }
 
-    internal sealed class UiToolkitRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter
+    internal sealed class UiToolkitRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter, IChievfxMcpRuntimeUiTextInputAdapter
     {
         public string FrameworkId => "uitoolkit";
 
@@ -227,6 +227,11 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         public object? ProbeScreenPosition(JToken request)
         {
             return ProbeRuntimeScreenPosition(request, GetDependencyStatus());
+        }
+
+        public object? TypeIntoFocusedTextField(JToken request, bool requireTarget)
+        {
+            return TypeTextIntoFocusedTextField(request, GetDependencyStatus(), requireTarget);
         }
     }
 }

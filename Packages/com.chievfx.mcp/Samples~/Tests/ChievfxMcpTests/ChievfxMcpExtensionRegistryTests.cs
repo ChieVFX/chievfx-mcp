@@ -256,7 +256,7 @@ namespace Chievfx.Mcp.Editor.Tests
             {
                 gameObject.GetComponent<MeshRenderer>().sharedMaterial = material;
 
-                var summary = ReadBridgeResource("chievfx://scene/current/material-profile/summary");
+                var summary = ReadBridgeResource("chievfx://scene/all/material-profile/summary");
 
                 Assert.AreEqual(1, summary["materialCount"]);
                 Assert.AreEqual(80, summary["maxTextureLinks"]);
@@ -293,7 +293,7 @@ namespace Chievfx.Mcp.Editor.Tests
                     gameObjects.Add(gameObject);
                 }
 
-                var summary = ReadBridgeResource("chievfx://scene/current/material-profile/summary");
+                var summary = ReadBridgeResource("chievfx://scene/all/material-profile/summary");
 
                 Assert.AreEqual(350, summary["rendererMaterialSlotCount"]);
                 Assert.AreEqual(350, summary["rendererMaterialReferenceCount"]);

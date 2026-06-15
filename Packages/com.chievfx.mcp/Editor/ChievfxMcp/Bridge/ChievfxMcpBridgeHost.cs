@@ -59,7 +59,7 @@ namespace Chievfx.Mcp.Editor
                     new PrefabToolService(prefabs.Open, prefabs.Close, prefabs.Save, prefabs.Create, prefabs.Instantiate),
                     new ConsoleLogToolService(logs.Clear, logs.Get, logs.GetSingle),
                     new ReflectionToolService(reflection.FindMethods, reflection.FindSingleMethod, reflection.CallMethod),
-                    new AssetToolService(assets.Refresh, assets.Delete, assets.Create, assets.EnsureFolder, assets.Recompile),
+                    new AssetToolService(assets.Refresh, assets.Find, assets.Delete, assets.Create, assets.EnsureFolder, assets.Recompile),
                     new ProfilerToolService(
                         profiler.State,
                         profiler.Start,

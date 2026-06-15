@@ -269,6 +269,7 @@ namespace Chievfx.Mcp.Editor
                 "bridge-get-status",
                 "events-check-since",
                 "events-wait",
+                "asset-find",
                 "asset-create",
                 "asset-delete",
                 "assets-refresh",

@@ -33,19 +33,19 @@ mimeType: text/plain
 
 --- 
 type: resource
-id: scene-current-usage-counts
-uri: chievfx://scene/current/usage/counts
-name: Current scene asset usage counts
-description: Asset usage totals for the current prefab stage or active scene, grouped by common asset type.
+id: scene-all-usage-counts
+uri: chievfx://scene/all/usage/counts
+name: Asset usage counts across loaded scenes
+description: Asset usage totals across all loaded scenes, grouped by common asset type.
 mimeType: text/plain
 ---
 
 --- 
 type: resource
-id: scene-current-material-profile-summary
-uri: chievfx://scene/current/material-profile/summary
-name: Current scene material profile
-description: Read-only material profile for the current prefab stage or active scene with exact shader/material counts and profiler memory estimates.
+id: scene-all-material-profile-summary
+uri: chievfx://scene/all/material-profile/summary
+name: Material profile across loaded scenes
+description: Read-only material profile across all loaded scenes with exact shader/material counts and profiler memory estimates.
 mimeType: text/plain
 ---
 
@@ -70,91 +70,19 @@ mimeType: text/plain
 
 ---
 type: resourceTemplate
-id: scene-current-go
-uriTemplate: chievfx://scene/current/go/{goPath}
-name: Current GameObject summary
-description: Compact GameObject summary in the current prefab stage or active scene.
+id: scene-all-go
+uriTemplate: chievfx://scene/all/go/{goPath}
+name: GameObject summary across loaded scenes
+description: Compact GameObject summary across all loaded scenes. Prefer this default when scene scope is unknown.
 mimeType: text/plain
 ---
 
 ---
 type: resourceTemplate
-id: scene-current-component
-uriTemplate: chievfx://scene/current/go/{goPath}/component/{componentKey}
-name: Current component serialized values
-description: Serialized values for one component in the current prefab stage or active scene.
-mimeType: text/plain
----
-
----
-type: resourceTemplate
-id: scene-current-go-name-contains
-uriTemplate: chievfx://scene/current/go/name-contains/{text}
-name: Current GameObjects by name substring
-description: Find current hierarchy GameObjects whose names contain literal percent-encoded text.
-mimeType: text/plain
----
-
----
-type: resourceTemplate
-id: scene-current-go-name-pattern
-uriTemplate: chievfx://scene/current/go/name-pattern/{pattern}
-name: Current GameObjects by name wildcard
-description: Find current hierarchy GameObjects by anchored * and ? wildcard pattern in one encoded segment.
-mimeType: text/plain
----
-
----
-type: resourceTemplate
-id: scene-current-go-component
-uriTemplate: chievfx://scene/current/go/component/{componentType}
-name: Current GameObjects by component type
-description: Find current hierarchy GameObjects by simple or full component type name.
-mimeType: text/plain
----
-
----
-type: resourceTemplate
-id: scene-current-go-filter
-uriTemplate: chievfx://scene/current/go/filter/{filterSpec}
-name: Current GameObjects by compact filter
-description: Find current hierarchy GameObjects with encoded name/component/inactive/case/limit filter text.
-mimeType: text/plain
----
-
----
-type: resourceTemplate
-id: assets-name-contains
-uriTemplate: chievfx://assets/name-contains/{text}
-name: Assets by name substring
-description: Find persisted project assets whose names match percent-encoded AssetDatabase name text. Defaults to area=assets.
-mimeType: text/plain
----
-
----
-type: resourceTemplate
-id: assets-type
-uriTemplate: chievfx://assets/type/{assetType}
-name: Assets by type
-description: Find persisted project assets by AssetDatabase type or supported alias such as material, texture, prefab, scene, or mesh.
-mimeType: text/plain
----
-
----
-type: resourceTemplate
-id: assets-label
-uriTemplate: chievfx://assets/label/{label}
-name: Assets by label
-description: Find persisted project assets by AssetDatabase label. Defaults to area=assets.
-mimeType: text/plain
----
-
----
-type: resourceTemplate
-id: assets-filter
-uriTemplate: chievfx://assets/filter/{filterSpec}
-name: Assets by compact AssetDatabase filter
-description: Find persisted assets with encoded name/type/label/area/folder/limit/subassets filter text.
+id: scene-all-component
+uriTemplate: chievfx://scene/all/go/{goPath}/component/{componentKey}
+name: Component serialized values across loaded scenes
+description: Serialized values for one component across all loaded scenes. Prefer this default when scene scope is unknown.
 mimeType: text/plain
 ---
 
@@ -178,46 +106,46 @@ mimeType: text/plain
 
 ---
 type: resourceTemplate
-id: scene-current-material-profile-shader
-uriTemplate: chievfx://scene/current/material-profile/shader/{shaderKey}
-name: Current material profile by shader
-description: Drill into materials using one shader key from the current material profile summary.
+id: scene-all-material-profile-shader
+uriTemplate: chievfx://scene/all/material-profile/shader/{shaderKey}
+name: Material profile by shader across loaded scenes
+description: Drill into materials using one shader key from the material profile summary across loaded scenes.
 mimeType: text/plain
 ---
 
 ---
 type: resourceTemplate
-id: scene-current-material-profile-material
-uriTemplate: chievfx://scene/current/material-profile/material/{materialKey}
-name: Current material profile material detail
-description: Drill into one material key from the current material profile summary, including locations and texture links.
+id: scene-all-material-profile-material
+uriTemplate: chievfx://scene/all/material-profile/material/{materialKey}
+name: Material profile material detail across loaded scenes
+description: Drill into one material key from the material profile summary across loaded scenes, including locations and texture links.
 mimeType: text/plain
 ---
 
 ---
 type: resourceTemplate
-id: scene-current-usage-assets
-uriTemplate: chievfx://scene/current/usage/assets/{assetType}
-name: Current scene asset usage by type
-description: Summarize current scene or prefab-stage references for material, mesh, texture, renderTexture, or all assets.
+id: scene-all-usage-assets
+uriTemplate: chievfx://scene/all/usage/assets/{assetType}
+name: Asset usage by type across loaded scenes
+description: Summarize loaded-scene references for material, mesh, texture, renderTexture, or all assets.
 mimeType: text/plain
 ---
 
 ---
 type: resourceTemplate
-id: scene-current-usage-asset
-uriTemplate: chievfx://scene/current/usage/asset/{guid}
-name: Current scene asset usage by GUID
-description: Drill into current scene or prefab-stage GameObject/component references to an asset GUID.
+id: scene-all-usage-asset
+uriTemplate: chievfx://scene/all/usage/asset/{guid}
+name: Asset usage by GUID across loaded scenes
+description: Drill into loaded-scene GameObject/component references to an asset GUID.
 mimeType: text/plain
 ---
 
 ---
 type: resourceTemplate
-id: scene-current-usage-subasset
-uriTemplate: chievfx://scene/current/usage/asset/{guid}/id/{localId}
-name: Current scene subasset usage by GUID and local file identifier
-description: Drill into current scene or prefab-stage references to one subasset local file identifier.
+id: scene-all-usage-subasset
+uriTemplate: chievfx://scene/all/usage/asset/{guid}/id/{localId}
+name: Subasset usage by GUID and local file identifier across loaded scenes
+description: Drill into loaded-scene references to one subasset local file identifier.
 mimeType: text/plain
 ---
 

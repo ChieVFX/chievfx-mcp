@@ -184,7 +184,7 @@ class CategoryResourceTests(unittest.TestCase):
         self.write_tool_selection([])
         self.write_resource_selection(
             ["editor-context"],
-            ["assets-name-contains", "assets-type", "assets-label", "assets-filter"],
+            ["asset-detail", "asset-subasset-detail", "scene-all-usage-assets", "scene-all-usage-asset"],
         )
 
         instructions = mcp.build_initialize_instructions()

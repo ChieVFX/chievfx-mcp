@@ -18,6 +18,12 @@ text: |
 ---
 
 ---
+type: global
+text: |
+  When calling `CallMcpTool`, pass tool parameters inside top-level `arguments`. Eg:`CallMcpTool({ server, toolName, arguments: { path: "Assets/Foo" } })`
+---
+
+---
 type: tool
 id: bridge-get-status
 text: |

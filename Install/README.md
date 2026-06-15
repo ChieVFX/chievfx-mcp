@@ -63,16 +63,17 @@ python chievfx_mcp_installer.py
 ## Post-install steps in the target Unity project
 
 1. Open the project, wait for compile and domain reload.
-2. `Window > ChievFX > MCP` -> `Start Bridge` -> `Write Cursor Config`.
-3. Reload Cursor MCP tools or restart Cursor.
+2. `Window > ChievFX > MCP` -> `Start Bridge`.
+3. Keep `Cursor` selected, or switch the client to `Claude Code` or `Codex`, then click `Write <client> Config`.
+4. Reload your MCP client's tools or restart it.
 
 The MCP server should appear as `unity-mcp-chievfx`.
 
 ## Notes
 
 - The installer never edits files in `FROM`. Only `TO` is modified.
-- `.cursor/mcp.json` in `TO` is written by the Unity editor button, not by
-  this installer.
+- `.cursor/mcp.json`, `.mcp.json`, or `.codex/config.toml` in `TO` is written
+  by the Unity editor button, not by this installer.
 - Runtime artifacts under `Library/ChievfxMcpBridge/` and
   `UserSettings/ChievfxMcp*.json` are created by Unity at runtime; the
   installer never touches them.

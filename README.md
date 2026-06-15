@@ -52,8 +52,9 @@ Then drag the source repo into **FROM** and one or more target Unity projects in
 After the package is installed in your Unity project:
 
 1. Open the project and wait for compile + domain reload.
-2. **Window > ChievFX > MCP** → **Start Bridge** → **Write Cursor Config**.
-3. Reload your MCP client's tools (or restart it).
+2. **Window > ChievFX > MCP** → **Start Bridge**.
+3. Keep **Cursor** selected, or switch the client to **Claude Code** or **Codex**, then click **Write <client> Config**.
+4. Reload your MCP client's tools (or restart it).
 
 The MCP server appears as `unity-mcp-chievfx`.
 

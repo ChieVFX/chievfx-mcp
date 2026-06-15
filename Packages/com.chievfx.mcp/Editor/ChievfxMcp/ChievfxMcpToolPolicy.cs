@@ -180,6 +180,10 @@ namespace Chievfx.Mcp.Editor
 
         public static string CursorConfigPath => Path.Combine(ProjectRoot, ".cursor", "mcp.json");
 
+        public static string ClaudeCodeConfigPath => Path.Combine(ProjectRoot, ".mcp.json");
+
+        public static string CodexConfigPath => Path.Combine(ProjectRoot, ".codex", "config.toml");
+
         // Watched by the reload-mcps extension (when its file-reload setting is on). Writing
         // {"serverName": CursorServerName} here asks Cursor to reload just this project's MCP.
         public static string CursorReloadSignalPath => Path.Combine(ProjectRoot, ".cursor", "reload-mcps.json");

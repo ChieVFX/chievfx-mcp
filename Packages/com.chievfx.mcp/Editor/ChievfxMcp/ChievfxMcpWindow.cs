@@ -19,17 +19,22 @@ namespace Chievfx.Mcp.Editor
     {
         private const string TransportStdio = "stdio";
         private const string TransportHttp = "http";
+        private const string ClientCursor = "Cursor";
+        private const string ClientClaudeCode = "Claude Code";
+        private const string ClientCodex = "Codex";
         private const string AllInfoEditorPrefsKey = "ChievfxMcp.Selection.AllInfo";
         private const string ShowExperimentalPromptsEditorPrefsKey = "ChievfxMcp.Experimental.ShowPromptsTab";
         private const string ShowExperimentalAutonomyToolsEditorPrefsKey = "ChievfxMcp.Experimental.ShowAutonomyTools";
 
         private static readonly string[] TransportChoices = { TransportStdio, TransportHttp };
+        private static readonly string[] ClientChoices = { ClientCursor, ClientClaudeCode, ClientCodex };
         private static Process? httpProcess;
         private static ChievfxMcpTab? pendingTab;
 
         private IntegerField? portField;
         private IntegerField? timeoutField;
         private PopupField<string>? transportField;
+        private PopupField<string>? clientField;
         private Toggle? autoReloadExternallyChangedScenesToggle;
         private Label? summaryLabel;
         private Label? guidanceLabel;
@@ -37,12 +42,16 @@ namespace Chievfx.Mcp.Editor
         private TextField? previewField;
         private Button? startButton;
         private Button? stopButton;
+        private Button? writeConfigButton;
         private Toggle? showPromptsTabToggle;
         private Toggle? showAutonomyToolsToggle;
         private Label? serverChip;
         private Label? bridgeChip;
         private Label? httpChip;
         private Label? cursorConfigChip;
+        private Label? clientAvailabilityChip;
+        private Label? clientConfigPathLabel;
+        private Label? clientConfigHintLabel;
         private ChievfxMcpTab activeTab = ChievfxMcpTab.Status;
 
         [MenuItem("Window/ChievFX MCP")]
@@ -289,14 +298,25 @@ namespace Chievfx.Mcp.Editor
             runtime.Add(CreateActionRow(startButton, stopButton, CreateButton("Start Bridge", StartBridge), CreateButton("Refresh", RefreshUi)));
             content.Add(runtime);
 
-            var cursorConfig = CreateSectionCard("Cursor Config");
+            var cursorConfig = CreateSectionCard("MCP Client Config");
             var configState = CreateChipRow();
-            cursorConfigChip = CreateStateChip("Cursor unknown", StatusChipState.Neutral);
+            cursorConfigChip = CreateStateChip("Config unknown", StatusChipState.Neutral);
+            clientAvailabilityChip = CreateStateChip("Client unknown", StatusChipState.Neutral);
             configState.Add(cursorConfigChip);
+            configState.Add(clientAvailabilityChip);
             cursorConfig.Add(configState);
-            cursorConfig.Add(CreateMutedLabel($"Cursor config: {CursorConfigPath}"));
-            cursorConfig.Add(CreateMutedLabel("Write config after changing connection settings. Reload MCP tools or restart Cursor afterward."));
-            cursorConfig.Add(CreateActionRow(CreateButton("Write Cursor Config", WriteCursorConfig), CreateButton("Copy Preview", CopyPreview)));
+            clientField = new PopupField<string>(new List<string>(ClientChoices), LoadClientIndex())
+            {
+                label = "Client"
+            };
+            clientField.RegisterValueChangedCallback(_ => RefreshUi());
+            cursorConfig.Add(clientField);
+            clientConfigPathLabel = CreateMutedLabel(string.Empty);
+            cursorConfig.Add(clientConfigPathLabel);
+            clientConfigHintLabel = CreateMutedLabel(string.Empty);
+            cursorConfig.Add(clientConfigHintLabel);
+            writeConfigButton = CreateButton("Write Config", WriteSelectedClientConfig);
+            cursorConfig.Add(CreateActionRow(writeConfigButton, CreateButton("Copy Preview", CopyPreview)));
             content.Add(cursorConfig);
 
             var automation = CreateSectionCard("Automation");
@@ -398,6 +418,10 @@ namespace Chievfx.Mcp.Editor
         private static string ProjectRoot => ChievfxMcpToolPolicy.ProjectRoot;
 
         private static string CursorConfigPath => ChievfxMcpToolPolicy.CursorConfigPath;
+
+        private static string ClaudeCodeConfigPath => ChievfxMcpToolPolicy.ClaudeCodeConfigPath;
+
+        private static string CodexConfigPath => ChievfxMcpToolPolicy.CodexConfigPath;
 
         private static string ServerScriptPath => ChievfxMcpToolPolicy.ServerScriptPath;
 
@@ -554,10 +578,13 @@ namespace Chievfx.Mcp.Editor
             var port = GetPort();
             var timeout = GetTimeout();
             var transport = GetTransport();
+            var client = GetClient();
+            var clientInfo = GetClientInfo(client);
             var serverScriptExists = File.Exists(ServerScriptPath);
             var bridgeRunning = ChievfxMcpBridge.IsRunning;
             var httpRunning = IsHttpServerRunning();
-            var configured = IsCursorConfigCurrent(transport, port, timeout);
+            var configured = IsClientConfigCurrent(clientInfo, transport, port, timeout);
+            var clientAvailable = IsClientAvailable(clientInfo);
 
             if (summaryLabel != null)
             {
@@ -565,23 +592,23 @@ namespace Chievfx.Mcp.Editor
                     ? $" | HTTP {(httpRunning ? "running" : "stopped")}"
                     : string.Empty;
                 summaryLabel.text =
-                    $"Server: script {(serverScriptExists ? "found" : "missing")} | Bridge {(bridgeRunning ? "running" : "stopped")}{httpSummary} | Cursor {(configured ? "configured" : "needs write")}";
-                summaryLabel.style.color = new StyleColor(!configured || (transport == TransportHttp && !httpRunning)
+                    $"Server: script {(serverScriptExists ? "found" : "missing")} | Bridge {(bridgeRunning ? "running" : "stopped")}{httpSummary} | {clientInfo.DisplayName} {(configured ? "configured" : "needs write")}";
+                summaryLabel.style.color = new StyleColor(!configured || !clientAvailable || (transport == TransportHttp && !httpRunning)
                     ? new Color(1f, 0.88f, 0.58f)
                     : new Color(0.78f, 0.78f, 0.78f));
             }
 
             if (guidanceLabel != null)
             {
-                var guidanceGood = serverScriptExists && bridgeRunning && configured && (transport != TransportHttp || httpRunning);
-                guidanceLabel.text = BuildSetupGuidance(transport, serverScriptExists, bridgeRunning, httpRunning, configured);
+                var guidanceGood = serverScriptExists && bridgeRunning && configured && clientAvailable && (transport != TransportHttp || httpRunning);
+                guidanceLabel.text = BuildSetupGuidance(transport, serverScriptExists, bridgeRunning, httpRunning, configured, clientInfo, clientAvailable);
                 guidanceLabel.style.color = new StyleColor(guidanceGood ? new Color(0.58f, 0.78f, 0.58f) : new Color(0.72f, 0.72f, 0.72f));
             }
 
             if (setupHelpBox != null)
             {
-                var guidanceGood = serverScriptExists && bridgeRunning && configured && (transport != TransportHttp || httpRunning);
-                setupHelpBox.text = BuildSetupGuidance(transport, serverScriptExists, bridgeRunning, httpRunning, configured);
+                var guidanceGood = serverScriptExists && bridgeRunning && configured && clientAvailable && (transport != TransportHttp || httpRunning);
+                setupHelpBox.text = BuildSetupGuidance(transport, serverScriptExists, bridgeRunning, httpRunning, configured, clientInfo, clientAvailable);
                 setupHelpBox.style.display = guidanceGood ? DisplayStyle.None : DisplayStyle.Flex;
             }
 
@@ -593,10 +620,31 @@ namespace Chievfx.Mcp.Editor
                 httpChip.style.display = transport == TransportHttp ? DisplayStyle.Flex : DisplayStyle.None;
             }
             UpdateStateChip(cursorConfigChip, configured ? "Configured" : "Needs write", configured ? StatusChipState.Good : StatusChipState.Warning);
+            UpdateStateChip(clientAvailabilityChip, clientAvailable ? clientInfo.AvailableLabel : clientInfo.MissingLabel, clientAvailable ? StatusChipState.Good : StatusChipState.Warning);
+
+            if (clientAvailabilityChip != null)
+            {
+                clientAvailabilityChip.style.display = clientInfo.RequiresToolProbe ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+
+            if (clientConfigPathLabel != null)
+            {
+                clientConfigPathLabel.text = $"{clientInfo.DisplayName} config: {clientInfo.ConfigPath}";
+            }
+
+            if (clientConfigHintLabel != null)
+            {
+                clientConfigHintLabel.text = clientInfo.Hint;
+            }
+
+            if (writeConfigButton != null)
+            {
+                writeConfigButton.text = $"Write {clientInfo.DisplayName} Config";
+            }
 
             if (previewField != null)
             {
-                previewField.value = BuildCursorConfigPreview(transport, port, timeout);
+                previewField.value = BuildClientConfigPreview(clientInfo, transport, port, timeout);
             }
 
             if (startButton != null)
@@ -626,16 +674,28 @@ namespace Chievfx.Mcp.Editor
             ApplyStateChipStyle(chip, state);
         }
 
-        private static string BuildSetupGuidance(string transport, bool serverScriptExists, bool bridgeRunning, bool httpRunning, bool configured)
+        private static string BuildSetupGuidance(
+            string transport,
+            bool serverScriptExists,
+            bool bridgeRunning,
+            bool httpRunning,
+            bool configured,
+            McpClientInfo clientInfo,
+            bool clientAvailable)
         {
             if (!serverScriptExists)
             {
-                return "Server script missing. Confirm project install before writing Cursor config.";
+                return $"Server script missing. Confirm project install before writing {clientInfo.DisplayName} config.";
+            }
+
+            if (!clientAvailable)
+            {
+                return $"{clientInfo.DisplayName} CLI not found. Install it or pick another MCP client.";
             }
 
             if (!configured)
             {
-                return "Write Cursor Config, then reload MCP tools or restart Cursor.";
+                return $"Write {clientInfo.DisplayName} Config, then reload MCP tools or restart {clientInfo.DisplayName}.";
             }
 
             if (!bridgeRunning)
@@ -648,7 +708,7 @@ namespace Chievfx.Mcp.Editor
                 return "HTTP transport selected. Start HTTP before Cursor connects over HTTP.";
             }
 
-            return "Ready. Reload MCP tools or restart Cursor after config or selection changes.";
+            return $"Ready. Reload MCP tools or restart {clientInfo.DisplayName} after config or selection changes.";
         }
 
         private void StartHttpServer()
@@ -734,16 +794,17 @@ namespace Chievfx.Mcp.Editor
             EditorPrefs.DeleteKey(PrefKey("httpPid"));
         }
 
-        private void WriteCursorConfig()
+        private void WriteSelectedClientConfig()
         {
             SavePreferences();
             ChievfxMcpToolPolicy.EnsureBridgeStarted();
-            Directory.CreateDirectory(Path.GetDirectoryName(CursorConfigPath)!);
-            File.WriteAllText(CursorConfigPath, BuildCursorConfigPreview(GetTransport(), GetPort(), GetTimeout()), new UTF8Encoding(false));
+            var clientInfo = GetClientInfo(GetClient());
+            Directory.CreateDirectory(Path.GetDirectoryName(clientInfo.ConfigPath)!);
+            File.WriteAllText(clientInfo.ConfigPath, BuildClientConfigPreview(clientInfo, GetTransport(), GetPort(), GetTimeout()), new UTF8Encoding(false));
             RefreshUi();
             EditorUtility.DisplayDialog(
                 "ChievFX MCP",
-                $"Cursor config written. Reload Cursor MCP tools or restart Cursor before {ChievfxMcpToolPolicy.CursorServerName} appears in the current Cursor session.",
+                $"{clientInfo.DisplayName} config written. Reload MCP tools or restart {clientInfo.DisplayName} before {ChievfxMcpToolPolicy.CursorServerName} appears in the current session.",
                 "OK");
         }
 
@@ -756,13 +817,64 @@ namespace Chievfx.Mcp.Editor
 
         private void CopyPreview()
         {
-            EditorGUIUtility.systemCopyBuffer = BuildCursorConfigPreview(GetTransport(), GetPort(), GetTimeout());
+            EditorGUIUtility.systemCopyBuffer = BuildClientConfigPreview(GetClientInfo(GetClient()), GetTransport(), GetPort(), GetTimeout());
         }
 
-        private string BuildCursorConfigPreview(string transport, int port, int timeout)
+        private static McpClientInfo GetClientInfo(string client)
         {
+            if (client == ClientClaudeCode)
+            {
+                return new McpClientInfo(
+                    ClientClaudeCode,
+                    ClaudeCodeConfigPath,
+                    "Claude Code reads project MCP servers from .mcp.json on session start. Project-scoped servers may need one-time approval from /mcp.",
+                    McpClientConfigFormat.JsonMcpServers,
+                    true,
+                    "claude",
+                    "Claude CLI found",
+                    "Claude CLI missing");
+            }
+
+            if (client == ClientCodex)
+            {
+                return new McpClientInfo(
+                    ClientCodex,
+                    CodexConfigPath,
+                    "Codex reads project MCP servers from .codex/config.toml after the project is trusted. Restart Codex after writing config.",
+                    McpClientConfigFormat.CodexToml,
+                    true,
+                    "codex",
+                    "Codex CLI found",
+                    "Codex CLI missing");
+            }
+
+            return new McpClientInfo(
+                ClientCursor,
+                CursorConfigPath,
+                "Write config after changing connection settings. Reload MCP tools or restart Cursor afterward.",
+                McpClientConfigFormat.JsonMcpServers,
+                false,
+                null,
+                "Cursor selected",
+                "Cursor unavailable");
+        }
+
+        private static bool IsClientAvailable(McpClientInfo clientInfo)
+        {
+            return !clientInfo.RequiresToolProbe
+                || string.IsNullOrWhiteSpace(clientInfo.ProbeExecutableName)
+                || IsExecutableAvailable(clientInfo.ProbeExecutableName!);
+        }
+
+        private string BuildClientConfigPreview(McpClientInfo clientInfo, string transport, int port, int timeout)
+        {
+            if (clientInfo.Format == McpClientConfigFormat.CodexToml)
+            {
+                return BuildCodexConfigPreview(transport, port, timeout);
+            }
+
             var mcpServers = new JObject();
-            foreach (var existingServer in ReadExistingServersForPreview(port))
+            foreach (var existingServer in ReadExistingServersForPreview(clientInfo.ConfigPath, port))
             {
                 mcpServers[existingServer.Name] = existingServer.Value;
             }
@@ -771,6 +883,140 @@ namespace Chievfx.Mcp.Editor
 
             var root = new JObject { ["mcpServers"] = mcpServers };
             return root.ToString(Formatting.Indented);
+        }
+
+        private static string BuildCodexConfigPreview(string transport, int port, int timeout)
+        {
+            var existing = File.Exists(CodexConfigPath)
+                ? RemoveManagedCodexServerSections(File.ReadAllText(CodexConfigPath), port).TrimEnd()
+                : string.Empty;
+            var serverBlock = BuildExpectedCodexServerBlock(transport, port, timeout);
+            return string.IsNullOrWhiteSpace(existing)
+                ? serverBlock
+                : $"{existing}{Environment.NewLine}{Environment.NewLine}{serverBlock}";
+        }
+
+        private static string BuildExpectedCodexServerBlock(string transport, int port, int timeout)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine($"[mcp_servers.{TomlQuotedKey(ChievfxMcpToolPolicy.CursorServerName)}]");
+            if (transport == TransportHttp)
+            {
+                builder.AppendLine($"url = {TomlString(HttpUrl(port))}");
+            }
+            else
+            {
+                var args = TomlArray(new[]
+                {
+                    ServerScriptPath,
+                    "--transport",
+                    TransportStdio,
+                    "--project-root",
+                    ProjectRoot,
+                    "--bridge-dir",
+                    ChievfxMcpToolPolicy.BridgeDirectory,
+                    "--timeout",
+                    timeout.ToString()
+                });
+                builder.AppendLine($"command = {TomlString(ChievfxMcpPythonLauncher.ExecutablePath)}");
+                builder.AppendLine($"args = {args}");
+            }
+
+            builder.AppendLine($"tool_timeout_sec = {Mathf.CeilToInt(timeout / 1000f)}");
+            return builder.ToString().TrimEnd();
+        }
+
+        private static string TomlArray(IEnumerable<string> values)
+        {
+            var builder = new StringBuilder("[");
+            var first = true;
+            foreach (var value in values)
+            {
+                if (!first)
+                {
+                    builder.Append(", ");
+                }
+
+                builder.Append(TomlString(value));
+                first = false;
+            }
+
+            builder.Append(']');
+            return builder.ToString().TrimEnd();
+        }
+
+        private static string TomlQuotedKey(string value)
+        {
+            return TomlString(value);
+        }
+
+        private static string TomlString(string value)
+        {
+            return "\"" + value
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"")
+                .Replace("\n", "\\n")
+                .Replace("\r", "\\r")
+                .Replace("\t", "\\t") + "\"";
+        }
+
+        private static string RemoveManagedCodexServerSections(string text, int port)
+        {
+            var lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            var output = new StringBuilder();
+            var index = 0;
+            while (index < lines.Length)
+            {
+                var line = lines[index];
+                if (!IsTomlSectionHeader(line))
+                {
+                    output.AppendLine(line);
+                    index++;
+                    continue;
+                }
+
+                var start = index;
+                index++;
+                while (index < lines.Length && !IsTomlSectionHeader(lines[index]))
+                {
+                    index++;
+                }
+
+                var block = string.Join("\n", lines, start, index - start);
+                if (ShouldSkipCodexSection(block, port))
+                {
+                    continue;
+                }
+
+                output.AppendLine(block);
+            }
+
+            return output.ToString();
+        }
+
+        private static bool IsTomlSectionHeader(string line)
+        {
+            var trimmed = line.Trim();
+            return trimmed.StartsWith("[", StringComparison.Ordinal) && trimmed.EndsWith("]", StringComparison.Ordinal);
+        }
+
+        private static bool ShouldSkipCodexSection(string block, int port)
+        {
+            var firstLineEnd = block.IndexOf('\n');
+            var header = firstLineEnd >= 0 ? block.Substring(0, firstLineEnd).Trim() : block.Trim();
+            if (!header.StartsWith("[mcp_servers.", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (header.Contains(ChievfxMcpToolPolicy.CursorServerName, StringComparison.Ordinal)
+                || header.Contains(ChievfxMcpToolPolicy.ServerName, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            return block.Contains(ServerScriptPath, StringComparison.Ordinal)
+                || block.Contains(HttpUrl(port), StringComparison.Ordinal);
         }
 
         private static JObject BuildExpectedCursorServerEntry(string transport, int port, int timeout)
@@ -798,17 +1044,17 @@ namespace Chievfx.Mcp.Editor
             return server;
         }
 
-        private static List<CursorServerConfig> ReadExistingServersForPreview(int port)
+        private static List<CursorServerConfig> ReadExistingServersForPreview(string configPath, int port)
         {
             var servers = new List<CursorServerConfig>();
-            if (!File.Exists(CursorConfigPath))
+            if (!File.Exists(configPath))
             {
                 return servers;
             }
 
             try
             {
-                var root = JToken.Parse(File.ReadAllText(CursorConfigPath));
+                var root = JToken.Parse(File.ReadAllText(configPath));
                 if (root is not JObject rootObj
                     || rootObj["mcpServers"] is not JObject mcpServers)
                 {
@@ -827,7 +1073,7 @@ namespace Chievfx.Mcp.Editor
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"ChievFX MCP could not parse existing Cursor config. Preview will replace it. {ex.Message}");
+                Debug.LogWarning($"ChievFX MCP could not parse existing MCP client config. Preview will replace it. {ex.Message}");
             }
 
             return servers;
@@ -933,6 +1179,116 @@ namespace Chievfx.Mcp.Editor
             }
         }
 
+        private static bool IsExecutableAvailable(string executableName)
+        {
+            foreach (var candidate in EnumerateExecutableCandidates(executableName))
+            {
+                if (File.Exists(candidate))
+                {
+                    return true;
+                }
+            }
+
+            try
+            {
+                using var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = executableName,
+                        Arguments = "--version",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true,
+                    },
+                };
+                process.Start();
+                if (!process.WaitForExit(2000))
+                {
+                    try
+                    {
+                        process.Kill();
+                    }
+                    catch
+                    {
+                        // Ignore kill failures on a probe process.
+                    }
+
+                    return false;
+                }
+
+                return process.ExitCode == 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static IEnumerable<string> EnumerateExecutableCandidates(string executableName)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            void YieldPath(List<string> results, string? path)
+            {
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    return;
+                }
+
+                var trimmed = path!.Trim().Trim('"');
+                if (seen.Add(trimmed))
+                {
+                    results.Add(trimmed);
+                }
+            }
+
+            var results = new List<string>();
+            var pathVariable = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+            foreach (var directory in pathVariable.Split(Path.PathSeparator))
+            {
+                foreach (var candidate in ExecutablePathVariants(Path.Combine(directory, executableName)))
+                {
+                    YieldPath(results, candidate);
+                }
+            }
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                foreach (var candidate in ExecutablePathVariants(Path.Combine(appData, "npm", executableName)))
+                {
+                    YieldPath(results, candidate);
+                }
+            }
+            else
+            {
+                var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                YieldPath(results, $"/opt/homebrew/bin/{executableName}");
+                YieldPath(results, $"/usr/local/bin/{executableName}");
+                YieldPath(results, $"/usr/bin/{executableName}");
+                YieldPath(results, Path.Combine(home, ".npm-global", "bin", executableName));
+                YieldPath(results, Path.Combine(home, ".local", "bin", executableName));
+            }
+
+            return results;
+        }
+
+        private static IEnumerable<string> ExecutablePathVariants(string basePath)
+        {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                yield return basePath;
+                yield break;
+            }
+
+            yield return basePath;
+            yield return basePath + ".cmd";
+            yield return basePath + ".exe";
+            yield return basePath + ".bat";
+        }
+
         private static bool IsSameLocalHttpEndpoint(string? url, int port)
         {
             if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
@@ -944,16 +1300,24 @@ namespace Chievfx.Mcp.Editor
                 && uri.Port == port;
         }
 
-        private static bool IsCursorConfigCurrent(string transport, int port, int timeout)
+        private static bool IsClientConfigCurrent(McpClientInfo clientInfo, string transport, int port, int timeout)
         {
-            if (!File.Exists(CursorConfigPath))
+            if (!File.Exists(clientInfo.ConfigPath))
             {
                 return false;
             }
 
+            if (clientInfo.Format == McpClientConfigFormat.CodexToml)
+            {
+                return string.Equals(
+                    NormalizeConfigText(File.ReadAllText(clientInfo.ConfigPath)),
+                    NormalizeConfigText(BuildCodexConfigPreview(transport, port, timeout)),
+                    StringComparison.Ordinal);
+            }
+
             try
             {
-                var root = JToken.Parse(File.ReadAllText(CursorConfigPath));
+                var root = JToken.Parse(File.ReadAllText(clientInfo.ConfigPath));
                 if (root is not JObject rootObj
                     || rootObj["mcpServers"] is not JObject mcpServers
                     || mcpServers[ChievfxMcpToolPolicy.CursorServerName] is not JToken server)
@@ -967,6 +1331,11 @@ namespace Chievfx.Mcp.Editor
             {
                 return false;
             }
+        }
+
+        private static string NormalizeConfigText(string text)
+        {
+            return text.Replace("\r\n", "\n").Replace('\r', '\n').Trim();
         }
 
         private static bool IsHttpServerRunning()
@@ -1067,6 +1436,13 @@ namespace Chievfx.Mcp.Editor
             return transportField?.value == TransportHttp ? TransportHttp : TransportStdio;
         }
 
+        private string GetClient()
+        {
+            return clientField?.value == ClientClaudeCode || clientField?.value == ClientCodex
+                ? clientField.value
+                : ClientCursor;
+        }
+
         private void SavePreferences()
         {
             if (portField != null)
@@ -1084,6 +1460,11 @@ namespace Chievfx.Mcp.Editor
                 EditorPrefs.SetString(PrefKey("transport"), GetTransport());
             }
 
+            if (clientField != null)
+            {
+                EditorPrefs.SetString(PrefKey("client"), GetClient());
+            }
+
             if (autoReloadExternallyChangedScenesToggle != null)
             {
                 EditorPrefs.SetBool(
@@ -1095,6 +1476,20 @@ namespace Chievfx.Mcp.Editor
         private static int LoadTransportIndex()
         {
             return EditorPrefs.GetString(PrefKey("transport"), TransportStdio) == TransportHttp ? 1 : 0;
+        }
+
+        private static int LoadClientIndex()
+        {
+            var saved = EditorPrefs.GetString(PrefKey("client"), ClientCursor);
+            for (var i = 0; i < ClientChoices.Length; i++)
+            {
+                if (string.Equals(saved, ClientChoices[i], StringComparison.Ordinal))
+                {
+                    return i;
+                }
+            }
+
+            return 0;
         }
 
         private static ChievfxMcpTab LoadActiveTab()
@@ -1116,6 +1511,51 @@ namespace Chievfx.Mcp.Editor
         private static string PrefKey(string key)
         {
             return $"{ChievfxMcpToolPolicy.ServerName}.{key}";
+        }
+
+        private enum McpClientConfigFormat
+        {
+            JsonMcpServers,
+            CodexToml
+        }
+
+        private readonly struct McpClientInfo
+        {
+            public McpClientInfo(
+                string displayName,
+                string configPath,
+                string hint,
+                McpClientConfigFormat format,
+                bool requiresToolProbe,
+                string? probeExecutableName,
+                string availableLabel,
+                string missingLabel)
+            {
+                DisplayName = displayName;
+                ConfigPath = configPath;
+                Hint = hint;
+                Format = format;
+                RequiresToolProbe = requiresToolProbe;
+                ProbeExecutableName = probeExecutableName;
+                AvailableLabel = availableLabel;
+                MissingLabel = missingLabel;
+            }
+
+            public string DisplayName { get; }
+
+            public string ConfigPath { get; }
+
+            public string Hint { get; }
+
+            public McpClientConfigFormat Format { get; }
+
+            public bool RequiresToolProbe { get; }
+
+            public string? ProbeExecutableName { get; }
+
+            public string AvailableLabel { get; }
+
+            public string MissingLabel { get; }
         }
 
         private readonly struct CursorServerConfig

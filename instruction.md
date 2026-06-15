@@ -9,10 +9,10 @@ The Unity editor bridge depends on `com.unity.nuget.newtonsoft-json` (Unity's of
 
 1. Open this Unity project and wait until compilation/domain reload completes.
 2. Open `Window > ChievFX > MCP`.
-3. Keep transport as `stdio` for normal Cursor use. Use `http` only when you need a long-running local HTTP server for manual testing.
+3. Keep transport as `stdio` for normal local client use. Use `http` only when you need a long-running local HTTP server for manual testing.
 4. Click `Start Bridge`.
-5. Click `Write Cursor Config`. This writes `.cursor/mcp.json` with `unity-mcp-chievfx`.
-6. Reload Cursor MCP tools or restart Cursor. The server should appear as `unity-mcp-chievfx`.
+5. Keep `Cursor` selected, or switch the client to `Claude Code` or `Codex`, then click `Write <client> Config`.
+6. Reload your MCP client's tools or restart it. The server should appear as `unity-mcp-chievfx` or the project-unique `unity-<hash>` name.
 
 The generated stdio config runs:
 
@@ -36,7 +36,7 @@ The generated stdio config runs:
 }
 ```
 
-Paths written by the Unity window are absolute in the real `.cursor/mcp.json`. The file is intentionally git-ignored because it is machine-local.
+Paths written by the Unity window are absolute in the real `.cursor/mcp.json`, `.mcp.json`, or `.codex/config.toml`. These files are intentionally git-ignored because they are machine-local.
 
 ## Tool Discovery
 

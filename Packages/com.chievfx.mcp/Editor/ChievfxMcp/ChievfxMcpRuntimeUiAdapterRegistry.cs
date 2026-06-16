@@ -321,6 +321,7 @@ namespace Chievfx.Mcp.Editor
             }
 
             var normalizeCoords = ReadBool(request, "normalizeCoords", false);
+            var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
             var selected = controls
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
@@ -333,6 +334,11 @@ namespace Chievfx.Mcp.Editor
                 ["nameFilter"] = nameFilter,
                 ["controlTypeFilter"] = controlTypeFilter,
                 ["normalizeCoords"] = normalizeCoords,
+                ["screenSize"] = new Dictionary<string, object?>
+                {
+                    ["width"] = (int)screenSize.x,
+                    ["height"] = (int)screenSize.y,
+                },
                 ["frameworkFilter"] = string.IsNullOrEmpty(framework) ? null : framework,
                 ["controls"] = selected,
                 ["frameworks"] = sections.ToArray(),
@@ -344,7 +350,7 @@ namespace Chievfx.Mcp.Editor
                 return payload;
             }
 
-            return ChievfxMcpRuntimeUiControlFind.FormatText(page, totalPages, selected, controlTypeFilter, normalizeCoords);
+            return payload;
         }
 
         private static object? ReadResource(string uri)

@@ -52,18 +52,17 @@ class UiControlFindFormattingTests(unittest.TestCase):
         self.assertNotIn("truncated", text)
         self.assertNotIn("maxResults", text)
         self.assertNotIn("center:", text)
-        self.assertIn("- Canvas/Screen/BtnTest (id: 57736) : button; zone:439.0,199.0..739.0,399.0", text)
+        self.assertIn("- Canvas/Screen/BtnTest (id: 57736) : button; zone:439,199..739,399", text)
         self.assertIn(
-            "- VisualElement#Root[0]/TextField#FocusableUiToolkitTextField[1] (ve:12345678) : inputfield; zone:100.0,200.0..300.0,250.0",
+            "- VisualElement#Root[0]/TextField#FocusableUiToolkitTextField[1] (ve:12345678) : inputfield; zone:100,200..300,250",
             text,
         )
 
-    def test_normalize_coords_ceil_min_floor_max(self) -> None:
+    def test_default_pixel_coords_ceil_min_floor_max(self) -> None:
         result = {
             "page": 1,
             "totalPages": 1,
             "total": 1,
-            "normalizeCoords": True,
             "controls": [
                 {
                     "framework": "ugui",
@@ -75,7 +74,6 @@ class UiControlFindFormattingTests(unittest.TestCase):
                         "yMin": 0.0,
                         "xMax": 353.4,
                         "yMax": 598.0,
-                        "center": {"x": 343.4, "y": 299.0},
                     },
                 }
             ],
@@ -87,7 +85,63 @@ class UiControlFindFormattingTests(unittest.TestCase):
             "- Canvas/Scroll View/Scrollbar Vertical (id: 57812) : scrollbar; zone:334,0..353,598",
             text,
         )
-        self.assertNotIn("center:", text)
+
+    def test_normalize_coords_use_zero_to_one(self) -> None:
+        result = {
+            "page": 1,
+            "totalPages": 1,
+            "total": 1,
+            "normalizeCoords": True,
+            "screenSize": {"width": 1000, "height": 500},
+            "controls": [
+                {
+                    "framework": "ugui",
+                    "path": "Canvas/Screen/BtnTest",
+                    "instanceId": 57736,
+                    "controlType": "button",
+                    "zone": {
+                        "xMin": 0.0,
+                        "yMin": 0.0,
+                        "xMax": 1000.0,
+                        "yMax": 500.0,
+                    },
+                }
+            ],
+        }
+
+        text = mcp.format_ui_control_find_text(result)
+
+        self.assertIn("- Canvas/Screen/BtnTest (id: 57736) : button; zone:0,0..1,1", text)
+
+    def test_normalize_coords_format_two_decimals(self) -> None:
+        result = {
+            "page": 1,
+            "totalPages": 1,
+            "total": 1,
+            "normalizeCoords": True,
+            "screenSize": {"width": 1920, "height": 1080},
+            "controls": [
+                {
+                    "framework": "ugui",
+                    "path": "Canvas/Scroll View/Scrollbar Vertical",
+                    "instanceId": 57812,
+                    "controlType": "scrollbar",
+                    "zone": {
+                        "xMin": 333.4,
+                        "yMin": 0.0,
+                        "xMax": 353.4,
+                        "yMax": 598.0,
+                    },
+                }
+            ],
+        }
+
+        text = mcp.format_ui_control_find_text(result)
+
+        self.assertIn(
+            "- Canvas/Scroll View/Scrollbar Vertical (id: 57812) : scrollbar; zone:0.17,0..0.18,0.55",
+            text,
+        )
 
     def test_omits_control_type_when_filter_present(self) -> None:
         result = {
@@ -106,7 +160,6 @@ class UiControlFindFormattingTests(unittest.TestCase):
                         "yMin": 199.0,
                         "xMax": 739.0,
                         "yMax": 399.0,
-                        "center": {"x": 589, "y": 299},
                     },
                 }
             ],
@@ -115,7 +168,7 @@ class UiControlFindFormattingTests(unittest.TestCase):
         text = mcp.format_ui_control_find_text(result)
 
         self.assertEqual("page:1/2", text.splitlines()[0])
-        self.assertIn("- Canvas/Screen/BtnTest (id: 57736); zone:439.0,199.0..739.0,399.0", text)
+        self.assertIn("- Canvas/Screen/BtnTest (id: 57736); zone:439,199..739,399", text)
         self.assertNotIn(": button", text)
         self.assertNotIn("center:", text)
 
@@ -135,7 +188,6 @@ class UiControlFindFormattingTests(unittest.TestCase):
                         "yMin": 199.0,
                         "xMax": 739.0,
                         "yMax": 399.0,
-                        "center": {"x": 589, "y": 299},
                     },
                 }
             ],
@@ -151,16 +203,65 @@ class UiControlFindFormattingTests(unittest.TestCase):
         self.assertNotIn("totalPages:", text)
         self.assertNotIn("controls[", text)
         self.assertNotIn("center:", text)
+        self.assertIn("zone:439,199..739,399", text)
 
-    def test_call_tool_passes_through_preformatted_string(self) -> None:
-        formatted = "page:1/1\n- Canvas/Screen/BtnTest (id: 57736) : button; zone:439.0,199.0..739.0,399.0"
+    def test_normalize_coords_infer_screen_size_from_zones(self) -> None:
+        result = {
+            "page": 1,
+            "totalPages": 1,
+            "total": 1,
+            "normalizeCoords": True,
+            "controls": [
+                {
+                    "framework": "ugui",
+                    "path": "Canvas/Scroll View/Scrollbar Vertical",
+                    "instanceId": 57812,
+                    "controlType": "scrollbar",
+                    "zone": {
+                        "xMin": 333.4,
+                        "yMin": 0.0,
+                        "xMax": 353.4,
+                        "yMax": 598.0,
+                    },
+                }
+            ],
+        }
+
+        text = mcp.format_ui_control_find_text(result)
+
+        self.assertIn(
+            "- Canvas/Scroll View/Scrollbar Vertical (id: 57812) : scrollbar; zone:0.94,0..1,1",
+            text,
+        )
+
+    def test_call_tool_formats_dict_payload(self) -> None:
+        payload = {
+            "page": 1,
+            "totalPages": 1,
+            "total": 1,
+            "controls": [
+                {
+                    "framework": "ugui",
+                    "path": "Canvas/Screen/BtnTest",
+                    "instanceId": 57736,
+                    "controlType": "button",
+                    "zone": {
+                        "xMin": 439.0,
+                        "yMin": 199.0,
+                        "xMax": 739.0,
+                        "yMax": 399.0,
+                    },
+                }
+            ],
+        }
         server = mcp.McpServer("http://127.0.0.1:1", "", timeout_ms=1000)
         enabled = mcp.load_enabled_tool_ids() | {"ui-control-find"}
         with patch.object(mcp, "load_enabled_tool_ids", return_value=enabled):
-            with patch.object(server, "call_unity_bridge", return_value={"ok": True, "result": formatted}):
+            with patch.object(server, "call_unity_bridge", return_value={"ok": True, "result": payload}):
                 response = server.call_tool({"name": "ui-control-find", "arguments": {}})
 
-        self.assertEqual(formatted, response["content"][0]["text"])
+        text = response["content"][0]["text"]
+        self.assertIn("zone:439,199..739,399", text)
 
 
 if __name__ == "__main__":

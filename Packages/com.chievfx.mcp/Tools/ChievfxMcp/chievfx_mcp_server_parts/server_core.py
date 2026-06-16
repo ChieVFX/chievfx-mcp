@@ -362,7 +362,13 @@ class McpServerCore:
                 arguments,
             )
 
-        bridge_result = self.call_unity_bridge(name, arguments, request_id, progress_token, notify)
+        bridge_arguments = arguments
+        force_ui_control_find_json = name == "ui-control-find" and arguments.get("outputFormat") != "json"
+        if force_ui_control_find_json:
+            bridge_arguments = dict(arguments)
+            bridge_arguments["outputFormat"] = "json"
+
+        bridge_result = self.call_unity_bridge(name, bridge_arguments, request_id, progress_token, notify)
         if bridge_result.get("contentType") == "image":
             content: list[dict[str, Any]] = [
                 {
@@ -389,14 +395,14 @@ class McpServerCore:
             return result
 
         result = bridge_result.get("result")
-        if name == "ui-control-find" and arguments.get("outputFormat") != "json":
-            if isinstance(result, str):
-                return {
-                    "content": [{"type": "text", "text": result}],
-                    "isError": False,
-                }
+        if force_ui_control_find_json:
+            if not isinstance(result, dict):
+                retry_arguments = dict(arguments)
+                retry_arguments["outputFormat"] = "json"
+                bridge_result = self.call_unity_bridge(name, retry_arguments, request_id, progress_token, notify)
+                result = bridge_result.get("result")
             if isinstance(result, dict):
-                normalize_coords = arguments.get("normalizeCoords") is True
+                normalize_coords = arguments.get("normalizeCoords") if "normalizeCoords" in arguments else None
                 return {
                     "content": [
                         {

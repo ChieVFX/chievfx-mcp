@@ -309,7 +309,7 @@ namespace Chievfx.Mcp.Editor
 
             startButton = CreateButton("Start HTTP", StartHttpServer);
             stopButton = CreateButton("Stop HTTP", StopHttpServer);
-            runtime.Add(CreateActionRow(startButton, stopButton, CreateButton("Start Bridge", StartBridge), CreateButton("Refresh", () => RefreshUi(forcePythonRefresh: true)));
+            runtime.Add(CreateActionRow(startButton, stopButton, CreateButton("Start Bridge", StartBridge), CreateButton("Refresh", () => RefreshUi(true))));
             content.Add(runtime);
 
             var cursorConfig = CreateSectionCard("MCP Client Config");
@@ -708,7 +708,7 @@ namespace Chievfx.Mcp.Editor
             ApplyStateChipStyle(chip, state);
         }
 
-        private static void UpdatePythonStatusUi(ChievfxMcpPythonEnvironmentStatus pythonStatus)
+        private void UpdatePythonStatusUi(ChievfxMcpPythonEnvironmentStatus pythonStatus)
         {
             if (pythonStatus.PythonFound && pythonStatus.VersionSupported && !pythonStatus.IsWindowsStoreShim)
             {

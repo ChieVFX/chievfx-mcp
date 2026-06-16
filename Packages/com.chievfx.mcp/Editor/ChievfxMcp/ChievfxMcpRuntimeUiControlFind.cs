@@ -117,7 +117,12 @@ namespace Chievfx.Mcp.Editor
                 && yMin < screenSize.y;
         }
 
-        internal static Dictionary<string, object?> CreateZoneRow(float xMin, float yMin, float xMax, float yMax)
+        internal static Dictionary<string, object?> CreateZoneRow(
+            float xMin,
+            float yMin,
+            float xMax,
+            float yMax,
+            Vector2 screenSize)
         {
             var center = new Vector2((xMin + xMax) * 0.5f, (yMin + yMax) * 0.5f);
             return new Dictionary<string, object?>
@@ -126,6 +131,8 @@ namespace Chievfx.Mcp.Editor
                 ["yMin"] = RoundForOutput(yMin),
                 ["xMax"] = RoundForOutput(xMax),
                 ["yMax"] = RoundForOutput(yMax),
+                ["screenWidth"] = Math.Max(1, (int)Math.Round(screenSize.x, MidpointRounding.AwayFromZero)),
+                ["screenHeight"] = Math.Max(1, (int)Math.Round(screenSize.y, MidpointRounding.AwayFromZero)),
                 ["center"] = new Dictionary<string, object?>
                 {
                     ["x"] = RoundForOutput(center.x),
@@ -144,19 +151,26 @@ namespace Chievfx.Mcp.Editor
             int totalPages,
             IReadOnlyList<Dictionary<string, object?>> controls,
             string? controlTypeFilter,
-            bool normalizeCoords)
+            bool normalizeCoords,
+            float screenWidth,
+            float screenHeight)
         {
             var lines = new List<string> { $"page:{page}/{totalPages}" };
             var omitType = !string.IsNullOrWhiteSpace(controlTypeFilter);
             foreach (var control in controls)
             {
-                lines.Add(FormatRow(control, omitType, normalizeCoords));
+                lines.Add(FormatRow(control, omitType, normalizeCoords, screenWidth, screenHeight));
             }
 
             return string.Join("\n", lines);
         }
 
-        internal static string FormatRow(Dictionary<string, object?> control, bool omitType, bool normalizeCoords)
+        internal static string FormatRow(
+            Dictionary<string, object?> control,
+            bool omitType,
+            bool normalizeCoords,
+            float screenWidth,
+            float screenHeight)
         {
             var builder = new StringBuilder("- ");
             builder.Append(ReadString(control, "path"));
@@ -186,7 +200,11 @@ namespace Chievfx.Mcp.Editor
                 }
             }
 
-            var zoneText = FormatZoneText(control.TryGetValue("zone", out var zone) ? zone : null, normalizeCoords);
+            var zoneText = FormatZoneText(
+                control.TryGetValue("zone", out var zone) ? zone : null,
+                normalizeCoords,
+                screenWidth,
+                screenHeight);
             if (!string.IsNullOrWhiteSpace(zoneText))
             {
                 builder.Append("; zone:").Append(zoneText);
@@ -195,17 +213,21 @@ namespace Chievfx.Mcp.Editor
             return builder.ToString();
         }
 
-        private static string FormatZoneText(object? zoneValue, bool normalizeCoords)
+        private static string FormatZoneText(object? zoneValue, bool normalizeCoords, float screenWidth, float screenHeight)
         {
             if (zoneValue is not Dictionary<string, object?> zone)
             {
                 return string.Empty;
             }
 
-            return FormatZoneBounds(zone, normalizeCoords);
+            return FormatZoneBounds(zone, normalizeCoords, screenWidth, screenHeight);
         }
 
-        private static string FormatZoneBounds(Dictionary<string, object?> zone, bool normalizeCoords)
+        private static string FormatZoneBounds(
+            Dictionary<string, object?> zone,
+            bool normalizeCoords,
+            float screenWidth,
+            float screenHeight)
         {
             if (!TryReadFloat(zone, "xMin", out var xMin)
                 || !TryReadFloat(zone, "yMin", out var yMin)
@@ -217,15 +239,34 @@ namespace Chievfx.Mcp.Editor
 
             if (normalizeCoords)
             {
-                return $"{(int)Math.Ceiling(xMin)},{(int)Math.Ceiling(yMin)}..{(int)Math.Floor(xMax)},{(int)Math.Floor(yMax)}";
+                var width = Math.Max(1f, screenWidth);
+                var height = Math.Max(1f, screenHeight);
+                return $"{FormatNormalizedCoord(xMin / width)},{FormatNormalizedCoord(yMin / height)}..{FormatNormalizedCoord(xMax / width)},{FormatNormalizedCoord(yMax / height)}";
             }
 
-            return $"{FormatToonFloat(xMin)},{FormatToonFloat(yMin)}..{FormatToonFloat(xMax)},{FormatToonFloat(yMax)}";
+            return $"{(int)Math.Ceiling(xMin)},{(int)Math.Ceiling(yMin)}..{(int)Math.Floor(xMax)},{(int)Math.Floor(yMax)}";
         }
 
-        private static string FormatToonFloat(float value)
+        private static string FormatNormalizedCoord(float value)
         {
-            return value.ToString("0.0", CultureInfo.InvariantCulture);
+            if (float.IsNaN(value) || float.IsInfinity(value))
+            {
+                return "0";
+            }
+
+            var clamped = Math.Max(0f, Math.Min(1f, value));
+            var rounded = (float)Math.Round(clamped, 2, MidpointRounding.AwayFromZero);
+            if (rounded <= 0f)
+            {
+                return "0";
+            }
+
+            if (rounded >= 1f)
+            {
+                return "1";
+            }
+
+            return rounded.ToString("0.00", CultureInfo.InvariantCulture);
         }
 
         private static string ReadString(Dictionary<string, object?> row, string key)

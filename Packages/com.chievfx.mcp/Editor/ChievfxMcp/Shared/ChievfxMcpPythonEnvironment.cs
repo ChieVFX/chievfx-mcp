@@ -120,7 +120,7 @@ namespace Chievfx.Mcp.Editor
             var requirementsFileExists = File.Exists(requirementsPath);
             var requiredPackages = requirementsFileExists
                 ? ParseRequirementLines(File.ReadAllText(requirementsPath))
-                : Array.Empty<string>();
+                : new List<string>();
             var hasRequiredPackages = requiredPackages.Count > 0;
 
             var executablePath = ChievfxMcpPythonLauncher.ExecutablePath;
@@ -384,7 +384,7 @@ namespace Chievfx.Mcp.Editor
             foreach (var rawLine in contents.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
             {
                 var line = rawLine.Trim();
-                if (line.Length == 0 || line.StartsWith('#', StringComparison.Ordinal))
+                if (line.Length == 0 || line.StartsWith("#", StringComparison.Ordinal))
                 {
                     continue;
                 }

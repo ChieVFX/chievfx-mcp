@@ -617,7 +617,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 return false;
             }
 
-            zone = ChievfxMcpRuntimeUiControlFind.CreateZoneRow(xMin, yMin, xMax, yMax);
+            zone = ChievfxMcpRuntimeUiControlFind.CreateZoneRow(xMin, yMin, xMax, yMax, screenSize);
             return true;
         }
 

@@ -349,7 +349,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 return false;
             }
 
-            zone = ChievfxMcpRuntimeUiControlFind.CreateZoneRow(xMin, yMin, xMax, yMax);
+            zone = ChievfxMcpRuntimeUiControlFind.CreateZoneRow(xMin, yMin, xMax, yMax, screenSize);
             return true;
         }
 

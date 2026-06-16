@@ -32,7 +32,6 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         internal const string RuntimeStatusUri = UriPrefix + "runtime/status";
         internal const string RuntimePanelsUri = UriPrefix + "runtime/panels";
         internal const string RuntimeVisibleTreeUri = UriPrefix + "runtime/visible-tree";
-        internal const string RuntimeInteractablesUri = UriPrefix + "runtime/interactables";
         internal const int DefaultMaxRows = 256;
 
 #if CHIEVFX_MCP_HAS_UITOOLKIT
@@ -122,15 +121,6 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 MimeType = "application/json",
                 Category = Category,
             });
-            descriptor.Resources.Add(new ChievfxMcpResourceDescriptor
-            {
-                Id = "uitoolkit-runtime-interactables",
-                Uri = RuntimeInteractablesUri,
-                Name = "Runtime UI Toolkit interactables",
-                Description = "Read-only capped list of visible, enabled, focusable or pickable VisualElements.",
-                MimeType = "application/json",
-                Category = Category,
-            });
             descriptor.Tools.Add(CreateTool(
                 "uitoolkit-runtime-probe-screen-position",
                 "Probe Play Mode UI Toolkit hit stack at screen position. Requires Play Mode.",
@@ -195,11 +185,6 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             if (string.Equals(uri, RuntimeVisibleTreeUri, StringComparison.Ordinal))
             {
                 return ReadRuntimeVisibleTree(uri, status);
-            }
-
-            if (string.Equals(uri, RuntimeInteractablesUri, StringComparison.Ordinal))
-            {
-                return ReadRuntimeInteractables(uri, status);
             }
 
             return CreateUnavailable(uri, status, "Unsupported UI Toolkit extension resource URI.");

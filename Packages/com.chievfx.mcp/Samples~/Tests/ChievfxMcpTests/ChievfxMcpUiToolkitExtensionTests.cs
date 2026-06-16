@@ -157,12 +157,11 @@ namespace Chievfx.Mcp.Editor.Tests
             CollectionAssert.DoesNotContain(bottomNames, ChievfxMcpUiToolkitRuntimeQaFixture.HiddenControlName);
             CollectionAssert.DoesNotContain(bottomNames, ChievfxMcpUiToolkitRuntimeQaFixture.VisibilityHiddenControlName);
 
-            var interactables = ReadResource("chievfx://extensions/chievfx.uitoolkit/runtime/interactables");
-            var interactableNames = Rows(interactables, "interactables").Select(row => (string?)row["name"]).ToArray();
-            CollectionAssert.Contains(interactableNames, ChievfxMcpUiToolkitRuntimeQaFixture.TextFieldName);
-            CollectionAssert.Contains(interactableNames, ChievfxMcpUiToolkitRuntimeQaFixture.ToggleName);
-            CollectionAssert.DoesNotContain(interactableNames, ChievfxMcpUiToolkitRuntimeQaFixture.DisabledControlName);
-            CollectionAssert.DoesNotContain(interactableNames, ChievfxMcpUiToolkitRuntimeQaFixture.PickingIgnoredName);
+            var controlPaths = CollectControlFindPaths("uitoolkit");
+            Assert.IsTrue(controlPaths.Any(path => path.Contains(ChievfxMcpUiToolkitRuntimeQaFixture.TextFieldName, StringComparison.Ordinal)));
+            Assert.IsTrue(controlPaths.Any(path => path.Contains(ChievfxMcpUiToolkitRuntimeQaFixture.ToggleName, StringComparison.Ordinal)));
+            Assert.IsFalse(controlPaths.Any(path => path.Contains(ChievfxMcpUiToolkitRuntimeQaFixture.DisabledControlName, StringComparison.Ordinal)));
+            Assert.IsFalse(controlPaths.Any(path => path.Contains(ChievfxMcpUiToolkitRuntimeQaFixture.PickingIgnoredName, StringComparison.Ordinal)));
         }
 
         [UnityTest]
@@ -335,6 +334,26 @@ namespace Chievfx.Mcp.Editor.Tests
         private static Dictionary<string, object?> ReadResource(string uri)
         {
             return (Dictionary<string, object?>)ChievfxMcpUiToolkitExtension.ReadResourceForTests(uri)!;
+        }
+
+        private static string[] CollectControlFindPaths(string framework)
+        {
+            var all = new List<string>();
+            var page = 1;
+            while (true)
+            {
+                var result = RunExtensionTool("ui-control-find", "{'framework':'" + framework + "','page':" + page.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}");
+                all.AddRange(Rows(result, "controls").Select(row => (string)row["path"]!));
+                var totalPages = Convert.ToInt32(result["totalPages"], System.Globalization.CultureInfo.InvariantCulture);
+                if (page >= totalPages)
+                {
+                    break;
+                }
+
+                page++;
+            }
+
+            return all.ToArray();
         }
 
         private static Dictionary<string, object?> RunExtensionTool(string toolName, string argsJson)

@@ -503,40 +503,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return result;
         }
 
-        internal static Dictionary<string, object?> ReadRuntimeInteractables(string uri, UguiDependencyStatus status)
-        {
-            var warnings = new List<string>();
-            var result = CreateEnvelope(uri, status);
-            result["playMode"] = IsRuntimePlayModeActive();
-            result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
-            if (Equals(result["runtimeAvailable"], false))
-            {
-                result["count"] = 0;
-                result["interactables"] = Array.Empty<Dictionary<string, object?>>();
-                result["warnings"] = warnings.ToArray();
-                return result;
-            }
-
-            if (Equals(result["runtimeAvailable"], true))
-            {
-                AddRuntimeWarnings(status, warnings);
-            }
-
-            var rows = FindRuntimeCanvases(status)
-                .SelectMany(canvas => canvas.GetComponentsInChildren<RectTransform>(false))
-                .Select(rect => rect.gameObject)
-                .Distinct()
-                .Select(go => CreateRuntimeInteractableRow(go, status))
-                .Where(row => row != null)
-                .Cast<Dictionary<string, object?>>()
-                .Take(256)
-                .ToArray();
-            result["count"] = rows.Length;
-            result["interactables"] = rows;
-            result["warnings"] = warnings.ToArray();
-            return result;
-        }
-
         internal static Dictionary<string, object?> ControlFind(JToken args, UguiDependencyStatus status)
         {
             status.CanvasType?.GetMethod("ForceUpdateCanvases", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);

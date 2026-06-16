@@ -40,7 +40,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
         internal const string RuntimeStatusUri = UriPrefix + "runtime/status";
         internal const string RuntimeCanvasesUri = UriPrefix + "runtime/canvases";
         internal const string RuntimeVisibleTreeUri = UriPrefix + "runtime/visible-tree";
-        internal const string RuntimeInteractablesUri = UriPrefix + "runtime/interactables";
         internal static bool? preferInputSystemUiModuleOverrideForTests;
         internal static bool? runtimeReadAllowedOverrideForTests;
 
@@ -152,15 +151,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 Uri = RuntimeVisibleTreeUri,
                 Name = "Runtime uGUI visible tree",
                 Description = "Read-only Play Mode visible RectTransform tree for active uGUI canvases.",
-                MimeType = "application/json",
-                Category = RuntimeControlCategory,
-            });
-            descriptor.Resources.Add(new ChievfxMcpResourceDescriptor
-            {
-                Id = "ugui-runtime-interactables",
-                Uri = RuntimeInteractablesUri,
-                Name = "Runtime uGUI interactables",
-                Description = "Read-only Play Mode list of loaded Button, Toggle, Slider, Scrollbar, Dropdown, TMP_Dropdown, and InputField controls.",
                 MimeType = "application/json",
                 Category = RuntimeControlCategory,
             });
@@ -323,11 +313,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
             if (string.Equals(uri, RuntimeVisibleTreeUri, StringComparison.Ordinal))
             {
                 return ReadRuntimeVisibleTree(uri, status);
-            }
-
-            if (string.Equals(uri, RuntimeInteractablesUri, StringComparison.Ordinal))
-            {
-                return ReadRuntimeInteractables(uri, status);
             }
 
             return CreateUnavailable(uri, status, "Unsupported uGUI extension resource URI.");

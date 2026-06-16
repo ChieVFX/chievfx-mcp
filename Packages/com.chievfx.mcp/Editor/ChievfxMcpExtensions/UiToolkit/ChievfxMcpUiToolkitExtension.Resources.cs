@@ -114,57 +114,5 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             result["warnings"] = warnings.ToArray();
             return result;
         }
-
-        internal static Dictionary<string, object?> ReadRuntimeInteractables(string uri, UiToolkitDependencyStatus status)
-        {
-            var warnings = new List<string>();
-            var result = CreateEnvelope(uri, status);
-            result["playMode"] = IsRuntimePlayModeActive();
-            result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
-            result["maxRows"] = DefaultMaxRows;
-            if (Equals(result["runtimeAvailable"], false))
-            {
-                result["count"] = 0;
-                result["interactables"] = Array.Empty<Dictionary<string, object?>>();
-                result["warnings"] = warnings.ToArray();
-                return result;
-            }
-
-            var rows = new List<Dictionary<string, object?>>();
-            var truncated = false;
-            foreach (var document in FindRuntimeDocuments(status))
-            {
-                var root = GetRootVisualElement(document);
-                if (root == null)
-                {
-                    continue;
-                }
-
-                var group = PanelGroup.FromDocument(document);
-                foreach (var item in EnumerateVisibleTree(root, status, DefaultMaxRows + 1))
-                {
-                    if (!IsInteractableVisualElement(item.Element, status))
-                    {
-                        continue;
-                    }
-
-                    if (rows.Count >= DefaultMaxRows)
-                    {
-                        truncated = true;
-                        break;
-                    }
-
-                    var row = CreateVisualElementRow(item.Element, status, group, includeTextAndValue: true);
-                    row["depth"] = item.Depth;
-                    rows.Add(row);
-                }
-            }
-
-            result["count"] = rows.Count;
-            result["interactables"] = rows.ToArray();
-            result["truncated"] = truncated;
-            result["warnings"] = warnings.ToArray();
-            return result;
-        }
     }
 }

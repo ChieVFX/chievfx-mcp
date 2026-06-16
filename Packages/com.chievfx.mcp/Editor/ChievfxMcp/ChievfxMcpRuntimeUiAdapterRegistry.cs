@@ -250,9 +250,7 @@ namespace Chievfx.Mcp.Editor
 
             foreach (var registered in SnapshotAdapters())
             {
-                if (!string.IsNullOrEmpty(framework)
-                    && !string.Equals(framework, "auto", StringComparison.Ordinal)
-                    && !string.Equals(registered.Adapter.FrameworkId, framework, StringComparison.Ordinal))
+                if (!ChievfxMcpRuntimeUiControlFind.MatchesFrameworkFilter(framework, registered.Adapter.FrameworkId))
                 {
                     continue;
                 }
@@ -305,8 +303,7 @@ namespace Chievfx.Mcp.Editor
                 }
             }
 
-            if (!string.IsNullOrEmpty(framework)
-                && !string.Equals(framework, "auto", StringComparison.Ordinal)
+            if (!ChievfxMcpRuntimeUiControlFind.IncludesAllFrameworks(framework)
                 && sections.Count == 0)
             {
                 throw new ArgumentException($"No control-find adapter for framework '{framework}'. Available: {string.Join(", ", SnapshotAdapters().Where(registered => registered.Adapter is IChievfxMcpRuntimeUiControlFindAdapter).Select(registered => registered.Adapter.FrameworkId))}.");

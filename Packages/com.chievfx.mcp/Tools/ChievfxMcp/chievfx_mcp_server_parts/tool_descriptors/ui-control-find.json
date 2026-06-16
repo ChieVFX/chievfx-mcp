@@ -9,8 +9,9 @@
       },
       "framework": {
         "type": "string",
-        "enum": ["auto", "ugui", "uitoolkit"],
-        "description": "Framework scope. auto (default) searches uGUI and UI Toolkit."
+        "enum": ["all", "ugui", "uitoolkit"],
+        "default": "all",
+        "description": "Framework scope. all (default) searches uGUI and UI Toolkit."
       },
       "name": {
         "type": "string",

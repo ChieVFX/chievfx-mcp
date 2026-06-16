@@ -288,7 +288,7 @@ namespace Chievfx.Mcp.Editor
             if (!string.IsNullOrWhiteSpace(pipError))
             {
                 builder.Append(' ');
-                builder.Append(pipError.Trim());
+                builder.Append(pipError!.Trim());
             }
 
             builder.AppendLine();

@@ -255,7 +255,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
         public object? Status => GetDependencyStatus().ToDictionary();
 
-        public IEnumerable<string> Resources => new[] { RuntimeStatusUri, RuntimeCanvasesUri, RuntimeVisibleTreeUri, RuntimeInteractablesUri };
+        public IEnumerable<string> Resources => new[] { RuntimeStatusUri, RuntimeCanvasesUri, RuntimeVisibleTreeUri };
 
         public object? ProbeScreenPosition(JToken request)
         {

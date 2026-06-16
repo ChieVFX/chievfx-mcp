@@ -11,6 +11,20 @@ namespace Chievfx.Mcp.Editor
     {
         internal const int DefaultPageSize = 10;
 
+        internal static bool IncludesAllFrameworks(string? frameworkFilter)
+        {
+            var filter = (frameworkFilter ?? string.Empty).Trim().ToLowerInvariant();
+            return string.IsNullOrEmpty(filter)
+                || string.Equals(filter, "all", StringComparison.Ordinal)
+                || string.Equals(filter, "auto", StringComparison.Ordinal);
+        }
+
+        internal static bool MatchesFrameworkFilter(string? frameworkFilter, string adapterFrameworkId)
+        {
+            return IncludesAllFrameworks(frameworkFilter)
+                || string.Equals((frameworkFilter ?? string.Empty).Trim().ToLowerInvariant(), adapterFrameworkId, StringComparison.Ordinal);
+        }
+
         internal static string NormalizeControlType(Type type)
         {
             var name = type.Name;
@@ -80,7 +94,7 @@ namespace Chievfx.Mcp.Editor
                 return null;
             }
 
-            var trimmed = raw.Trim();
+            var trimmed = raw!.Trim();
             if (string.Equals(trimmed, "input", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(trimmed, "textfield", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(trimmed, "TMP_InputField", StringComparison.OrdinalIgnoreCase))

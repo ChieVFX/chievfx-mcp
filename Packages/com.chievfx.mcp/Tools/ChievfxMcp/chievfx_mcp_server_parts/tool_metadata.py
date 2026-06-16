@@ -79,7 +79,7 @@ def advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "framework": {"enum": ["auto", "ugui", "uitoolkit"]},
+                "framework": {"enum": ["all", "ugui", "uitoolkit"], "default": "all"},
                 "name": {},
                 "controlType": {},
                 "page": {},

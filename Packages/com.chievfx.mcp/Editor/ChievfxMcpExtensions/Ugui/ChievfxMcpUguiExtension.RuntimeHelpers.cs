@@ -515,24 +515,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return row;
         }
 
-        internal static Dictionary<string, object?>? CreateRuntimeInteractableRow(GameObject target, UguiDependencyStatus status)
-        {
-            var controls = GetControlComponents(target, status).ToArray();
-            if (controls.Length == 0)
-            {
-                return null;
-            }
-
-            var row = CreateRuntimeElementRow(target, status);
-            row["controls"] = controls.Select(component => new Dictionary<string, object?>
-            {
-                ["type"] = component.GetType().Name,
-                ["enabled"] = IsEnabledComponent(component),
-                ["interactable"] = GetPropertyValue(component, "interactable"),
-            }).ToArray();
-            return row;
-        }
-
         internal static bool IsRuntimeVisibleUiElement(GameObject target, UguiDependencyStatus status)
         {
             return target.activeInHierarchy

@@ -194,6 +194,8 @@ namespace Chievfx.Mcp.Editor
 
         public static string InstallerScriptPath => Path.Combine(InstallerDirectory, "chievfx_mcp_installer.py");
 
+        public static string RequirementsPath => Path.Combine(PackageRoot, "requirements.txt");
+
         public static bool TryResolveInstallerScriptPath(out string path)
         {
             path = InstallerScriptPath;

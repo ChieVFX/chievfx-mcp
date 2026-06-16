@@ -47,6 +47,10 @@ namespace Chievfx.Mcp.Editor
         private Toggle? showPromptsTabToggle;
         private Toggle? showAutonomyToolsToggle;
         private Label? serverChip;
+        private Label? pythonChip;
+        private Label? pythonPackagesChip;
+        private Label? pythonDetailLabel;
+        private Button? installPythonPackagesButton;
         private Label? bridgeChip;
         private Label? httpChip;
         private Label? cursorConfigChip;
@@ -266,8 +270,17 @@ namespace Chievfx.Mcp.Editor
             var settings = CreateSectionCard("Connection");
             var connectionState = CreateChipRow();
             serverChip = CreateStateChip("Server unknown", StatusChipState.Neutral);
+            pythonChip = CreateStateChip("Python unknown", StatusChipState.Neutral);
+            pythonPackagesChip = CreateStateChip("Packages unknown", StatusChipState.Neutral);
             connectionState.Add(serverChip);
+            connectionState.Add(pythonChip);
+            connectionState.Add(pythonPackagesChip);
             settings.Add(connectionState);
+
+            pythonDetailLabel = CreateMutedLabel(string.Empty);
+            settings.Add(pythonDetailLabel);
+            installPythonPackagesButton = CreateButton("Install Python Packages", InstallPythonPackages);
+            settings.Add(CreateActionRow(installPythonPackagesButton));
 
             transportField = new PopupField<string>(new List<string>(TransportChoices), LoadTransportIndex())
             {
@@ -296,7 +309,7 @@ namespace Chievfx.Mcp.Editor
 
             startButton = CreateButton("Start HTTP", StartHttpServer);
             stopButton = CreateButton("Stop HTTP", StopHttpServer);
-            runtime.Add(CreateActionRow(startButton, stopButton, CreateButton("Start Bridge", StartBridge), CreateButton("Refresh", RefreshUi)));
+            runtime.Add(CreateActionRow(startButton, stopButton, CreateButton("Start Bridge", StartBridge), CreateButton("Refresh", () => RefreshUi(forcePythonRefresh: true)));
             content.Add(runtime);
 
             var cursorConfig = CreateSectionCard("MCP Client Config");
@@ -349,6 +362,7 @@ namespace Chievfx.Mcp.Editor
             };
             advanced.style.marginTop = 4;
             advanced.Add(CreateMutedLabel($"Server script: {ServerScriptPath}"));
+            advanced.Add(CreateMutedLabel($"Python requirements: {ChievfxMcpToolPolicy.RequirementsPath}"));
             advanced.Add(CreateMutedLabel($"Bridge IPC: {ChievfxMcpToolPolicy.BridgeDirectory}"));
             launchInstallerButton = CreateButton("Launch Python Installer", LaunchPythonInstaller);
             advanced.Add(CreateActionRow(launchInstallerButton));
@@ -576,10 +590,16 @@ namespace Chievfx.Mcp.Editor
             };
         }
 
-        private void RefreshUi()
+        private void RefreshUi(bool forcePythonRefresh = false)
         {
             SavePreferences();
 
+            if (forcePythonRefresh)
+            {
+                ChievfxMcpPythonLauncher.InvalidateCache();
+            }
+
+            var pythonStatus = ChievfxMcpPythonEnvironment.GetStatus(forcePythonRefresh);
             var port = GetPort();
             var timeout = GetTimeout();
             var transport = GetTransport();
@@ -596,27 +616,31 @@ namespace Chievfx.Mcp.Editor
                 var httpSummary = transport == TransportHttp
                     ? $" | HTTP {(httpRunning ? "running" : "stopped")}"
                     : string.Empty;
+                var pythonSummary = pythonStatus.IsReady
+                    ? "Python ready"
+                    : "Python needs setup";
                 summaryLabel.text =
-                    $"Server: script {(serverScriptExists ? "found" : "missing")} | Bridge {(bridgeRunning ? "running" : "stopped")}{httpSummary} | {clientInfo.DisplayName} {(configured ? "configured" : "needs write")}";
-                summaryLabel.style.color = new StyleColor(!configured || !clientAvailable || (transport == TransportHttp && !httpRunning)
+                    $"{pythonSummary} | Server: script {(serverScriptExists ? "found" : "missing")} | Bridge {(bridgeRunning ? "running" : "stopped")}{httpSummary} | {clientInfo.DisplayName} {(configured ? "configured" : "needs write")}";
+                summaryLabel.style.color = new StyleColor(!pythonStatus.IsReady || !configured || !clientAvailable || (transport == TransportHttp && !httpRunning)
                     ? new Color(1f, 0.88f, 0.58f)
                     : new Color(0.78f, 0.78f, 0.78f));
             }
 
             if (guidanceLabel != null)
             {
-                var guidanceGood = serverScriptExists && bridgeRunning && configured && clientAvailable && (transport != TransportHttp || httpRunning);
-                guidanceLabel.text = BuildSetupGuidance(transport, serverScriptExists, bridgeRunning, httpRunning, configured, clientInfo, clientAvailable);
+                var guidanceGood = pythonStatus.IsReady && serverScriptExists && bridgeRunning && configured && clientAvailable && (transport != TransportHttp || httpRunning);
+                guidanceLabel.text = BuildSetupGuidance(pythonStatus, transport, serverScriptExists, bridgeRunning, httpRunning, configured, clientInfo, clientAvailable);
                 guidanceLabel.style.color = new StyleColor(guidanceGood ? new Color(0.58f, 0.78f, 0.58f) : new Color(0.72f, 0.72f, 0.72f));
             }
 
             if (setupHelpBox != null)
             {
-                var guidanceGood = serverScriptExists && bridgeRunning && configured && clientAvailable && (transport != TransportHttp || httpRunning);
-                setupHelpBox.text = BuildSetupGuidance(transport, serverScriptExists, bridgeRunning, httpRunning, configured, clientInfo, clientAvailable);
+                var guidanceGood = pythonStatus.IsReady && serverScriptExists && bridgeRunning && configured && clientAvailable && (transport != TransportHttp || httpRunning);
+                setupHelpBox.text = BuildSetupGuidance(pythonStatus, transport, serverScriptExists, bridgeRunning, httpRunning, configured, clientInfo, clientAvailable);
                 setupHelpBox.style.display = guidanceGood ? DisplayStyle.None : DisplayStyle.Flex;
             }
 
+            UpdatePythonStatusUi(pythonStatus);
             UpdateStateChip(serverChip, serverScriptExists ? "Server found" : "Server missing", serverScriptExists ? StatusChipState.Good : StatusChipState.Warning);
             UpdateStateChip(bridgeChip, bridgeRunning ? "Bridge running" : "Bridge stopped", bridgeRunning ? StatusChipState.Good : StatusChipState.Neutral);
             UpdateStateChip(httpChip, httpRunning ? "HTTP running" : "HTTP stopped", httpRunning ? StatusChipState.Good : StatusChipState.Warning);
@@ -654,7 +678,7 @@ namespace Chievfx.Mcp.Editor
 
             if (startButton != null)
             {
-                startButton.SetEnabled(transport == TransportHttp && serverScriptExists && !httpRunning);
+                startButton.SetEnabled(transport == TransportHttp && serverScriptExists && pythonStatus.IsReady && !httpRunning);
             }
 
             if (stopButton != null)
@@ -684,7 +708,66 @@ namespace Chievfx.Mcp.Editor
             ApplyStateChipStyle(chip, state);
         }
 
+        private static void UpdatePythonStatusUi(ChievfxMcpPythonEnvironmentStatus pythonStatus)
+        {
+            if (pythonStatus.PythonFound && pythonStatus.VersionSupported && !pythonStatus.IsWindowsStoreShim)
+            {
+                UpdateStateChip(pythonChip, "Python OK", StatusChipState.Good);
+            }
+            else if (pythonStatus.PythonFound)
+            {
+                UpdateStateChip(pythonChip, "Python unsupported", StatusChipState.Warning);
+            }
+            else
+            {
+                UpdateStateChip(pythonChip, "Python missing", StatusChipState.Warning);
+            }
+
+            if (!pythonStatus.PythonFound || !pythonStatus.VersionSupported || pythonStatus.IsWindowsStoreShim)
+            {
+                UpdateStateChip(pythonPackagesChip, "Packages unknown", StatusChipState.Neutral);
+            }
+            else if (!pythonStatus.HasRequiredPackages)
+            {
+                UpdateStateChip(pythonPackagesChip, "Packages none", StatusChipState.Good);
+            }
+            else if (pythonStatus.PackagesSatisfied)
+            {
+                UpdateStateChip(pythonPackagesChip, "Packages OK", StatusChipState.Good);
+            }
+            else
+            {
+                UpdateStateChip(pythonPackagesChip, "Packages missing", StatusChipState.Warning);
+            }
+
+            if (pythonDetailLabel != null)
+            {
+                if (pythonStatus.PythonFound)
+                {
+                    pythonDetailLabel.text =
+                        $"Python: {pythonStatus.ExecutablePath} — {pythonStatus.VersionDisplay}";
+                }
+                else
+                {
+                    pythonDetailLabel.text = pythonStatus.Guidance;
+                }
+            }
+
+            if (installPythonPackagesButton != null)
+            {
+                installPythonPackagesButton.style.display =
+                    pythonStatus.HasRequiredPackages
+                    && pythonStatus.PythonFound
+                    && pythonStatus.VersionSupported
+                    && !pythonStatus.IsWindowsStoreShim
+                    && !pythonStatus.PackagesSatisfied
+                        ? DisplayStyle.Flex
+                        : DisplayStyle.None;
+            }
+        }
+
         private static string BuildSetupGuidance(
+            ChievfxMcpPythonEnvironmentStatus pythonStatus,
             string transport,
             bool serverScriptExists,
             bool bridgeRunning,
@@ -693,6 +776,11 @@ namespace Chievfx.Mcp.Editor
             McpClientInfo clientInfo,
             bool clientAvailable)
         {
+            if (!pythonStatus.IsReady)
+            {
+                return pythonStatus.Guidance;
+            }
+
             if (!serverScriptExists)
             {
                 return $"Server script missing. Confirm project install before writing {clientInfo.DisplayName} config.";
@@ -727,6 +815,20 @@ namespace Chievfx.Mcp.Editor
             {
                 EditorUtility.DisplayDialog("ChievFX MCP", error, "OK");
             }
+        }
+
+        private void InstallPythonPackages()
+        {
+            if (ChievfxMcpPythonEnvironment.TryInstallRequirements(out var error, out var output))
+            {
+                EditorUtility.DisplayDialog("ChievFX MCP", output, "OK");
+            }
+            else
+            {
+                EditorUtility.DisplayDialog("ChievFX MCP", error, "OK");
+            }
+
+            RefreshUi(forcePythonRefresh: true);
         }
 
         private void StartHttpServer()

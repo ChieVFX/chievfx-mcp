@@ -19,6 +19,11 @@ namespace Chievfx.Mcp.Editor
     {
         private static string? cachedExecutablePath;
 
+        public static void InvalidateCache()
+        {
+            cachedExecutablePath = null;
+        }
+
         public static string ExecutablePath => cachedExecutablePath ??= ResolveExecutablePath();
 
         public static string ResolveExecutablePath()

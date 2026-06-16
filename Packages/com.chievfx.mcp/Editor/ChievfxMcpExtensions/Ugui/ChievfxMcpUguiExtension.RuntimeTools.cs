@@ -536,5 +536,60 @@ namespace Chievfx.Mcp.Extensions.Ugui
             result["warnings"] = warnings.ToArray();
             return result;
         }
+
+        internal static Dictionary<string, object?> ControlFind(JToken args, UguiDependencyStatus status)
+        {
+            status.CanvasType?.GetMethod("ForceUpdateCanvases", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
+
+            var warnings = new List<string>();
+            var maxResults = Math.Max(1, Math.Min(ReadInt(args, "maxResults", 32), 128));
+            var nameFilter = ReadString(args, "name");
+            var controlTypeFilter = ChievfxMcpRuntimeUiControlFind.NormalizeControlTypeFilter(ReadString(args, "controlType"));
+            var screenSize = ResolveRuntimeUiScreenSize(status);
+            var matches = FindCanvases(status, includeInactive: false)
+                .Where(canvas => canvas.gameObject.activeInHierarchy && IsEnabledComponent(canvas))
+                .SelectMany(canvas => canvas.GetComponentsInChildren<RectTransform>(false))
+                .Select(rect => rect.gameObject)
+                .Distinct()
+                .SelectMany(target => GetClickableControlComponents(target, status).Select(control => (target, control)))
+                .Where(pair => IsEnabledClickableControl(pair.target, pair.control))
+                .Where(pair => string.IsNullOrWhiteSpace(nameFilter) || string.Equals(pair.target.name, nameFilter, StringComparison.Ordinal))
+                .Select(pair => (pair.target, pair.control, controlType: ChievfxMcpRuntimeUiControlFind.NormalizeControlType(pair.control.GetType())))
+                .Where(entry => string.IsNullOrWhiteSpace(controlTypeFilter)
+                    || string.Equals(entry.controlType, controlTypeFilter, StringComparison.Ordinal))
+                .Where(entry => TryGetUguiScreenZone(entry.target, status, screenSize, out _))
+                .ToArray();
+
+            var selected = matches
+                .Take(maxResults)
+                .Select(entry =>
+                {
+                    TryGetUguiScreenZone(entry.target, status, screenSize, out var zone);
+                    return new Dictionary<string, object?>
+                    {
+                        ["framework"] = "ugui",
+                        ["path"] = GetTransformPath(entry.target.transform),
+                        ["instanceId"] = UnityObjectIdentity.GetLegacyInstanceId(entry.target),
+                        ["controlType"] = entry.controlType,
+                        ["zone"] = zone,
+                    };
+                })
+                .ToArray();
+
+            return new Dictionary<string, object?>
+            {
+                ["framework"] = "ugui",
+                ["available"] = status.Available,
+                ["playMode"] = IsRuntimePlayModeActive(),
+                ["count"] = selected.Length,
+                ["totalMatches"] = matches.Length,
+                ["maxResults"] = maxResults,
+                ["truncated"] = matches.Length > selected.Length,
+                ["nameFilter"] = nameFilter,
+                ["controlTypeFilter"] = controlTypeFilter,
+                ["controls"] = selected,
+                ["warnings"] = warnings.ToArray(),
+            };
+        }
     }
 }

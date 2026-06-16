@@ -134,5 +134,92 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             result["warnings"] = warnings.Distinct().ToArray();
             return result;
         }
+
+        internal static Dictionary<string, object?> ControlFind(JToken args, UiToolkitDependencyStatus status)
+        {
+            var warnings = new List<string>();
+            var maxResults = Math.Max(1, Math.Min(ReadInt(args, "maxResults", 32), 128));
+            var nameFilter = ReadString(args, "name");
+            var controlTypeFilter = ChievfxMcpRuntimeUiControlFind.NormalizeControlTypeFilter(ReadString(args, "controlType"));
+            var runtimeAvailable = EnsureRuntimeReadAllowed(warnings);
+            var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
+            var matches = new List<(object element, PanelGroup group, string controlType)>();
+
+            if (runtimeAvailable)
+            {
+                foreach (var group in FindRuntimePanelGroups(status))
+                {
+                    foreach (var document in group.Documents)
+                    {
+                        var root = GetRootVisualElement(document);
+                        if (root == null)
+                        {
+                            continue;
+                        }
+
+                        foreach (var item in EnumerateVisibleTree(root, status, DefaultMaxRows * 4))
+                        {
+                            if (!IsInteractableVisualElement(item.Element, status))
+                            {
+                                continue;
+                            }
+
+                            var elementName = ReadMemberString(item.Element, "name");
+                            if (!string.IsNullOrWhiteSpace(nameFilter)
+                                && !string.Equals(elementName, nameFilter, StringComparison.Ordinal))
+                            {
+                                continue;
+                            }
+
+                            var controlType = ChievfxMcpRuntimeUiControlFind.NormalizeControlType(item.Element.GetType());
+                            if (!string.IsNullOrWhiteSpace(controlTypeFilter)
+                                && !string.Equals(controlType, controlTypeFilter, StringComparison.Ordinal))
+                            {
+                                continue;
+                            }
+
+                            if (!TryGetUiToolkitScreenZone(status, group.Panel, item.Element, screenSize, out _))
+                            {
+                                continue;
+                            }
+
+                            matches.Add((item.Element, group, controlType));
+                        }
+                    }
+                }
+            }
+
+            var selected = matches
+                .Take(maxResults)
+                .Select(entry =>
+                {
+                    TryGetUiToolkitScreenZone(status, entry.group.Panel, entry.element, screenSize, out var zone);
+                    return new Dictionary<string, object?>
+                    {
+                        ["framework"] = "uitoolkit",
+                        ["path"] = GetVisualElementPath(entry.element),
+                        ["visualElementRef"] = CreateVisualElementRef(entry.element),
+                        ["controlType"] = entry.controlType,
+                        ["zone"] = zone,
+                    };
+                })
+                .ToArray();
+
+            return new Dictionary<string, object?>
+            {
+                ["framework"] = "uitoolkit",
+                ["available"] = status.Available,
+                ["playMode"] = IsRuntimePlayModeActive(),
+                ["runtimeAvailable"] = runtimeAvailable,
+                ["count"] = selected.Length,
+                ["totalMatches"] = matches.Count,
+                ["maxResults"] = maxResults,
+                ["truncated"] = matches.Count > selected.Length,
+                ["nameFilter"] = nameFilter,
+                ["controlTypeFilter"] = controlTypeFilter,
+                ["controls"] = selected,
+                ["warnings"] = warnings.ToArray(),
+            };
+        }
     }
 }

@@ -568,6 +568,59 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return types.SelectMany(type => target.GetComponents(type).OfType<Component>()).ToArray();
         }
 
+        internal static Component[] GetClickableControlComponents(GameObject target, UguiDependencyStatus status)
+        {
+            var controls = GetControlComponents(target, status).ToList();
+            var tmpInputFieldType = FindType("TMPro.TMP_InputField");
+            if (tmpInputFieldType != null)
+            {
+                controls.AddRange(target.GetComponents(tmpInputFieldType).OfType<Component>());
+            }
+
+            return controls
+                .GroupBy(component => component.GetInstanceID())
+                .Select(group => group.First())
+                .ToArray();
+        }
+
+        internal static bool IsEnabledClickableControl(GameObject target, Component control)
+        {
+            if (!target.activeInHierarchy || !IsEnabledComponent(control))
+            {
+                return false;
+            }
+
+            var interactable = GetPropertyValue(control, "interactable");
+            return interactable is not bool interactableValue || interactableValue;
+        }
+
+        internal static bool TryGetUguiScreenZone(
+            GameObject target,
+            UguiDependencyStatus status,
+            Vector2 screenSize,
+            out Dictionary<string, object?> zone)
+        {
+            zone = new Dictionary<string, object?>();
+            var screenRect = CreateScreenRectRow(target.GetComponent<RectTransform>(), status, normalizedCoords: false);
+            if (screenRect == null
+                || screenRect["rect"] is not Dictionary<string, object?> rect
+                || rect["xMin"] is not float xMin
+                || rect["yMin"] is not float yMin
+                || rect["xMax"] is not float xMax
+                || rect["yMax"] is not float yMax)
+            {
+                return false;
+            }
+
+            if (!ChievfxMcpRuntimeUiControlFind.IsZonePartiallyOnScreen(xMin, yMin, xMax, yMax, screenSize))
+            {
+                return false;
+            }
+
+            zone = ChievfxMcpRuntimeUiControlFind.CreateZoneRow(xMin, yMin, xMax, yMax);
+            return true;
+        }
+
         internal static object? GetFirstPropertyValue(GameObject target, string propertyName, params Type?[] componentTypes)
         {
             foreach (var type in componentTypes.Where(type => type != null).Cast<Type>())

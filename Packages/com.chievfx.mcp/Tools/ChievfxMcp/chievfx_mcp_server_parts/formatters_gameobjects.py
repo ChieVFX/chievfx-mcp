@@ -97,6 +97,65 @@ def format_ugui_ui_find_text(result: dict[str, Any]) -> str:
     return "\n".join(line for line in lines if line)
 
 
+def format_ui_control_find_text(result: dict[str, Any]) -> str:
+    controls = result.get("controls")
+    if not isinstance(controls, list):
+        controls = []
+    header_parts: list[str] = []
+    count = result.get("count")
+    total_matches = result.get("totalMatches")
+    if not should_omit_toon_value(count) and not should_omit_toon_value(total_matches):
+        header_parts.append(
+            f"({format_toon_atom(count)} shown, {format_toon_atom(total_matches)} match{'' if total_matches == 1 else 'es'})"
+        )
+    elif not should_omit_toon_value(count):
+        header_parts.append(f"({format_toon_atom(count)} shown)")
+    if result.get("truncated") is True:
+        header_parts.append("truncated")
+    omit_type = not should_omit_toon_value(result.get("controlTypeFilter"))
+    lines = [" ".join(header_parts)]
+    for control in controls:
+        if not isinstance(control, dict):
+            continue
+        lines.append(format_ui_control_find_row(control, omit_type=omit_type))
+    return "\n".join(line for line in lines if line)
+
+
+def format_ui_control_find_row(control: dict[str, Any], *, omit_type: bool) -> str:
+    path = format_gameobject_text_value(control.get("path"))
+    identity_parts = [path]
+    if control.get("framework") == "uitoolkit":
+        visual_element_ref = control.get("visualElementRef")
+        if not should_omit_toon_value(visual_element_ref):
+            identity_parts.append(f"({visual_element_ref})")
+    else:
+        instance_id = control.get("instanceId")
+        if not should_omit_toon_value(instance_id):
+            identity_parts.append(f"(id: {format_toon_atom(instance_id)})")
+    line = "- " + " ".join(identity_parts)
+    if not omit_type:
+        control_type = control.get("controlType")
+        if not should_omit_toon_value(control_type):
+            line += f" : {format_gameobject_text_value(control_type)}"
+    zone_text = format_ui_control_zone(control.get("zone"))
+    if zone_text:
+        line += f"; zone:{zone_text}"
+    return line
+
+
+def format_ui_control_zone(value: Any) -> str:
+    if not isinstance(value, dict):
+        return ""
+    bounds = format_rect_bounds_inline(value)
+    center = format_vector2_pair(value.get("center"))
+    parts: list[str] = []
+    if bounds:
+        parts.append(bounds)
+    if center:
+        parts.append(f"center:{center}")
+    return " ".join(parts)
+
+
 def format_ugui_ui_hierarchy_text(result: dict[str, Any]) -> str:
     return format_gameobject_hierarchy_text(result)
 

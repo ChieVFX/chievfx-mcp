@@ -324,5 +324,81 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 || typeName.IndexOf("Field", StringComparison.OrdinalIgnoreCase) >= 0
                 || typeName.IndexOf("Scroller", StringComparison.OrdinalIgnoreCase) >= 0;
         }
+
+        internal static bool TryGetUiToolkitScreenZone(
+            UiToolkitDependencyStatus status,
+            object? panel,
+            object visualElement,
+            Vector2 screenSize,
+            out Dictionary<string, object?> zone)
+        {
+            zone = new Dictionary<string, object?>();
+            var bounds = ReadRectMember(visualElement, "worldBound");
+            if (!bounds.HasValue || bounds.Value.width <= 0.5f || bounds.Value.height <= 0.5f)
+            {
+                return false;
+            }
+
+            if (!ConvertPanelBoundsToScreenZone(status, panel, bounds.Value, screenSize, out var xMin, out var yMin, out var xMax, out var yMax))
+            {
+                return false;
+            }
+
+            if (!ChievfxMcpRuntimeUiControlFind.IsZonePartiallyOnScreen(xMin, yMin, xMax, yMax, screenSize))
+            {
+                return false;
+            }
+
+            zone = ChievfxMcpRuntimeUiControlFind.CreateZoneRow(xMin, yMin, xMax, yMax);
+            return true;
+        }
+
+        internal static bool ConvertPanelBoundsToScreenZone(
+            UiToolkitDependencyStatus status,
+            object? panel,
+            Rect panelBounds,
+            Vector2 screenSize,
+            out float xMin,
+            out float yMin,
+            out float xMax,
+            out float yMax)
+        {
+            xMin = yMin = xMax = yMax = 0f;
+            if (panel != null && status.RuntimePanelUtilsType != null)
+            {
+                var method = status.RuntimePanelUtilsType
+                    .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                    .FirstOrDefault(candidate => string.Equals(candidate.Name, "PanelToScreen", StringComparison.Ordinal)
+                        && candidate.GetParameters().Length == 2);
+                if (method != null)
+                {
+                    var panelPoints = new[]
+                    {
+                        new Vector2(panelBounds.xMin, panelBounds.yMin),
+                        new Vector2(panelBounds.xMax, panelBounds.yMin),
+                        new Vector2(panelBounds.xMax, panelBounds.yMax),
+                        new Vector2(panelBounds.xMin, panelBounds.yMax),
+                    };
+                    var screenPoints = panelPoints
+                        .Select(point =>
+                        {
+                            var topLeftScreen = (Vector2)method.Invoke(null, new[] { panel, (object)point })!;
+                            return new Vector2(topLeftScreen.x, screenSize.y - topLeftScreen.y);
+                        })
+                        .ToArray();
+                    xMin = screenPoints.Min(point => point.x);
+                    xMax = screenPoints.Max(point => point.x);
+                    yMin = screenPoints.Min(point => point.y);
+                    yMax = screenPoints.Max(point => point.y);
+                    return xMax > xMin && yMax > yMin;
+                }
+            }
+
+            xMin = panelBounds.xMin;
+            xMax = panelBounds.xMax;
+            yMin = screenSize.y - panelBounds.yMax;
+            yMax = screenSize.y - panelBounds.yMin;
+            return xMax > xMin && yMax > yMin;
+        }
     }
 }

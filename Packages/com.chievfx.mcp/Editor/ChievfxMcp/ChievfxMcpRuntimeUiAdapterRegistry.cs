@@ -43,6 +43,14 @@ namespace Chievfx.Mcp.Editor
         object? TypeIntoFocusedTextField(JToken request, bool requireTarget);
     }
 
+    /// <summary>
+    /// Optional capability for listing enabled, on-screen clickable controls in a framework.
+    /// </summary>
+    internal interface IChievfxMcpRuntimeUiControlFindAdapter
+    {
+        object? FindControls(JToken request);
+    }
+
     internal static class ChievfxMcpRuntimeUiAdapterRegistry
     {
         private const string ExtensionId = "chievfx.runtime-ui";
@@ -53,6 +61,7 @@ namespace Chievfx.Mcp.Editor
         private const string StatusUri = UriPrefix + "status";
         private const string ProbeToolName = "runtime-ui-probe-screen-position";
         private const string TypeTextToolName = "ui-runtime-type-text";
+        private const string ControlFindToolName = "ui-control-find";
         private const int DefaultMaxRows = 256;
 
         private static readonly Regex FrameworkIdPattern = new(@"^[a-z0-9][a-z0-9._-]{0,127}$", RegexOptions.Compiled);
@@ -129,6 +138,13 @@ namespace Chievfx.Mcp.Editor
                 Category = CommonCategory,
                 InputSchema = TypeTextSchema(),
             });
+            descriptor.Tools.Add(new ChievfxMcpToolDescriptor
+            {
+                Name = ControlFindToolName,
+                Description = "Find enabled, on-screen uGUI and UI Toolkit controls with compact paths, control types, and bottom-left screen click zones.",
+                Category = CommonCategory,
+                InputSchema = ControlFindSchema(),
+            });
             return descriptor;
         }
 
@@ -138,6 +154,7 @@ namespace Chievfx.Mcp.Editor
             {
                 ProbeToolName => ProbeScreenPosition("tool://" + ProbeToolName, args),
                 TypeTextToolName => TypeText("tool://" + TypeTextToolName, args),
+                ControlFindToolName => ControlFind("tool://" + ControlFindToolName, args),
                 _ => throw new InvalidOperationException($"Unknown runtime UI registry tool '{toolName}'."),
             };
         }
@@ -227,6 +244,100 @@ namespace Chievfx.Mcp.Editor
                 && row.TryGetValue("resolved", out var resolved)
                 && resolved is bool resolvedValue
                 && resolvedValue;
+        }
+
+        private static object? ControlFind(string uri, JToken args)
+        {
+            var request = args is JObject obj ? obj : new JObject();
+            var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
+            var nameFilter = request["name"]?.Value<string>();
+            var controlTypeFilter = ChievfxMcpRuntimeUiControlFind.NormalizeControlTypeFilter(request["controlType"]?.Value<string>());
+            var maxResults = Math.Max(1, Math.Min(ReadInt(request, "maxResults", 32), 128));
+            var warnings = new List<string>();
+            var controls = new List<Dictionary<string, object?>>();
+            var totalMatches = 0;
+            var sections = new List<Dictionary<string, object?>>();
+
+            foreach (var registered in SnapshotAdapters())
+            {
+                if (!string.IsNullOrEmpty(framework)
+                    && !string.Equals(framework, "auto", StringComparison.Ordinal)
+                    && !string.Equals(registered.Adapter.FrameworkId, framework, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (registered.Adapter is not IChievfxMcpRuntimeUiControlFindAdapter finder)
+                {
+                    continue;
+                }
+
+                if (!registered.Adapter.Available)
+                {
+                    warnings.Add($"Framework '{registered.Adapter.FrameworkId}' is unavailable.");
+                    sections.Add(new Dictionary<string, object?>
+                    {
+                        ["framework"] = registered.Adapter.FrameworkId,
+                        ["available"] = false,
+                        ["count"] = 0,
+                        ["totalMatches"] = 0,
+                        ["controls"] = Array.Empty<Dictionary<string, object?>>(),
+                    });
+                    continue;
+                }
+
+                if (!TryReadDictionary(finder.FindControls(request.DeepClone()), out var section))
+                {
+                    continue;
+                }
+
+                sections.Add(section);
+                totalMatches += section.TryGetValue("totalMatches", out var total) && total is int totalValue ? totalValue : 0;
+                if (section.TryGetValue("warnings", out var sectionWarnings) && sectionWarnings is IEnumerable enumerable)
+                {
+                    foreach (var warning in enumerable)
+                    {
+                        if (warning != null)
+                        {
+                            warnings.Add(Convert.ToString(warning, CultureInfo.InvariantCulture) ?? string.Empty);
+                        }
+                    }
+                }
+
+                if (section.TryGetValue("controls", out var sectionControls) && sectionControls is IEnumerable controlRows)
+                {
+                    foreach (var controlRow in controlRows)
+                    {
+                        if (TryReadDictionary(controlRow, out var control))
+                        {
+                            controls.Add(control);
+                        }
+                    }
+                }
+            }
+
+            if (!string.IsNullOrEmpty(framework)
+                && !string.Equals(framework, "auto", StringComparison.Ordinal)
+                && sections.Count == 0)
+            {
+                throw new ArgumentException($"No control-find adapter for framework '{framework}'. Available: {string.Join(", ", SnapshotAdapters().Where(registered => registered.Adapter is IChievfxMcpRuntimeUiControlFindAdapter).Select(registered => registered.Adapter.FrameworkId))}.");
+            }
+
+            var selected = controls.Take(maxResults).ToArray();
+            return new Dictionary<string, object?>
+            {
+                ["uri"] = uri,
+                ["count"] = selected.Length,
+                ["totalMatches"] = totalMatches,
+                ["maxResults"] = maxResults,
+                ["truncated"] = totalMatches > selected.Length,
+                ["nameFilter"] = nameFilter,
+                ["controlTypeFilter"] = controlTypeFilter,
+                ["frameworkFilter"] = string.IsNullOrEmpty(framework) ? null : framework,
+                ["controls"] = selected,
+                ["frameworks"] = sections.ToArray(),
+                ["warnings"] = warnings.Where(warning => !string.IsNullOrWhiteSpace(warning)).Distinct().ToArray(),
+            };
         }
 
         private static object? ReadResource(string uri)
@@ -571,6 +682,42 @@ namespace Chievfx.Mcp.Editor
                     },
                 },
                 ["additionalProperties"] = true,
+            };
+        }
+
+        private static JObject ControlFindSchema()
+        {
+            return new JObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JObject
+                {
+                    ["framework"] = new JObject
+                    {
+                        ["type"] = "string",
+                        ["enum"] = new JArray("auto", "ugui", "uitoolkit"),
+                        ["description"] = "Framework scope. auto (default) searches uGUI and UI Toolkit.",
+                    },
+                    ["name"] = new JObject
+                    {
+                        ["type"] = "string",
+                        ["description"] = "Optional exact control name filter.",
+                    },
+                    ["controlType"] = new JObject
+                    {
+                        ["type"] = "string",
+                        ["description"] = "Optional control type filter, e.g. button, toggle, slider, dropdown, inputfield, scrollrect.",
+                    },
+                    ["maxResults"] = new JObject
+                    {
+                        ["type"] = "integer",
+                        ["minimum"] = 1,
+                        ["maximum"] = 128,
+                        ["default"] = 32,
+                        ["description"] = "Maximum enabled on-screen controls to return across all frameworks.",
+                    },
+                },
+                ["additionalProperties"] = false,
             };
         }
 

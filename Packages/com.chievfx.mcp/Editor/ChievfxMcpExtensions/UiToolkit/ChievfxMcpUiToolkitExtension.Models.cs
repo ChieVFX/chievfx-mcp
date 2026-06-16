@@ -210,7 +210,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         }
     }
 
-    internal sealed class UiToolkitRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter, IChievfxMcpRuntimeUiTextInputAdapter
+    internal sealed class UiToolkitRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter, IChievfxMcpRuntimeUiTextInputAdapter, IChievfxMcpRuntimeUiControlFindAdapter
     {
         public string FrameworkId => "uitoolkit";
 
@@ -232,6 +232,11 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         public object? TypeIntoFocusedTextField(JToken request, bool requireTarget)
         {
             return TypeTextIntoFocusedTextField(request, GetDependencyStatus(), requireTarget);
+        }
+
+        public object? FindControls(JToken request)
+        {
+            return ControlFind(request, GetDependencyStatus());
         }
     }
 }

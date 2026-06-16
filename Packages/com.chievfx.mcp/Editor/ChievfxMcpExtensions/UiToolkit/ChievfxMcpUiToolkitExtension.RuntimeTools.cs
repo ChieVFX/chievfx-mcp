@@ -140,52 +140,63 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             var warnings = new List<string>();
             var nameFilter = ReadString(args, "name");
             var controlTypeFilter = ChievfxMcpRuntimeUiControlFind.NormalizeControlTypeFilter(ReadString(args, "controlType"));
-            var runtimeAvailable = EnsureRuntimeReadAllowed(warnings);
+            var playMode = IsRuntimePlayModeActive();
+            if (!playMode && FindRuntimeDocuments(status).Length == 0)
+            {
+                warnings.Add("Runtime UI Toolkit reads are gated to Play Mode; enter Play Mode before reading runtime UI state.");
+            }
+            else if (!playMode)
+            {
+                warnings.Add("UI Toolkit outside Play Mode uses editor panel layout; enter Play Mode for runtime-accurate UI state.");
+            }
+
             var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
             var matches = new List<(object element, PanelGroup group, string controlType)>();
 
-            if (runtimeAvailable)
+            foreach (var group in FindRuntimePanelGroups(status))
             {
-                foreach (var group in FindRuntimePanelGroups(status))
+                foreach (var document in group.Documents)
                 {
-                    foreach (var document in group.Documents)
+                    var root = GetRootVisualElement(document);
+                    if (root == null)
                     {
-                        var root = GetRootVisualElement(document);
-                        if (root == null)
+                        continue;
+                    }
+
+                    foreach (var item in EnumerateVisibleTree(root, status, DefaultMaxRows * 4))
+                    {
+                        if (!IsInteractableVisualElement(item.Element, status))
                         {
                             continue;
                         }
 
-                        foreach (var item in EnumerateVisibleTree(root, status, DefaultMaxRows * 4))
+                        var elementName = ReadMemberString(item.Element, "name");
+                        if (!string.IsNullOrWhiteSpace(nameFilter)
+                            && !string.Equals(elementName, nameFilter, StringComparison.Ordinal))
                         {
-                            if (!IsInteractableVisualElement(item.Element, status))
-                            {
-                                continue;
-                            }
-
-                            var elementName = ReadMemberString(item.Element, "name");
-                            if (!string.IsNullOrWhiteSpace(nameFilter)
-                                && !string.Equals(elementName, nameFilter, StringComparison.Ordinal))
-                            {
-                                continue;
-                            }
-
-                            var controlType = ChievfxMcpRuntimeUiControlFind.NormalizeControlType(item.Element.GetType());
-                            if (!string.IsNullOrWhiteSpace(controlTypeFilter)
-                                && !string.Equals(controlType, controlTypeFilter, StringComparison.Ordinal))
-                            {
-                                continue;
-                            }
-
-                            if (!TryGetUiToolkitScreenZone(status, group.Panel, item.Element, screenSize, out _))
-                            {
-                                continue;
-                            }
-
-                            matches.Add((item.Element, group, controlType));
+                            continue;
                         }
+
+                        var controlType = ChievfxMcpRuntimeUiControlFind.NormalizeControlType(item.Element.GetType());
+                        if (!string.IsNullOrWhiteSpace(controlTypeFilter)
+                            && !string.Equals(controlType, controlTypeFilter, StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+
+                        if (!TryGetUiToolkitScreenZone(status, group.Panel, item.Element, screenSize, out _))
+                        {
+                            continue;
+                        }
+
+                        matches.Add((item.Element, group, controlType));
                     }
                 }
+            }
+
+            if (!playMode && matches.Count == 0 && FindRuntimeDocuments(status).Length > 0)
+            {
+                warnings.Add("No on-screen UI Toolkit controls matched; enter Play Mode if the UI is runtime-only.");
             }
 
             var rows = matches
@@ -207,8 +218,8 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             {
                 ["framework"] = "uitoolkit",
                 ["available"] = status.Available,
-                ["playMode"] = IsRuntimePlayModeActive(),
-                ["runtimeAvailable"] = runtimeAvailable,
+                ["playMode"] = playMode,
+                ["runtimeAvailable"] = playMode,
                 ["totalMatches"] = matches.Count,
                 ["nameFilter"] = nameFilter,
                 ["controlTypeFilter"] = controlTypeFilter,

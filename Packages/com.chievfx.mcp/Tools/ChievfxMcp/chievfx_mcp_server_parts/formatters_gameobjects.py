@@ -152,6 +152,11 @@ def format_ui_control_find_text(result: dict[str, Any], *, normalize_coords: boo
         if screen_height is None:
             screen_height = inferred_height
     lines = [header] if header else []
+    warnings = result.get("warnings")
+    if isinstance(warnings, list):
+        for warning in warnings:
+            if isinstance(warning, str) and warning.strip():
+                lines.append(f"warning: {warning.strip()}")
     for control in controls:
         if not isinstance(control, dict):
             continue

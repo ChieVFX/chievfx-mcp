@@ -234,6 +234,24 @@ class UiControlFindFormattingTests(unittest.TestCase):
             text,
         )
 
+    def test_renders_warnings(self) -> None:
+        result = {
+            "page": 1,
+            "totalPages": 1,
+            "total": 0,
+            "warnings": [
+                "UI Toolkit outside Play Mode uses editor panel layout; enter Play Mode for runtime-accurate UI state."
+            ],
+            "controls": [],
+        }
+
+        text = mcp.format_ui_control_find_text(result)
+
+        self.assertIn(
+            "warning: UI Toolkit outside Play Mode uses editor panel layout; enter Play Mode for runtime-accurate UI state.",
+            text,
+        )
+
     def test_call_tool_formats_dict_payload(self) -> None:
         payload = {
             "page": 1,

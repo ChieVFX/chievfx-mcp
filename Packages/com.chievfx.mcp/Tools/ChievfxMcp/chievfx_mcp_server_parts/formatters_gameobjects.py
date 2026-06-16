@@ -1,6 +1,9 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+import math
+
+
 def format_diagnostics_lines(diagnostics: Any) -> list[str]:
     if not isinstance(diagnostics, list) or not diagnostics:
         return []
@@ -97,7 +100,7 @@ def format_ugui_ui_find_text(result: dict[str, Any]) -> str:
     return "\n".join(line for line in lines if line)
 
 
-def format_ui_control_find_text(result: dict[str, Any]) -> str:
+def format_ui_control_find_text(result: dict[str, Any], *, normalize_coords: bool | None = None) -> str:
     controls = result.get("controls")
     if not isinstance(controls, list):
         controls = []
@@ -107,15 +110,17 @@ def format_ui_control_find_text(result: dict[str, Any]) -> str:
     if not should_omit_toon_value(page) and not should_omit_toon_value(total_pages):
         header = f"page:{format_toon_atom(page)}/{format_toon_atom(total_pages)}"
     omit_type = not should_omit_toon_value(result.get("controlTypeFilter"))
+    if normalize_coords is None:
+        normalize_coords = result.get("normalizeCoords") is True
     lines = [header] if header else []
     for control in controls:
         if not isinstance(control, dict):
             continue
-        lines.append(format_ui_control_find_row(control, omit_type=omit_type))
+        lines.append(format_ui_control_find_row(control, omit_type=omit_type, normalize_coords=normalize_coords))
     return "\n".join(line for line in lines if line)
 
 
-def format_ui_control_find_row(control: dict[str, Any], *, omit_type: bool) -> str:
+def format_ui_control_find_row(control: dict[str, Any], *, omit_type: bool, normalize_coords: bool = False) -> str:
     path = format_gameobject_text_value(control.get("path"))
     identity_parts = [path]
     if control.get("framework") == "uitoolkit":
@@ -131,23 +136,33 @@ def format_ui_control_find_row(control: dict[str, Any], *, omit_type: bool) -> s
         control_type = control.get("controlType")
         if not should_omit_toon_value(control_type):
             line += f" : {format_gameobject_text_value(control_type)}"
-    zone_text = format_ui_control_zone(control.get("zone"))
+    zone_text = format_ui_control_zone(control.get("zone"), normalize_coords=normalize_coords)
     if zone_text:
         line += f"; zone:{zone_text}"
     return line
 
 
-def format_ui_control_zone(value: Any) -> str:
+def format_ui_control_zone(value: Any, *, normalize_coords: bool = False) -> str:
     if not isinstance(value, dict):
         return ""
-    bounds = format_rect_bounds_inline(value)
-    center = format_vector2_pair(value.get("center"))
-    parts: list[str] = []
-    if bounds:
-        parts.append(bounds)
-    if center:
-        parts.append(f"center:{center}")
-    return " ".join(parts)
+    return format_ui_control_zone_bounds(value, normalize_coords=normalize_coords)
+
+
+def format_ui_control_zone_bounds(value: dict[str, Any], *, normalize_coords: bool = False) -> str:
+    x_min = value.get("xMin")
+    y_min = value.get("yMin")
+    x_max = value.get("xMax")
+    y_max = value.get("yMax")
+    if any(should_omit_toon_value(item) for item in (x_min, y_min, x_max, y_max)):
+        return ""
+    if not all(isinstance(item, (int, float)) for item in (x_min, y_min, x_max, y_max)):
+        return ""
+    if normalize_coords:
+        return (
+            f"{math.ceil(float(x_min))},{math.ceil(float(y_min))}"
+            f"..{math.floor(float(x_max))},{math.floor(float(y_max))}"
+        )
+    return f"{format_toon_atom(x_min)},{format_toon_atom(y_min)}..{format_toon_atom(x_max)},{format_toon_atom(y_max)}"
 
 
 def format_tool_result_text(tool_name: str, result: Any, arguments: dict[str, Any]) -> str:
@@ -159,7 +174,8 @@ def format_tool_result_text(tool_name: str, result: Any, arguments: dict[str, An
         if isinstance(result, str):
             return result
         if isinstance(result, dict):
-            return format_ui_control_find_text(result)
+            normalize_coords = arguments.get("normalizeCoords") is True
+            return format_ui_control_find_text(result, normalize_coords=normalize_coords)
 
     return to_toon(result)
 

@@ -61,7 +61,6 @@ namespace Chievfx.Mcp.Editor
         private const string StatusUri = UriPrefix + "status";
         private const string ProbeToolName = "runtime-ui-probe-screen-position";
         private const string TypeTextToolName = "ui-runtime-type-text";
-        private const string ControlFindToolName = "ui-control-find";
         private const int DefaultMaxRows = 256;
 
         private static readonly Regex FrameworkIdPattern = new(@"^[a-z0-9][a-z0-9._-]{0,127}$", RegexOptions.Compiled);
@@ -138,13 +137,6 @@ namespace Chievfx.Mcp.Editor
                 Category = CommonCategory,
                 InputSchema = TypeTextSchema(),
             });
-            descriptor.Tools.Add(new ChievfxMcpToolDescriptor
-            {
-                Name = ControlFindToolName,
-                Description = "Find enabled, on-screen uGUI and UI Toolkit controls with compact paths, control types, and bottom-left screen click zones. Returns " + ChievfxMcpRuntimeUiControlFind.DefaultPageSize + " controls per page; pass page to fetch more.",
-                Category = CommonCategory,
-                InputSchema = ControlFindSchema(),
-            });
             return descriptor;
         }
 
@@ -154,7 +146,6 @@ namespace Chievfx.Mcp.Editor
             {
                 ProbeToolName => ProbeScreenPosition("tool://" + ProbeToolName, args),
                 TypeTextToolName => TypeText("tool://" + TypeTextToolName, args),
-                ControlFindToolName => ControlFind(args),
                 _ => throw new InvalidOperationException($"Unknown runtime UI registry tool '{toolName}'."),
             };
         }
@@ -246,7 +237,7 @@ namespace Chievfx.Mcp.Editor
                 && resolvedValue;
         }
 
-        private static object? ControlFind(JToken args)
+        internal static object? ControlFind(JToken args)
         {
             var request = args is JObject obj ? obj : new JObject();
             var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
@@ -329,6 +320,7 @@ namespace Chievfx.Mcp.Editor
                 page = totalPages;
             }
 
+            var normalizeCoords = ReadBool(request, "normalizeCoords", false);
             var selected = controls
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
@@ -340,6 +332,7 @@ namespace Chievfx.Mcp.Editor
                 ["total"] = totalMatches,
                 ["nameFilter"] = nameFilter,
                 ["controlTypeFilter"] = controlTypeFilter,
+                ["normalizeCoords"] = normalizeCoords,
                 ["frameworkFilter"] = string.IsNullOrEmpty(framework) ? null : framework,
                 ["controls"] = selected,
                 ["frameworks"] = sections.ToArray(),
@@ -351,7 +344,7 @@ namespace Chievfx.Mcp.Editor
                 return payload;
             }
 
-            return ChievfxMcpRuntimeUiControlFind.FormatText(page, totalPages, selected, controlTypeFilter);
+            return ChievfxMcpRuntimeUiControlFind.FormatText(page, totalPages, selected, controlTypeFilter, normalizeCoords);
         }
 
         private static object? ReadResource(string uri)
@@ -699,41 +692,6 @@ namespace Chievfx.Mcp.Editor
             };
         }
 
-        private static JObject ControlFindSchema()
-        {
-            return new JObject
-            {
-                ["type"] = "object",
-                ["properties"] = new JObject
-                {
-                    ["framework"] = new JObject
-                    {
-                        ["type"] = "string",
-                        ["enum"] = new JArray("auto", "ugui", "uitoolkit"),
-                        ["description"] = "Framework scope. auto (default) searches uGUI and UI Toolkit.",
-                    },
-                    ["name"] = new JObject
-                    {
-                        ["type"] = "string",
-                        ["description"] = "Optional exact control name filter.",
-                    },
-                    ["controlType"] = new JObject
-                    {
-                        ["type"] = "string",
-                        ["description"] = "Optional control type filter, e.g. button, toggle, slider, dropdown, inputfield, scrollrect.",
-                    },
-                    ["page"] = new JObject
-                    {
-                        ["type"] = "integer",
-                        ["minimum"] = 1,
-                        ["default"] = 1,
-                        ["description"] = "1-based page index. Each page returns up to " + ChievfxMcpRuntimeUiControlFind.DefaultPageSize + " enabled on-screen controls across all frameworks.",
-                    },
-                },
-                ["additionalProperties"] = false,
-            };
-        }
-
         private static JObject TypeTextSchema()
         {
             return new JObject
@@ -815,6 +773,11 @@ namespace Chievfx.Mcp.Editor
         private static int ReadInt(JToken token, string key, int defaultValue)
         {
             return token[key]?.Value<int?>() ?? defaultValue;
+        }
+
+        private static bool ReadBool(JToken token, string key, bool defaultValue)
+        {
+            return token[key]?.Value<bool?>() ?? defaultValue;
         }
 
         private static float ReadFloat(JToken token, string key, float defaultValue)

@@ -51,11 +51,43 @@ class UiControlFindFormattingTests(unittest.TestCase):
         self.assertNotIn("controls[", text)
         self.assertNotIn("truncated", text)
         self.assertNotIn("maxResults", text)
-        self.assertIn("- Canvas/Screen/BtnTest (id: 57736) : button; zone:439.0,199.0..739.0,399.0 center:589,299", text)
+        self.assertNotIn("center:", text)
+        self.assertIn("- Canvas/Screen/BtnTest (id: 57736) : button; zone:439.0,199.0..739.0,399.0", text)
         self.assertIn(
-            "- VisualElement#Root[0]/TextField#FocusableUiToolkitTextField[1] (ve:12345678) : inputfield; zone:100.0,200.0..300.0,250.0 center:200,225",
+            "- VisualElement#Root[0]/TextField#FocusableUiToolkitTextField[1] (ve:12345678) : inputfield; zone:100.0,200.0..300.0,250.0",
             text,
         )
+
+    def test_normalize_coords_ceil_min_floor_max(self) -> None:
+        result = {
+            "page": 1,
+            "totalPages": 1,
+            "total": 1,
+            "normalizeCoords": True,
+            "controls": [
+                {
+                    "framework": "ugui",
+                    "path": "Canvas/Scroll View/Scrollbar Vertical",
+                    "instanceId": 57812,
+                    "controlType": "scrollbar",
+                    "zone": {
+                        "xMin": 333.4,
+                        "yMin": 0.0,
+                        "xMax": 353.4,
+                        "yMax": 598.0,
+                        "center": {"x": 343.4, "y": 299.0},
+                    },
+                }
+            ],
+        }
+
+        text = mcp.format_ui_control_find_text(result)
+
+        self.assertIn(
+            "- Canvas/Scroll View/Scrollbar Vertical (id: 57812) : scrollbar; zone:334,0..353,598",
+            text,
+        )
+        self.assertNotIn("center:", text)
 
     def test_omits_control_type_when_filter_present(self) -> None:
         result = {
@@ -83,8 +115,9 @@ class UiControlFindFormattingTests(unittest.TestCase):
         text = mcp.format_ui_control_find_text(result)
 
         self.assertEqual("page:1/2", text.splitlines()[0])
-        self.assertIn("- Canvas/Screen/BtnTest (id: 57736); zone:439.0,199.0..739.0,399.0 center:589,299", text)
+        self.assertIn("- Canvas/Screen/BtnTest (id: 57736); zone:439.0,199.0..739.0,399.0", text)
         self.assertNotIn(": button", text)
+        self.assertNotIn("center:", text)
 
     def test_call_tool_uses_custom_formatter_not_toon(self) -> None:
         payload = {
@@ -117,9 +150,10 @@ class UiControlFindFormattingTests(unittest.TestCase):
         self.assertEqual("page:1/1", text.splitlines()[0])
         self.assertNotIn("totalPages:", text)
         self.assertNotIn("controls[", text)
+        self.assertNotIn("center:", text)
 
     def test_call_tool_passes_through_preformatted_string(self) -> None:
-        formatted = "page:1/1\n- Canvas/Screen/BtnTest (id: 57736) : button; zone:439.0,199.0..739.0,399.0 center:589,299"
+        formatted = "page:1/1\n- Canvas/Screen/BtnTest (id: 57736) : button; zone:439.0,199.0..739.0,399.0"
         server = mcp.McpServer("http://127.0.0.1:1", "", timeout_ms=1000)
         enabled = mcp.load_enabled_tool_ids() | {"ui-control-find"}
         with patch.object(mcp, "load_enabled_tool_ids", return_value=enabled):

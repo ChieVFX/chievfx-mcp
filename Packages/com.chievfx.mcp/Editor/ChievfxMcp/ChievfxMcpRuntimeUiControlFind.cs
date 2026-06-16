@@ -143,19 +143,20 @@ namespace Chievfx.Mcp.Editor
             int page,
             int totalPages,
             IReadOnlyList<Dictionary<string, object?>> controls,
-            string? controlTypeFilter)
+            string? controlTypeFilter,
+            bool normalizeCoords)
         {
             var lines = new List<string> { $"page:{page}/{totalPages}" };
             var omitType = !string.IsNullOrWhiteSpace(controlTypeFilter);
             foreach (var control in controls)
             {
-                lines.Add(FormatRow(control, omitType));
+                lines.Add(FormatRow(control, omitType, normalizeCoords));
             }
 
             return string.Join("\n", lines);
         }
 
-        internal static string FormatRow(Dictionary<string, object?> control, bool omitType)
+        internal static string FormatRow(Dictionary<string, object?> control, bool omitType, bool normalizeCoords)
         {
             var builder = new StringBuilder("- ");
             builder.Append(ReadString(control, "path"));
@@ -185,7 +186,7 @@ namespace Chievfx.Mcp.Editor
                 }
             }
 
-            var zoneText = FormatZoneText(control.TryGetValue("zone", out var zone) ? zone : null);
+            var zoneText = FormatZoneText(control.TryGetValue("zone", out var zone) ? zone : null, normalizeCoords);
             if (!string.IsNullOrWhiteSpace(zoneText))
             {
                 builder.Append("; zone:").Append(zoneText);
@@ -194,30 +195,17 @@ namespace Chievfx.Mcp.Editor
             return builder.ToString();
         }
 
-        private static string FormatZoneText(object? zoneValue)
+        private static string FormatZoneText(object? zoneValue, bool normalizeCoords)
         {
             if (zoneValue is not Dictionary<string, object?> zone)
             {
                 return string.Empty;
             }
 
-            var parts = new List<string>();
-            var bounds = FormatZoneBounds(zone);
-            if (!string.IsNullOrWhiteSpace(bounds))
-            {
-                parts.Add(bounds);
-            }
-
-            var center = FormatZoneCenter(zone.TryGetValue("center", out var centerValue) ? centerValue : null);
-            if (!string.IsNullOrWhiteSpace(center))
-            {
-                parts.Add("center:" + center);
-            }
-
-            return string.Join(" ", parts);
+            return FormatZoneBounds(zone, normalizeCoords);
         }
 
-        private static string FormatZoneBounds(Dictionary<string, object?> zone)
+        private static string FormatZoneBounds(Dictionary<string, object?> zone, bool normalizeCoords)
         {
             if (!TryReadFloat(zone, "xMin", out var xMin)
                 || !TryReadFloat(zone, "yMin", out var yMin)
@@ -227,38 +215,17 @@ namespace Chievfx.Mcp.Editor
                 return string.Empty;
             }
 
+            if (normalizeCoords)
+            {
+                return $"{(int)Math.Ceiling(xMin)},{(int)Math.Ceiling(yMin)}..{(int)Math.Floor(xMax)},{(int)Math.Floor(yMax)}";
+            }
+
             return $"{FormatToonFloat(xMin)},{FormatToonFloat(yMin)}..{FormatToonFloat(xMax)},{FormatToonFloat(yMax)}";
-        }
-
-        private static string FormatZoneCenter(object? centerValue)
-        {
-            if (centerValue is not Dictionary<string, object?> center)
-            {
-                return string.Empty;
-            }
-
-            if (!TryReadFloat(center, "x", out var x) || !TryReadFloat(center, "y", out var y))
-            {
-                return string.Empty;
-            }
-
-            return $"{FormatCompactNumber(x)},{FormatCompactNumber(y)}";
         }
 
         private static string FormatToonFloat(float value)
         {
             return value.ToString("0.0", CultureInfo.InvariantCulture);
-        }
-
-        private static string FormatCompactNumber(float value)
-        {
-            var rounded = (float)Math.Round(value, 1, MidpointRounding.AwayFromZero);
-            if (Math.Abs(rounded - Math.Round(rounded)) < 0.0001f)
-            {
-                return ((int)Math.Round(rounded)).ToString(CultureInfo.InvariantCulture);
-            }
-
-            return rounded.ToString("G", CultureInfo.InvariantCulture);
         }
 
         private static string ReadString(Dictionary<string, object?> row, string key)

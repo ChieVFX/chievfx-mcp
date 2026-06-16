@@ -225,6 +225,7 @@ TOOL_CATEGORIES = {
     "gameobject-transform-update": "GameObject",
     "gameobject-set-parent": "GameObject",
     "gameobject-duplicate": "GameObject",
+    "ui-control-find": "Runtime UI",
     "prefab-open": "Prefab",
     "prefab-close": "Prefab",
     "prefab-save": "Prefab",

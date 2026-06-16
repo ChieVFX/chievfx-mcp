@@ -396,11 +396,12 @@ class McpServerCore:
                     "isError": False,
                 }
             if isinstance(result, dict):
+                normalize_coords = arguments.get("normalizeCoords") is True
                 return {
                     "content": [
                         {
                             "type": "text",
-                            "text": format_ui_control_find_text(result),
+                            "text": format_ui_control_find_text(result, normalize_coords=normalize_coords),
                         }
                     ],
                     "isError": False,

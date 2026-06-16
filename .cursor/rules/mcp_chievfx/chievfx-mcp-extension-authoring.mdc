@@ -37,3 +37,50 @@ Use this rule when writing Unity-side ChievFX MCP extension tools, resources, re
 - Let Unity compile/import so selection windows can refresh `extension-capabilities.snapshot.json` before metadata reload.
 - Use `recompile` for C# changes when appropriate, then reload Cursor MCP tools/resources if descriptors changed.
 - Check Unity Console for registration or validation errors before assuming the MCP surface updated.
+
+## Custom Text Output
+
+ChievFX tool results pass through three layers:
+
+1. **Unity bridge (C#)** — returns structured JSON in `bridge_result.result`.
+2. **Python MCP server** — `server_core.py` `call_tool()` turns that into MCP `content[].text`. Default fallback is generic `to_toon()` serialization.
+3. **Cursor MCP process** — long-lived stdio child of `.mcp.json`; does **not** auto-reload when Python files change on disk.
+
+### Why custom formatters can look broken
+
+Symptom: output like `page:1 totalPages:1 total:4 controls[4]:` instead of hand-authored lines.
+
+That shape is generic `to_toon(dict)` — means the custom formatter never ran. Common causes:
+
+- **Stale Cursor MCP Python process** — most frequent. Unity `recompile` updates C# only; the stdio server keeps old `server_core.py` / `formatters_*.py` in memory until MCP restart.
+- **Formatter not wired** — add both an early return in `server_core.py` and a fallback in `format_tool_result_text()`.
+- **C# compile failed** — Unity still serves old bridge payload; check Console after `recompile`.
+
+Verify with an in-process call (fresh import):
+
+```python
+import chievfx_mcp_server as mcp
+server = mcp.McpServer(..., bridge_dir, ...)
+server.call_tool({"name": "<tool>", "arguments": {}})
+```
+
+If that shows correct text but Cursor `CallMcpTool` still shows TOON, restart MCP — not a Unity bug.
+
+### Recommended pattern for non-TOON text tools
+
+Use both layers so output survives stale Python during development:
+
+1. **Python** — add `format_<tool>_text()` in `formatters_*.py`, wire in `server_core.py`, add tests under `Tools/ChievfxMcp/tests/`.
+2. **C# (optional but robust)** — when `outputFormat != "json"`, return a pre-formatted `string` from the tool handler instead of a dict. Keep dict return for `outputFormat: "json"`. Example: `ui-control-find` in `ChievfxMcpRuntimeUiControlFind.FormatText()`.
+3. **Python string passthrough** — in `server_core.py` and `format_tool_result_text()`, if `isinstance(result, str)`, return it unchanged (do not `to_toon()` a multiline string).
+
+### After Python formatter changes
+
+Restart the ChievFX MCP server (Cursor Settings → MCP → restart, or Reload Window). Descriptor reload alone does not reload Python code.
+
+C# formatter-only changes apply after Unity `recompile` without MCP restart.
+
+### Unity C# notes
+
+- Avoid C# APIs Unity’s compiler does not support (e.g. `string.Create(IFormatProvider, ...)`); prefer `$"..."` interpolation.
+- Read `outputFormat` from `JToken args`; default/toon → formatted string, `json` → structured dict.

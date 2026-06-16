@@ -138,7 +138,6 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         internal static Dictionary<string, object?> ControlFind(JToken args, UiToolkitDependencyStatus status)
         {
             var warnings = new List<string>();
-            var maxResults = Math.Max(1, Math.Min(ReadInt(args, "maxResults", 32), 128));
             var nameFilter = ReadString(args, "name");
             var controlTypeFilter = ChievfxMcpRuntimeUiControlFind.NormalizeControlTypeFilter(ReadString(args, "controlType"));
             var runtimeAvailable = EnsureRuntimeReadAllowed(warnings);
@@ -189,8 +188,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 }
             }
 
-            var selected = matches
-                .Take(maxResults)
+            var rows = matches
                 .Select(entry =>
                 {
                     TryGetUiToolkitScreenZone(status, entry.group.Panel, entry.element, screenSize, out var zone);
@@ -211,13 +209,10 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 ["available"] = status.Available,
                 ["playMode"] = IsRuntimePlayModeActive(),
                 ["runtimeAvailable"] = runtimeAvailable,
-                ["count"] = selected.Length,
                 ["totalMatches"] = matches.Count,
-                ["maxResults"] = maxResults,
-                ["truncated"] = matches.Count > selected.Length,
                 ["nameFilter"] = nameFilter,
                 ["controlTypeFilter"] = controlTypeFilter,
-                ["controls"] = selected,
+                ["controls"] = rows,
                 ["warnings"] = warnings.ToArray(),
             };
         }

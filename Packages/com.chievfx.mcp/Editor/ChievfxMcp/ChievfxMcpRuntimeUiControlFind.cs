@@ -2,12 +2,15 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
 using UnityEngine;
 
 namespace Chievfx.Mcp.Editor
 {
     internal static class ChievfxMcpRuntimeUiControlFind
     {
+        internal const int DefaultPageSize = 10;
+
         internal static string NormalizeControlType(Type type)
         {
             var name = type.Name;
@@ -134,6 +137,185 @@ namespace Chievfx.Mcp.Editor
         internal static float RoundForOutput(float value)
         {
             return (float)Math.Round(value, 1, MidpointRounding.AwayFromZero);
+        }
+
+        internal static string FormatText(
+            int page,
+            int totalPages,
+            IReadOnlyList<Dictionary<string, object?>> controls,
+            string? controlTypeFilter)
+        {
+            var lines = new List<string> { $"page:{page}/{totalPages}" };
+            var omitType = !string.IsNullOrWhiteSpace(controlTypeFilter);
+            foreach (var control in controls)
+            {
+                lines.Add(FormatRow(control, omitType));
+            }
+
+            return string.Join("\n", lines);
+        }
+
+        internal static string FormatRow(Dictionary<string, object?> control, bool omitType)
+        {
+            var builder = new StringBuilder("- ");
+            builder.Append(ReadString(control, "path"));
+            if (string.Equals(ReadString(control, "framework"), "uitoolkit", StringComparison.Ordinal))
+            {
+                var visualElementRef = ReadString(control, "visualElementRef");
+                if (!string.IsNullOrWhiteSpace(visualElementRef))
+                {
+                    builder.Append(' ').Append('(').Append(visualElementRef).Append(')');
+                }
+            }
+            else
+            {
+                var instanceId = ReadInt(control, "instanceId");
+                if (instanceId > 0)
+                {
+                    builder.Append(" (id: ").Append(instanceId.ToString(CultureInfo.InvariantCulture)).Append(')');
+                }
+            }
+
+            if (!omitType)
+            {
+                var controlType = ReadString(control, "controlType");
+                if (!string.IsNullOrWhiteSpace(controlType))
+                {
+                    builder.Append(" : ").Append(controlType);
+                }
+            }
+
+            var zoneText = FormatZoneText(control.TryGetValue("zone", out var zone) ? zone : null);
+            if (!string.IsNullOrWhiteSpace(zoneText))
+            {
+                builder.Append("; zone:").Append(zoneText);
+            }
+
+            return builder.ToString();
+        }
+
+        private static string FormatZoneText(object? zoneValue)
+        {
+            if (zoneValue is not Dictionary<string, object?> zone)
+            {
+                return string.Empty;
+            }
+
+            var parts = new List<string>();
+            var bounds = FormatZoneBounds(zone);
+            if (!string.IsNullOrWhiteSpace(bounds))
+            {
+                parts.Add(bounds);
+            }
+
+            var center = FormatZoneCenter(zone.TryGetValue("center", out var centerValue) ? centerValue : null);
+            if (!string.IsNullOrWhiteSpace(center))
+            {
+                parts.Add("center:" + center);
+            }
+
+            return string.Join(" ", parts);
+        }
+
+        private static string FormatZoneBounds(Dictionary<string, object?> zone)
+        {
+            if (!TryReadFloat(zone, "xMin", out var xMin)
+                || !TryReadFloat(zone, "yMin", out var yMin)
+                || !TryReadFloat(zone, "xMax", out var xMax)
+                || !TryReadFloat(zone, "yMax", out var yMax))
+            {
+                return string.Empty;
+            }
+
+            return $"{FormatToonFloat(xMin)},{FormatToonFloat(yMin)}..{FormatToonFloat(xMax)},{FormatToonFloat(yMax)}";
+        }
+
+        private static string FormatZoneCenter(object? centerValue)
+        {
+            if (centerValue is not Dictionary<string, object?> center)
+            {
+                return string.Empty;
+            }
+
+            if (!TryReadFloat(center, "x", out var x) || !TryReadFloat(center, "y", out var y))
+            {
+                return string.Empty;
+            }
+
+            return $"{FormatCompactNumber(x)},{FormatCompactNumber(y)}";
+        }
+
+        private static string FormatToonFloat(float value)
+        {
+            return value.ToString("0.0", CultureInfo.InvariantCulture);
+        }
+
+        private static string FormatCompactNumber(float value)
+        {
+            var rounded = (float)Math.Round(value, 1, MidpointRounding.AwayFromZero);
+            if (Math.Abs(rounded - Math.Round(rounded)) < 0.0001f)
+            {
+                return ((int)Math.Round(rounded)).ToString(CultureInfo.InvariantCulture);
+            }
+
+            return rounded.ToString("G", CultureInfo.InvariantCulture);
+        }
+
+        private static string ReadString(Dictionary<string, object?> row, string key)
+        {
+            return row.TryGetValue(key, out var value) && value != null
+                ? Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
+                : string.Empty;
+        }
+
+        private static int ReadInt(Dictionary<string, object?> row, string key)
+        {
+            if (!row.TryGetValue(key, out var value) || value == null)
+            {
+                return 0;
+            }
+
+            return value switch
+            {
+                int intValue => intValue,
+                long longValue => (int)longValue,
+                float floatValue => (int)floatValue,
+                double doubleValue => (int)doubleValue,
+                _ => int.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+                    ? parsed
+                    : 0,
+            };
+        }
+
+        private static bool TryReadFloat(Dictionary<string, object?> row, string key, out float value)
+        {
+            value = 0f;
+            if (!row.TryGetValue(key, out var raw) || raw == null)
+            {
+                return false;
+            }
+
+            switch (raw)
+            {
+                case float floatValue:
+                    value = floatValue;
+                    return true;
+                case double doubleValue:
+                    value = (float)doubleValue;
+                    return true;
+                case int intValue:
+                    value = intValue;
+                    return true;
+                case long longValue:
+                    value = longValue;
+                    return true;
+                default:
+                    return float.TryParse(
+                        Convert.ToString(raw, CultureInfo.InvariantCulture),
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out value);
+            }
         }
     }
 }

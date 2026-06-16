@@ -101,19 +101,13 @@ def format_ui_control_find_text(result: dict[str, Any]) -> str:
     controls = result.get("controls")
     if not isinstance(controls, list):
         controls = []
-    header_parts: list[str] = []
-    count = result.get("count")
-    total_matches = result.get("totalMatches")
-    if not should_omit_toon_value(count) and not should_omit_toon_value(total_matches):
-        header_parts.append(
-            f"({format_toon_atom(count)} shown, {format_toon_atom(total_matches)} match{'' if total_matches == 1 else 'es'})"
-        )
-    elif not should_omit_toon_value(count):
-        header_parts.append(f"({format_toon_atom(count)} shown)")
-    if result.get("truncated") is True:
-        header_parts.append("truncated")
+    page = result.get("page")
+    total_pages = result.get("totalPages")
+    header = ""
+    if not should_omit_toon_value(page) and not should_omit_toon_value(total_pages):
+        header = f"page:{format_toon_atom(page)}/{format_toon_atom(total_pages)}"
     omit_type = not should_omit_toon_value(result.get("controlTypeFilter"))
-    lines = [" ".join(header_parts)]
+    lines = [header] if header else []
     for control in controls:
         if not isinstance(control, dict):
             continue
@@ -154,6 +148,20 @@ def format_ui_control_zone(value: Any) -> str:
     if center:
         parts.append(f"center:{center}")
     return " ".join(parts)
+
+
+def format_tool_result_text(tool_name: str, result: Any, arguments: dict[str, Any]) -> str:
+    output_format = arguments.get("outputFormat", "toon")
+    if output_format == "json":
+        return json.dumps(result, ensure_ascii=False, separators=(",", ":"))
+
+    if tool_name == "ui-control-find":
+        if isinstance(result, str):
+            return result
+        if isinstance(result, dict):
+            return format_ui_control_find_text(result)
+
+    return to_toon(result)
 
 
 def format_ugui_ui_hierarchy_text(result: dict[str, Any]) -> str:

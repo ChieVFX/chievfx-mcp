@@ -206,6 +206,17 @@ Use compact JSON when exact structure matters:
 
 Large text fields are trimmed. Console logs and reflection results also have default and hard limits, so prefer narrow filters before increasing result counts.
 
+### Custom formatters vs generic TOON
+
+Many tools use hand-authored Python formatters in `Tools/ChievfxMcp/chievfx_mcp_server_parts/formatters_*.py` instead of raw `to_toon()`. If you see generic TOON headers like `controls[4]:` on a tool that should have compact lines, the Python formatter likely did not run — usually because the **Cursor MCP stdio process is stale**, not because Unity failed.
+
+- **C# / bridge changes** — take effect after Unity `recompile`.
+- **Python formatter changes** — require **MCP server restart** (Reload Window or restart the server in Cursor MCP settings). `recompile` and descriptor reload do not reload Python.
+
+Some tools (e.g. `ui-control-find`) also format text in C# when `outputFormat` is not `json`, so correct output can appear even before MCP restart; restart MCP for clean multiline text without JSON quoting.
+
+To verify: call the tool via fresh in-process Python (`chievfx_mcp_server.McpServer.call_tool`) vs Cursor `CallMcpTool`. Mismatch → restart MCP.
+
 ## Common Workflows
 
 ### Refresh Assets

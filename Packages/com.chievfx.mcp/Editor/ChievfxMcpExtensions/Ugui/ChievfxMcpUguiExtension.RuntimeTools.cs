@@ -542,7 +542,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
             status.CanvasType?.GetMethod("ForceUpdateCanvases", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
 
             var warnings = new List<string>();
-            var maxResults = Math.Max(1, Math.Min(ReadInt(args, "maxResults", 32), 128));
             var nameFilter = ReadString(args, "name");
             var controlTypeFilter = ChievfxMcpRuntimeUiControlFind.NormalizeControlTypeFilter(ReadString(args, "controlType"));
             var screenSize = ResolveRuntimeUiScreenSize(status);
@@ -560,8 +559,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 .Where(entry => TryGetUguiScreenZone(entry.target, status, screenSize, out _))
                 .ToArray();
 
-            var selected = matches
-                .Take(maxResults)
+            var rows = matches
                 .Select(entry =>
                 {
                     TryGetUguiScreenZone(entry.target, status, screenSize, out var zone);
@@ -581,13 +579,10 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 ["framework"] = "ugui",
                 ["available"] = status.Available,
                 ["playMode"] = IsRuntimePlayModeActive(),
-                ["count"] = selected.Length,
                 ["totalMatches"] = matches.Length,
-                ["maxResults"] = maxResults,
-                ["truncated"] = matches.Length > selected.Length,
                 ["nameFilter"] = nameFilter,
                 ["controlTypeFilter"] = controlTypeFilter,
-                ["controls"] = selected,
+                ["controls"] = rows,
                 ["warnings"] = warnings.ToArray(),
             };
         }

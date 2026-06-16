@@ -1,7 +1,10 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
-def format_tool_text(result: Any, arguments: dict[str, Any]) -> str:
+def format_tool_text(result: Any, arguments: dict[str, Any], tool_name: str | None = None) -> str:
+    if tool_name is not None:
+        return format_tool_result_text(tool_name, result, arguments)
+
     output_format = arguments.get("outputFormat", "toon")
     if output_format == "json":
         return json.dumps(result, ensure_ascii=False, separators=(",", ":"))

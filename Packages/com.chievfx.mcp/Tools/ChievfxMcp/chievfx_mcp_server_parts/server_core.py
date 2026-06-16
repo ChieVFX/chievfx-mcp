@@ -389,6 +389,23 @@ class McpServerCore:
             return result
 
         result = bridge_result.get("result")
+        if name == "ui-control-find" and arguments.get("outputFormat") != "json":
+            if isinstance(result, str):
+                return {
+                    "content": [{"type": "text", "text": result}],
+                    "isError": False,
+                }
+            if isinstance(result, dict):
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": format_ui_control_find_text(result),
+                        }
+                    ],
+                    "isError": False,
+                }
+
         text = (
             format_reflection_method_find_text(result)
             if name == "reflection-method-find" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
@@ -428,8 +445,6 @@ class McpServerCore:
             if name == "ugui-ui-hierarchy" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_ugui_ui_find_text(result)
             if name == "ugui-ui-find" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
-            else format_ui_control_find_text(result)
-            if name == "ui-control-find" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_ugui_runtime_click_text(result)
             if name == "ugui-runtime-click" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_ugui_rect_get_text(result)
@@ -466,7 +481,7 @@ class McpServerCore:
             if name == "ugui-canvas-ensure" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_camera_tool_text(name, result)
             if name in CAMERA_TOOL_NAMES and arguments.get("outputFormat") != "json" and isinstance(result, dict)
-            else format_tool_text(result, arguments)
+            else format_tool_result_text(name, result, arguments)
         )
         return {
             "content": [

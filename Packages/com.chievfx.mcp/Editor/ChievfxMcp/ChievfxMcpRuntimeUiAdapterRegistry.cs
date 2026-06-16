@@ -141,7 +141,7 @@ namespace Chievfx.Mcp.Editor
             descriptor.Tools.Add(new ChievfxMcpToolDescriptor
             {
                 Name = ControlFindToolName,
-                Description = "Find enabled, on-screen uGUI and UI Toolkit controls with compact paths, control types, and bottom-left screen click zones.",
+                Description = "Find enabled, on-screen uGUI and UI Toolkit controls with compact paths, control types, and bottom-left screen click zones. Returns " + ChievfxMcpRuntimeUiControlFind.DefaultPageSize + " controls per page; pass page to fetch more.",
                 Category = CommonCategory,
                 InputSchema = ControlFindSchema(),
             });
@@ -154,7 +154,7 @@ namespace Chievfx.Mcp.Editor
             {
                 ProbeToolName => ProbeScreenPosition("tool://" + ProbeToolName, args),
                 TypeTextToolName => TypeText("tool://" + TypeTextToolName, args),
-                ControlFindToolName => ControlFind("tool://" + ControlFindToolName, args),
+                ControlFindToolName => ControlFind(args),
                 _ => throw new InvalidOperationException($"Unknown runtime UI registry tool '{toolName}'."),
             };
         }
@@ -246,13 +246,13 @@ namespace Chievfx.Mcp.Editor
                 && resolvedValue;
         }
 
-        private static object? ControlFind(string uri, JToken args)
+        private static object? ControlFind(JToken args)
         {
             var request = args is JObject obj ? obj : new JObject();
             var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
             var nameFilter = request["name"]?.Value<string>();
             var controlTypeFilter = ChievfxMcpRuntimeUiControlFind.NormalizeControlTypeFilter(request["controlType"]?.Value<string>());
-            var maxResults = Math.Max(1, Math.Min(ReadInt(request, "maxResults", 32), 128));
+            var pageSize = ChievfxMcpRuntimeUiControlFind.DefaultPageSize;
             var warnings = new List<string>();
             var controls = new List<Dictionary<string, object?>>();
             var totalMatches = 0;
@@ -279,7 +279,6 @@ namespace Chievfx.Mcp.Editor
                     {
                         ["framework"] = registered.Adapter.FrameworkId,
                         ["available"] = false,
-                        ["count"] = 0,
                         ["totalMatches"] = 0,
                         ["controls"] = Array.Empty<Dictionary<string, object?>>(),
                     });
@@ -323,14 +322,22 @@ namespace Chievfx.Mcp.Editor
                 throw new ArgumentException($"No control-find adapter for framework '{framework}'. Available: {string.Join(", ", SnapshotAdapters().Where(registered => registered.Adapter is IChievfxMcpRuntimeUiControlFindAdapter).Select(registered => registered.Adapter.FrameworkId))}.");
             }
 
-            var selected = controls.Take(maxResults).ToArray();
-            return new Dictionary<string, object?>
+            var totalPages = Math.Max(1, (int)Math.Ceiling(totalMatches / (double)pageSize));
+            var page = Math.Max(1, ReadInt(request, "page", 1));
+            if (page > totalPages)
             {
-                ["uri"] = uri,
-                ["count"] = selected.Length,
-                ["totalMatches"] = totalMatches,
-                ["maxResults"] = maxResults,
-                ["truncated"] = totalMatches > selected.Length,
+                page = totalPages;
+            }
+
+            var selected = controls
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToArray();
+            var payload = new Dictionary<string, object?>
+            {
+                ["page"] = page,
+                ["totalPages"] = totalPages,
+                ["total"] = totalMatches,
                 ["nameFilter"] = nameFilter,
                 ["controlTypeFilter"] = controlTypeFilter,
                 ["frameworkFilter"] = string.IsNullOrEmpty(framework) ? null : framework,
@@ -338,6 +345,13 @@ namespace Chievfx.Mcp.Editor
                 ["frameworks"] = sections.ToArray(),
                 ["warnings"] = warnings.Where(warning => !string.IsNullOrWhiteSpace(warning)).Distinct().ToArray(),
             };
+            var outputFormat = request["outputFormat"]?.Value<string>();
+            if (string.Equals(outputFormat, "json", StringComparison.OrdinalIgnoreCase))
+            {
+                return payload;
+            }
+
+            return ChievfxMcpRuntimeUiControlFind.FormatText(page, totalPages, selected, controlTypeFilter);
         }
 
         private static object? ReadResource(string uri)
@@ -708,13 +722,12 @@ namespace Chievfx.Mcp.Editor
                         ["type"] = "string",
                         ["description"] = "Optional control type filter, e.g. button, toggle, slider, dropdown, inputfield, scrollrect.",
                     },
-                    ["maxResults"] = new JObject
+                    ["page"] = new JObject
                     {
                         ["type"] = "integer",
                         ["minimum"] = 1,
-                        ["maximum"] = 128,
-                        ["default"] = 32,
-                        ["description"] = "Maximum enabled on-screen controls to return across all frameworks.",
+                        ["default"] = 1,
+                        ["description"] = "1-based page index. Each page returns up to " + ChievfxMcpRuntimeUiControlFind.DefaultPageSize + " enabled on-screen controls across all frameworks.",
                     },
                 },
                 ["additionalProperties"] = false,

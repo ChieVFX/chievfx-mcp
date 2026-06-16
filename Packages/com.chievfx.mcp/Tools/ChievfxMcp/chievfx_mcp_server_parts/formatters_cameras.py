@@ -276,6 +276,9 @@ def format_camera_detail_bits(row: dict[str, Any]) -> str:
     camera = row.get("camera")
     if isinstance(camera, dict) and not should_omit_toon_value(camera.get("path")):
         bits.append(f"camera:{format_camera_text(camera.get('path'))}")
+    detail_uri = row.get("detailUri")
+    if not should_omit_toon_value(detail_uri):
+        bits.append(f"detail:{format_camera_text(detail_uri)}")
     return "" if not bits else " " + " ".join(bits)
 
 
@@ -305,6 +308,9 @@ def format_timeline_asset_row_lines(asset: dict[str, Any]) -> list[str]:
         f"tracks:{format_toon_atom(track_count)}" if not should_omit_toon_value(track_count) else "",
         f"clips:{format_toon_atom(clip_count)}" if not should_omit_toon_value(clip_count) else "",
     ]
+    detail_uri = asset.get("detailUri")
+    if not should_omit_toon_value(detail_uri):
+        bits.append(f"detail:{format_camera_text(detail_uri)}")
     return [f"- {path} " + " ".join(bit for bit in bits if bit)]
 
 

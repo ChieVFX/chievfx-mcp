@@ -117,6 +117,7 @@ class ResourceTests(unittest.TestCase):
         templates = self.request("resources/templates/list")["result"]["resourceTemplates"]
 
         self.assertIn("chievfx://editor/context", {resource["uri"] for resource in resources})
+        self.assertIn("chievfx://instructions/core-descriptors", {resource["uri"] for resource in resources})
         self.assertIn(
             "chievfx://scene/{scenePath}/go/{goPath}/component/{componentKey}",
             {template["uriTemplate"] for template in templates},
@@ -177,6 +178,16 @@ class ResourceTests(unittest.TestCase):
         self.assertRegex(static_resource["descriptorHash"], r"^[0-9a-f]{64}$")
         self.assertGreater(static_resource["estimatedTokens"], 0)
         self.assertEqual(content["text"], "extension registry active")
+        self.assertEqual(self.server.calls, [])
+
+    def test_core_descriptor_resource_reads_locally_without_bridge(self) -> None:
+        content = self.request(
+            "resources/read",
+            {"uri": "chievfx://instructions/core-descriptors"},
+        )["result"]["contents"][0]
+
+        self.assertIn("Tools:", content["text"])
+        self.assertNotIn("Core descriptors (if list cut, read", content["text"])
         self.assertEqual(self.server.calls, [])
 
     def test_extension_manifest_watcher_invalidation_refreshes_cached_manifest(self) -> None:
@@ -370,7 +381,13 @@ class ResourceTests(unittest.TestCase):
         resources = {resource["id"]: resource for resource in metadata["resources"]}
         enabled_resource_ids, _ = mcp.load_enabled_resource_ids()
 
-        for resource_id in ["editor-context", "scenes-opened", "runtime-ui-status", "control-status"]:
+        for resource_id in [
+            "editor-context",
+            "instructions-core-descriptors",
+            "scenes-opened",
+            "runtime-ui-status",
+            "control-status",
+        ]:
             self.assertTrue(resources[resource_id]["required"])
             self.assertEqual(resources[resource_id]["category"], "Essentials")
             self.assertIn(resource_id, enabled_resource_ids)

@@ -101,7 +101,7 @@ class CategoryResourceTests(unittest.TestCase):
         # The batched section must sit below the Tools/Resources descriptor block.
         self.assertGreater(
             instructions.index("Extra API capabilities"),
-            instructions.index("Enabled ChievFX MCP descriptors"),
+            instructions.index("Core descriptors (if list cut, read"),
         )
 
     def test_collapsed_category_advertised_and_readable(self) -> None:
@@ -143,7 +143,7 @@ class CategoryResourceTests(unittest.TestCase):
 
         instructions = mcp.build_initialize_instructions()
 
-        self.assertNotIn("Extra API capabilities", instructions)
+        self.assertNotIn(mcp.EXTRA_CAPABILITIES_HEADER, instructions)
         self.assertIn("frame-debugger-control:", instructions)
         self.assertEqual(mcp.dynamic_category_resources(), [])
 
@@ -169,6 +169,37 @@ class CategoryResourceTests(unittest.TestCase):
         )
         text = read["result"]["contents"][0]["text"]
         self.assertIn("frame-debugger-control:", text)
+
+    def test_core_descriptor_resource_lists_and_reads(self) -> None:
+        self.write_tool_selection(FRAME_DEBUGGER_TOOLS)
+        self.write_resource_selection(["editor-context"], [])
+
+        listed = {resource["uri"] for resource in mcp.enabled_resources()}
+        self.assertIn(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI, listed)
+
+        body = mcp.build_core_descriptor_instructions_resource_body()
+        self.assertIn("Tools:", body)
+        self.assertNotIn("Core descriptors (if list cut, read", body)
+        self.assertIn("Extra API capabilities", body)
+        self.assertIn("chievfx://categories/frame-debugger", body)
+        self.assertNotIn("frame-debugger-control:", body)
+
+        category_entry = mcp.get_category_resource_by_uri("chievfx://categories/frame-debugger")
+        self.assertIsNotNone(category_entry)
+        self.assertIn("frame-debugger-control:", mcp.category_resource_body(category_entry))
+
+        server = mcp.McpServer("http://127.0.0.1:1", str(self.temp_dir.name) + "/bridge", timeout_ms=1000)
+        read = server.handle_message(
+            {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "resources/read",
+                "params": {"uri": mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI},
+            }
+        )
+        text = read["result"]["contents"][0]["text"]
+        self.assertIn("Tools:", text)
+        self.assertIn("Extra API capabilities", text)
 
         missing = server.handle_message(
             {

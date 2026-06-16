@@ -43,6 +43,7 @@ namespace Chievfx.Mcp.Editor
         private Button? startButton;
         private Button? stopButton;
         private Button? writeConfigButton;
+        private Button? launchInstallerButton;
         private Toggle? showPromptsTabToggle;
         private Toggle? showAutonomyToolsToggle;
         private Label? serverChip;
@@ -349,6 +350,10 @@ namespace Chievfx.Mcp.Editor
             advanced.style.marginTop = 4;
             advanced.Add(CreateMutedLabel($"Server script: {ServerScriptPath}"));
             advanced.Add(CreateMutedLabel($"Bridge IPC: {ChievfxMcpToolPolicy.BridgeDirectory}"));
+            launchInstallerButton = CreateButton("Launch Python Installer", LaunchPythonInstaller);
+            advanced.Add(CreateActionRow(launchInstallerButton));
+            advanced.Add(CreateMutedLabel(
+                "Opens the PyQt drag-and-drop installer when Install/chievfx_mcp_installer.py exists at the project root. Uses Install/.venv when present."));
             var forceAllCategoriesToggle = new Toggle("Force all categories always-supplied")
             {
                 value = ChievfxMcpCategorySettings.ForceAll,
@@ -661,6 +666,11 @@ namespace Chievfx.Mcp.Editor
             {
                 portField.style.display = transport == TransportHttp ? DisplayStyle.Flex : DisplayStyle.None;
             }
+
+            if (launchInstallerButton != null)
+            {
+                launchInstallerButton.SetEnabled(ChievfxMcpToolPolicy.TryResolveInstallerScriptPath(out _));
+            }
         }
 
         private static void UpdateStateChip(Label? chip, string text, StatusChipState state)
@@ -709,6 +719,14 @@ namespace Chievfx.Mcp.Editor
             }
 
             return $"Ready. Reload MCP tools or restart {clientInfo.DisplayName} after config or selection changes.";
+        }
+
+        private static void LaunchPythonInstaller()
+        {
+            if (!ChievfxMcpPythonLauncher.TryLaunchInstaller(out var error))
+            {
+                EditorUtility.DisplayDialog("ChievFX MCP", error, "OK");
+            }
         }
 
         private void StartHttpServer()

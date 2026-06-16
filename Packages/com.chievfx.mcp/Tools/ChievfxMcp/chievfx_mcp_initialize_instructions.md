@@ -52,6 +52,13 @@ text: |
 ---
 
 ---
+type: resource
+id: instructions-core-descriptors
+text: |
+  chievfx://instructions/core-descriptors: full compact tool/resource/prompt descriptor list when startup instructions are truncated.
+---
+
+---
 type: tool
 id: console-get-logs
 text: |

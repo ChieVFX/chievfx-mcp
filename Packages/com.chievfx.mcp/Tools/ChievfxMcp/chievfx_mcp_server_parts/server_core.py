@@ -537,7 +537,9 @@ class McpServerCore:
                     raise ResourceNotFoundError(message) from exc
                 raise
 
-        if (category_entry := get_category_resource_by_uri(uri)) is not None:
+        if resource_kind == "resource" and resource_id == INSTRUCTIONS_CORE_DESCRIPTORS_RESOURCE_ID:
+            text = truncate_resource_text(build_core_descriptor_instructions_resource_body())
+        elif (category_entry := get_category_resource_by_uri(uri)) is not None:
             text = truncate_resource_text(category_resource_body(category_entry))
         elif (extension_resource := get_extension_resource_by_uri(uri)) is not None:
             mime_type = extension_resource.get("mimeType") or RESOURCE_MIME_TYPE

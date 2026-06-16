@@ -10,6 +10,13 @@ RESOURCES: list[dict[str, Any]] = [
         "mimeType": RESOURCE_MIME_TYPE,
     },
     {
+        "id": "instructions-core-descriptors",
+        "uri": "chievfx://instructions/core-descriptors",
+        "name": "Core MCP descriptors",
+        "description": "Full compact tool/resource/prompt descriptor lines from initialize.instructions (Tools: through Extra API capabilities) when startup instructions are truncated.",
+        "mimeType": RESOURCE_MIME_TYPE,
+    },
+    {
         "id": "scenes-opened",
         "uri": "chievfx://scene/opened",
         "name": "Opened scenes",

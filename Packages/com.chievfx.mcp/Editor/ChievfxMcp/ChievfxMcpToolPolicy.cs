@@ -190,6 +190,16 @@ namespace Chievfx.Mcp.Editor
 
         public static string ServerScriptPath => Path.Combine(PackageToolsDirectory, "chievfx_mcp_server.py");
 
+        public static string InstallerDirectory => Path.Combine(ProjectRoot, "Packages", "com.chievfx.mcp", "Install");
+
+        public static string InstallerScriptPath => Path.Combine(InstallerDirectory, "chievfx_mcp_installer.py");
+
+        public static bool TryResolveInstallerScriptPath(out string path)
+        {
+            path = InstallerScriptPath;
+            return File.Exists(path);
+        }
+
         public static string ToolPolicyPath => Path.Combine(PackageToolsDirectory, "chievfx_mcp_tool_policy.json");
 
         public static string ToolRolePresetsPath => Path.Combine(PackageToolsDirectory, "chievfx_mcp_role_presets.json");

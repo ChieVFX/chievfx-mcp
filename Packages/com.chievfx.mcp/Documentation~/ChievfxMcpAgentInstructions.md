@@ -25,11 +25,13 @@ Two layers, both filtered to **enabled** capabilities only:
    - Optional hand-written agent hints; text may differ from descriptor `description`
 
 2. **Compact descriptor list** from `build_enabled_descriptor_instructions()`
+   - Header: `Core descriptors (if list cut, read chievfx://instructions/core-descriptors):`
    - One line per enabled tool, resource, template, and prompt
    - Tools: `name`, `description`, compressed `inputSchema` args
    - Resources/templates: `uri` or `uriTemplate`, `description`
    - Prompts: `name`, `description`, argument names
    - Items in a collapsed category (see below) are omitted here and their curated blurbs are skipped
+   - When a client truncates startup instructions (~400 tokens in some IDEs), agents should read `chievfx://instructions/core-descriptors` for the full `Tools:` through `Extra API capabilities` block. It is a required Essentials catalog resource (always enabled, served locally by the Python MCP server).
 
 ## Category auto-collapse
 
@@ -40,7 +42,7 @@ To cut token cost, large optional categories are collapsed in `initialize.instru
 When collapsed:
 
 - The per-item descriptor lines (in the `Tools:`/`Resources:`/`Resource templates:` blocks) and curated blurbs are omitted.
-- One header line is emitted in a separate `Extra API capabilities (...)` section placed below the `Enabled ChievFX MCP descriptors` block: `- <Name> (<n> tools, <m> resources): <description> -> chievfx://categories/<slug>`. Resource templates are folded into the resources count (the agent treats them as parameterized resources).
+- One header line is emitted in a separate `Extra API capabilities (...)` section placed below the `Core descriptors` block: `- <Name> (<n> tools, <m> resources): <description> -> chievfx://categories/<slug>`. Resource templates are folded into the resources count (the agent treats them as parameterized resources).
 - A dynamic, non-template resource `chievfx://categories/<slug>` is advertised in `resources/list` and served locally by `read_resource`. Its body lists the full compact tool/resource/template lines for that category's enabled items. These resources are not part of the user-selectable catalog, metadata, selection files, or the guide.
 
 Always-supplied control lives in `UserSettings/ChievfxMcpCategorySelection.json`:
@@ -103,7 +105,7 @@ python3 Tools/ChievfxMcp/chievfx_mcp_server.py --project-root . --dump-debug-ins
 | File | Role |
 |------|------|
 | `chievfx_mcp_initialize_instructions.md` | Curated initialize blurbs |
-| `initialize_instructions.py` | Assembles `initialize.instructions` |
+| `initialize_instructions.py` | Assembles `initialize.instructions`; serves `instructions-core-descriptors` resource body locally |
 | `category_resources.py` | Category merge/collapse plan + `chievfx://categories/<slug>` resources |
 | `resource_text.py` | Formats dynamic resource payloads |
 | `resource_metadata.py` | Loads selection, exposes `enabled_resources()` / `enabled_resource_templates()` |

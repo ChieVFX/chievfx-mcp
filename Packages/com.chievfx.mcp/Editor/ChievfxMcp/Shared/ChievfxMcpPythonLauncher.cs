@@ -34,6 +34,74 @@ namespace Chievfx.Mcp.Editor
             return "python3";
         }
 
+        public static bool TryLaunchInstaller(out string error)
+        {
+            error = string.Empty;
+            if (!ChievfxMcpToolPolicy.TryResolveInstallerScriptPath(out var scriptPath))
+            {
+                error =
+                    "Python installer not found. Expected Install/chievfx_mcp_installer.py at the project root (dev repo layout).";
+                return false;
+            }
+
+            var installDirectory = Path.GetDirectoryName(scriptPath)!;
+            var python = ResolveInstallerPythonExecutable(installDirectory) ?? ExecutablePath;
+
+            try
+            {
+                var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = python,
+                        Arguments = QuoteArg(scriptPath),
+                        WorkingDirectory = installDirectory,
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                    },
+                };
+
+                if (!process.Start())
+                {
+                    error = "Failed to start Python installer process.";
+                    process.Dispose();
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = $"Could not launch Python installer. {ex.Message}";
+                return false;
+            }
+        }
+
+        private static string? ResolveInstallerPythonExecutable(string installDirectory)
+        {
+            if (IsWindows())
+            {
+                var venvPython = Path.Combine(installDirectory, ".venv", "Scripts", "python.exe");
+                return File.Exists(venvPython) ? venvPython : null;
+            }
+
+            foreach (var name in new[] { "python3", "python" })
+            {
+                var venvPython = Path.Combine(installDirectory, ".venv", "bin", name);
+                if (File.Exists(venvPython))
+                {
+                    return venvPython;
+                }
+            }
+
+            return null;
+        }
+
+        private static string QuoteArg(string value)
+        {
+            return $"\"{value.Replace("\"", "\\\"")}\"";
+        }
+
         private static IEnumerable<string> EnumerateCandidates()
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

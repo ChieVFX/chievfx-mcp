@@ -3,7 +3,7 @@
 This project includes a local Unity MCP setup named `unity-mcp-chievfx`.
 Cursor talks to `Tools/ChievfxMcp/chievfx_mcp_server.py`; that server forwards tool calls to the Unity editor bridge at `Library/ChievfxMcpBridge`.
 
-The Unity editor bridge depends on `com.unity.nuget.newtonsoft-json` (Unity's official Newtonsoft.Json UPM package, version `3.2.2` or newer). This project's `Packages/manifest.json` already lists it; the [`Install/`](Install/) installer auto-adds it to other Unity projects when present-check fails.
+The Unity editor bridge depends on `com.unity.nuget.newtonsoft-json` (Unity's official Newtonsoft.Json UPM package, version `3.2.2` or newer). This project's `Packages/manifest.json` already lists it; the [`Packages/com.chievfx.mcp/Install/`](Packages/com.chievfx.mcp/Install/) installer auto-adds it to other Unity projects when present-check fails.
 
 ## Setup And Connection
 

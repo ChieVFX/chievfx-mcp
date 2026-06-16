@@ -1,24 +1,20 @@
 # ChievFX Unity MCP Installer
 
-PyQt6 drag-and-drop tool that installs the ChievFX Unity MCP into another Unity
-project.
+PyQt6 drag-and-drop tool that copies the `com.chievfx.mcp` Unity package from one
+Unity project into another.
 
 ## What it copies
 
-From this repo (`FROM`) into a target Unity project (`TO`), at the same
-relative paths:
+From a source Unity project (`FROM`) into one or more target Unity projects (`TO`),
+at the same relative path:
 
 ```text
-Tools/ChievfxMcp/                 (entire folder)
-Assets/Editor/ChievfxMcp/         (entire folder)
-Assets/Editor/ChievfxMcp.meta     (folder meta)
-Assets/Editor/ChievfxMcpExtensions/      (entire folder)
-Assets/Editor/ChievfxMcpExtensions.meta  (folder meta)
+Packages/com.chievfx.mcp/         (entire package folder)
+Packages/com.chievfx.mcp.meta     (when present in FROM)
 ```
 
-Existing copies in `TO` are deleted first. MCP test folders from earlier
-installs are also removed. `__pycache__/`, `tests/`, `*.pyc`, and `*.pyo` are
-skipped during copy.
+Existing copies in `TO` are deleted first. `__pycache__/`, `tests/`, `*.pyc`, and
+`*.pyo` are skipped during copy.
 
 ## Requirements
 
@@ -35,8 +31,10 @@ skipped during copy.
 
 ## Setup
 
+From a Unity project that already contains this package:
+
 ```bash
-cd Install
+cd Packages/com.chievfx.mcp/Install
 python3 -m venv .venv
 source .venv/bin/activate          # macOS / Linux
 # .venv\Scripts\activate            # Windows
@@ -49,16 +47,37 @@ pip install -r requirements.txt
 python chievfx_mcp_installer.py
 ```
 
-1. The `FROM` zone auto-fills with this repo on launch (the installer's parent
-   folder). Override by dragging another folder or clicking `Browse...`.
-2. Drag the target Unity project root onto the `TO` zone, or click
-   `Browse...`.
-3. Both zones turn green when validation passes. The `Install` button enables.
-4. Click `Install`, confirm.
+Or launch it from **Window > ChievFX > MCP** → **Connection** → **Advanced details**
+→ **Launch Python Installer**.
+
+1. **FROM** auto-fills by walking up from the installer folder until a Unity
+   project root containing `Packages/com.chievfx.mcp/` is found. Override by
+   dragging another project or clicking **Browse...**.
+2. Drag one or more target Unity project roots onto **TO**, or click
+   **Browse...**.
+3. Both zones turn green when validation passes. The **Install** button enables.
+4. Click **Install**, confirm.
 5. If `com.unity.nuget.newtonsoft-json` is missing from the target manifest
-   the installer asks whether to add it. Pick `Yes` unless you plan to add
+   the installer asks whether to add it. Pick **Yes** unless you plan to add
    it yourself.
 6. Watch the log.
+
+## Remembered paths
+
+FROM and TO are cached **per launcher Unity project**, not globally:
+
+```text
+~/.chievfx_mcp_installer/profiles/<hash>/settings.json
+```
+
+- Launch from Unity project **A** → remembers that project's last FROM/TO pair.
+- Launch from Unity project **B** → separate profile, so A↔B bidirectional
+  installs do not overwrite each other.
+- Standalone launch (no `--launcher-project`) uses the host Unity project that
+  contains the installer, or a `__default__` profile when none is found.
+
+Legacy global TO-only cache from `~/.chievfx_mcp_installer.json` is imported
+into the default profile on first use.
 
 ## Post-install steps in the target Unity project
 
@@ -78,4 +97,4 @@ The MCP server should appear as `unity-mcp-chievfx`.
   `UserSettings/ChievfxMcp*.json` are created by Unity at runtime; the
   installer never touches them.
 - MCP unit tests are intentionally not installed into target projects. They are
-  developed and run in this repo.
+  developed and run in the source project.

@@ -190,7 +190,7 @@ namespace Chievfx.Mcp.Editor
 
         public static string ServerScriptPath => Path.Combine(PackageToolsDirectory, "chievfx_mcp_server.py");
 
-        public static string InstallerDirectory => Path.Combine(ProjectRoot, "Packages", "com.chievfx.mcp", "Install");
+        public static string InstallerDirectory => Path.Combine(PackageRoot, "Install");
 
         public static string InstallerScriptPath => Path.Combine(InstallerDirectory, "chievfx_mcp_installer.py");
 

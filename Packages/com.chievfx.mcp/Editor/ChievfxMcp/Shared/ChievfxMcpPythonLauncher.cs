@@ -40,12 +40,14 @@ namespace Chievfx.Mcp.Editor
             if (!ChievfxMcpToolPolicy.TryResolveInstallerScriptPath(out var scriptPath))
             {
                 error =
-                    "Python installer not found. Expected Install/chievfx_mcp_installer.py at the project root (dev repo layout).";
+                    "Python installer not found. Expected Packages/com.chievfx.mcp/Install/chievfx_mcp_installer.py in this project.";
                 return false;
             }
 
             var installDirectory = Path.GetDirectoryName(scriptPath)!;
             var python = ResolveInstallerPythonExecutable(installDirectory) ?? ExecutablePath;
+            var arguments =
+                $"{QuoteArg(scriptPath)} --launcher-project {QuoteArg(ChievfxMcpToolPolicy.ProjectRoot)}";
 
             try
             {
@@ -54,7 +56,7 @@ namespace Chievfx.Mcp.Editor
                     StartInfo = new ProcessStartInfo
                     {
                         FileName = python,
-                        Arguments = QuoteArg(scriptPath),
+                        Arguments = arguments,
                         WorkingDirectory = installDirectory,
                         UseShellExecute = false,
                         CreateNoWindow = true,

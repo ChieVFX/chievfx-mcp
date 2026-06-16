@@ -468,7 +468,7 @@ class McpServerCore:
             if name == "uitoolkit-runtime-interact" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_ugui_runtime_probe_text(result)
             if name in {
-                "runtime-ui-probe-screen-position",
+                "ui-runtime-probe",
                 "ugui-runtime-probe-screen-position",
                 "uitoolkit-runtime-probe-screen-position",
             }

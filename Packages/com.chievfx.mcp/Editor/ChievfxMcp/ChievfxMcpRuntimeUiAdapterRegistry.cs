@@ -54,12 +54,11 @@ namespace Chievfx.Mcp.Editor
     internal static class ChievfxMcpRuntimeUiAdapterRegistry
     {
         private const string ExtensionId = "chievfx.runtime-ui";
-        private const string Category = "Runtime UI";
         private const string CommonCategory = "ui-runtime-common";
         private const string EssentialsCategory = "Essentials";
         private const string UriPrefix = "chievfx://extensions/chievfx.runtime-ui/";
         private const string StatusUri = UriPrefix + "status";
-        private const string ProbeToolName = "runtime-ui-probe-screen-position";
+        private const string ProbeToolName = "ui-runtime-probe";
         private const string TypeTextToolName = "ui-runtime-type-text";
         private const int DefaultMaxRows = 256;
 
@@ -127,7 +126,7 @@ namespace Chievfx.Mcp.Editor
             {
                 Name = ProbeToolName,
                 Description = "Probe Play Mode runtime UI hit stack at screen position. Requires Play Mode.",
-                Category = Category,
+                Category = CommonCategory,
                 InputSchema = RuntimeProbeSchema(),
             });
             descriptor.Tools.Add(new ChievfxMcpToolDescriptor

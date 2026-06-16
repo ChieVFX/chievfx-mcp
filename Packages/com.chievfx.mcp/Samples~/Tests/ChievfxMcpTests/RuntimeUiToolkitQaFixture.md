@@ -50,7 +50,7 @@ Expected proof:
 - `uitoolkit.hits[0].path` contains `TopUiToolkitHit`.
 - `uitoolkit.hits[0].sortingOrder` is `100` when multiple panels overlap.
 - `uitoolkit.hits` includes `BottomUiToolkitHit` below the top hit.
-- Merged `runtime-ui-probe-screen-position` returns separate `ugui` and `uitoolkit` sections with compact `hits` rows.
+- Merged `ui-runtime-probe` returns separate `ugui` and `uitoolkit` sections with compact `hits` rows.
 
 6. Dry-run a value mutation; it should report a plan and keep the control value unchanged:
 

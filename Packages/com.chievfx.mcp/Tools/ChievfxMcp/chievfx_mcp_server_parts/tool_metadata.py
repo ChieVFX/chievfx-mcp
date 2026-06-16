@@ -54,7 +54,7 @@ def advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
             "additionalProperties": False,
         }
     if tool_name in {
-        "runtime-ui-probe-screen-position",
+        "ui-runtime-probe",
         "ugui-runtime-probe-screen-position",
         "uitoolkit-runtime-probe-screen-position",
     }:
@@ -73,7 +73,7 @@ def advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": properties,
-            "additionalProperties": tool_name == "runtime-ui-probe-screen-position",
+            "additionalProperties": tool_name == "ui-runtime-probe",
         }
     if tool_name == "ui-control-find":
         return {

@@ -192,7 +192,7 @@ namespace Chievfx.Mcp.Editor.Tests
             ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
 
             var ex = Assert.Throws<InvalidOperationException>(() =>
-                RunExtensionTool("runtime-ui-probe-screen-position", "{'normalized':{'x':0.5,'y':0.5}}"));
+                RunExtensionTool("ui-runtime-probe", "{'normalized':{'x':0.5,'y':0.5}}"));
 
             StringAssert.Contains("Play Mode", ex!.Message);
             StringAssert.Contains("probe", ex.Message, StringComparison.OrdinalIgnoreCase);

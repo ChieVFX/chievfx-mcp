@@ -77,6 +77,7 @@ DEFAULT_ALWAYS_SUPPLIED_CATEGORIES = [
     "Editor Window",
     "Script Execution / Tests",
     "Control",
+    "ui-runtime-common",
 ]
 EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION = 1
 EXTENSION_URI_PREFIX = "chievfx://extensions/"
@@ -225,7 +226,9 @@ TOOL_CATEGORIES = {
     "gameobject-transform-update": "GameObject",
     "gameobject-set-parent": "GameObject",
     "gameobject-duplicate": "GameObject",
-    "ui-control-find": "Runtime UI",
+    "ui-control-find": "ui-runtime-common",
+    "ui-runtime-probe": "ui-runtime-common",
+    "ui-runtime-type-text": "ui-runtime-common",
     "prefab-open": "Prefab",
     "prefab-close": "Prefab",
     "prefab-save": "Prefab",
@@ -265,6 +268,7 @@ TOOL_CATEGORY_DESCRIPTIONS = {
     "Control": "Optional Play Mode keyboard and mouse input helpers for New Input System-driven control.",
     "Particles": "Optional built-in ParticleSystem authoring, playback, preview, and inspection helpers.",
     "Runtime UI": "Optional runtime UI screen-position probing across registered UI adapters.",
+    "ui-runtime-common": "Shared Play Mode runtime UI tools: cross-framework probe, control discovery, and text input.",
     "UI Toolkit": "Optional runtime UI Toolkit panel inspection and screen-position probing helpers.",
     "ugui-design": "Optional editor-time uGUI authoring helpers for Canvas, RectTransform, images, layout, TMP, and sprites.",
     "ugui-runtime-control": "Optional Play Mode uGUI probing and control helpers: hit stacks, clicks, drags, selection, and control values.",

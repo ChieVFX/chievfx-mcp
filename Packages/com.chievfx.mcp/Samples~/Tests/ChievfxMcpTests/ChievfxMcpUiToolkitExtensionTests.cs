@@ -285,7 +285,7 @@ namespace Chievfx.Mcp.Editor.Tests
             yield return PopulateAndSettleUiToolkit();
 
             ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
-            var probe = RunExtensionTool("runtime-ui-probe-screen-position", NormalizedPositionArgs(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized, maxRows: 8));
+            var probe = RunExtensionTool("ui-runtime-probe", NormalizedPositionArgs(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized, maxRows: 8));
             var probeInfo = Row(probe, "probe");
             var uitoolkit = Row(probe, "uitoolkit");
             var expected = NormalizedScreenPoint(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized);

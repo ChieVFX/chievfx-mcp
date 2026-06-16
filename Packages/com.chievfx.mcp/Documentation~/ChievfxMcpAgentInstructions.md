@@ -51,12 +51,12 @@ Always-supplied control lives in `UserSettings/ChievfxMcpCategorySelection.json`
 {
   "schemaVersion": 1,
   "forceAllCategoriesAlwaysSupplied": false,
-  "alwaysSuppliedCategories": ["Essentials", "Editor Window", "Script Execution / Tests", "Control"]
+  "alwaysSuppliedCategories": ["Essentials", "Editor Window", "Script Execution / Tests", "Control", "ui-runtime-common"]
 }
 ```
 
 - A category is always-supplied (never collapses, full inline) when `forceAllCategoriesAlwaysSupplied` is true or its name is in `alwaysSuppliedCategories`.
-- Missing file falls back to those four default categories on, force-all off.
+- Missing file falls back to those five default categories on, force-all off.
 - Unity writes the file: per-category "Always supply" toggle in the Tools and Resources tabs (info mode / "i"), and a global "Force all categories always-supplied" toggle in the Connection tab "Advanced details" foldout. Both trigger the debug dump.
 
 ## Descriptor sources

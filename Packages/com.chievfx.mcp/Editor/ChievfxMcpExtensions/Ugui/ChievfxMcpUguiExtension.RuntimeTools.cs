@@ -503,38 +503,54 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return result;
         }
 
-        internal static Dictionary<string, object?> ReadRuntimeInteractables(string uri, UguiDependencyStatus status)
+        internal static Dictionary<string, object?> ControlFind(JToken args, UguiDependencyStatus status)
         {
+            status.CanvasType?.GetMethod("ForceUpdateCanvases", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
+
             var warnings = new List<string>();
-            var result = CreateEnvelope(uri, status);
-            result["playMode"] = IsRuntimePlayModeActive();
-            result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
-            if (Equals(result["runtimeAvailable"], false))
-            {
-                result["count"] = 0;
-                result["interactables"] = Array.Empty<Dictionary<string, object?>>();
-                result["warnings"] = warnings.ToArray();
-                return result;
-            }
-
-            if (Equals(result["runtimeAvailable"], true))
-            {
-                AddRuntimeWarnings(status, warnings);
-            }
-
-            var rows = FindRuntimeCanvases(status)
+            var nameFilter = ReadString(args, "name");
+            var controlTypeFilter = ChievfxMcpRuntimeUiControlFind.NormalizeControlTypeFilter(ReadString(args, "controlType"));
+            var screenSize = ResolveRuntimeUiScreenSize(status);
+            var matches = FindCanvases(status, includeInactive: false)
+                .Where(canvas => canvas.gameObject.activeInHierarchy && IsEnabledComponent(canvas))
                 .SelectMany(canvas => canvas.GetComponentsInChildren<RectTransform>(false))
                 .Select(rect => rect.gameObject)
                 .Distinct()
-                .Select(go => CreateRuntimeInteractableRow(go, status))
-                .Where(row => row != null)
-                .Cast<Dictionary<string, object?>>()
-                .Take(256)
+                .SelectMany(target => GetClickableControlComponents(target, status).Select(control => (target, control)))
+                .Where(pair => IsEnabledClickableControl(pair.target, pair.control))
+                .Where(pair => string.IsNullOrWhiteSpace(nameFilter) || string.Equals(pair.target.name, nameFilter, StringComparison.Ordinal))
+                .Select(pair => (pair.target, pair.control, controlType: ChievfxMcpRuntimeUiControlFind.NormalizeControlType(pair.control.GetType())))
+                .Where(entry => string.IsNullOrWhiteSpace(controlTypeFilter)
+                    || string.Equals(entry.controlType, controlTypeFilter, StringComparison.Ordinal))
+                .Where(entry => TryGetUguiScreenZone(entry.target, status, screenSize, out _))
                 .ToArray();
-            result["count"] = rows.Length;
-            result["interactables"] = rows;
-            result["warnings"] = warnings.ToArray();
-            return result;
+
+            var rows = matches
+                .Select(entry =>
+                {
+                    TryGetUguiScreenZone(entry.target, status, screenSize, out var zone);
+                    return new Dictionary<string, object?>
+                    {
+                        ["framework"] = "ugui",
+                        ["path"] = GetTransformPath(entry.target.transform),
+                        ["instanceId"] = UnityObjectIdentity.GetLegacyInstanceId(entry.target),
+                        ["controlType"] = entry.controlType,
+                        ["zone"] = zone,
+                    };
+                })
+                .ToArray();
+
+            return new Dictionary<string, object?>
+            {
+                ["framework"] = "ugui",
+                ["available"] = status.Available,
+                ["playMode"] = IsRuntimePlayModeActive(),
+                ["totalMatches"] = matches.Length,
+                ["nameFilter"] = nameFilter,
+                ["controlTypeFilter"] = controlTypeFilter,
+                ["controls"] = rows,
+                ["warnings"] = warnings.ToArray(),
+            };
         }
     }
 }

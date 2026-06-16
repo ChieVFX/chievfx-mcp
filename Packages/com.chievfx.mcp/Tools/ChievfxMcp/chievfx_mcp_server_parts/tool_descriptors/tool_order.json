@@ -44,6 +44,7 @@
     "gameobject-transform-update",
     "gameobject-set-parent",
     "gameobject-duplicate",
+    "ui-control-find",
     "prefab-open",
     "prefab-close",
     "prefab-save",

@@ -12,6 +12,8 @@ replace them at the same relative paths.
 
 from __future__ import annotations
 
+import argparse
+import hashlib
 import json
 import shutil
 import sys
@@ -39,8 +41,10 @@ from PyQt6.QtWidgets import (
 
 
 APP_TITLE = "ChievFX Unity MCP Installer"
-APP_VERSION = "0.3.0"
-SETTINGS_PATH = Path.home() / ".chievfx_mcp_installer.json"
+APP_VERSION = "0.3.1"
+SETTINGS_ROOT = Path.home() / ".chievfx_mcp_installer"
+LEGACY_SETTINGS_PATH = Path.home() / ".chievfx_mcp_installer.json"
+DEFAULT_PROFILE_CONTEXT = Path("__default__")
 
 MCP_PATHS: tuple[str, ...] = (
     # New MCP lives as a Unity package inside `Packages/com.chievfx.mcp/`.
@@ -93,19 +97,56 @@ def validate_to(path: Path) -> ValidationResult:
     return ValidationResult(True, "Looks like a Unity project.")
 
 
-def load_last_to_paths() -> list[Path]:
-    try:
-        data = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return []
-    if not isinstance(data, dict):
-        return []
+@dataclass(frozen=True)
+class InstallerProfile:
+    context_path: Path
+    last_from_path: Path | None
+    to_paths: list[Path]
 
-    raw_paths = data.get("toPaths")
-    if not isinstance(raw_paths, list):
-        # Backward compatibility with installer settings from v0.2.2 and older.
-        raw_paths = [data.get("lastToPath")]
 
+def detect_from_root(start: Path | None = None) -> Path | None:
+    """Walk up from the installer folder until a valid MCP source root is found."""
+    current = start or Path(__file__).resolve().parent
+    for candidate in (current, *current.parents):
+        if validate_from(candidate).ok:
+            return candidate.resolve()
+    return None
+
+
+def detect_host_unity_project(start: Path | None = None) -> Path | None:
+    """Walk up from the installer folder until a Unity project root is found."""
+    current = start or Path(__file__).resolve().parent
+    for candidate in (current, *current.parents):
+        if validate_to(candidate).ok:
+            return candidate.resolve()
+    return None
+
+
+def resolve_profile_context(launcher_project: str | None = None) -> Path:
+    if launcher_project:
+        candidate = Path(launcher_project).expanduser()
+        if validate_to(candidate).ok:
+            return candidate.resolve()
+
+    host = detect_host_unity_project()
+    if host is not None:
+        return host
+
+    return DEFAULT_PROFILE_CONTEXT
+
+
+def _profile_context_key(context_path: Path) -> str:
+    if context_path == DEFAULT_PROFILE_CONTEXT:
+        return str(DEFAULT_PROFILE_CONTEXT)
+    return str(context_path.resolve())
+
+
+def _profile_settings_path(context_path: Path) -> Path:
+    key = hashlib.sha1(_profile_context_key(context_path).encode("utf-8")).hexdigest()[:16]
+    return SETTINGS_ROOT / "profiles" / key / "settings.json"
+
+
+def _normalize_to_paths(raw_paths: Iterable[object]) -> list[Path]:
     paths: list[Path] = []
     seen: set[str] = set()
     for raw_path in raw_paths:
@@ -123,15 +164,61 @@ def load_last_to_paths() -> list[Path]:
     return paths
 
 
-def save_last_to_paths(paths: Iterable[Path]) -> None:
+def _load_legacy_to_paths() -> list[Path]:
     try:
-        resolved_paths = [str(path.resolve()) for path in paths]
-        SETTINGS_PATH.write_text(
-            json.dumps({"toPaths": resolved_paths}, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        data = json.loads(LEGACY_SETTINGS_PATH.read_text(encoding="utf-8"))
     except Exception:
-        # Remembering targets is convenience only; never fail install for it.
+        return []
+    if not isinstance(data, dict):
+        return []
+
+    raw_paths = data.get("toPaths")
+    if not isinstance(raw_paths, list):
+        raw_paths = [data.get("lastToPath")]
+    return _normalize_to_paths(raw_paths)
+
+
+def load_profile(context_path: Path) -> InstallerProfile:
+    settings_path = _profile_settings_path(context_path)
+    last_from_path: Path | None = None
+    to_paths: list[Path] = []
+
+    try:
+        data = json.loads(settings_path.read_text(encoding="utf-8"))
+    except Exception:
+        data = None
+
+    if isinstance(data, dict):
+        raw_from = data.get("lastFromPath")
+        if isinstance(raw_from, str) and raw_from.strip():
+            candidate = Path(raw_from).expanduser()
+            if validate_from(candidate).ok:
+                last_from_path = candidate.resolve()
+        to_paths = _normalize_to_paths(data.get("toPaths", []))
+    elif context_path == DEFAULT_PROFILE_CONTEXT:
+        to_paths = _load_legacy_to_paths()
+
+    return InstallerProfile(
+        context_path=context_path,
+        last_from_path=last_from_path,
+        to_paths=to_paths,
+    )
+
+
+def save_profile(profile: InstallerProfile) -> None:
+    try:
+        settings_path = _profile_settings_path(profile.context_path)
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "contextPath": _profile_context_key(profile.context_path),
+            "lastFromPath": (
+                str(profile.last_from_path.resolve()) if profile.last_from_path is not None else None
+            ),
+            "toPaths": [str(path.resolve()) for path in profile.to_paths],
+        }
+        settings_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    except Exception:
+        # Remembering paths is convenience only; never fail install for it.
         pass
 
 
@@ -591,8 +678,13 @@ class MultiTargetZone(QFrame):
 
 
 class InstallerWindow(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, context_path: Path) -> None:
         super().__init__()
+        self._context_path = (
+            context_path
+            if context_path == DEFAULT_PROFILE_CONTEXT
+            else context_path.resolve()
+        )
         self.setWindowTitle(f"{APP_TITLE} v{APP_VERSION}")
         self.resize(900, 700)
 
@@ -604,9 +696,9 @@ class InstallerWindow(QMainWindow):
         root_layout.setSpacing(12)
 
         header = QLabel(
-            "Drag the source repo into FROM and one or more Unity projects into TO. "
-            "Install replaces ChievFX MCP tools, core bridge, and first-party extension folders "
-            "in every TO project."
+            "Drag the source Unity project into FROM and one or more target Unity projects into TO. "
+            "Install replaces the ChievFX MCP package in every TO project. "
+            "FROM/TO choices are remembered per launcher Unity project."
         )
         header.setWordWrap(True)
         header.setStyleSheet("color: #cfd2d6;")
@@ -617,7 +709,7 @@ class InstallerWindow(QMainWindow):
 
         self._from_zone = DropZone(
             "FROM (source)",
-            "Root of the repo containing `Packages/com.chievfx.mcp/` Unity package.",
+            "Unity project root containing `Packages/com.chievfx.mcp/`.",
             validate_from,
         )
         self._to_zone = MultiTargetZone()
@@ -627,7 +719,7 @@ class InstallerWindow(QMainWindow):
         root_layout.addLayout(zones)
 
         controls = QHBoxLayout()
-        self._autodetect_button = QPushButton("Auto-detect FROM (use installer's repo)")
+        self._autodetect_button = QPushButton("Auto-detect FROM (walk up from installer)")
         self._autodetect_button.clicked.connect(self._on_autodetect_from)
         controls.addWidget(self._autodetect_button)
 
@@ -659,14 +751,16 @@ class InstallerWindow(QMainWindow):
         root_layout.addWidget(self._log_view, 1)
 
         self._from_zone.path_changed.connect(self._refresh_install_button)
+        self._from_zone.path_changed.connect(self._remember_profile)
         self._to_zone.paths_changed.connect(self._refresh_install_button)
-        self._to_zone.paths_changed.connect(self._remember_to_paths)
+        self._to_zone.paths_changed.connect(self._remember_profile)
 
         self._worker_thread: QThread | None = None
         self._worker: _InstallWorker | None = None
 
-        self._try_autodetect_from_silently()
-        self._try_restore_last_to_silently()
+        self._restore_profile_silently()
+        if self._from_zone.path() is None:
+            self._try_autodetect_from_silently()
 
     def _refresh_install_button(self) -> None:
         self._install_button.setEnabled(
@@ -677,18 +771,25 @@ class InstallerWindow(QMainWindow):
         self._try_autodetect_from_silently(force=True)
 
     def _try_autodetect_from_silently(self, force: bool = False) -> None:
-        installer_dir = Path(__file__).resolve().parent
-        candidate = installer_dir.parent
-        if validate_from(candidate).ok:
-            if force or self._from_zone.path() is None:
-                self._from_zone.set_path(candidate)
+        candidate = detect_from_root()
+        if candidate is not None and (force or self._from_zone.path() is None):
+            self._from_zone.set_path(candidate)
 
-    def _try_restore_last_to_silently(self) -> None:
-        if not self._to_zone.paths():
-            self._to_zone.set_paths(load_last_to_paths())
+    def _restore_profile_silently(self) -> None:
+        profile = load_profile(self._context_path)
+        if profile.last_from_path is not None:
+            self._from_zone.set_path(profile.last_from_path)
+        if profile.to_paths:
+            self._to_zone.set_paths(profile.to_paths)
 
-    def _remember_to_paths(self) -> None:
-        save_last_to_paths(self._to_zone.paths())
+    def _remember_profile(self) -> None:
+        save_profile(
+            InstallerProfile(
+                context_path=self._context_path,
+                last_from_path=self._from_zone.path(),
+                to_paths=self._to_zone.paths(),
+            )
+        )
 
     def _append_log(self, line: str) -> None:
         self._log_view.appendPlainText(line)
@@ -725,7 +826,13 @@ class InstallerWindow(QMainWindow):
         if confirm != QMessageBox.StandardButton.Yes:
             return
 
-        save_last_to_paths(to_roots)
+        save_profile(
+            InstallerProfile(
+                context_path=self._context_path,
+                last_from_path=from_root,
+                to_paths=to_roots,
+            )
+        )
         self._install_button.setEnabled(False)
         self._autodetect_button.setEnabled(False)
         self._log_view.clear()
@@ -780,12 +887,20 @@ def _apply_dark_palette(app: QApplication) -> None:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=APP_TITLE)
+    parser.add_argument(
+        "--launcher-project",
+        help="Unity project root that launched this installer; FROM/TO are remembered per launcher project.",
+    )
+    args = parser.parse_args()
+
     app = QApplication(sys.argv)
     app.setApplicationName(APP_TITLE)
     app.setStyle("Fusion")
     _apply_dark_palette(app)
 
-    window = InstallerWindow()
+    context_path = resolve_profile_context(args.launcher_project)
+    window = InstallerWindow(context_path)
     window.show()
     return app.exec()
 

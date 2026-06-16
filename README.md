@@ -34,10 +34,10 @@ To pin a specific revision, append `#<branch|tag|commit>`, e.g. `...com.chievfx.
 
 ### Option B — Manual install (Python installer)
 
-For copying the package into an existing Unity project (e.g. to vendor a local copy), use the drag-and-drop installer in the [`Install/`](Install/) folder.
+For copying the package into another Unity project (e.g. to vendor a local copy), use the drag-and-drop installer shipped inside the package at `Packages/com.chievfx.mcp/Install/`.
 
 ```bash
-cd Install
+cd Packages/com.chievfx.mcp/Install
 python3 -m venv .venv
 source .venv/bin/activate          # macOS / Linux
 # .venv\Scripts\activate           # Windows
@@ -45,15 +45,18 @@ pip install -r requirements.txt
 python chievfx_mcp_installer.py
 ```
 
-Then drag the source repo into **FROM** and one or more target Unity projects into **TO**, and click **Install**. See [`Install/README.md`](Install/README.md) for details.
+Or open **Window > ChievFX > MCP** → **Connection** → **Advanced details** → **Launch Python Installer**.
+
+Then drag a source Unity project into **FROM** and one or more target Unity projects into **TO**, and click **Install**. See [`Packages/com.chievfx.mcp/Install/README.md`](Packages/com.chievfx.mcp/Install/README.md) for details.
 
 ## Getting started
 
 After the package is installed in your Unity project:
 
 1. Open the project and wait for compile + domain reload.
-2. **Window > ChievFX > MCP** → **Start Bridge** → **Write Cursor Config**.
-3. Reload your MCP client's tools (or restart it).
+2. **Window > ChievFX > MCP** → **Start Bridge**.
+3. Keep **Cursor** selected, or switch the client to **Claude Code** or **Codex**, then click **Write <client> Config**.
+4. Reload your MCP client's tools (or restart it).
 
 The MCP server appears as `unity-mcp-chievfx`.
 

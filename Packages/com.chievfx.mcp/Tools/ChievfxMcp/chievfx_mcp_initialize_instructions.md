@@ -18,6 +18,12 @@ text: |
 ---
 
 ---
+type: global
+text: |
+  When calling `CallMcpTool`, pass tool parameters inside top-level `arguments`. Eg:`CallMcpTool({ server, toolName, arguments: { path: "Assets/Foo" } })`
+---
+
+---
 type: tool
 id: bridge-get-status
 text: |
@@ -43,6 +49,13 @@ type: resource
 id: editor-context
 text: |
   chievfx://editor/context: compact current Unity editor, play mode, active scene, prefab stage, and selection context.
+---
+
+---
+type: resource
+id: instructions-core-descriptors
+text: |
+  chievfx://instructions/core-descriptors: full compact tool/resource/prompt descriptor list when startup instructions are truncated.
 ---
 
 ---

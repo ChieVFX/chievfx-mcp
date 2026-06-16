@@ -1,6 +1,9 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+import math
+
+
 def format_diagnostics_lines(diagnostics: Any) -> list[str]:
     if not isinstance(diagnostics, list) or not diagnostics:
         return []
@@ -95,6 +98,184 @@ def format_ugui_ui_find_text(result: dict[str, Any]) -> str:
         if isinstance(game_object, dict):
             lines.extend(format_gameobject_find_object_lines(game_object))
     return "\n".join(line for line in lines if line)
+
+
+def infer_ui_control_find_screen_size(controls: list[Any]) -> tuple[float | None, float | None]:
+    screen_width = None
+    screen_height = None
+    for control in controls:
+        if not isinstance(control, dict):
+            continue
+        zone = control.get("zone")
+        if not isinstance(zone, dict):
+            continue
+        width = zone.get("screenWidth")
+        height = zone.get("screenHeight")
+        if isinstance(width, (int, float)) and isinstance(height, (int, float)):
+            return float(width), float(height)
+        x_max = zone.get("xMax")
+        y_max = zone.get("yMax")
+        if isinstance(x_max, (int, float)):
+            screen_width = max(screen_width or 0.0, float(x_max))
+        if isinstance(y_max, (int, float)):
+            screen_height = max(screen_height or 0.0, float(y_max))
+    if screen_width and screen_height:
+        return math.ceil(screen_width), math.ceil(screen_height)
+    return None, None
+
+
+def format_ui_control_find_text(result: dict[str, Any], *, normalize_coords: bool | None = None) -> str:
+    controls = result.get("controls")
+    if not isinstance(controls, list):
+        controls = []
+    page = result.get("page")
+    total_pages = result.get("totalPages")
+    header = ""
+    if not should_omit_toon_value(page) and not should_omit_toon_value(total_pages):
+        header = f"page:{format_toon_atom(page)}/{format_toon_atom(total_pages)}"
+    omit_type = not should_omit_toon_value(result.get("controlTypeFilter"))
+    if normalize_coords is None:
+        normalize_coords = result.get("normalizeCoords") is True
+    screen_size = result.get("screenSize")
+    screen_width = None
+    screen_height = None
+    if isinstance(screen_size, dict):
+        width = screen_size.get("width")
+        height = screen_size.get("height")
+        if isinstance(width, (int, float)) and isinstance(height, (int, float)):
+            screen_width = float(width)
+            screen_height = float(height)
+    if screen_width is None or screen_height is None:
+        inferred_width, inferred_height = infer_ui_control_find_screen_size(controls)
+        if screen_width is None:
+            screen_width = inferred_width
+        if screen_height is None:
+            screen_height = inferred_height
+    lines = [header] if header else []
+    warnings = result.get("warnings")
+    if isinstance(warnings, list):
+        for warning in warnings:
+            if isinstance(warning, str) and warning.strip():
+                lines.append(f"warning: {warning.strip()}")
+    for control in controls:
+        if not isinstance(control, dict):
+            continue
+        lines.append(
+            format_ui_control_find_row(
+                control,
+                omit_type=omit_type,
+                normalize_coords=normalize_coords,
+                screen_width=screen_width,
+                screen_height=screen_height,
+            )
+        )
+    return "\n".join(line for line in lines if line)
+
+
+def format_ui_control_find_row(
+    control: dict[str, Any],
+    *,
+    omit_type: bool,
+    normalize_coords: bool = False,
+    screen_width: float | None = None,
+    screen_height: float | None = None,
+) -> str:
+    path = format_gameobject_text_value(control.get("path"))
+    identity_parts = [path]
+    if control.get("framework") == "uitoolkit":
+        visual_element_ref = control.get("visualElementRef")
+        if not should_omit_toon_value(visual_element_ref):
+            identity_parts.append(f"({visual_element_ref})")
+    else:
+        instance_id = control.get("instanceId")
+        if not should_omit_toon_value(instance_id):
+            identity_parts.append(f"(id: {format_toon_atom(instance_id)})")
+    line = "- " + " ".join(identity_parts)
+    if not omit_type:
+        control_type = control.get("controlType")
+        if not should_omit_toon_value(control_type):
+            line += f" : {format_gameobject_text_value(control_type)}"
+    zone_text = format_ui_control_zone(
+        control.get("zone"),
+        normalize_coords=normalize_coords,
+        screen_width=screen_width,
+        screen_height=screen_height,
+    )
+    if zone_text:
+        line += f"; zone:{zone_text}"
+    return line
+
+
+def format_ui_control_zone(
+    value: Any,
+    *,
+    normalize_coords: bool = False,
+    screen_width: float | None = None,
+    screen_height: float | None = None,
+) -> str:
+    if not isinstance(value, dict):
+        return ""
+    return format_ui_control_zone_bounds(
+        value,
+        normalize_coords=normalize_coords,
+        screen_width=screen_width,
+        screen_height=screen_height,
+    )
+
+
+def format_normalized_coord(value: float) -> str:
+    if not math.isfinite(value):
+        return "0"
+    clamped = max(0.0, min(1.0, value))
+    rounded = round(clamped, 2)
+    if rounded <= 0.0:
+        return "0"
+    if rounded >= 1.0:
+        return "1"
+    return f"{rounded:.2f}"
+
+
+def format_ui_control_zone_bounds(
+    value: dict[str, Any],
+    *,
+    normalize_coords: bool = False,
+    screen_width: float | None = None,
+    screen_height: float | None = None,
+) -> str:
+    x_min = value.get("xMin")
+    y_min = value.get("yMin")
+    x_max = value.get("xMax")
+    y_max = value.get("yMax")
+    if any(should_omit_toon_value(item) for item in (x_min, y_min, x_max, y_max)):
+        return ""
+    if not all(isinstance(item, (int, float)) for item in (x_min, y_min, x_max, y_max)):
+        return ""
+    if normalize_coords:
+        if not screen_width or not screen_height:
+            return ""
+        width = max(1.0, float(screen_width))
+        height = max(1.0, float(screen_height))
+        return (
+            f"{format_normalized_coord(float(x_min) / width)},{format_normalized_coord(float(y_min) / height)}"
+            f"..{format_normalized_coord(float(x_max) / width)},{format_normalized_coord(float(y_max) / height)}"
+        )
+    return (
+        f"{math.ceil(float(x_min))},{math.ceil(float(y_min))}"
+        f"..{math.floor(float(x_max))},{math.floor(float(y_max))}"
+    )
+
+
+def format_tool_result_text(tool_name: str, result: Any, arguments: dict[str, Any]) -> str:
+    output_format = arguments.get("outputFormat", "toon")
+    if output_format == "json":
+        return json.dumps(result, ensure_ascii=False, separators=(",", ":"))
+
+    if tool_name == "ui-control-find":
+        if isinstance(result, dict):
+            normalize_coords = arguments.get("normalizeCoords") if "normalizeCoords" in arguments else None
+            return format_ui_control_find_text(result, normalize_coords=normalize_coords)
+
+    return to_toon(result)
 
 
 def format_ugui_ui_hierarchy_text(result: dict[str, Any]) -> str:

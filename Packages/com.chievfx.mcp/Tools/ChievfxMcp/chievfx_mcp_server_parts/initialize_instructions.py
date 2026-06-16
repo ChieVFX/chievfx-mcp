@@ -1,6 +1,10 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+def core_descriptor_instructions_header() -> str:
+    return f"Core descriptors (if list cut, read {CORE_DESCRIPTOR_INSTRUCTIONS_URI}):"
+
+
 def build_initialize_instructions() -> str:
     records = load_initialize_instruction_records_from_md()
     lines: list[str] = []
@@ -85,11 +89,9 @@ def build_initialize_server_info(instructions: str | None = None) -> dict[str, s
     return {"name": CURSOR_SERVER_NAME, "version": f"{major}.{minor}.{patch}+instructions.{fingerprint}"}
 
 
-def build_enabled_descriptor_instructions(plan: dict[str, Any] | None = None) -> str:
-    if plan is None:
-        plan = build_category_plan()
+def _build_descriptor_section_lines(plan: dict[str, Any]) -> list[str]:
     collapsed_lines = collapsed_item_lines(plan)
-    sections: list[str] = ["Enabled ChievFX MCP descriptors (compact instruction form):"]
+    sections: list[str] = []
 
     tool_descriptors = sorted(enabled_tools(), key=lambda item: item.get("name", ""))
     tool_lines = [
@@ -126,7 +128,30 @@ def build_enabled_descriptor_instructions(plan: dict[str, Any] | None = None) ->
         sections.append("Prompts:")
         sections.extend(format_prompt_for_initialize_instructions(descriptor) for descriptor in prompt_descriptors)
 
-    return "\n".join(sections)
+    return sections
+
+
+def build_enabled_descriptor_instructions(plan: dict[str, Any] | None = None) -> str:
+    if plan is None:
+        plan = build_category_plan()
+    lines = _build_descriptor_section_lines(plan)
+    if not lines:
+        return ""
+    return "\n".join([core_descriptor_instructions_header(), *lines])
+
+
+def build_core_descriptor_instructions_resource_body(plan: dict[str, Any] | None = None) -> str:
+    """Mirror initialize.instructions from the Tools: block through Extra API capabilities."""
+    if plan is None:
+        plan = build_category_plan()
+    parts: list[str] = []
+    descriptor_lines = _build_descriptor_section_lines(plan)
+    if descriptor_lines:
+        parts.append("\n".join(descriptor_lines))
+    extra = build_extra_capabilities_section(plan)
+    if extra:
+        parts.append(extra)
+    return "\n".join(parts).strip()
 
 
 def _schema_type_name(schema: Any) -> str:

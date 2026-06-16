@@ -12,6 +12,7 @@ namespace Chievfx.Mcp.Editor
             new[]
             {
                 Resource("editor-context", "chievfx://editor/context", "Unity editor context", "Compact Unity editor, play mode, active scene, prefab stage, and selection context."),
+                Resource("instructions-core-descriptors", "chievfx://instructions/core-descriptors", "Core MCP descriptors", "Full compact tool/resource/prompt descriptor lines from initialize.instructions (Tools: through Extra API capabilities) when startup instructions are truncated."),
                 Resource("scenes-opened", "chievfx://scene/opened", "Opened scenes", "Opened Unity scenes and their load/dirty/build state."),
                 Resource("scene-all-usage-counts", "chievfx://scene/all/usage/counts", "Asset usage counts across loaded scenes", "Asset usage totals across all loaded scenes, grouped by common asset type."),
                 Resource("scene-all-material-profile-summary", "chievfx://scene/all/material-profile/summary", "Material profile across loaded scenes", "Read-only material profile across all loaded scenes with exact shader/material counts and profiler memory estimates."),

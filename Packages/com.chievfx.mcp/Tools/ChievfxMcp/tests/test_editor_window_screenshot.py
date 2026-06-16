@@ -262,7 +262,7 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
         metadata = mcp.build_tool_metadata()
         estimates = {tool["name"]: tool["estimatedTokens"] for tool in metadata["tools"]}
 
-        # events-wait/events-check-since intentionally keep per-property descriptions because
+        # events-wait/events-check-since/asset-find intentionally keep per-property descriptions because
         # correct usage is intuition-critical; they are exempt from the lean-descriptor cap.
         documented_tools = mcp.ADVERTISED_SCHEMA_DESCRIPTION_TOOLS
         lean_estimates = {name: value for name, value in estimates.items() if name not in documented_tools}

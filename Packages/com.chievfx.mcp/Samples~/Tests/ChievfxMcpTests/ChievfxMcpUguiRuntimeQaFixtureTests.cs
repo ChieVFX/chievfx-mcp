@@ -3,7 +3,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Chievfx.Mcp.Editor;
 using Chievfx.Mcp.Extensions.Ugui;
+using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -63,8 +65,7 @@ namespace Chievfx.Mcp.Editor.Tests
             Assert.IsTrue(visiblePaths.Any(path => path.EndsWith(ChievfxMcpUguiRuntimeQaFixture.TopButtonPath, StringComparison.Ordinal)));
             Assert.IsFalse(visiblePaths.Any(path => path.Contains("HiddenInactiveButton", StringComparison.Ordinal)));
 
-            var interactables = ReadResource("chievfx://extensions/chievfx.ugui/runtime/interactables");
-            var rows = Rows(interactables, "interactables");
+            var rows = CollectControlFindRows("ugui");
             Assert.IsTrue(rows.Any(row => ((string)row["path"]!).EndsWith(ChievfxMcpUguiRuntimeQaFixture.SliderPath, StringComparison.Ordinal)));
             Assert.IsTrue(rows.Any(row => ((string)row["path"]!).EndsWith(ChievfxMcpUguiRuntimeQaFixture.TogglePath, StringComparison.Ordinal)));
             Assert.IsTrue(rows.Any(row => ((string)row["path"]!).EndsWith(ChievfxMcpUguiRuntimeQaFixture.ScrollRectPath, StringComparison.Ordinal)));
@@ -215,6 +216,28 @@ namespace Chievfx.Mcp.Editor.Tests
                 "ugui-runtime-drag",
                 "{'targetPath':'" + ChievfxMcpUguiRuntimeQaFixture.SliderPath + "','startScreenPosition':{'x':" + dragStart.x.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",'y':" + dragStart.y.ToString(System.Globalization.CultureInfo.InvariantCulture) + "},'endScreenPosition':{'x':" + dragEnd.x.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",'y':" + dragEnd.y.ToString(System.Globalization.CultureInfo.InvariantCulture) + "},'allowStateMutation':true}");
             Assert.Greater(slider.value, 0.7f);
+        }
+
+        private static Dictionary<string, object?>[] CollectControlFindRows(string framework)
+        {
+            ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
+            var all = new List<Dictionary<string, object?>>();
+            var page = 1;
+            while (true)
+            {
+                var result = (Dictionary<string, object?>)ChievfxMcpRuntimeUiAdapterRegistry.ControlFind(
+                    JObject.Parse("{'framework':'" + framework + "','page':" + page.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}"))!;
+                all.AddRange(Rows(result, "controls"));
+                var totalPages = Convert.ToInt32(result["totalPages"], System.Globalization.CultureInfo.InvariantCulture);
+                if (page >= totalPages)
+                {
+                    break;
+                }
+
+                page++;
+            }
+
+            return all.ToArray();
         }
 
         private static Dictionary<string, object?> RunTool(string toolName, string argsJson)

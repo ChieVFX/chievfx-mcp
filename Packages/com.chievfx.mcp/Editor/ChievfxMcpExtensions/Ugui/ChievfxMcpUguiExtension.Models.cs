@@ -243,7 +243,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
         }
     }
 
-    internal sealed class UguiRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter, IChievfxMcpRuntimeUiTextInputAdapter
+    internal sealed class UguiRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter, IChievfxMcpRuntimeUiTextInputAdapter, IChievfxMcpRuntimeUiControlFindAdapter
     {
         public string FrameworkId => "ugui";
 
@@ -255,7 +255,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
         public object? Status => GetDependencyStatus().ToDictionary();
 
-        public IEnumerable<string> Resources => new[] { RuntimeStatusUri, RuntimeCanvasesUri, RuntimeVisibleTreeUri, RuntimeInteractablesUri };
+        public IEnumerable<string> Resources => new[] { RuntimeStatusUri, RuntimeCanvasesUri, RuntimeVisibleTreeUri };
 
         public object? ProbeScreenPosition(JToken request)
         {
@@ -265,6 +265,11 @@ namespace Chievfx.Mcp.Extensions.Ugui
         public object? TypeIntoFocusedTextField(JToken request, bool requireTarget)
         {
             return TypeTextIntoFocusedTextField(request, GetDependencyStatus(), requireTarget);
+        }
+
+        public object? FindControls(JToken request)
+        {
+            return ControlFind(request, GetDependencyStatus());
         }
     }
 }

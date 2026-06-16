@@ -13,7 +13,7 @@ Rules:
 If you add new prompt/resource records, keep `id`/`name` unique.
 
 ### RESOURCE
---- 
+---
 type: resource
 id: editor-context
 uri: chievfx://editor/context
@@ -22,7 +22,16 @@ description: Compact Unity editor, play mode, active scene, prefab stage, and se
 mimeType: text/plain
 ---
 
---- 
+---
+type: resource
+id: instructions-core-descriptors
+uri: chievfx://instructions/core-descriptors
+name: Core MCP descriptors
+description: Full compact tool/resource/prompt descriptor lines from initialize.instructions (Tools: through Extra API capabilities) when startup instructions are truncated.
+mimeType: text/plain
+---
+
+---
 type: resource
 id: scenes-opened
 uri: chievfx://scene/opened

@@ -362,7 +362,13 @@ class McpServerCore:
                 arguments,
             )
 
-        bridge_result = self.call_unity_bridge(name, arguments, request_id, progress_token, notify)
+        bridge_arguments = arguments
+        force_ui_control_find_json = name == "ui-control-find" and arguments.get("outputFormat") != "json"
+        if force_ui_control_find_json:
+            bridge_arguments = dict(arguments)
+            bridge_arguments["outputFormat"] = "json"
+
+        bridge_result = self.call_unity_bridge(name, bridge_arguments, request_id, progress_token, notify)
         if bridge_result.get("contentType") == "image":
             content: list[dict[str, Any]] = [
                 {
@@ -389,6 +395,24 @@ class McpServerCore:
             return result
 
         result = bridge_result.get("result")
+        if force_ui_control_find_json:
+            if not isinstance(result, dict):
+                retry_arguments = dict(arguments)
+                retry_arguments["outputFormat"] = "json"
+                bridge_result = self.call_unity_bridge(name, retry_arguments, request_id, progress_token, notify)
+                result = bridge_result.get("result")
+            if isinstance(result, dict):
+                normalize_coords = arguments.get("normalizeCoords") if "normalizeCoords" in arguments else None
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": format_ui_control_find_text(result, normalize_coords=normalize_coords),
+                        }
+                    ],
+                    "isError": False,
+                }
+
         text = (
             format_reflection_method_find_text(result)
             if name == "reflection-method-find" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
@@ -444,7 +468,7 @@ class McpServerCore:
             if name == "uitoolkit-runtime-interact" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_ugui_runtime_probe_text(result)
             if name in {
-                "runtime-ui-probe-screen-position",
+                "ui-runtime-probe",
                 "ugui-runtime-probe-screen-position",
                 "uitoolkit-runtime-probe-screen-position",
             }
@@ -464,7 +488,7 @@ class McpServerCore:
             if name == "ugui-canvas-ensure" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_camera_tool_text(name, result)
             if name in CAMERA_TOOL_NAMES and arguments.get("outputFormat") != "json" and isinstance(result, dict)
-            else format_tool_text(result, arguments)
+            else format_tool_result_text(name, result, arguments)
         )
         return {
             "content": [
@@ -537,7 +561,9 @@ class McpServerCore:
                     raise ResourceNotFoundError(message) from exc
                 raise
 
-        if (category_entry := get_category_resource_by_uri(uri)) is not None:
+        if resource_kind == "resource" and resource_id == INSTRUCTIONS_CORE_DESCRIPTORS_RESOURCE_ID:
+            text = truncate_resource_text(build_core_descriptor_instructions_resource_body())
+        elif (category_entry := get_category_resource_by_uri(uri)) is not None:
             text = truncate_resource_text(category_resource_body(category_entry))
         elif (extension_resource := get_extension_resource_by_uri(uri)) is not None:
             mime_type = extension_resource.get("mimeType") or RESOURCE_MIME_TYPE

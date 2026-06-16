@@ -77,6 +77,7 @@ DEFAULT_ALWAYS_SUPPLIED_CATEGORIES = [
     "Editor Window",
     "Script Execution / Tests",
     "Control",
+    "ui-runtime-common",
 ]
 EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION = 1
 EXTENSION_URI_PREFIX = "chievfx://extensions/"
@@ -225,6 +226,9 @@ TOOL_CATEGORIES = {
     "gameobject-transform-update": "GameObject",
     "gameobject-set-parent": "GameObject",
     "gameobject-duplicate": "GameObject",
+    "ui-control-find": "ui-runtime-common",
+    "ui-runtime-probe": "ui-runtime-common",
+    "ui-runtime-type-text": "ui-runtime-common",
     "prefab-open": "Prefab",
     "prefab-close": "Prefab",
     "prefab-save": "Prefab",
@@ -264,6 +268,7 @@ TOOL_CATEGORY_DESCRIPTIONS = {
     "Control": "Optional Play Mode keyboard and mouse input helpers for New Input System-driven control.",
     "Particles": "Optional built-in ParticleSystem authoring, playback, preview, and inspection helpers.",
     "Runtime UI": "Optional runtime UI screen-position probing across registered UI adapters.",
+    "ui-runtime-common": "Shared Play Mode runtime UI tools: cross-framework probe, control discovery, and text input.",
     "UI Toolkit": "Optional runtime UI Toolkit panel inspection and screen-position probing helpers.",
     "ugui-design": "Optional editor-time uGUI authoring helpers for Canvas, RectTransform, images, layout, TMP, and sprites.",
     "ugui-runtime-control": "Optional Play Mode uGUI probing and control helpers: hit stacks, clicks, drags, selection, and control values.",
@@ -272,6 +277,7 @@ TOOL_CATEGORY_DESCRIPTIONS = {
 DEFAULT_REQUIRED_RESOURCE_IDS: set[str] = {
     "control-status",
     "editor-context",
+    "instructions-core-descriptors",
     "runtime-ui-status",
     "scenes-opened",
 }
@@ -282,6 +288,7 @@ DEFAULT_REQUIRED_PROMPT_NAMES: set[str] = set()
 RESOURCE_CATEGORIES = {
     "control-status": "Essentials",
     "editor-context": "Essentials",
+    "instructions-core-descriptors": "Essentials",
     "runtime-ui-status": "Essentials",
     "scenes-opened": "Essentials",
     "scene-all-material-profile-summary": "Asset",
@@ -301,7 +308,7 @@ RESOURCE_TEMPLATE_CATEGORIES = {
     "scene-all-usage-subasset": "Asset",
 }
 RESOURCE_CATEGORY_DESCRIPTIONS = {
-    "Essentials": "Always-on editor, scene, runtime UI, and control status resources.",
+    "Essentials": "Always-on editor, scene, runtime UI, control status, and core MCP descriptor resources.",
     "GameObject": "GameObject and component drill-down resources.",
     "Asset": "Persisted AssetDatabase search and asset drill-down resources.",
     "cinemachine-and-timeline": "Cinemachine and Timeline extension resources for camera/cutscene inspection.",
@@ -469,8 +476,12 @@ RESPONSE_PROFILE_BY_TOOL = {
     "frame-debugger-events-list": "row-list",
     "frame-debugger-event-get": "status",
 }
+INSTRUCTIONS_CORE_DESCRIPTORS_RESOURCE_ID = "instructions-core-descriptors"
+CORE_DESCRIPTOR_INSTRUCTIONS_URI = "chievfx://instructions/core-descriptors"
+
 RESPONSE_PROFILE_BY_RESOURCE = {
     "editor-context": "status",
+    "instructions-core-descriptors": "guide",
     "scenes-opened": "row-list",
     "scene-go": "row-list",
     "scene-component": "serialized-component",
@@ -533,7 +544,7 @@ VECTOR3_REF: dict[str, str] = {"$ref": "#/$defs/Vector3"}
 ADVERTISED_SCHEMA_DETAIL_KEYS = {"$defs", "default", "description", "maximum", "minimum"}
 # Tools that are intuition-critical enough to justify keeping per-property descriptions in the
 # advertised schema (the agent-facing surface), instead of stripping them for leanness.
-ADVERTISED_SCHEMA_DESCRIPTION_TOOLS = {"events-wait", "events-check-since"}
+ADVERTISED_SCHEMA_DESCRIPTION_TOOLS = {"asset-find", "events-wait", "events-check-since"}
 ADVERTISED_VECTOR3_SCHEMA: dict[str, str] = {"type": "object"}
 ADVERTISED_PROPERTY_OMISSIONS: dict[str, set[str]] = {
     "assets-refresh": {"options"},

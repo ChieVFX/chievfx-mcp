@@ -49,7 +49,7 @@ class DebugInstructionsTests(unittest.TestCase):
         self.assertIn("# ChievFX MCP debug instructions", text)
         self.assertIn("Trigger: test-trigger", text)
         self.assertIn("## initialize.instructions", text)
-        self.assertIn("Enabled ChievFX MCP descriptors (compact instruction form):", text)
+        self.assertIn("Core descriptors (if list cut, read chievfx://instructions/core-descriptors):", text)
         self.assertIn("chievfx://editor/context", text)
         self.assertIn("chievfx://scene/opened", text)
         # The enabled scene-all-go template folds into the collapsed GameObject category

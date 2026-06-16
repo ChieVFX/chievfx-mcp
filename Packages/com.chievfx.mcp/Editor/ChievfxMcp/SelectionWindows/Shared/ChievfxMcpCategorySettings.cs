@@ -22,7 +22,8 @@ namespace Chievfx.Mcp.Editor
             "Essentials",
             "Editor Window",
             "Script Execution / Tests",
-            "Control"
+            "Control",
+            "ui-runtime-common",
         };
 
         internal sealed class Settings

@@ -3,16 +3,16 @@
 This project includes a local Unity MCP setup named `unity-mcp-chievfx`.
 Cursor talks to `Tools/ChievfxMcp/chievfx_mcp_server.py`; that server forwards tool calls to the Unity editor bridge at `Library/ChievfxMcpBridge`.
 
-The Unity editor bridge depends on `com.unity.nuget.newtonsoft-json` (Unity's official Newtonsoft.Json UPM package, version `3.2.2` or newer). This project's `Packages/manifest.json` already lists it; the [`Install/`](Install/) installer auto-adds it to other Unity projects when present-check fails.
+The Unity editor bridge depends on `com.unity.nuget.newtonsoft-json` (Unity's official Newtonsoft.Json UPM package, version `3.2.2` or newer). This project's `Packages/manifest.json` already lists it; the [`Packages/com.chievfx.mcp/Install/`](Packages/com.chievfx.mcp/Install/) installer auto-adds it to other Unity projects when present-check fails.
 
 ## Setup And Connection
 
 1. Open this Unity project and wait until compilation/domain reload completes.
 2. Open `Window > ChievFX > MCP`.
-3. Keep transport as `stdio` for normal Cursor use. Use `http` only when you need a long-running local HTTP server for manual testing.
+3. Keep transport as `stdio` for normal local client use. Use `http` only when you need a long-running local HTTP server for manual testing.
 4. Click `Start Bridge`.
-5. Click `Write Cursor Config`. This writes `.cursor/mcp.json` with `unity-mcp-chievfx`.
-6. Reload Cursor MCP tools or restart Cursor. The server should appear as `unity-mcp-chievfx`.
+5. Keep `Cursor` selected, or switch the client to `Claude Code` or `Codex`, then click `Write <client> Config`.
+6. Reload your MCP client's tools or restart it. The server should appear as `unity-mcp-chievfx` or the project-unique `unity-<hash>` name.
 
 The generated stdio config runs:
 
@@ -36,7 +36,7 @@ The generated stdio config runs:
 }
 ```
 
-Paths written by the Unity window are absolute in the real `.cursor/mcp.json`. The file is intentionally git-ignored because it is machine-local.
+Paths written by the Unity window are absolute in the real `.cursor/mcp.json`, `.mcp.json`, or `.codex/config.toml`. These files are intentionally git-ignored because they are machine-local.
 
 ## Tool Discovery
 
@@ -205,6 +205,17 @@ Use compact JSON when exact structure matters:
 ```
 
 Large text fields are trimmed. Console logs and reflection results also have default and hard limits, so prefer narrow filters before increasing result counts.
+
+### Custom formatters vs generic TOON
+
+Many tools use hand-authored Python formatters in `Tools/ChievfxMcp/chievfx_mcp_server_parts/formatters_*.py` instead of raw `to_toon()`. If you see generic TOON headers like `controls[4]:` on a tool that should have compact lines, the Python formatter likely did not run — usually because the **Cursor MCP stdio process is stale**, not because Unity failed.
+
+- **C# / bridge changes** — take effect after Unity `recompile`.
+- **Python formatter changes** — require **MCP server restart** (Reload Window or restart the server in Cursor MCP settings). `recompile` and descriptor reload do not reload Python.
+
+Some tools (e.g. `ui-control-find`) also format text in C# when `outputFormat` is not `json`, so correct output can appear even before MCP restart; restart MCP for clean multiline text without JSON quoting.
+
+To verify: call the tool via fresh in-process Python (`chievfx_mcp_server.McpServer.call_tool`) vs Cursor `CallMcpTool`. Mismatch → restart MCP.
 
 ## Common Workflows
 

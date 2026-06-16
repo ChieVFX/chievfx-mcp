@@ -515,24 +515,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return row;
         }
 
-        internal static Dictionary<string, object?>? CreateRuntimeInteractableRow(GameObject target, UguiDependencyStatus status)
-        {
-            var controls = GetControlComponents(target, status).ToArray();
-            if (controls.Length == 0)
-            {
-                return null;
-            }
-
-            var row = CreateRuntimeElementRow(target, status);
-            row["controls"] = controls.Select(component => new Dictionary<string, object?>
-            {
-                ["type"] = component.GetType().Name,
-                ["enabled"] = IsEnabledComponent(component),
-                ["interactable"] = GetPropertyValue(component, "interactable"),
-            }).ToArray();
-            return row;
-        }
-
         internal static bool IsRuntimeVisibleUiElement(GameObject target, UguiDependencyStatus status)
         {
             return target.activeInHierarchy
@@ -566,6 +548,59 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 status.InputFieldType,
             }.Where(type => type != null).Cast<Type>();
             return types.SelectMany(type => target.GetComponents(type).OfType<Component>()).ToArray();
+        }
+
+        internal static Component[] GetClickableControlComponents(GameObject target, UguiDependencyStatus status)
+        {
+            var controls = GetControlComponents(target, status).ToList();
+            var tmpInputFieldType = FindType("TMPro.TMP_InputField");
+            if (tmpInputFieldType != null)
+            {
+                controls.AddRange(target.GetComponents(tmpInputFieldType).OfType<Component>());
+            }
+
+            return controls
+                .GroupBy(component => component.GetInstanceID())
+                .Select(group => group.First())
+                .ToArray();
+        }
+
+        internal static bool IsEnabledClickableControl(GameObject target, Component control)
+        {
+            if (!target.activeInHierarchy || !IsEnabledComponent(control))
+            {
+                return false;
+            }
+
+            var interactable = GetPropertyValue(control, "interactable");
+            return interactable is not bool interactableValue || interactableValue;
+        }
+
+        internal static bool TryGetUguiScreenZone(
+            GameObject target,
+            UguiDependencyStatus status,
+            Vector2 screenSize,
+            out Dictionary<string, object?> zone)
+        {
+            zone = new Dictionary<string, object?>();
+            var screenRect = CreateScreenRectRow(target.GetComponent<RectTransform>(), status, normalizedCoords: false);
+            if (screenRect == null
+                || screenRect["rect"] is not Dictionary<string, object?> rect
+                || rect["xMin"] is not float xMin
+                || rect["yMin"] is not float yMin
+                || rect["xMax"] is not float xMax
+                || rect["yMax"] is not float yMax)
+            {
+                return false;
+            }
+
+            if (!ChievfxMcpRuntimeUiControlFind.IsZonePartiallyOnScreen(xMin, yMin, xMax, yMax, screenSize))
+            {
+                return false;
+            }
+
+            zone = ChievfxMcpRuntimeUiControlFind.CreateZoneRow(xMin, yMin, xMax, yMax, screenSize);
+            return true;
         }
 
         internal static object? GetFirstPropertyValue(GameObject target, string propertyName, params Type?[] componentTypes)

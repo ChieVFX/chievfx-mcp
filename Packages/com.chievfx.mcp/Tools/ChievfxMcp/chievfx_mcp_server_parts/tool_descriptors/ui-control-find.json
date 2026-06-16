@@ -1,0 +1,38 @@
+{
+  "name": "ui-control-find",
+  "description": "Find enabled, on-screen uGUI and UI Toolkit controls with compact paths, control types, and bottom-left screen click zones. Returns 10 controls per page; pass page to fetch more.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "framework": {
+        "type": "string",
+        "enum": ["all", "ugui", "uitoolkit"],
+        "default": "all",
+        "description": "Framework scope. all (default) searches uGUI and UI Toolkit."
+      },
+      "name": {
+        "type": "string",
+        "description": "Optional exact control name filter."
+      },
+      "controlType": {
+        "type": "string",
+        "description": "Optional control type filter, e.g. button, toggle, slider, dropdown, inputfield, scrollrect."
+      },
+      "page": {
+        "type": "integer",
+        "minimum": 1,
+        "default": 1,
+        "description": "1-based page index. Each page returns up to 10 enabled on-screen controls across all frameworks."
+      },
+      "normalizeCoords": {
+        "type": "boolean",
+        "default": false,
+        "description": "When true, zone bounds are normalized 0..1 from bottom-left (0) to top-right (1) using the current screen size. Text output uses D.DD except exact 0 and 1."
+      }
+    },
+    "additionalProperties": false
+  }
+}

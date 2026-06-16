@@ -111,6 +111,8 @@ InitTestScene*.unity*
 !.vkb/memory/
 .vibe-kanban/
 .cursor/mcp.json
+.mcp.json
+.codex/config.toml
 # Transient reload-mcps request/result handshake files (consumed by the extension).
 .cursor/reload-mcps.json
 .cursor/reload-mcps.result.json

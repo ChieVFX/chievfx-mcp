@@ -43,15 +43,22 @@ namespace Chievfx.Mcp.Editor
         object? TypeIntoFocusedTextField(JToken request, bool requireTarget);
     }
 
+    /// <summary>
+    /// Optional capability for listing enabled, on-screen clickable controls in a framework.
+    /// </summary>
+    internal interface IChievfxMcpRuntimeUiControlFindAdapter
+    {
+        object? FindControls(JToken request);
+    }
+
     internal static class ChievfxMcpRuntimeUiAdapterRegistry
     {
         private const string ExtensionId = "chievfx.runtime-ui";
-        private const string Category = "Runtime UI";
         private const string CommonCategory = "ui-runtime-common";
         private const string EssentialsCategory = "Essentials";
         private const string UriPrefix = "chievfx://extensions/chievfx.runtime-ui/";
         private const string StatusUri = UriPrefix + "status";
-        private const string ProbeToolName = "runtime-ui-probe-screen-position";
+        private const string ProbeToolName = "ui-runtime-probe";
         private const string TypeTextToolName = "ui-runtime-type-text";
         private const int DefaultMaxRows = 256;
 
@@ -119,7 +126,7 @@ namespace Chievfx.Mcp.Editor
             {
                 Name = ProbeToolName,
                 Description = "Probe Play Mode runtime UI hit stack at screen position. Requires Play Mode.",
-                Category = Category,
+                Category = CommonCategory,
                 InputSchema = RuntimeProbeSchema(),
             });
             descriptor.Tools.Add(new ChievfxMcpToolDescriptor
@@ -227,6 +234,119 @@ namespace Chievfx.Mcp.Editor
                 && row.TryGetValue("resolved", out var resolved)
                 && resolved is bool resolvedValue
                 && resolvedValue;
+        }
+
+        internal static object? ControlFind(JToken args)
+        {
+            var request = args is JObject obj ? obj : new JObject();
+            var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
+            var nameFilter = request["name"]?.Value<string>();
+            var controlTypeFilter = ChievfxMcpRuntimeUiControlFind.NormalizeControlTypeFilter(request["controlType"]?.Value<string>());
+            var pageSize = ChievfxMcpRuntimeUiControlFind.DefaultPageSize;
+            var warnings = new List<string>();
+            var controls = new List<Dictionary<string, object?>>();
+            var totalMatches = 0;
+            var sections = new List<Dictionary<string, object?>>();
+
+            foreach (var registered in SnapshotAdapters())
+            {
+                if (!ChievfxMcpRuntimeUiControlFind.MatchesFrameworkFilter(framework, registered.Adapter.FrameworkId))
+                {
+                    continue;
+                }
+
+                if (registered.Adapter is not IChievfxMcpRuntimeUiControlFindAdapter finder)
+                {
+                    continue;
+                }
+
+                if (!registered.Adapter.Available)
+                {
+                    warnings.Add($"Framework '{registered.Adapter.FrameworkId}' is unavailable.");
+                    sections.Add(new Dictionary<string, object?>
+                    {
+                        ["framework"] = registered.Adapter.FrameworkId,
+                        ["available"] = false,
+                        ["totalMatches"] = 0,
+                        ["controls"] = Array.Empty<Dictionary<string, object?>>(),
+                    });
+                    continue;
+                }
+
+                if (!TryReadDictionary(finder.FindControls(request.DeepClone()), out var section))
+                {
+                    continue;
+                }
+
+                sections.Add(section);
+                totalMatches += section.TryGetValue("totalMatches", out var total) && total is int totalValue ? totalValue : 0;
+                if (section.TryGetValue("warnings", out var sectionWarnings) && sectionWarnings is IEnumerable enumerable)
+                {
+                    foreach (var warning in enumerable)
+                    {
+                        if (warning != null)
+                        {
+                            warnings.Add(Convert.ToString(warning, CultureInfo.InvariantCulture) ?? string.Empty);
+                        }
+                    }
+                }
+
+                if (section.TryGetValue("controls", out var sectionControls) && sectionControls is IEnumerable controlRows)
+                {
+                    foreach (var controlRow in controlRows)
+                    {
+                        if (TryReadDictionary(controlRow, out var control))
+                        {
+                            controls.Add(control);
+                        }
+                    }
+                }
+            }
+
+            if (!ChievfxMcpRuntimeUiControlFind.IncludesAllFrameworks(framework)
+                && sections.Count == 0)
+            {
+                throw new ArgumentException($"No control-find adapter for framework '{framework}'. Available: {string.Join(", ", SnapshotAdapters().Where(registered => registered.Adapter is IChievfxMcpRuntimeUiControlFindAdapter).Select(registered => registered.Adapter.FrameworkId))}.");
+            }
+
+            var totalPages = Math.Max(1, (int)Math.Ceiling(totalMatches / (double)pageSize));
+            var page = Math.Max(1, ReadInt(request, "page", 1));
+            if (page > totalPages)
+            {
+                page = totalPages;
+            }
+
+            var normalizeCoords = ReadBool(request, "normalizeCoords", false);
+            var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
+            var selected = controls
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToArray();
+            var payload = new Dictionary<string, object?>
+            {
+                ["page"] = page,
+                ["totalPages"] = totalPages,
+                ["total"] = totalMatches,
+                ["nameFilter"] = nameFilter,
+                ["controlTypeFilter"] = controlTypeFilter,
+                ["normalizeCoords"] = normalizeCoords,
+                ["screenSize"] = new Dictionary<string, object?>
+                {
+                    ["width"] = (int)screenSize.x,
+                    ["height"] = (int)screenSize.y,
+                },
+                ["frameworkFilter"] = string.IsNullOrEmpty(framework) ? null : framework,
+                ["controls"] = selected,
+                ["frameworks"] = sections.ToArray(),
+                ["warnings"] = warnings.Where(warning => !string.IsNullOrWhiteSpace(warning)).Distinct().ToArray(),
+            };
+            var outputFormat = request["outputFormat"]?.Value<string>();
+            if (string.Equals(outputFormat, "json", StringComparison.OrdinalIgnoreCase))
+            {
+                return payload;
+            }
+
+            return payload;
         }
 
         private static object? ReadResource(string uri)
@@ -655,6 +775,11 @@ namespace Chievfx.Mcp.Editor
         private static int ReadInt(JToken token, string key, int defaultValue)
         {
             return token[key]?.Value<int?>() ?? defaultValue;
+        }
+
+        private static bool ReadBool(JToken token, string key, bool defaultValue)
+        {
+            return token[key]?.Value<bool?>() ?? defaultValue;
         }
 
         private static float ReadFloat(JToken token, string key, float defaultValue)

@@ -606,18 +606,15 @@ namespace Chievfx.Mcp.Extensions.Control
 
         private static void TryDispatchUiToolkitPointerDrag(Vector2 screenStartPosition, Vector2 screenDelta, int steps, List<string> warnings)
         {
-            var dryRunArgs = UiToolkitPointerDragArgs(screenStartPosition, screenDelta, steps, dryRun: true);
+            var args = UiRuntimeDragArgs(screenStartPosition, screenDelta, steps);
             try
             {
-                if (!Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry.TryRunTool("uitoolkit-runtime-interact", dryRunArgs, out var dryRunResult)
-                    || dryRunResult is not Dictionary<string, object?> dryRun
-                    || !dryRun.TryGetValue("target", out var target)
-                    || target == null)
+                if (!Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry.TryRunTool("ui-runtime-drag", args, out var result)
+                    || result is not Dictionary<string, object?> drag
+                    || !Equals(ReadObject(drag, "anyResolved"), true))
                 {
                     return;
                 }
-
-                Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry.TryRunTool("uitoolkit-runtime-interact", UiToolkitPointerDragArgs(screenStartPosition, screenDelta, steps, dryRun: false), out _);
             }
             catch (Exception ex)
             {
@@ -625,33 +622,17 @@ namespace Chievfx.Mcp.Extensions.Control
             }
         }
 
-        private static JObject UiToolkitPointerDragArgs(Vector2 screenStartPosition, Vector2 screenDelta, int steps, bool dryRun)
-        {
-            return new JObject
-            {
-                ["action"] = "pointerDrag",
-                ["normalized"] = NormalizedScreenPosition(screenStartPosition),
-                ["delta"] = new JObject { ["x"] = screenDelta.x, ["y"] = -screenDelta.y },
-                ["steps"] = Mathf.Clamp(steps, 1, 120),
-                ["dryRun"] = dryRun,
-                ["allowStateMutation"] = true,
-            };
-        }
-
         private static void TryDispatchUguiPointerDrag(Vector2 screenStartPosition, Vector2 screenDelta, List<string> warnings)
         {
-            var dryRunArgs = UguiPointerDragArgs(screenStartPosition, screenDelta, dryRun: true);
+            var args = UiRuntimeDragArgs(screenStartPosition, screenDelta, steps: null);
             try
             {
-                if (!Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry.TryRunTool("ugui-runtime-drag", dryRunArgs, out var dryRunResult)
-                    || dryRunResult is not Dictionary<string, object?> dryRun
-                    || !dryRun.TryGetValue("target", out var target)
-                    || target == null)
+                if (!Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry.TryRunTool("ui-runtime-drag", args, out var result)
+                    || result is not Dictionary<string, object?> drag
+                    || !Equals(ReadObject(drag, "anyResolved"), true))
                 {
                     return;
                 }
-
-                Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry.TryRunTool("ugui-runtime-drag", UguiPointerDragArgs(screenStartPosition, screenDelta, dryRun: false), out _);
             }
             catch (Exception ex)
             {
@@ -659,17 +640,22 @@ namespace Chievfx.Mcp.Extensions.Control
             }
         }
 
-        private static JObject UguiPointerDragArgs(Vector2 screenStartPosition, Vector2 screenDelta, bool dryRun)
+        private static JObject UiRuntimeDragArgs(Vector2 screenStartPosition, Vector2 screenDelta, int? steps)
         {
-            var start = NormalizedScreenPosition(screenStartPosition);
-            var end = NormalizedScreenPosition(screenStartPosition + screenDelta);
-            return new JObject
+            var args = new JObject
             {
-                ["startNormalized"] = start,
-                ["endNormalized"] = end,
-                ["dryRun"] = dryRun,
-                ["allowStateMutation"] = true,
+                ["framework"] = "all",
+                ["x"] = screenStartPosition.x,
+                ["y"] = screenStartPosition.y,
+                ["deltaX"] = screenDelta.x,
+                ["deltaY"] = screenDelta.y,
             };
+            if (steps.HasValue)
+            {
+                args["steps"] = Mathf.Clamp(steps.Value, 1, 120);
+            }
+
+            return args;
         }
 
         private static JObject NormalizedScreenPosition(Vector2 screenPosition)

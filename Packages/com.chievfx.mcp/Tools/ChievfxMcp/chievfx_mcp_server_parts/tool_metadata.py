@@ -136,6 +136,23 @@ def _build_advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
             },
             "additionalProperties": True,
         }
+    if tool_name == "ui-runtime-drag":
+        return {
+            "type": "object",
+            "properties": {
+                "framework": {"enum": ["all", "auto", "ugui", "uitoolkit"], "default": "all"},
+                "x": {"type": "number"},
+                "y": {"type": "number"},
+                "toX": {"type": "number"},
+                "toY": {"type": "number"},
+                "deltaX": {"type": "number"},
+                "deltaY": {"type": "number"},
+                "isNormalized": {"type": "boolean", "default": False},
+                "path": {"type": "string"},
+                "instanceId": {"type": "integer"},
+            },
+            "additionalProperties": True,
+        }
     if tool_name == "ugui-scrollrect-create":
         scalar = lambda kind: {"type": kind}
         return {

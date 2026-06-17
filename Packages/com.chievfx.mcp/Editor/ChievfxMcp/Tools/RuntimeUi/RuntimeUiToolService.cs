@@ -20,6 +20,12 @@ namespace Chievfx.Mcp.Editor
                 return true;
             }
 
+            if (string.Equals(toolName, ChievfxMcpRuntimeUiAdapterRegistry.DragToolName, StringComparison.Ordinal))
+            {
+                result = ChievfxMcpRuntimeUiAdapterRegistry.RuntimeDrag(args);
+                return true;
+            }
+
             result = null;
             return false;
         }

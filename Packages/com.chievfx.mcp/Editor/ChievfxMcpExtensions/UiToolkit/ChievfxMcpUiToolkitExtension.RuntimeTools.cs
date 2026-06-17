@@ -129,6 +129,65 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             return result;
         }
 
+        internal static Dictionary<string, object?> RuntimeDragAtPosition(JToken args, UiToolkitDependencyStatus status)
+        {
+            var warnings = new List<string>();
+            var geometry = ChievfxMcpRuntimeUiAdapterRegistry.ReadRuntimeDragGeometry(args, warnings);
+            var panelDelta = new Vector2(geometry.ScreenDelta.x, -geometry.ScreenDelta.y);
+            var dragArgs = args is JObject obj ? (JObject)obj.DeepClone() : new JObject();
+            dragArgs["x"] = geometry.Start.ScreenPosition.x;
+            dragArgs["y"] = geometry.Start.ScreenPosition.y;
+            dragArgs["isNormalized"] = false;
+            dragArgs["delta"] = new JObject { ["x"] = panelDelta.x, ["y"] = panelDelta.y };
+            if (args["steps"] != null)
+            {
+                dragArgs["steps"] = args["steps"];
+            }
+
+            var result = CreateEnvelope("tool://ui-runtime-drag#uitoolkit", status);
+            result["playMode"] = IsRuntimePlayModeActive();
+            result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
+            result["focusedElementBefore"] = CreateFocusedElementRow(status);
+            result["dispatchedEvents"] = Array.Empty<string>();
+            result["startCoordinateConvention"] = CreateScreenPositionRow(
+                new RuntimeScreenPosition(geometry.Start.ScreenPosition, geometry.Start.ScreenSize, geometry.Start.NormalizedPosition, false));
+            result["endCoordinateConvention"] = CreateScreenPositionRow(
+                new RuntimeScreenPosition(geometry.End.ScreenPosition, geometry.End.ScreenSize, geometry.End.NormalizedPosition, false));
+            result["screenDelta"] = CreateVector2Row(geometry.ScreenDelta);
+
+            var resolution = ResolveRuntimeInteractionTarget(dragArgs, status, warnings);
+            result["input"] = resolution.Position == null ? null : CreateScreenPositionRow(resolution.Position.Value);
+            result["panelPosition"] = resolution.PanelPosition.HasValue ? CreateVector2Row(resolution.PanelPosition.Value) : null;
+            result["resolvedBy"] = resolution.ResolvedBy;
+            result["stack"] = resolution.Stack;
+            result["target"] = resolution.Target == null ? null : CreateVisualElementRow(resolution.Target, status, resolution.Group ?? PanelGroup.FromElement(resolution.Target), includeTextAndValue: true);
+            result["targetStateBefore"] = resolution.Target == null ? null : CreateVisualElementStateRow(resolution.Target, status);
+            result["intendedHandler"] = resolution.Target == null
+                ? null
+                : new Dictionary<string, object?> { ["handler"] = "pointerDrag", ["events"] = PlannedEvents("pointerDrag") };
+
+            if (resolution.Target == null)
+            {
+                warnings.Add("No runtime UI Toolkit target resolved for drag.");
+            }
+            else if (!IsRuntimePlayModeActive())
+            {
+                throw new InvalidOperationException("Runtime UI Toolkit drag requires Play Mode. Enter Play Mode before firing interactions.");
+            }
+            else
+            {
+                result["dispatchedEvents"] = ApplyRuntimeInteraction("pointerDrag", resolution.Target, resolution.PanelPosition, dragArgs, warnings);
+            }
+
+            result["focusedElementAfter"] = CreateFocusedElementRow(status);
+            result["targetStateAfter"] = resolution.Target == null ? null : CreateVisualElementStateRow(resolution.Target, status);
+            result["warnings"] = warnings.Distinct().ToArray();
+            var resolved = result.TryGetValue("target", out var target) && target != null;
+            result["resolved"] = resolved;
+            result["framework"] = "uitoolkit";
+            return result;
+        }
+
         internal static Dictionary<string, object?> InteractRuntime(JToken args, UiToolkitDependencyStatus status)
         {
             var warnings = new List<string>();

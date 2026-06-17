@@ -153,19 +153,33 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return result;
         }
 
+        internal static Dictionary<string, object?> RuntimeDragAtPosition(JToken args, UguiDependencyStatus status)
+        {
+            var result = RuntimeDrag(args, status);
+            var resolved = result.TryGetValue("target", out var target) && target != null;
+            result["resolved"] = resolved;
+            result["framework"] = "ugui";
+            return result;
+        }
+
         internal static Dictionary<string, object?> RuntimeDrag(JToken args, UguiDependencyStatus status)
         {
             var warnings = new List<string>();
-            var dryRun = ReadBool(args, "dryRun", false);
-            var start = ReadNamedScreenPosition(args, "startScreenPosition", "startNormalized", warnings, status);
-            var end = ReadNamedScreenPosition(args, "endScreenPosition", "endNormalized", warnings, status);
-            var result = CreateRuntimeInteractionEnvelope("tool://ugui-runtime-drag", status, dryRun, args, warnings);
-            result["startCoordinateConvention"] = CreateCoordinateInfo(start);
-            result["endCoordinateConvention"] = CreateCoordinateInfo(end);
+            var geometry = ChievfxMcpRuntimeUiAdapterRegistry.ReadRuntimeDragGeometry(args, warnings);
+            var result = CreateRuntimeInteractionEnvelope("tool://ui-runtime-drag#ugui", status, dryRun: false, args, warnings);
+            result["startCoordinateConvention"] = CreateCoordinateInfo(
+                new RuntimeScreenPosition(geometry.Start.ScreenPosition, geometry.Start.ScreenSize, geometry.Start.NormalizedPosition, false));
+            result["endCoordinateConvention"] = CreateCoordinateInfo(
+                new RuntimeScreenPosition(geometry.End.ScreenPosition, geometry.End.ScreenSize, geometry.End.NormalizedPosition, false));
+            result["screenDelta"] = new Dictionary<string, object?>
+            {
+                ["x"] = geometry.ScreenDelta.x,
+                ["y"] = geometry.ScreenDelta.y,
+            };
 
-            var eventSystem = RequireRuntimeEventSystem(status, warnings, dryRun);
+            var eventSystem = RequireRuntimeEventSystem(status, warnings, dryRun: false);
             result["eventSystem"] = eventSystem == null ? null : CreateGameObjectRow(eventSystem.gameObject);
-            var target = ResolveRuntimeInteractionTarget(args, status, eventSystem, start.ScreenPosition, warnings, out var stack);
+            var target = ResolveRuntimeInteractionTarget(args, status, eventSystem, geometry.Start.ScreenPosition, warnings, out var stack);
             result["stack"] = stack;
             result["target"] = target == null ? null : CreateRuntimeElementRow(target, status);
             result["targetStateBefore"] = target == null ? null : CreateControlStateRow(target, status);
@@ -175,22 +189,23 @@ namespace Chievfx.Mcp.Extensions.Ugui
             {
                 warnings.Add("No runtime uGUI target resolved for drag.");
             }
-
-            if (!dryRun)
+            else if (!IsRuntimePlayModeActive())
             {
-                EnsureRuntimeMutationAllowed(args, warnings);
-                if (eventSystem == null || target == null)
-                {
-                    throw new InvalidOperationException("Runtime drag requires an active EventSystem and a resolved target.");
-                }
-
+                throw new InvalidOperationException("Runtime uGUI drag requires Play Mode. Enter Play Mode before firing interactions.");
+            }
+            else if (eventSystem == null)
+            {
+                throw new InvalidOperationException("Runtime drag requires an active EventSystem and a resolved target.");
+            }
+            else
+            {
                 var dragTarget = ExecuteEvents.GetEventHandler<IDragHandler>(target) ?? target;
-                var pointer = CreatePointerEventData(eventSystem, start.ScreenPosition);
+                var pointer = CreatePointerEventData(eventSystem, geometry.Start.ScreenPosition);
                 pointer.pointerDrag = dragTarget;
                 ExecuteEvents.Execute(dragTarget, pointer, ExecuteEvents.initializePotentialDrag);
                 ExecuteEvents.Execute(dragTarget, pointer, ExecuteEvents.beginDragHandler);
-                pointer.delta = end.ScreenPosition - start.ScreenPosition;
-                pointer.position = end.ScreenPosition;
+                pointer.delta = geometry.ScreenDelta;
+                pointer.position = geometry.End.ScreenPosition;
                 ExecuteEvents.Execute(dragTarget, pointer, ExecuteEvents.dragHandler);
                 ExecuteEvents.Execute(dragTarget, pointer, ExecuteEvents.endDragHandler);
             }

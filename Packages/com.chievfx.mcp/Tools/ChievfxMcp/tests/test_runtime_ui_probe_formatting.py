@@ -89,6 +89,40 @@ class RuntimeUiProbeFormattingTests(unittest.TestCase):
             ],
         )
 
+    def test_initialize_instructions_advertises_typed_drag_arguments(self) -> None:
+        schema = mcp.advertised_input_schema({"name": "ui-runtime-drag", "inputSchema": {}})
+        self.assertEqual(
+            _schema_arguments(schema),
+            "framework?:all|auto|ugui|uitoolkit, x?:num, y?:num, toX?:num, toY?:num, deltaX?:num, deltaY?:num, isNormalized?:bool, path?:str, instanceId?:int",
+        )
+
+        line = format_tool_for_initialize_instructions(
+            {
+                "name": "ui-runtime-drag",
+                "description": "Drag runtime UI.",
+                "inputSchema": schema,
+            }
+        )
+        self.assertIn(
+            "args=(framework?:all|auto|ugui|uitoolkit, x?:num, y?:num, toX?:num, toY?:num, deltaX?:num, deltaY?:num, isNormalized?:bool, path?:str, instanceId?:int)",
+            line,
+        )
+        self.assertEqual(
+            list(schema["properties"].keys()),
+            [
+                "framework",
+                "x",
+                "y",
+                "toX",
+                "toY",
+                "deltaX",
+                "deltaY",
+                "isNormalized",
+                "path",
+                "instanceId",
+            ],
+        )
+
         # Fallback path: manifest snapshot may arrive alphabetically sorted from Unity.
         manifest_tool = {
             "name": "ui-runtime-type-text",

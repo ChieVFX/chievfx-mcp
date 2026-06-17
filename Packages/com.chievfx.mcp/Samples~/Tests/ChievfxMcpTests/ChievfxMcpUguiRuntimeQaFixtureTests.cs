@@ -231,9 +231,8 @@ namespace Chievfx.Mcp.Editor.Tests
 
             var dragStart = SliderScreenPoint(slider, 0.1f);
             var dragEnd = SliderScreenPoint(slider, 0.9f);
-            RunTool(
-                "ugui-runtime-drag",
-                "{'targetPath':'" + ChievfxMcpUguiRuntimeQaFixture.SliderPath + "','startScreenPosition':{'x':" + dragStart.x.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",'y':" + dragStart.y.ToString(System.Globalization.CultureInfo.InvariantCulture) + "},'endScreenPosition':{'x':" + dragEnd.x.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",'y':" + dragEnd.y.ToString(System.Globalization.CultureInfo.InvariantCulture) + "},'allowStateMutation':true}");
+            RunUiRuntimeDrag(
+                "{'path':'" + ChievfxMcpUguiRuntimeQaFixture.SliderPath + "','framework':'ugui','x':" + dragStart.x.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",'y':" + dragStart.y.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",'toX':" + dragEnd.x.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",'toY':" + dragEnd.y.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}");
             Assert.Greater(slider.value, 0.7f);
         }
 
@@ -313,6 +312,12 @@ namespace Chievfx.Mcp.Editor.Tests
         {
             ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
             return (Dictionary<string, object?>)ChievfxMcpRuntimeUiAdapterRegistry.RuntimeClick(JObject.Parse(argsJson))!;
+        }
+
+        private static Dictionary<string, object?> RunUiRuntimeDrag(string argsJson)
+        {
+            ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
+            return (Dictionary<string, object?>)ChievfxMcpRuntimeUiAdapterRegistry.RuntimeDrag(JObject.Parse(argsJson))!;
         }
 
         private static Dictionary<string, object?> UguiClickSection(Dictionary<string, object?> result)

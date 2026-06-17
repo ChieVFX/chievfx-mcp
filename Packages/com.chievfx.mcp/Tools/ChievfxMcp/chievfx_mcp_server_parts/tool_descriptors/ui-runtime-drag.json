@@ -1,0 +1,56 @@
+{
+  "name": "ui-runtime-drag",
+  "description": "Drag Play Mode runtime UI from a start screen position to an end position or delta. Tries uGUI and UI Toolkit at the same bottom-left-origin coordinates used by ui-control-find. Requires Play Mode.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "framework": {
+        "type": "string",
+        "enum": ["all", "auto", "ugui", "uitoolkit"],
+        "default": "all",
+        "description": "Framework scope. all/auto (default) tries uGUI and UI Toolkit; ugui/uitoolkit force one."
+      },
+      "x": {
+        "type": "number",
+        "description": "Drag start screen x in pixels, or 0..1 when isNormalized is true."
+      },
+      "y": {
+        "type": "number",
+        "description": "Drag start screen y in pixels, or 0..1 when isNormalized is true."
+      },
+      "toX": {
+        "type": "number",
+        "description": "Drag end screen x in pixels, or 0..1 when isNormalized is true."
+      },
+      "toY": {
+        "type": "number",
+        "description": "Drag end screen y in pixels, or 0..1 when isNormalized is true."
+      },
+      "deltaX": {
+        "type": "number",
+        "description": "Drag delta x in pixels, or normalized width fraction when isNormalized is true. Alternative to toX/toY."
+      },
+      "deltaY": {
+        "type": "number",
+        "description": "Drag delta y in pixels, or normalized height fraction when isNormalized is true. Alternative to toX/toY."
+      },
+      "isNormalized": {
+        "type": "boolean",
+        "default": false,
+        "description": "When true, x/y/toX/toY/deltaX/deltaY use normalized bottom-left coordinates."
+      },
+      "path": {
+        "type": "string",
+        "description": "uGUI GameObject transform path, UI Toolkit VisualElement path, or visualElementRef (ve:...) from runtime reads/probes."
+      },
+      "instanceId": {
+        "type": "integer",
+        "description": "Optional uGUI GameObject instance id."
+      }
+    },
+    "additionalProperties": true
+  }
+}

@@ -60,6 +60,15 @@ namespace Chievfx.Mcp.Editor
         object? ClickAtPosition(JToken request);
     }
 
+    /// <summary>
+    /// Optional capability for dragging runtime UI at a screen position or explicit target.
+    /// Enables the shared cross-framework "ui-runtime-drag" tool.
+    /// </summary>
+    internal interface IChievfxMcpRuntimeUiDragAdapter
+    {
+        object? DragAtPosition(JToken request);
+    }
+
     internal static class ChievfxMcpRuntimeUiAdapterRegistry
     {
         private const string ExtensionId = "chievfx.runtime-ui";
@@ -70,6 +79,7 @@ namespace Chievfx.Mcp.Editor
         private const string ProbeToolName = "ui-runtime-probe";
         private const string TypeTextToolName = "ui-runtime-type-text";
         internal const string ClickToolName = "ui-runtime-click";
+        internal const string DragToolName = "ui-runtime-drag";
         private const int AdapterProbeMaxRows = 1024;
 
         private static readonly Regex FrameworkIdPattern = new(@"^[a-z0-9][a-z0-9._-]{0,127}$", RegexOptions.Compiled);
@@ -261,6 +271,262 @@ namespace Chievfx.Mcp.Editor
             }
 
             throw new ArgumentException($"Unknown click handler '{raw}'. Use pointerClick or submit.");
+        }
+
+        internal readonly struct RuntimeDragScreenGeometry
+        {
+            public RuntimeDragScreenGeometry(RuntimeScreenPosition start, RuntimeScreenPosition end, Vector2 screenDelta)
+            {
+                Start = start;
+                End = end;
+                ScreenDelta = screenDelta;
+            }
+
+            public RuntimeScreenPosition Start { get; }
+
+            public RuntimeScreenPosition End { get; }
+
+            public Vector2 ScreenDelta { get; }
+        }
+
+        internal static RuntimeDragScreenGeometry ReadRuntimeDragGeometry(JToken args, List<string> warnings)
+        {
+            var isNormalized = ReadBool(args, "isNormalized", false);
+            var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
+            RuntimeScreenPosition start;
+            if (TryReadDragScreenPoint(args, "x", "y", "startScreenPosition", "startNormalized", isNormalized, screenSize, out var startScreen))
+            {
+                start = ToRuntimeScreenPosition(startScreen, screenSize);
+            }
+            else
+            {
+                warnings.Add("No drag start position supplied; defaulted to normalized center (0.5, 0.5).");
+                start = new RuntimeScreenPosition(screenSize * 0.5f, screenSize, new Vector2(0.5f, 0.5f));
+            }
+
+            RuntimeScreenPosition end;
+            if (TryReadDragScreenPoint(args, "toX", "toY", "endScreenPosition", "endNormalized", isNormalized, screenSize, out var endScreen))
+            {
+                end = ToRuntimeScreenPosition(endScreen, screenSize);
+            }
+            else if (TryReadDragScreenDelta(args, isNormalized, screenSize, out var screenDelta))
+            {
+                endScreen = startScreen + screenDelta;
+                end = ToRuntimeScreenPosition(endScreen, screenSize);
+            }
+            else
+            {
+                throw new ArgumentException("ui-runtime-drag requires toX/toY or deltaX/deltaY (or legacy endScreenPosition/endNormalized or delta:{x,y}).");
+            }
+
+            var delta = end.ScreenPosition - start.ScreenPosition;
+            return new RuntimeDragScreenGeometry(start, end, delta);
+        }
+
+        internal static object? RuntimeDrag(JToken args)
+        {
+            ChievfxMcpRuntimeUiProbeCompact.EnsurePlayModeForProbe(EditorApplication.isPlaying || Application.isPlaying);
+
+            var request = args is JObject obj ? obj : new JObject();
+            var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
+            var warnings = new List<string>();
+            var geometry = ReadRuntimeDragGeometry(request, warnings);
+            var dragAdapters = SnapshotAdapters()
+                .Where(registered => registered.Adapter is IChievfxMcpRuntimeUiDragAdapter)
+                .Where(registered => ChievfxMcpRuntimeUiControlFind.MatchesFrameworkFilter(framework, registered.Adapter.FrameworkId))
+                .ToArray();
+
+            if (!ChievfxMcpRuntimeUiControlFind.IncludesAllFrameworks(framework) && dragAdapters.Length == 0)
+            {
+                throw new ArgumentException(
+                    $"No drag adapter for framework '{framework}'. Available: {string.Join(", ", SnapshotAdapters().Where(registered => registered.Adapter is IChievfxMcpRuntimeUiDragAdapter).Select(registered => registered.Adapter.FrameworkId))}.");
+            }
+
+            var sections = new List<Dictionary<string, object?>>();
+            var anyResolved = false;
+            var anyDragged = false;
+
+            foreach (var registered in dragAdapters)
+            {
+                var adapter = registered.Adapter;
+                if (!adapter.Available)
+                {
+                    warnings.Add($"Framework '{adapter.FrameworkId}' is unavailable.");
+                    sections.Add(CreateDragSection(adapter.FrameworkId, available: false, resolved: false, dragged: false, detail: null));
+                    continue;
+                }
+
+                Dictionary<string, object?>? dragDetail;
+                try
+                {
+                    dragDetail = ReadDragDetail(((IChievfxMcpRuntimeUiDragAdapter)adapter).DragAtPosition(request));
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"ui-runtime-drag failed for framework '{adapter.FrameworkId}': {RootMessage(ex)}", ex);
+                }
+
+                var resolved = ReadResolvedFlag(dragDetail);
+                var dragged = resolved;
+                if (resolved)
+                {
+                    anyResolved = true;
+                    anyDragged = true;
+                }
+
+                sections.Add(CreateDragSection(adapter.FrameworkId, available: true, resolved: resolved, dragged: dragged, detail: dragDetail));
+            }
+
+            if (!ChievfxMcpRuntimeUiControlFind.IncludesAllFrameworks(framework) && !anyResolved)
+            {
+                throw new InvalidOperationException(
+                    $"ui-runtime-drag could not resolve a {framework} target at the supplied start position or explicit target.");
+            }
+
+            if (!anyResolved)
+            {
+                warnings.Add("No uGUI or UI Toolkit target resolved at the drag start position. Use ui-control-find or ui-runtime-probe to inspect draggable controls and coordinates.");
+            }
+
+            return new Dictionary<string, object?>
+            {
+                ["uri"] = "tool://" + DragToolName,
+                ["playMode"] = EditorApplication.isPlaying || Application.isPlaying,
+                ["frameworkFilter"] = string.IsNullOrEmpty(framework) ? "all" : framework,
+                ["startCoordinateConvention"] = CreateCoordinateConvention(geometry.Start, request),
+                ["endCoordinateConvention"] = CreateCoordinateConvention(geometry.End, request),
+                ["screenDelta"] = new Dictionary<string, object?>
+                {
+                    ["x"] = RoundCoordinate(geometry.ScreenDelta.x),
+                    ["y"] = RoundCoordinate(geometry.ScreenDelta.y),
+                },
+                ["anyResolved"] = anyResolved,
+                ["anyDragged"] = anyDragged,
+                ["frameworks"] = sections.ToArray(),
+                ["warnings"] = warnings.Where(warning => !string.IsNullOrWhiteSpace(warning)).Distinct().ToArray(),
+            };
+        }
+
+        private static bool TryReadDragScreenPoint(
+            JToken args,
+            string xKey,
+            string yKey,
+            string legacyScreenKey,
+            string legacyNormalizedKey,
+            bool isNormalized,
+            Vector2 screenSize,
+            out Vector2 screenPoint)
+        {
+            if (args[xKey] != null || args[yKey] != null)
+            {
+                var x = ReadFloat(args, xKey, 0f);
+                var y = ReadFloat(args, yKey, 0f);
+                screenPoint = isNormalized
+                    ? new Vector2(x * screenSize.x, y * screenSize.y)
+                    : new Vector2(x, y);
+                return true;
+            }
+
+            if (TryReadVector2(args[legacyScreenKey], out screenPoint))
+            {
+                return true;
+            }
+
+            if (TryReadVector2(args[legacyNormalizedKey], out var normalized))
+            {
+                screenPoint = new Vector2(normalized.x * screenSize.x, normalized.y * screenSize.y);
+                return true;
+            }
+
+            screenPoint = default;
+            return false;
+        }
+
+        private static bool TryReadDragScreenDelta(JToken args, bool isNormalized, Vector2 screenSize, out Vector2 screenDelta)
+        {
+            if (args["deltaX"] != null || args["deltaY"] != null)
+            {
+                var deltaX = ReadFloat(args, "deltaX", 0f);
+                var deltaY = ReadFloat(args, "deltaY", 0f);
+                screenDelta = isNormalized
+                    ? new Vector2(deltaX * screenSize.x, deltaY * screenSize.y)
+                    : new Vector2(deltaX, deltaY);
+                return true;
+            }
+
+            if (TryReadVector2(args["delta"], out screenDelta))
+            {
+                return true;
+            }
+
+            screenDelta = default;
+            return false;
+        }
+
+        private static RuntimeScreenPosition ToRuntimeScreenPosition(Vector2 screenPoint, Vector2 screenSize)
+        {
+            return new RuntimeScreenPosition(
+                screenPoint,
+                screenSize,
+                new Vector2(screenPoint.x / screenSize.x, screenPoint.y / screenSize.y));
+        }
+
+        private static Dictionary<string, object?>? ReadDragDetail(object? result)
+        {
+            return TryReadDictionary(result, out var detail) ? detail : null;
+        }
+
+        private static Dictionary<string, object?> CreateDragSection(
+            string frameworkId,
+            bool available,
+            bool resolved,
+            bool dragged,
+            Dictionary<string, object?>? detail)
+        {
+            var section = new Dictionary<string, object?>
+            {
+                ["framework"] = frameworkId,
+                ["available"] = available,
+                ["resolved"] = resolved,
+                ["dragged"] = dragged,
+            };
+
+            if (detail == null)
+            {
+                return section;
+            }
+
+            if (detail.TryGetValue("target", out var target))
+            {
+                section["target"] = target;
+            }
+
+            if (detail.TryGetValue("intendedHandler", out var handler))
+            {
+                section["handler"] = handler;
+            }
+
+            if (detail.TryGetValue("dispatchedEvents", out var events))
+            {
+                section["events"] = events;
+            }
+
+            if (detail.TryGetValue("selectedObjectAfter", out var selectedAfter))
+            {
+                section["selectedAfter"] = selectedAfter;
+            }
+
+            if (detail.TryGetValue("focusedElementAfter", out var focusedAfter))
+            {
+                section["focusedAfter"] = focusedAfter;
+            }
+
+            if (detail.TryGetValue("targetStateAfter", out var targetStateAfter))
+            {
+                section["targetStateAfter"] = targetStateAfter;
+            }
+
+            return section;
         }
 
         internal static object? RuntimeClick(JToken args)
@@ -1124,7 +1390,7 @@ namespace Chievfx.Mcp.Editor
             public int RegistrationOrder { get; }
         }
 
-        private readonly struct RuntimeScreenPosition
+        internal readonly struct RuntimeScreenPosition
         {
             public RuntimeScreenPosition(Vector2 screenPosition, Vector2 screenSize, Vector2 normalizedPosition)
             {

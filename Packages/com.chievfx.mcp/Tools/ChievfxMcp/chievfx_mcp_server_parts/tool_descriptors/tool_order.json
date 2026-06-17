@@ -46,6 +46,7 @@
     "gameobject-duplicate",
     "ui-control-find",
     "ui-runtime-click",
+    "ui-runtime-drag",
     "prefab-open",
     "prefab-close",
     "prefab-save",

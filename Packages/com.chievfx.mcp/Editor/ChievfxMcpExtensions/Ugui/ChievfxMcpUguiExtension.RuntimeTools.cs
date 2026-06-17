@@ -502,7 +502,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             status.CanvasType?.GetMethod("ForceUpdateCanvases", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
 
             var warnings = new List<string>();
-            var nameFilter = ReadString(args, "name");
+            var wildcards = ChievfxMcpRuntimeUiControlFind.ParseWildcards(args, "wildcards");
             var controlTypeFilter = ChievfxMcpRuntimeUiControlFind.NormalizeControlTypeFilter(ReadString(args, "controlType"));
             var screenSize = ResolveRuntimeUiScreenSize(status);
             var matches = FindCanvases(status, includeInactive: false)
@@ -512,8 +512,9 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 .Distinct()
                 .SelectMany(target => GetClickableControlComponents(target, status).Select(control => (target, control)))
                 .Where(pair => IsEnabledClickableControl(pair.target, pair.control))
-                .Where(pair => string.IsNullOrWhiteSpace(nameFilter) || string.Equals(pair.target.name, nameFilter, StringComparison.Ordinal))
-                .Select(pair => (pair.target, pair.control, controlType: ChievfxMcpRuntimeUiControlFind.NormalizeControlType(pair.control.GetType())))
+                .Select(pair => (pair.target, pair.control, path: GetTransformPath(pair.target.transform)))
+                .Where(entry => ChievfxMcpRuntimeUiControlFind.MatchesWildcards(entry.target.name, entry.path, wildcards))
+                .Select(entry => (entry.target, entry.control, controlType: ChievfxMcpRuntimeUiControlFind.NormalizeControlType(entry.control.GetType())))
                 .Where(entry => string.IsNullOrWhiteSpace(controlTypeFilter)
                     || string.Equals(entry.controlType, controlTypeFilter, StringComparison.Ordinal))
                 .Where(entry => TryGetUguiScreenZone(entry.target, status, screenSize, out _))
@@ -540,7 +541,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 ["available"] = status.Available,
                 ["playMode"] = IsRuntimePlayModeActive(),
                 ["totalMatches"] = matches.Length,
-                ["nameFilter"] = nameFilter,
+                ["wildcards"] = wildcards.Length == 0 ? null : wildcards,
                 ["controlTypeFilter"] = controlTypeFilter,
                 ["controls"] = rows,
                 ["warnings"] = warnings.ToArray(),

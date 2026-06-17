@@ -110,10 +110,15 @@ def _build_advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
             "type": "object",
             "properties": {
                 "framework": {"enum": ["all", "ugui", "uitoolkit"], "default": "all"},
-                "name": {},
-                "controlType": {},
-                "page": {},
-                "normalizeCoords": {},
+                "wildcards": {
+                    "oneOf": [
+                        {"type": "string"},
+                        {"type": "array", "items": {"type": "string"}},
+                    ]
+                },
+                "controlType": {"type": "string"},
+                "page": {"type": "integer"},
+                "normalizeCoords": {"type": "boolean"},
             },
             "additionalProperties": False,
         }

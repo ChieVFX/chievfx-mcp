@@ -449,7 +449,7 @@ namespace Chievfx.Mcp.Editor
         {
             var request = args is JObject obj ? obj : new JObject();
             var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
-            var nameFilter = request["name"]?.Value<string>();
+            var wildcards = ChievfxMcpRuntimeUiControlFind.ParseWildcards(request, "wildcards");
             var controlTypeFilter = ChievfxMcpRuntimeUiControlFind.NormalizeControlTypeFilter(request["controlType"]?.Value<string>());
             var pageSize = ChievfxMcpRuntimeUiControlFind.DefaultPageSize;
             var warnings = new List<string>();
@@ -536,7 +536,7 @@ namespace Chievfx.Mcp.Editor
                 ["page"] = page,
                 ["totalPages"] = totalPages,
                 ["total"] = totalMatches,
-                ["nameFilter"] = nameFilter,
+                ["wildcards"] = wildcards.Length == 0 ? null : wildcards,
                 ["controlTypeFilter"] = controlTypeFilter,
                 ["normalizeCoords"] = normalizeCoords,
                 ["screenSize"] = new Dictionary<string, object?>

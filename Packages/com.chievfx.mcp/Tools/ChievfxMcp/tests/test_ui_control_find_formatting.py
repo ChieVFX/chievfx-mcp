@@ -9,6 +9,16 @@ import chievfx_mcp_server as mcp  # noqa: E402
 
 
 class UiControlFindFormattingTests(unittest.TestCase):
+    def test_advertised_schema_uses_wildcards_not_name(self) -> None:
+        schema = mcp.advertised_input_schema({"name": "ui-control-find", "inputSchema": {}})
+        properties = schema["properties"]
+        self.assertIn("wildcards", properties)
+        self.assertNotIn("name", properties)
+        self.assertEqual(properties["framework"]["enum"], ["all", "ugui", "uitoolkit"])
+        self.assertEqual(properties["controlType"]["type"], "string")
+        self.assertEqual(properties["page"]["type"], "integer")
+        self.assertEqual(properties["normalizeCoords"]["type"], "boolean")
+
     def test_renders_page_header_and_compact_rows(self) -> None:
         result = {
             "page": 1,

@@ -2,7 +2,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 namespace Chievfx.Mcp.Editor
@@ -10,6 +12,64 @@ namespace Chievfx.Mcp.Editor
     internal static class ChievfxMcpRuntimeUiControlFind
     {
         internal const int DefaultPageSize = 10;
+
+        internal static string[] ParseWildcards(JToken args, string key)
+        {
+            if (args is not JObject obj || obj[key] == null || obj[key]!.Type == JTokenType.Null)
+            {
+                return Array.Empty<string>();
+            }
+
+            var token = obj[key]!;
+            if (token.Type == JTokenType.String)
+            {
+                var pattern = token.Value<string>()?.Trim();
+                if (string.IsNullOrEmpty(pattern))
+                {
+                    return Array.Empty<string>();
+                }
+
+                GameObjectBridgeService.ValidateWildcardPattern(pattern, key);
+                return new[] { pattern };
+            }
+
+            if (token.Type == JTokenType.Array)
+            {
+                var patterns = new List<string>();
+                foreach (var item in token)
+                {
+                    if (item?.Type != JTokenType.String)
+                    {
+                        continue;
+                    }
+
+                    var pattern = item.Value<string>()?.Trim();
+                    if (string.IsNullOrEmpty(pattern))
+                    {
+                        continue;
+                    }
+
+                    GameObjectBridgeService.ValidateWildcardPattern(pattern, key);
+                    patterns.Add(pattern);
+                }
+
+                return patterns.ToArray();
+            }
+
+            throw new ArgumentException($"{key} must be a string or string array.");
+        }
+
+        internal static bool MatchesWildcards(string name, string path, IReadOnlyList<string> wildcards)
+        {
+            if (wildcards == null || wildcards.Count == 0)
+            {
+                return true;
+            }
+
+            return wildcards.Any(pattern =>
+                GameObjectBridgeService.WildcardMatches(name, pattern)
+                || GameObjectBridgeService.WildcardMatches(path, pattern));
+        }
 
         internal static bool IncludesAllFrameworks(string? frameworkFilter)
         {

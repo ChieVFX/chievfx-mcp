@@ -13,9 +13,20 @@
         "default": "all",
         "description": "Framework scope. all (default) searches uGUI and UI Toolkit."
       },
-      "name": {
-        "type": "string",
-        "description": "Optional exact control name filter."
+      "wildcards": {
+        "description": "Optional wildcard filter on control name or compact path. Use * and ? like gameobject-find namePattern. String or string array; matches if any pattern hits.",
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          }
+        ]
       },
       "controlType": {
         "type": "string",

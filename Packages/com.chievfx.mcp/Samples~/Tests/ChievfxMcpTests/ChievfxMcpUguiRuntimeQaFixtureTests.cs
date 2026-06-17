@@ -75,6 +75,27 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [UnityTest]
+        public System.Collections.IEnumerator ControlFindWildcardsFilterMatchesPathSegments()
+        {
+            RequireUgui();
+            OpenFixtureScene();
+            DisableEventSystemInputModules();
+
+            yield return new EnterPlayMode();
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
+            var result = (Dictionary<string, object?>)ChievfxMcpRuntimeUiAdapterRegistry.ControlFind(
+                JObject.Parse("{'framework':'ugui','wildcards':'*TopButton'}"))!;
+            var paths = Rows(result, "controls").Select(row => (string)row["path"]!).ToArray();
+            Assert.GreaterOrEqual(paths.Length, 1);
+            Assert.IsTrue(paths.All(path => path.Contains("TopButton", StringComparison.OrdinalIgnoreCase)));
+            Assert.IsFalse(paths.Any(path => path.Contains("BottomButton", StringComparison.OrdinalIgnoreCase)));
+        }
+
+        [UnityTest]
         public System.Collections.IEnumerator RuntimeProbeMatchesVisibleTopCanvasAtCenterMarker()
         {
             RequireUgui();

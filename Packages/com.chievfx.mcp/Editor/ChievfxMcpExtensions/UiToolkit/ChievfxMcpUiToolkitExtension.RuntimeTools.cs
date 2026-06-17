@@ -149,7 +149,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         internal static Dictionary<string, object?> ControlFind(JToken args, UiToolkitDependencyStatus status)
         {
             var warnings = new List<string>();
-            var nameFilter = ReadString(args, "name");
+            var wildcards = ChievfxMcpRuntimeUiControlFind.ParseWildcards(args, "wildcards");
             var controlTypeFilter = ChievfxMcpRuntimeUiControlFind.NormalizeControlTypeFilter(ReadString(args, "controlType"));
             var playMode = IsRuntimePlayModeActive();
             if (!playMode && FindRuntimeDocuments(status).Length == 0)
@@ -182,8 +182,8 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                         }
 
                         var elementName = ReadMemberString(item.Element, "name");
-                        if (!string.IsNullOrWhiteSpace(nameFilter)
-                            && !string.Equals(elementName, nameFilter, StringComparison.Ordinal))
+                        var elementPath = GetVisualElementPath(item.Element);
+                        if (!ChievfxMcpRuntimeUiControlFind.MatchesWildcards(elementName, elementPath, wildcards))
                         {
                             continue;
                         }
@@ -232,7 +232,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 ["playMode"] = playMode,
                 ["runtimeAvailable"] = playMode,
                 ["totalMatches"] = matches.Count,
-                ["nameFilter"] = nameFilter,
+                ["wildcards"] = wildcards.Length == 0 ? null : wildcards,
                 ["controlTypeFilter"] = controlTypeFilter,
                 ["controls"] = rows,
                 ["warnings"] = warnings.ToArray(),

@@ -35,6 +35,65 @@ namespace Chievfx.Mcp.Editor
             };
         }
 
+        internal static Dictionary<string, object?> CreateMergedProbeResult(
+            Dictionary<string, object?> probe,
+            bool runtimeAvailable,
+            int page,
+            int totalPages,
+            int totalHits,
+            bool truncated,
+            IReadOnlyList<string> warnings,
+            Dictionary<string, object?>? ugui = null,
+            Dictionary<string, object?>? uitoolkit = null)
+        {
+            var result = new Dictionary<string, object?>
+            {
+                ["probe"] = probe,
+                ["runtimeAvailable"] = runtimeAvailable,
+                ["page"] = page,
+                ["totalPages"] = totalPages,
+                ["totalHits"] = totalHits,
+                ["pageSize"] = ChievfxMcpRuntimeUiControlFind.DefaultPageSize,
+                ["truncated"] = truncated,
+                ["warnings"] = warnings.Distinct().ToArray(),
+            };
+            if (ugui != null)
+            {
+                result["ugui"] = ugui;
+            }
+
+            if (uitoolkit != null)
+            {
+                result["uitoolkit"] = uitoolkit;
+            }
+
+            return result;
+        }
+
+        internal static Dictionary<string, object?> PaginateProbeSection(
+            Dictionary<string, object?> section,
+            int page,
+            int pageSize)
+        {
+            var hits = section.TryGetValue("hits", out var hitsValue)
+                ? ReadHitArray(hitsValue)
+                : Array.Empty<Dictionary<string, object?>>();
+            var totalHits = hits.Length;
+            var pageHits = hits
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToArray();
+            for (var index = 0; index < pageHits.Length; index++)
+            {
+                pageHits[index]["i"] = (page - 1) * pageSize + index;
+            }
+
+            section["hits"] = pageHits;
+            section["count"] = pageHits.Length;
+            section["totalHits"] = totalHits;
+            return section;
+        }
+
         internal static Dictionary<string, object?> CreateProbeResult(
             Dictionary<string, object?> probe,
             bool runtimeAvailable,

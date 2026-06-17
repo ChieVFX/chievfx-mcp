@@ -46,7 +46,7 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
             Assert.AreEqual(2, uguiClickCount, "Touch MCP events should drive uGUI through InputSystemUIInputModule.");
 
             var uiToolkitPoint = UiToolkitButtonScreenPoint();
-            var uiToolkitProbe = RunRuntimeUiProbe(ScreenPositionArgs(uiToolkitPoint));
+            var uiToolkitProbe = RunRuntimeUiProbe(ProbeScreenArgs(uiToolkitPoint));
             Assert.Greater(
                 Convert.ToInt32(Row(uiToolkitProbe, "uitoolkit")["count"], CultureInfo.InvariantCulture),
                 0,
@@ -148,6 +148,15 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
             }
 
             return json + "}";
+        }
+
+        private static string ProbeScreenArgs(Vector2 position)
+        {
+            return "{'x':"
+                + position.x.ToString(CultureInfo.InvariantCulture)
+                + ",'y':"
+                + position.y.ToString(CultureInfo.InvariantCulture)
+                + "}";
         }
 
         private static string ScreenPositionArgs(Vector2 position)

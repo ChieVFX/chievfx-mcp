@@ -402,14 +402,23 @@ def format_ugui_runtime_probe_text(result: dict[str, Any]) -> str:
 def format_runtime_ui_probe_markdown_from_adapters(result: dict[str, Any]) -> str:
     lines: list[str] = ["## Runtime UI probe", ""]
 
+    page = result.get("page")
+    total_pages = result.get("totalPages")
+    if page is not None and total_pages is not None:
+        lines.append(f"page:{page}/{total_pages}")
+        lines.append("")
+
     runtime_available = result.get("runtimeAvailable")
     truncated = result.get("truncated")
+    total_hits = result.get("totalHits")
     max_rows = result.get("maxRows")
     meta_parts: list[str] = []
     if runtime_available is not None:
         meta_parts.append(f"**Runtime available:** {'yes' if runtime_available else 'no'}")
-    if truncated is not None:
-        meta_parts.append(f"**Truncated:** {'yes' if truncated else 'no'}")
+    if total_hits is not None:
+        meta_parts.append(f"**Total hits:** {total_hits}")
+    if truncated is True:
+        meta_parts.append("**Truncated:** yes")
     if max_rows is not None:
         meta_parts.append(f"**Max rows:** {max_rows}")
     if meta_parts:
@@ -466,14 +475,23 @@ def format_runtime_ui_probe_markdown_from_adapters(result: dict[str, Any]) -> st
 def format_runtime_ui_probe_markdown(result: dict[str, Any]) -> str:
     lines: list[str] = ["## Runtime UI probe", ""]
 
+    page = result.get("page")
+    total_pages = result.get("totalPages")
+    if page is not None and total_pages is not None:
+        lines.append(f"page:{page}/{total_pages}")
+        lines.append("")
+
     runtime_available = result.get("runtimeAvailable")
     truncated = result.get("truncated")
-    max_rows = result.get("maxRows")
+    total_hits = result.get("totalHits")
     meta_parts: list[str] = []
     if runtime_available is not None:
         meta_parts.append(f"**Runtime available:** {'yes' if runtime_available else 'no'}")
-    if truncated is not None:
-        meta_parts.append(f"**Truncated:** {'yes' if truncated else 'no'}")
+    if total_hits is not None:
+        meta_parts.append(f"**Total hits:** {total_hits}")
+    if truncated is True:
+        meta_parts.append("**Truncated:** yes")
+    max_rows = result.get("maxRows")
     if max_rows is not None:
         meta_parts.append(f"**Max rows:** {max_rows}")
     if meta_parts:
@@ -612,8 +630,11 @@ def format_framework_probe_section_markdown(
         if panel_text:
             header_parts.append(f"**Panel screen:** {panel_text}")
     count = section.get("count")
+    total_hits = section.get("totalHits")
+    if total_hits is not None:
+        header_parts.append(f"**Total hits:** {total_hits}")
     if count is not None:
-        header_parts.append(f"**Hits:** {count}")
+        header_parts.append(f"**Hits on page:** {count}")
     if section.get("truncated") is True:
         header_parts.append("**Truncated:** yes")
     if header_parts:

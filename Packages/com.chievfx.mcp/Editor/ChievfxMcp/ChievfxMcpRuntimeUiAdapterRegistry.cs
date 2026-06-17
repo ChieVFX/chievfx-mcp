@@ -70,7 +70,7 @@ namespace Chievfx.Mcp.Editor
         private const string ProbeToolName = "ui-runtime-probe";
         private const string TypeTextToolName = "ui-runtime-type-text";
         internal const string ClickToolName = "ui-runtime-click";
-        private const int DefaultMaxRows = 256;
+        private const int AdapterProbeMaxRows = 1024;
 
         private static readonly Regex FrameworkIdPattern = new(@"^[a-z0-9][a-z0-9._-]{0,127}$", RegexOptions.Compiled);
         private static readonly object SyncRoot = new();
@@ -135,7 +135,7 @@ namespace Chievfx.Mcp.Editor
             descriptor.Tools.Add(new ChievfxMcpToolDescriptor
             {
                 Name = ProbeToolName,
-                Description = "Probe Play Mode runtime UI hit stack at screen position. Requires Play Mode.",
+                Description = "Probe Play Mode runtime UI hit stack at a screen position. Bottom-left origin is (0,0); top-right is screen size in pixels or (1,1) when isNormalized is true. Returns up to 10 hits per page; pass page to fetch more. Requires Play Mode.",
                 Category = CommonCategory,
                 InputSchema = RuntimeProbeSchema(),
             });
@@ -648,42 +648,99 @@ namespace Chievfx.Mcp.Editor
             ChievfxMcpRuntimeUiProbeCompact.EnsurePlayModeForProbe(EditorApplication.isPlaying || Application.isPlaying);
 
             var request = args is JObject obj ? obj : new JObject();
-            var maxRows = Mathf.Clamp(ReadInt(request, "maxRows", DefaultMaxRows), 1, 1024);
+            var pageSize = ChievfxMcpRuntimeUiControlFind.DefaultPageSize;
             var warnings = new List<string>();
-            var position = ReadScreenPosition(request, warnings);
+            var position = ReadProbeScreenPosition(request, warnings);
             var probe = ChievfxMcpRuntimeUiProbeCompact.CreateProbeBlock(
                 position.ScreenSize,
                 position.ScreenPosition,
                 position.NormalizedPosition);
+            var adapterRequest = CreateAdapterProbeRequest(request, position);
 
             Dictionary<string, object?>? uguiSection = null;
             Dictionary<string, object?>? uitoolkitSection = null;
             var anyProbed = false;
             var truncated = false;
+            var uguiTotalHits = 0;
+            var uitoolkitTotalHits = 0;
 
             foreach (var registered in SnapshotAdapters())
             {
                 var adapter = registered.Adapter;
                 if (string.Equals(adapter.FrameworkId, "ugui", StringComparison.Ordinal))
                 {
-                    uguiSection = ProbeAdapterSection(adapter, request, "ugui", position, ref anyProbed, ref truncated);
+                    uguiSection = ProbeAdapterSection(adapter, adapterRequest, "ugui", position, ref anyProbed, ref truncated);
+                    uguiTotalHits = ReadSectionTotalHits(uguiSection);
                     continue;
                 }
 
                 if (string.Equals(adapter.FrameworkId, "uitoolkit", StringComparison.Ordinal))
                 {
-                    uitoolkitSection = ProbeAdapterSection(adapter, request, "uitoolkit", position, ref anyProbed, ref truncated);
+                    uitoolkitSection = ProbeAdapterSection(adapter, adapterRequest, "uitoolkit", position, ref anyProbed, ref truncated);
+                    uitoolkitTotalHits = ReadSectionTotalHits(uitoolkitSection);
                 }
             }
 
-            return ChievfxMcpRuntimeUiProbeCompact.CreateProbeResult(
+            var totalHits = uguiTotalHits + uitoolkitTotalHits;
+            var totalPages = Math.Max(
+                1,
+                Math.Max(
+                    (int)Math.Ceiling(uguiTotalHits / (double)pageSize),
+                    (int)Math.Ceiling(uitoolkitTotalHits / (double)pageSize)));
+            var page = Math.Max(1, ReadInt(request, "page", 1));
+            if (page > totalPages)
+            {
+                page = totalPages;
+            }
+
+            if (uguiSection != null)
+            {
+                ChievfxMcpRuntimeUiProbeCompact.PaginateProbeSection(uguiSection, page, pageSize);
+            }
+
+            if (uitoolkitSection != null)
+            {
+                ChievfxMcpRuntimeUiProbeCompact.PaginateProbeSection(uitoolkitSection, page, pageSize);
+            }
+
+            return ChievfxMcpRuntimeUiProbeCompact.CreateMergedProbeResult(
                 probe,
                 runtimeAvailable: anyProbed,
-                maxRows,
+                page,
+                totalPages,
+                totalHits,
                 truncated,
                 warnings,
                 uguiSection,
                 uitoolkitSection);
+        }
+
+        private static JObject CreateAdapterProbeRequest(JObject request, RuntimeScreenPosition position)
+        {
+            var adapterRequest = (JObject)request.DeepClone();
+            adapterRequest.Remove("x");
+            adapterRequest.Remove("y");
+            adapterRequest.Remove("isNormalized");
+            adapterRequest.Remove("page");
+            adapterRequest.Remove("normalized");
+            adapterRequest.Remove("maxRows");
+            adapterRequest["screenPosition"] = new JObject
+            {
+                ["x"] = position.ScreenPosition.x,
+                ["y"] = position.ScreenPosition.y,
+            };
+            adapterRequest["maxRows"] = AdapterProbeMaxRows;
+            return adapterRequest;
+        }
+
+        private static int ReadSectionTotalHits(Dictionary<string, object?> section)
+        {
+            if (section.TryGetValue("hits", out var hitsValue))
+            {
+                return ChievfxMcpRuntimeUiProbeCompact.ReadHits(new Dictionary<string, object?> { ["hits"] = hitsValue }, string.Empty).Length;
+            }
+
+            return 0;
         }
 
         private static Dictionary<string, object?> ProbeAdapterSection(
@@ -857,6 +914,46 @@ namespace Chievfx.Mcp.Editor
             }
         }
 
+        private static RuntimeScreenPosition ReadProbeScreenPosition(JToken args, List<string> warnings)
+        {
+            var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
+            var isNormalized = ReadBool(args, "isNormalized", false);
+            float x;
+            float y;
+
+            if (args["x"] != null || args["y"] != null)
+            {
+                x = ReadFloat(args, "x", 0f);
+                y = ReadFloat(args, "y", 0f);
+            }
+            else if (TryReadVector2(args["screenPosition"], out var screenPosition))
+            {
+                x = screenPosition.x;
+                y = screenPosition.y;
+            }
+            else if (TryReadVector2(args["normalized"], out var legacyNormalized))
+            {
+                isNormalized = true;
+                x = legacyNormalized.x;
+                y = legacyNormalized.y;
+            }
+            else
+            {
+                throw new ArgumentException("ui-runtime-probe requires x and y coordinates.");
+            }
+
+            if (isNormalized)
+            {
+                var normalized = new Vector2(x, y);
+                return new RuntimeScreenPosition(
+                    new Vector2(normalized.x * screenSize.x, normalized.y * screenSize.y),
+                    screenSize,
+                    normalized);
+            }
+
+            return RuntimeScreenPosition.FromScreenPosition(new Vector2(x, y));
+        }
+
         private static RuntimeScreenPosition ReadScreenPosition(JToken args, List<string> warnings)
         {
             var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
@@ -872,7 +969,19 @@ namespace Chievfx.Mcp.Editor
 
             if (args["x"] != null || args["y"] != null)
             {
-                return RuntimeScreenPosition.FromScreenPosition(new Vector2(ReadFloat(args, "x", 0f), ReadFloat(args, "y", 0f)));
+                var isNormalized = ReadBool(args, "isNormalized", false);
+                var x = ReadFloat(args, "x", 0f);
+                var y = ReadFloat(args, "y", 0f);
+                if (isNormalized)
+                {
+                    var normalizedPosition = new Vector2(x, y);
+                    return new RuntimeScreenPosition(
+                        new Vector2(normalizedPosition.x * screenSize.x, normalizedPosition.y * screenSize.y),
+                        screenSize,
+                        normalizedPosition);
+                }
+
+                return RuntimeScreenPosition.FromScreenPosition(new Vector2(x, y));
             }
 
             warnings.Add("No screen position supplied; defaulted to normalized center (0.5, 0.5).");
@@ -884,19 +993,23 @@ namespace Chievfx.Mcp.Editor
             return new JObject
             {
                 ["type"] = "object",
+                ["required"] = new JArray("x", "y"),
                 ["properties"] = new JObject
                 {
-                    ["screenPosition"] = Vector2Schema("Bottom-left-origin screen position in pixels."),
-                    ["normalized"] = Vector2Schema("Normalized bottom-left-origin screen position, where 0.5/0.5 is screen center."),
-                    ["x"] = NumberSchema("Bottom-left-origin screen x in pixels."),
-                    ["y"] = NumberSchema("Bottom-left-origin screen y in pixels."),
-                    ["maxRows"] = new JObject
+                    ["x"] = NumberSchema("Screen X. Bottom-left origin is 0; top-right is screen width in pixels, or 1 when isNormalized is true."),
+                    ["y"] = NumberSchema("Screen Y. Bottom-left origin is 0; top-right is screen height in pixels, or 1 when isNormalized is true."),
+                    ["isNormalized"] = new JObject
+                    {
+                        ["type"] = "boolean",
+                        ["default"] = false,
+                        ["description"] = "When true, x/y are normalized 0..1 from bottom-left (0,0) to top-right (1,1). When false (default), x/y are pixels.",
+                    },
+                    ["page"] = new JObject
                     {
                         ["type"] = "integer",
                         ["minimum"] = 1,
-                        ["maximum"] = 1024,
-                        ["default"] = DefaultMaxRows,
-                        ["description"] = "Maximum merged hit rows to return.",
+                        ["default"] = 1,
+                        ["description"] = "1-based page index. Each page returns up to 10 hits per framework section.",
                     },
                 },
                 ["additionalProperties"] = true,

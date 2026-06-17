@@ -39,7 +39,7 @@ Expected marker points with the default `PanelSettings` scale:
 5. Probe the center marker:
 
 ```json
-{"tool":"ui-runtime-probe","arguments":{"normalized":{"x":0.25,"y":0.75}}}
+{"tool":"ui-runtime-probe","arguments":{"x":0.25,"y":0.75,"isNormalized":true}}
 ```
 
 Expected proof:

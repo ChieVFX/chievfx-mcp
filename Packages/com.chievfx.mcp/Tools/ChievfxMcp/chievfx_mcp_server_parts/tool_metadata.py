@@ -57,12 +57,12 @@ def advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "x": {},
-                "y": {},
-                "screenPosition": {},
-                "normalized": {},
-                "maxRows": {},
+                "x": {"type": "number"},
+                "y": {"type": "number"},
+                "isNormalized": {"type": "boolean", "default": False},
+                "page": {"type": "integer", "minimum": 1, "default": 1},
             },
+            "required": ["x", "y"],
             "additionalProperties": True,
         }
     if tool_name == "ui-control-find":

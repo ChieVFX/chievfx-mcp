@@ -74,7 +74,7 @@ namespace Chievfx.Mcp.Editor.Tests
 
             var ex = Assert.Throws<InvalidOperationException>(() => RunExtensionTool(
                 "ui-runtime-probe",
-                "{'normalized':{'x':0.5,'y':0.5}}"));
+                "{'x':0.5,'y':0.5,'isNormalized':true}"));
 
             StringAssert.Contains("Play Mode", ex!.Message);
             StringAssert.Contains("probe", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -174,7 +174,7 @@ namespace Chievfx.Mcp.Editor.Tests
             yield return PopulateAndSettleUiToolkit();
 
             var screenPoint = NormalizedScreenPoint(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized);
-            var probe = RunExtensionTool("ui-runtime-probe", NormalizedPositionArgs(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized, maxRows: 12));
+            var probe = RunExtensionTool("ui-runtime-probe", ProbePositionArgs(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized));
 
             Assert.AreEqual(true, probe["runtimeAvailable"]);
             var probeInfo = Row(probe, "probe");
@@ -198,7 +198,7 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [UnityTest]
-        public IEnumerator RuntimeProbeMaxRowsTruncatesStackButKeepsPanelSummary()
+        public IEnumerator RuntimeProbePagesHits()
         {
             RequireUiToolkit();
             OpenFixtureScene();
@@ -206,12 +206,20 @@ namespace Chievfx.Mcp.Editor.Tests
             yield return new EnterPlayMode();
             yield return PopulateAndSettleUiToolkit();
 
-            var probe = RunExtensionTool("ui-runtime-probe", NormalizedPositionArgs(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized, maxRows: 1));
+            var probe = RunExtensionTool("ui-runtime-probe", ProbePositionArgs(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized, page: 1));
 
             var uitoolkit = Row(probe, "uitoolkit");
-            Assert.AreEqual(1, uitoolkit["count"]);
-            Assert.AreEqual(1, Rows(uitoolkit, "hits").Length);
-            Assert.AreEqual(true, probe["truncated"]);
+            Assert.AreEqual(1, probe["page"]);
+            Assert.LessOrEqual(Rows(uitoolkit, "hits").Length, 10);
+            Assert.AreEqual(Rows(uitoolkit, "hits").Length, uitoolkit["count"]);
+            var totalHits = Convert.ToInt32(uitoolkit["totalHits"], System.Globalization.CultureInfo.InvariantCulture);
+            var totalPages = Convert.ToInt32(probe["totalPages"], System.Globalization.CultureInfo.InvariantCulture);
+            Assert.AreEqual(Math.Max(1, (int)Math.Ceiling(totalHits / 10.0)), totalPages);
+            if (totalPages > 1)
+            {
+                var pageTwo = RunExtensionTool("ui-runtime-probe", ProbePositionArgs(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized, page: 2));
+                Assert.AreEqual(2, pageTwo["page"]);
+            }
         }
 
         [UnityTest]
@@ -284,7 +292,7 @@ namespace Chievfx.Mcp.Editor.Tests
             yield return PopulateAndSettleUiToolkit();
 
             ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
-            var probe = RunExtensionTool("ui-runtime-probe", NormalizedPositionArgs(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized, maxRows: 8));
+            var probe = RunExtensionTool("ui-runtime-probe", ProbePositionArgs(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized));
             var probeInfo = Row(probe, "probe");
             var uitoolkit = Row(probe, "uitoolkit");
             var expected = NormalizedScreenPoint(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized);
@@ -393,15 +401,15 @@ namespace Chievfx.Mcp.Editor.Tests
             return new Vector2(normalized.x * Screen.width, normalized.y * Screen.height);
         }
 
-        private static string NormalizedPositionArgs(Vector2 normalized, int? maxRows = null)
+        private static string ProbePositionArgs(Vector2 normalized, int? page = null)
         {
-            var json = "{'normalized':{'x':"
+            var json = "{'x':"
                 + normalized.x.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 + ",'y':"
                 + normalized.y.ToString(System.Globalization.CultureInfo.InvariantCulture)
-                + "}";
-            return maxRows.HasValue
-                ? json + ",'maxRows':" + maxRows.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}"
+                + ",'isNormalized':true";
+            return page.HasValue
+                ? json + ",'page':" + page.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}"
                 : json + "}";
         }
     }

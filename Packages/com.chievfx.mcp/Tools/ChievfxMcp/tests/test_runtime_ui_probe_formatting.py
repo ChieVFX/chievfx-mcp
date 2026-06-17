@@ -5,13 +5,33 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import chievfx_mcp_server as mcp  # noqa: E402
+from chievfx_mcp_server_parts.initialize_instructions import (  # noqa: E402
+    _schema_arguments,
+    format_tool_for_initialize_instructions,
+)
 
 
 class RuntimeUiProbeFormattingTests(unittest.TestCase):
+    def test_initialize_instructions_advertises_typed_probe_arguments(self) -> None:
+        schema = mcp.advertised_input_schema({"name": "ui-runtime-probe", "inputSchema": {}})
+        self.assertEqual(_schema_arguments(schema), "x:num, y:num, isNormalized?:bool, page?:int")
+
+        line = format_tool_for_initialize_instructions(
+            {
+                "name": "ui-runtime-probe",
+                "description": "Probe runtime UI.",
+                "inputSchema": schema,
+            }
+        )
+        self.assertIn("args=(x:num, y:num, isNormalized?:bool, page?:int)", line)
+
     def test_merged_probe_renders_markdown_sections(self) -> None:
         result = {
             "runtimeAvailable": True,
-            "maxRows": 32,
+            "page": 1,
+            "totalPages": 2,
+            "totalHits": 12,
+            "pageSize": 10,
             "truncated": False,
             "probe": {
                 "origin": "bottom-left",
@@ -53,6 +73,7 @@ class RuntimeUiProbeFormattingTests(unittest.TestCase):
         text = mcp.format_ugui_runtime_probe_text(result)
 
         self.assertIn("## Runtime UI probe", text)
+        self.assertIn("page:1/2", text)
         self.assertIn("### Probe position", text)
         self.assertIn("origin bottom-left · normalized 0.01, 0.01 · screen 25.60, 14.40", text)
         self.assertIn("### uGUI", text)

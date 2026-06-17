@@ -41,7 +41,7 @@ Expected marker points:
 3. Probe the center marker:
 
 ```json
-{"tool":"ui-runtime-probe","arguments":{"normalized":{"x":0.5,"y":0.5}}}
+{"tool":"ui-runtime-probe","arguments":{"x":0.5,"y":0.5,"isNormalized":true}}
 ```
 
 Expected proof:
@@ -55,7 +55,7 @@ Expected proof:
 4. Probe disabled control marker:
 
 ```json
-{"tool":"ui-runtime-probe","arguments":{"normalized":{"x":0.75,"y":0.25}}}
+{"tool":"ui-runtime-probe","arguments":{"x":0.75,"y":0.25,"isNormalized":true}}
 ```
 
 Expected proof:
@@ -67,7 +67,7 @@ Expected proof:
 5. Probe outside bounds:
 
 ```json
-{"tool":"ui-runtime-probe","arguments":{"normalized":{"x":1.2,"y":0.5}}}
+{"tool":"ui-runtime-probe","arguments":{"x":1.2,"y":0.5,"isNormalized":true}}
 ```
 
 Expected proof:

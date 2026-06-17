@@ -88,7 +88,7 @@ namespace Chievfx.Mcp.Editor.Tests
 
             var probe = RunExtensionTool(
                 "ui-runtime-probe",
-                ScreenPositionArgs(RectCenterScreenPoint(ChievfxMcpUguiRuntimeQaFixture.TopButtonPath)));
+                ProbeScreenArgs(RectCenterScreenPoint(ChievfxMcpUguiRuntimeQaFixture.TopButtonPath)));
             Assert.AreEqual(true, probe["runtimeAvailable"]);
             Assert.AreEqual("bottom-left", Row(probe, "probe")["origin"]);
             var hits = Rows(Row(probe, "ugui"), "hits");
@@ -113,7 +113,7 @@ namespace Chievfx.Mcp.Editor.Tests
             Canvas.ForceUpdateCanvases();
             yield return null;
 
-            var probe = RunExtensionTool("ui-runtime-probe", "{'normalized':{'x':1.2,'y':0.5}}");
+            var probe = RunExtensionTool("ui-runtime-probe", "{'x':1.2,'y':0.5,'isNormalized':true}");
             Assert.AreEqual(true, probe["runtimeAvailable"]);
             Assert.AreEqual(0, Row(probe, "ugui")["count"]);
             Assert.IsTrue(StringArray(probe, "warnings").Any(warning => warning.Contains("outside current screen/game-view bounds", StringComparison.Ordinal)));
@@ -131,7 +131,7 @@ namespace Chievfx.Mcp.Editor.Tests
             Canvas.ForceUpdateCanvases();
             yield return null;
 
-            var probe = RunExtensionTool("ui-runtime-probe", "{'normalized':{'x':0.5,'y':0.5}}");
+            var probe = RunExtensionTool("ui-runtime-probe", "{'x':0.5,'y':0.5,'isNormalized':true}");
             Assert.AreEqual(true, probe["runtimeAvailable"]);
             Assert.AreEqual(0, Row(probe, "ugui")["count"]);
             Assert.IsTrue(StringArray(probe, "warnings").Any(warning => warning.Contains("No active EventSystem.current", StringComparison.Ordinal)));
@@ -151,12 +151,12 @@ namespace Chievfx.Mcp.Editor.Tests
 
             var disabledProbe = RunExtensionTool(
                 "ui-runtime-probe",
-                ScreenPositionArgs(RectCenterScreenPoint(ChievfxMcpUguiRuntimeQaFixture.DisabledButtonPath)));
+                ProbeScreenArgs(RectCenterScreenPoint(ChievfxMcpUguiRuntimeQaFixture.DisabledButtonPath)));
             var disabledTop = Rows(Row(disabledProbe, "ugui"), "hits")[0];
             StringAssert.EndsWith(ChievfxMcpUguiRuntimeQaFixture.DisabledButtonPath, (string)disabledTop["path"]!);
             Assert.AreEqual(false, disabledTop["interactable"]);
 
-            var hiddenProbe = RunExtensionTool("ui-runtime-probe", "{'normalized':{'x':0.1,'y':0.1}}");
+            var hiddenProbe = RunExtensionTool("ui-runtime-probe", "{'x':0.1,'y':0.1,'isNormalized':true}");
             var hiddenStack = Rows(Row(hiddenProbe, "ugui"), "hits");
             Assert.IsFalse(hiddenStack.Any(row => ((string)row["path"]!).Contains("HiddenInactiveButton", StringComparison.Ordinal)));
         }
@@ -361,6 +361,17 @@ namespace Chievfx.Mcp.Editor.Tests
         {
             var rect = (RectTransform)GameObject.Find(path)!.transform;
             return RectTransformUtility.WorldToScreenPoint(null, rect.position);
+        }
+
+        private static string ProbeScreenArgs(Vector2 screenPosition, int? page = null)
+        {
+            var json = "{'x':"
+                + screenPosition.x.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + ",'y':"
+                + screenPosition.y.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return page.HasValue
+                ? json + ",'page':" + page.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}"
+                : json + "}";
         }
 
         private static string ScreenPositionArgs(Vector2 screenPosition)

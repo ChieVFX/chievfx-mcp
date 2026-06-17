@@ -190,7 +190,7 @@ namespace Chievfx.Mcp.Editor.Tests
             ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
 
             var ex = Assert.Throws<InvalidOperationException>(() =>
-                RunExtensionTool("ui-runtime-probe", "{'normalized':{'x':0.5,'y':0.5}}"));
+                RunExtensionTool("ui-runtime-probe", "{'x':0.5,'y':0.5,'isNormalized':true}"));
 
             StringAssert.Contains("Play Mode", ex!.Message);
             StringAssert.Contains("probe", ex.Message, StringComparison.OrdinalIgnoreCase);

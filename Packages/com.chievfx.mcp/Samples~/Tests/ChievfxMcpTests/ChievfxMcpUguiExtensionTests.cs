@@ -566,7 +566,7 @@ namespace Chievfx.Mcp.Editor.Tests
             RequireUgui();
 
             var ex = Assert.Throws<InvalidOperationException>(() =>
-                RunExtensionTool("ui-runtime-probe", "{'normalized':{'x':0.5,'y':0.5}}"));
+                RunExtensionTool("ui-runtime-probe", "{'x':0.5,'y':0.5,'isNormalized':true}"));
 
             StringAssert.Contains("Play Mode", ex!.Message);
             StringAssert.Contains("probe", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -587,7 +587,7 @@ namespace Chievfx.Mcp.Editor.Tests
             Canvas.ForceUpdateCanvases();
             yield return null;
 
-            var probe = RunExtensionTool("ui-runtime-probe", "{'normalized':{'x':0.5,'y':0.5}}");
+            var probe = RunExtensionTool("ui-runtime-probe", "{'x':0.5,'y':0.5,'isNormalized':true}");
             Assert.AreEqual(true, probe["runtimeAvailable"]);
             var hits = Rows(Row(probe, "ugui"), "hits");
             Assert.GreaterOrEqual(hits.Length, 2, string.Join("; ", StringArray(probe, "warnings")));

@@ -260,6 +260,20 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
         internal static Component? ResolveSettableControl(GameObject target, UguiDependencyStatus status)
         {
+            for (var current = target.transform; current != null; current = current.parent)
+            {
+                var control = ResolveSettableControlOnGameObject(current.gameObject, status);
+                if (control != null)
+                {
+                    return control;
+                }
+            }
+
+            return null;
+        }
+
+        internal static Component? ResolveSettableControlOnGameObject(GameObject target, UguiDependencyStatus status)
+        {
             if (target.GetComponent<Slider>() is Slider slider)
             {
                 return slider;
@@ -312,9 +326,31 @@ namespace Chievfx.Mcp.Extensions.Ugui
         {
             var control = ResolveSettableControl(target, status)
                 ?? throw new ArgumentException($"Target '{GetTransformPath(target.transform)}' has no supported settable uGUI control.");
+            ApplyRuntimeControlValue(control, args["value"] ?? args["text"] ?? args["isOn"], invokeCallbacks, status);
+        }
+
+        internal static void ApplyRuntimeControlValue(Component control, JToken? valueToken, bool invokeCallbacks, UguiDependencyStatus status)
+        {
             if (control is Slider slider)
             {
-                var value = ReadFloat(args, "value", slider.value);
+                if (!ChievfxMcpRuntimeUiControlValueParsing.TryParseFlexibleFloat(valueToken, out var value))
+                {
+                    throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                        "Slider",
+                        valueToken,
+                        $"Expected number in range [{slider.minValue.ToString(CultureInfo.InvariantCulture)}, {slider.maxValue.ToString(CultureInfo.InvariantCulture)}].",
+                        new object[] { slider.minValue, slider.maxValue });
+                }
+
+                if (value < slider.minValue || value > slider.maxValue)
+                {
+                    throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                        "Slider",
+                        valueToken,
+                        $"Out of range [{slider.minValue.ToString(CultureInfo.InvariantCulture)}, {slider.maxValue.ToString(CultureInfo.InvariantCulture)}].",
+                        new object[] { slider.minValue, slider.maxValue });
+                }
+
                 if (invokeCallbacks)
                 {
                     slider.value = value;
@@ -329,7 +365,24 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
             if (control is Scrollbar scrollbar)
             {
-                var value = ReadFloat(args, "value", scrollbar.value);
+                if (!ChievfxMcpRuntimeUiControlValueParsing.TryParseFlexibleFloat(valueToken, out var value))
+                {
+                    throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                        "Scrollbar",
+                        valueToken,
+                        "Expected number in range [0, 1].",
+                        new object[] { 0f, 1f });
+                }
+
+                if (value < 0f || value > 1f)
+                {
+                    throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                        "Scrollbar",
+                        valueToken,
+                        "Out of range [0, 1].",
+                        new object[] { 0f, 1f });
+                }
+
                 if (invokeCallbacks)
                 {
                     scrollbar.value = value;
@@ -344,7 +397,15 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
             if (control is Toggle toggle)
             {
-                var value = ReadBool(args, "value", ReadBool(args, "isOn", toggle.isOn));
+                if (!ChievfxMcpRuntimeUiControlValueParsing.TryParseFlexibleBool(valueToken, out var value))
+                {
+                    throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                        "Toggle",
+                        valueToken,
+                        "Expected boolean-like value.",
+                        new object[] { true, false, 0, 1, "true", "false", "True", "False" });
+                }
+
                 if (invokeCallbacks)
                 {
                     toggle.isOn = value;
@@ -359,22 +420,25 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
             if (control is Dropdown dropdown)
             {
-                var value = ReadInt(args, "value", dropdown.value);
-                if (invokeCallbacks)
+                ApplyDropdownValue(dropdown, valueToken, invokeCallbacks, option => option.text, dropdown.options, index =>
                 {
-                    dropdown.value = value;
-                }
-                else
-                {
-                    dropdown.SetValueWithoutNotify(value);
-                }
-
+                    if (invokeCallbacks)
+                    {
+                        dropdown.value = index;
+                    }
+                    else
+                    {
+                        dropdown.SetValueWithoutNotify(index);
+                    }
+                });
                 return;
             }
 
             if (control is InputField inputField)
             {
-                var text = ReadString(args, "text") ?? ReadString(args, "value") ?? inputField.text;
+                var text = valueToken?.Type == JTokenType.String
+                    ? valueToken.Value<string>() ?? string.Empty
+                    : valueToken?.ToString() ?? inputField.text;
                 if (invokeCallbacks)
                 {
                     inputField.text = text;
@@ -387,7 +451,86 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 return;
             }
 
-            ApplyReflectedControlValue(control, args, invokeCallbacks);
+            ApplyReflectedDropdownOrValueControl(control, valueToken, invokeCallbacks);
+        }
+
+        private static void ApplyDropdownValue<T>(
+            object control,
+            JToken? valueToken,
+            bool invokeCallbacks,
+            Func<T, string> readOptionText,
+            IList<T> options,
+            Action<int> setIndex)
+        {
+            var optionTexts = options.Select(readOptionText).ToArray();
+            if (valueToken == null || valueToken.Type == JTokenType.Null)
+            {
+                throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                    control.GetType().Name,
+                    valueToken,
+                    "Expected option index or option text.",
+                    optionTexts.Cast<object>().Prepend(0).Prepend(Math.Max(0, options.Count - 1)));
+            }
+
+            if (valueToken.Type == JTokenType.String)
+            {
+                var requested = valueToken.Value<string>()?.Trim();
+                var matchIndex = Array.FindIndex(
+                    optionTexts,
+                    text => string.Equals(text, requested, StringComparison.OrdinalIgnoreCase));
+                if (matchIndex < 0)
+                {
+                    throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                        control.GetType().Name,
+                        valueToken,
+                        $"Unknown option text. Options: [{string.Join(", ", optionTexts.Select(text => "\"" + text + "\""))}].",
+                        optionTexts);
+                }
+
+                setIndex(matchIndex);
+                return;
+            }
+
+            if (!ChievfxMcpRuntimeUiControlValueParsing.TryParseFlexibleInt(valueToken, out var index)
+                || index < 0
+                || index >= options.Count)
+            {
+                throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                    control.GetType().Name,
+                    valueToken,
+                    options.Count == 0
+                        ? "Dropdown has no options."
+                        : $"Expected option index 0..{options.Count - 1}. Options: [{string.Join(", ", optionTexts.Select(text => "\"" + text + "\""))}].",
+                    Enumerable.Range(0, Math.Max(0, options.Count)).Cast<object>().Concat(optionTexts.Cast<object>()));
+            }
+
+            setIndex(index);
+        }
+
+        private static void ApplyReflectedDropdownOrValueControl(Component control, JToken? valueToken, bool invokeCallbacks)
+        {
+            var optionsObject = GetPropertyValue(control, "options");
+            if (optionsObject is System.Collections.IList options && options.Count > 0)
+            {
+                ApplyDropdownValue(
+                    control,
+                    valueToken,
+                    invokeCallbacks,
+                    option => Convert.ToString(GetPropertyValue(option, "text"), CultureInfo.InvariantCulture) ?? string.Empty,
+                    options.Cast<object>().ToArray(),
+                    index => ApplyReflectedControlValue(control, new JObject { ["value"] = index }, invokeCallbacks));
+                return;
+            }
+
+            if (!ChievfxMcpRuntimeUiControlValueParsing.TryParseFlexibleInt(valueToken, out var value))
+            {
+                throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                    control.GetType().Name,
+                    valueToken,
+                    "Expected integer value.");
+            }
+
+            ApplyReflectedControlValue(control, new JObject { ["value"] = value }, invokeCallbacks);
         }
 
         internal static void ApplyReflectedControlValue(Component control, JToken args, bool invokeCallbacks)

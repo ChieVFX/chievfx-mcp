@@ -153,6 +153,21 @@ def _build_advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
             },
             "additionalProperties": True,
         }
+    if tool_name == "ui-runtime-set-control-value":
+        return {
+            "type": "object",
+            "properties": {
+                "framework": {"enum": ["auto", "ugui", "uitoolkit"], "default": "auto"},
+                "x": {"type": "number"},
+                "y": {"type": "number"},
+                "isNormalized": {"type": "boolean", "default": False},
+                "path": {"type": "string"},
+                "instanceId": {"type": "integer"},
+                "value": {},
+            },
+            "required": ["value"],
+            "additionalProperties": True,
+        }
     if tool_name == "ugui-scrollrect-create":
         scalar = lambda kind: {"type": kind}
         return {

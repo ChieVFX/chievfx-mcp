@@ -319,7 +319,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 warnings.Add("invokeCallbacks was not specified; defaulted to true and may fire game callbacks.");
             }
 
-            var value = ConvertControlValue(args["value"] ?? args["text"] ?? args["isOn"], valueProperty.PropertyType, valueProperty.GetValue(element));
+            var value = ConvertControlValue(args["value"] ?? args["text"] ?? args["isOn"], valueProperty.PropertyType, valueProperty.GetValue(element), element);
             if (!invokeCallbacks)
             {
                 var setWithoutNotify = element.GetType().GetMethod("SetValueWithoutNotify", BindingFlags.Public | BindingFlags.Instance);
@@ -335,7 +335,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             valueProperty.SetValue(element, value);
         }
 
-        internal static object? ConvertControlValue(JToken? token, Type targetType, object? currentValue)
+        internal static object? ConvertControlValue(JToken? token, Type targetType, object? currentValue, object? element = null)
         {
             if (token == null || token.Type == JTokenType.Null)
             {
@@ -345,37 +345,155 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             var nullableType = Nullable.GetUnderlyingType(targetType) ?? targetType;
             if (nullableType == typeof(string))
             {
-                return token.Value<string>() ?? string.Empty;
+                var text = token.Type == JTokenType.String ? token.Value<string>() ?? string.Empty : token.ToString();
+                if (element != null && GetMemberValue(element, "choices") is IEnumerable choicesEnumerable)
+                {
+                    var choices = choicesEnumerable.Cast<object>()
+                        .Select(choice => Convert.ToString(choice, CultureInfo.InvariantCulture) ?? string.Empty)
+                        .ToArray();
+                    if (choices.Length > 0)
+                    {
+                        var match = choices.FirstOrDefault(choice => string.Equals(choice, text, StringComparison.OrdinalIgnoreCase));
+                        if (match == null)
+                        {
+                            throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                                element.GetType().Name,
+                                token,
+                                "Unknown choice.",
+                                choices);
+                        }
+
+                        return match;
+                    }
+                }
+
+                return text;
             }
 
             if (nullableType == typeof(bool))
             {
-                return token.Value<bool>();
+                if (ChievfxMcpRuntimeUiControlValueParsing.TryParseFlexibleBool(token, out var boolValue))
+                {
+                    return boolValue;
+                }
+
+                throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                    element == null ? "Toggle" : element.GetType().Name,
+                    token,
+                    "Expected boolean-like value.",
+                    new object[] { true, false, 0, 1, "true", "false", "True", "False" });
             }
 
             if (nullableType.IsEnum)
             {
-                return token.Type == JTokenType.String
-                    ? Enum.Parse(nullableType, token.Value<string>() ?? string.Empty, ignoreCase: true)
-                    : Enum.ToObject(nullableType, token.Value<int>());
+                if (token.Type == JTokenType.String)
+                {
+                    var names = Enum.GetNames(nullableType);
+                    var requested = token.Value<string>()?.Trim();
+                    var match = names.FirstOrDefault(name => string.Equals(name, requested, StringComparison.OrdinalIgnoreCase));
+                    if (match != null)
+                    {
+                        return Enum.Parse(nullableType, match, ignoreCase: true);
+                    }
+
+                    throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                        element == null ? nullableType.Name : element.GetType().Name,
+                        token,
+                        "Unknown enum name.",
+                        names);
+                }
+
+                if (ChievfxMcpRuntimeUiControlValueParsing.TryParseFlexibleInt(token, out var enumIndex))
+                {
+                    return Enum.ToObject(nullableType, enumIndex);
+                }
+
+                throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                    element == null ? nullableType.Name : element.GetType().Name,
+                    token,
+                    "Expected enum name or integer.",
+                    Enum.GetNames(nullableType));
             }
 
             if (nullableType == typeof(int))
             {
-                return token.Value<int>();
+                if (ChievfxMcpRuntimeUiControlValueParsing.TryParseFlexibleInt(token, out var intValue))
+                {
+                    ValidateNumericRange(element, token, intValue, nullableType);
+                    return intValue;
+                }
+
+                throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                    element == null ? "Integer" : element.GetType().Name,
+                    token,
+                    "Expected integer.");
             }
 
             if (nullableType == typeof(float))
             {
-                return token.Value<float>();
+                if (ChievfxMcpRuntimeUiControlValueParsing.TryParseFlexibleFloat(token, out var floatValue))
+                {
+                    ValidateNumericRange(element, token, floatValue, nullableType);
+                    return floatValue;
+                }
+
+                throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                    element == null ? "Float" : element.GetType().Name,
+                    token,
+                    "Expected number.");
             }
 
             if (nullableType == typeof(double))
             {
-                return token.Value<double>();
+                if (ChievfxMcpRuntimeUiControlValueParsing.TryParseFlexibleFloat(token, out var doubleValue))
+                {
+                    ValidateNumericRange(element, token, doubleValue, nullableType);
+                    return (double)doubleValue;
+                }
+
+                throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                    element == null ? "Double" : element.GetType().Name,
+                    token,
+                    "Expected number.");
             }
 
             throw new ArgumentException("Unsupported UI Toolkit value type: " + targetType.FullName);
+        }
+
+        private static void ValidateNumericRange(object? element, JToken token, float value, Type valueType)
+        {
+            if (element == null)
+            {
+                return;
+            }
+
+            var low = ReadMemberFloat(element, "lowValue");
+            var high = ReadMemberFloat(element, "highValue");
+            if (!low.HasValue || !high.HasValue)
+            {
+                return;
+            }
+
+            if (value < low.Value || value > high.Value)
+            {
+                throw ChievfxMcpRuntimeUiControlValueParsing.InvalidValue(
+                    element.GetType().Name,
+                    token,
+                    $"Out of range [{low.Value.ToString(CultureInfo.InvariantCulture)}, {high.Value.ToString(CultureInfo.InvariantCulture)}].",
+                    new object[] { low.Value, high.Value });
+            }
+        }
+
+        private static float? ReadMemberFloat(object target, string memberName)
+        {
+            var value = ReadSimpleMemberValue(target, memberName);
+            return value switch
+            {
+                float floatValue => floatValue,
+                double doubleValue => (float)doubleValue,
+                int intValue => intValue,
+                _ => null,
+            };
         }
 
         internal static Dictionary<string, object?> TypeTextIntoFocusedTextField(JToken args, UiToolkitDependencyStatus status, bool requireTarget)

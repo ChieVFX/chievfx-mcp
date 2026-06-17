@@ -1,0 +1,44 @@
+{
+  "name": "ui-runtime-set-control-value",
+  "description": "Set Play Mode runtime control value on uGUI or UI Toolkit targets (Slider, Toggle, Dropdown, enum, etc.). Resolve by path/instanceId or screen position. Requires Play Mode. Use ui-runtime-type-text for text fields.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "framework": {
+        "type": "string",
+        "enum": ["auto", "ugui", "uitoolkit"],
+        "default": "auto",
+        "description": "Target framework. auto (default) resolves across registered frameworks; ugui/uitoolkit force one."
+      },
+      "x": {
+        "type": "number",
+        "description": "Screen x for hit-test resolution. Bottom-left origin; pixels or 0..1 when isNormalized is true."
+      },
+      "y": {
+        "type": "number",
+        "description": "Screen y for hit-test resolution. Bottom-left origin; pixels or 0..1 when isNormalized is true."
+      },
+      "isNormalized": {
+        "type": "boolean",
+        "default": false,
+        "description": "When true, x/y are normalized bottom-left coordinates."
+      },
+      "path": {
+        "type": "string",
+        "description": "uGUI transform path, UI Toolkit VisualElement path, or visualElementRef (ve:...)."
+      },
+      "instanceId": {
+        "type": "integer",
+        "description": "Optional uGUI GameObject instance id."
+      },
+      "value": {
+        "description": "Control value. Toggle accepts true/false/0/1; Slider/Scrollbar numbers; Dropdown index or option text; enum name or index; InputField/DropdownField strings."
+      }
+    },
+    "required": ["value"],
+    "additionalProperties": true
+  }
+}

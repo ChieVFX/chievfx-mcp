@@ -69,6 +69,15 @@ namespace Chievfx.Mcp.Editor
         object? DragAtPosition(JToken request);
     }
 
+    /// <summary>
+    /// Optional capability for setting runtime control values (slider, toggle, dropdown, etc.).
+    /// Enables the shared cross-framework "ui-runtime-set-control-value" tool.
+    /// </summary>
+    internal interface IChievfxMcpRuntimeUiSetControlValueAdapter
+    {
+        object? SetControlValue(JToken request, bool requireTarget);
+    }
+
     internal static class ChievfxMcpRuntimeUiAdapterRegistry
     {
         private const string ExtensionId = "chievfx.runtime-ui";
@@ -80,6 +89,7 @@ namespace Chievfx.Mcp.Editor
         private const string TypeTextToolName = "ui-runtime-type-text";
         internal const string ClickToolName = "ui-runtime-click";
         internal const string DragToolName = "ui-runtime-drag";
+        internal const string SetControlValueToolName = "ui-runtime-set-control-value";
         private const int AdapterProbeMaxRows = 1024;
 
         private static readonly Regex FrameworkIdPattern = new(@"^[a-z0-9][a-z0-9._-]{0,127}$", RegexOptions.Compiled);
@@ -245,6 +255,94 @@ namespace Chievfx.Mcp.Editor
 
             row["uri"] = uri;
             row["framework"] = adapter.FrameworkId;
+            return row;
+        }
+
+        internal static object? RuntimeSetControlValue(JToken args)
+        {
+            var request = args is JObject obj ? obj : new JObject();
+            var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
+            var candidates = SnapshotAdapters()
+                .Where(registered => registered.Adapter is IChievfxMcpRuntimeUiSetControlValueAdapter)
+                .ToArray();
+            if (candidates.Length == 0)
+            {
+                throw new InvalidOperationException("No runtime UI adapter supports set-control-value.");
+            }
+
+            if (!string.IsNullOrEmpty(framework) && !string.Equals(framework, "auto", StringComparison.Ordinal))
+            {
+                var selected = candidates.FirstOrDefault(registered => string.Equals(registered.Adapter.FrameworkId, framework, StringComparison.Ordinal));
+                if (selected == null)
+                {
+                    throw new ArgumentException($"No set-control-value adapter for framework '{framework}'. Available: {string.Join(", ", candidates.Select(registered => registered.Adapter.FrameworkId))}.");
+                }
+
+                if (!selected.Adapter.Available)
+                {
+                    throw new InvalidOperationException($"Set-control-value adapter '{framework}' is registered but unavailable.");
+                }
+
+                var forced = ((IChievfxMcpRuntimeUiSetControlValueAdapter)selected.Adapter).SetControlValue(request.DeepClone(), requireTarget: true);
+                return WrapSetControlValueResult(forced, selected.Adapter);
+            }
+
+            var attempts = new List<Dictionary<string, object?>>();
+            foreach (var registered in candidates)
+            {
+                if (!registered.Adapter.Available)
+                {
+                    attempts.Add(new Dictionary<string, object?> { ["framework"] = registered.Adapter.FrameworkId, ["available"] = false });
+                    continue;
+                }
+
+                object? result;
+                try
+                {
+                    result = ((IChievfxMcpRuntimeUiSetControlValueAdapter)registered.Adapter).SetControlValue(request.DeepClone(), requireTarget: false);
+                }
+                catch (ArgumentException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    attempts.Add(new Dictionary<string, object?> { ["framework"] = registered.Adapter.FrameworkId, ["error"] = RootMessage(ex) });
+                    continue;
+                }
+
+                if (ReadResolvedFlag(result))
+                {
+                    return WrapSetControlValueResult(result, registered.Adapter);
+                }
+
+                attempts.Add(new Dictionary<string, object?> { ["framework"] = registered.Adapter.FrameworkId, ["resolved"] = false, ["detail"] = result });
+            }
+
+            return new Dictionary<string, object?>
+            {
+                ["uri"] = "tool://" + SetControlValueToolName,
+                ["resolved"] = false,
+                ["framework"] = null,
+                ["warnings"] = new[] { "No uGUI or UI Toolkit settable control resolved from the supplied target or screen position. Provide path/instanceId or x/y over a Slider, Toggle, Dropdown, or other writable control, or set framework explicitly." },
+                ["attempts"] = attempts.ToArray(),
+            };
+        }
+
+        private static Dictionary<string, object?> WrapSetControlValueResult(object? result, IChievfxMcpRuntimeUiAdapter adapter)
+        {
+            if (!TryReadDictionary(result, out var row))
+            {
+                row = new Dictionary<string, object?> { ["result"] = result };
+            }
+
+            row["uri"] = "tool://" + SetControlValueToolName;
+            row["framework"] = adapter.FrameworkId;
+            if (!row.ContainsKey("resolved"))
+            {
+                row["resolved"] = true;
+            }
+
             return row;
         }
 

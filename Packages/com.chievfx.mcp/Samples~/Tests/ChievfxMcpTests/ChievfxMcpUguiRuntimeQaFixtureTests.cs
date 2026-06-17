@@ -217,13 +217,15 @@ namespace Chievfx.Mcp.Editor.Tests
             Assert.IsNotNull(UguiClickSection(click)["selectedAfter"]);
 
             var slider = GameObject.Find(ChievfxMcpUguiRuntimeQaFixture.SliderPath)!.GetComponent<Slider>();
-            var setSlider = RunTool("ugui-runtime-set-control-value", "{'targetPath':'" + ChievfxMcpUguiRuntimeQaFixture.SliderPath + "','value':0.25,'invokeCallbacks':false,'allowStateMutation':true}");
+            var setSlider = RunUiRuntimeSetControlValue(
+                "{'path':'" + ChievfxMcpUguiRuntimeQaFixture.SliderPath + "','framework':'ugui','value':0.25}");
             Assert.AreEqual(0.25f, slider.value, 0.001f);
             Assert.IsNotNull(setSlider["targetStateBefore"]);
             Assert.IsNotNull(setSlider["targetStateAfter"]);
 
             var toggle = GameObject.Find(ChievfxMcpUguiRuntimeQaFixture.TogglePath)!.GetComponent<Toggle>();
-            RunTool("ugui-runtime-set-control-value", "{'targetPath':'" + ChievfxMcpUguiRuntimeQaFixture.TogglePath + "','value':false,'invokeCallbacks':false,'allowStateMutation':true}");
+            RunUiRuntimeSetControlValue(
+                "{'path':'" + ChievfxMcpUguiRuntimeQaFixture.TogglePath + "','framework':'ugui','value':false}");
             Assert.AreEqual(false, toggle.isOn);
 
             var select = RunTool("ugui-runtime-select", "{'targetPath':'" + ChievfxMcpUguiRuntimeQaFixture.TogglePath + "','allowStateMutation':true}");
@@ -318,6 +320,12 @@ namespace Chievfx.Mcp.Editor.Tests
         {
             ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
             return (Dictionary<string, object?>)ChievfxMcpRuntimeUiAdapterRegistry.RuntimeDrag(JObject.Parse(argsJson))!;
+        }
+
+        private static Dictionary<string, object?> RunUiRuntimeSetControlValue(string argsJson)
+        {
+            ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
+            return (Dictionary<string, object?>)ChievfxMcpRuntimeUiAdapterRegistry.RuntimeSetControlValue(JObject.Parse(argsJson))!;
         }
 
         private static Dictionary<string, object?> UguiClickSection(Dictionary<string, object?> result)

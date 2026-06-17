@@ -210,7 +210,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         }
     }
 
-    internal sealed class UiToolkitRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter, IChievfxMcpRuntimeUiTextInputAdapter, IChievfxMcpRuntimeUiControlFindAdapter, IChievfxMcpRuntimeUiClickAdapter, IChievfxMcpRuntimeUiDragAdapter
+    internal sealed class UiToolkitRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter, IChievfxMcpRuntimeUiTextInputAdapter, IChievfxMcpRuntimeUiControlFindAdapter, IChievfxMcpRuntimeUiClickAdapter, IChievfxMcpRuntimeUiDragAdapter, IChievfxMcpRuntimeUiSetControlValueAdapter
     {
         public string FrameworkId => "uitoolkit";
 
@@ -247,6 +247,11 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         public object? DragAtPosition(JToken request)
         {
             return RuntimeDragAtPosition(request, GetDependencyStatus());
+        }
+
+        public object? SetControlValue(JToken request, bool requireTarget)
+        {
+            return RuntimeSetControlValueAt(request, GetDependencyStatus(), requireTarget);
         }
     }
 }

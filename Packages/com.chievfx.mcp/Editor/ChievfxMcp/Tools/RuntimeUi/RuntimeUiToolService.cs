@@ -26,6 +26,12 @@ namespace Chievfx.Mcp.Editor
                 return true;
             }
 
+            if (string.Equals(toolName, ChievfxMcpRuntimeUiAdapterRegistry.SetControlValueToolName, StringComparison.Ordinal))
+            {
+                result = ChievfxMcpRuntimeUiAdapterRegistry.RuntimeSetControlValue(args);
+                return true;
+            }
+
             result = null;
             return false;
         }

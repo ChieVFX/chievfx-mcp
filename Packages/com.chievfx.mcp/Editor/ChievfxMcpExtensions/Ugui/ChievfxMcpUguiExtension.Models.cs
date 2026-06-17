@@ -243,7 +243,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
         }
     }
 
-    internal sealed class UguiRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter, IChievfxMcpRuntimeUiTextInputAdapter, IChievfxMcpRuntimeUiControlFindAdapter, IChievfxMcpRuntimeUiClickAdapter, IChievfxMcpRuntimeUiDragAdapter
+    internal sealed class UguiRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter, IChievfxMcpRuntimeUiTextInputAdapter, IChievfxMcpRuntimeUiControlFindAdapter, IChievfxMcpRuntimeUiClickAdapter, IChievfxMcpRuntimeUiDragAdapter, IChievfxMcpRuntimeUiSetControlValueAdapter
     {
         public string FrameworkId => "ugui";
 
@@ -280,6 +280,11 @@ namespace Chievfx.Mcp.Extensions.Ugui
         public object? DragAtPosition(JToken request)
         {
             return RuntimeDragAtPosition(request, GetDependencyStatus());
+        }
+
+        public object? SetControlValue(JToken request, bool requireTarget)
+        {
+            return RuntimeSetControlValueAt(request, GetDependencyStatus(), requireTarget);
         }
     }
 }

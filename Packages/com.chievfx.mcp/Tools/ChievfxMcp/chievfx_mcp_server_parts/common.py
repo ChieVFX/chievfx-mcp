@@ -238,6 +238,7 @@ TOOL_CATEGORIES = {
     "ui-runtime-type-text": "ui-runtime-common",
     "ui-runtime-click": "ui-runtime-common",
     "ui-runtime-drag": "ui-runtime-common",
+    "ui-runtime-set-control-value": "ui-runtime-common",
     "prefab-open": "Prefab",
     "prefab-close": "Prefab",
     "prefab-save": "Prefab",
@@ -626,5 +627,14 @@ TOOL_ADVERTISED_PROPERTY_ORDERS: dict[str, list[str]] = {
         "isNormalized",
         "path",
         "instanceId",
+    ],
+    "ui-runtime-set-control-value": [
+        "framework",
+        "x",
+        "y",
+        "isNormalized",
+        "path",
+        "instanceId",
+        "value",
     ],
 }

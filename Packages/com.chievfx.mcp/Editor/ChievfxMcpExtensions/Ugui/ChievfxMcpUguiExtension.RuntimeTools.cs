@@ -283,6 +283,67 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return result;
         }
 
+        internal static Dictionary<string, object?> RuntimeSetControlValueAt(JToken args, UguiDependencyStatus status, bool requireTarget)
+        {
+            var warnings = new List<string>();
+            var valueToken = args["value"];
+            if (valueToken == null || valueToken.Type == JTokenType.Null)
+            {
+                throw new ArgumentException("ui-runtime-set-control-value requires 'value'.");
+            }
+
+            var result = CreateEnvelope("tool://ui-runtime-set-control-value#ugui", status);
+            result["playMode"] = IsRuntimePlayModeActive();
+            result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
+            result["selectedObjectBefore"] = CreateSelectedObjectRow(status);
+            result["framework"] = "ugui";
+
+            var position = ReadScreenPosition(args, warnings, status);
+            AddCoordinateInfo(result, position);
+            var eventSystem = GetCurrentEventSystem(status) as EventSystem;
+            AddRuntimeWarnings(status, warnings);
+            result["eventSystem"] = eventSystem == null ? null : CreateGameObjectRow(eventSystem.gameObject);
+
+            var target = ResolveRuntimeInteractionTarget(args, status, eventSystem, position.ScreenPosition, warnings, out var stack);
+            result["stack"] = stack;
+            result["target"] = target == null ? null : CreateRuntimeElementRow(target, status);
+            var control = target == null ? null : ResolveSettableControl(target, status);
+            var resolved = control != null;
+            result["resolved"] = resolved;
+            result["targetStateBefore"] = target == null ? null : CreateControlStateRow(target, status);
+            result["intendedHandler"] = control == null
+                ? null
+                : new Dictionary<string, object?>
+                {
+                    ["controlType"] = control.GetType().Name,
+                    ["path"] = GetTransformPath(target!.transform),
+                    ["operation"] = ResolveSetControlOperation(control, args),
+                };
+
+            if (!resolved)
+            {
+                if (requireTarget)
+                {
+                    throw new ArgumentException("ui-runtime-set-control-value could not resolve a settable uGUI control from path, instanceId, or screen position.");
+                }
+
+                warnings.Add("No runtime uGUI settable control resolved.");
+                result["warnings"] = warnings.ToArray();
+                return result;
+            }
+
+            if (!IsRuntimePlayModeActive())
+            {
+                throw new InvalidOperationException("Runtime uGUI set-control-value requires Play Mode. Enter Play Mode before mutating controls.");
+            }
+
+            ApplyRuntimeControlValue(control!, valueToken, invokeCallbacks: true, status);
+            result["selectedObjectAfter"] = CreateSelectedObjectRow(status);
+            result["targetStateAfter"] = CreateControlStateRow(target!, status);
+            result["warnings"] = warnings.ToArray();
+            return result;
+        }
+
         internal static Dictionary<string, object?> TypeTextIntoFocusedTextField(JToken args, UguiDependencyStatus status, bool requireTarget)
         {
             var warnings = new List<string>();

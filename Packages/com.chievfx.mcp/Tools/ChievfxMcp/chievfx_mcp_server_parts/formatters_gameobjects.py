@@ -381,6 +381,66 @@ def format_ui_runtime_drag_framework_row(section: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
+def format_ui_runtime_set_control_value_text(result: dict[str, Any]) -> str:
+    header_parts = [f"playMode:{format_toon_atom(result.get('playMode'))}"]
+    if result.get("resolved") is True:
+        header_parts.append("resolved:true")
+    else:
+        header_parts.append("resolved:false")
+    framework = result.get("framework")
+    if not should_omit_toon_value(framework):
+        header_parts.append(f"framework:{format_toon_atom(framework)}")
+    lines = ["set-value " + " ".join(header_parts)]
+
+    target = result.get("target")
+    if isinstance(target, dict):
+        path = target.get("path")
+        if not should_omit_toon_value(path):
+            lines.append(f"target path:{format_toon_atom(path)}")
+        instance_id = target.get("instanceId")
+        if not should_omit_toon_value(instance_id):
+            lines.append(f"id:{format_toon_atom(instance_id)}")
+        visual_element_ref = target.get("visualElementRef")
+        if not should_omit_toon_value(visual_element_ref):
+            lines.append(f"ref:{format_toon_atom(visual_element_ref)}")
+
+    for label, key in (("before", "targetStateBefore"), ("after", "targetStateAfter")):
+        state = result.get(key)
+        if not isinstance(state, dict):
+            continue
+        controls = state.get("controls")
+        if isinstance(controls, list) and controls:
+            control = controls[0] if isinstance(controls[0], dict) else None
+        else:
+            control = state
+        if isinstance(control, dict):
+            value = control.get("value", control.get("isOn", control.get("text")))
+            if not should_omit_toon_value(value):
+                lines.append(f"{label} {format_toon_atom(value)}")
+
+    attempts = result.get("attempts")
+    if isinstance(attempts, list):
+        for attempt in attempts:
+            if not isinstance(attempt, dict):
+                continue
+            row_parts = [f"- {format_toon_atom(attempt.get('framework'))}"]
+            if attempt.get("available") is False:
+                row_parts.append("unavailable")
+            elif attempt.get("resolved") is False:
+                row_parts.append("miss")
+            elif attempt.get("error"):
+                row_parts.append(f"error:{format_toon_atom(attempt.get('error'))}")
+            lines.append(" ".join(row_parts))
+
+    warnings = result.get("warnings")
+    if isinstance(warnings, list):
+        for warning in warnings:
+            if isinstance(warning, str) and warning.strip():
+                lines.append(f"! {warning.strip()}")
+
+    return "\n".join(line for line in lines if line)
+
+
 def format_ui_control_find_row(
     control: dict[str, Any],
     *,
@@ -491,6 +551,10 @@ def format_tool_result_text(tool_name: str, result: Any, arguments: dict[str, An
     if tool_name == "ui-runtime-drag":
         if isinstance(result, dict):
             return format_ui_runtime_drag_text(result)
+
+    if tool_name == "ui-runtime-set-control-value":
+        if isinstance(result, dict):
+            return format_ui_runtime_set_control_value_text(result)
 
     return to_toon(result)
 

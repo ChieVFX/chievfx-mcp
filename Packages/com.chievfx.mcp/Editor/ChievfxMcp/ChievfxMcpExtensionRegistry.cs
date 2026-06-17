@@ -182,6 +182,7 @@ namespace Chievfx.Mcp.Editor
             "ui-control-find",
             "ui-runtime-click",
             "ui-runtime-drag",
+            "ui-runtime-set-control-value",
         };
 
         private static readonly HashSet<string> CoreResourceIds = new(

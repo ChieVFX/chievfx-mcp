@@ -188,6 +188,72 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             return result;
         }
 
+        internal static Dictionary<string, object?> RuntimeSetControlValueAt(JToken args, UiToolkitDependencyStatus status, bool requireTarget)
+        {
+            var warnings = new List<string>();
+            var valueToken = args["value"];
+            if (valueToken == null || valueToken.Type == JTokenType.Null)
+            {
+                throw new ArgumentException("ui-runtime-set-control-value requires 'value'.");
+            }
+
+            var result = CreateEnvelope("tool://ui-runtime-set-control-value#uitoolkit", status);
+            result["framework"] = "uitoolkit";
+            result["playMode"] = IsRuntimePlayModeActive();
+            result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
+            result["focusedElementBefore"] = CreateFocusedElementRow(status);
+
+            var resolution = ResolveRuntimeInteractionTarget(args, status, warnings);
+            result["stack"] = resolution.Stack;
+            result["resolvedBy"] = resolution.ResolvedBy;
+            result["input"] = resolution.Position == null ? null : CreateScreenPositionRow(resolution.Position.Value);
+
+            var element = resolution.Target as VisualElement;
+            var valueProperty = element?.GetType().GetProperty("value", BindingFlags.Public | BindingFlags.Instance);
+            var hasWritableValue = element != null && valueProperty != null && valueProperty.CanWrite;
+            var isTextField = hasWritableValue
+                && (Nullable.GetUnderlyingType(valueProperty!.PropertyType) ?? valueProperty.PropertyType) == typeof(string);
+            var resolved = hasWritableValue && !isTextField;
+            result["resolved"] = resolved;
+            result["target"] = element == null ? null : CreateVisualElementRow(element, status, resolution.Group ?? PanelGroup.FromElement(element), includeTextAndValue: true);
+            result["targetStateBefore"] = element == null ? null : CreateVisualElementStateRow(element, status);
+            result["intendedHandler"] = element == null || valueProperty == null
+                ? null
+                : new Dictionary<string, object?>
+                {
+                    ["controlType"] = element.GetType().Name,
+                    ["operation"] = "setValue",
+                    ["valueType"] = valueProperty.PropertyType.Name,
+                };
+
+            if (!resolved)
+            {
+                if (requireTarget)
+                {
+                    throw new ArgumentException(element == null
+                        ? "ui-runtime-set-control-value could not resolve a UI Toolkit target from path or screen position."
+                        : isTextField
+                            ? $"Target '{GetVisualElementPath(element)}' is a text field; use ui-runtime-type-text for string entry."
+                            : $"Target '{GetVisualElementPath(element)}' has no writable value property.");
+                }
+
+                warnings.Add("No runtime UI Toolkit settable control resolved.");
+                result["warnings"] = warnings.Distinct().ToArray();
+                return result;
+            }
+
+            if (!IsRuntimePlayModeActive())
+            {
+                throw new InvalidOperationException("Runtime UI Toolkit set-control-value requires Play Mode. Enter Play Mode before mutating controls.");
+            }
+
+            ApplyRuntimeControlValue(element!, new JObject { ["value"] = valueToken, ["invokeCallbacks"] = true }, warnings);
+            result["focusedElementAfter"] = CreateFocusedElementRow(status);
+            result["targetStateAfter"] = CreateVisualElementStateRow(element!, status);
+            result["warnings"] = warnings.Distinct().ToArray();
+            return result;
+        }
+
         internal static Dictionary<string, object?> InteractRuntime(JToken args, UiToolkitDependencyStatus status)
         {
             var warnings = new List<string>();

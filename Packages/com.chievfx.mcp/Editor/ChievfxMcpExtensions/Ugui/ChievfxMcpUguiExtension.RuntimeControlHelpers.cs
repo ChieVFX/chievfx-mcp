@@ -290,20 +290,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 .Name;
         }
 
-        internal static Dictionary<string, object?> CreateSetControlHandlerRow(GameObject target, UguiDependencyStatus status, JToken args, bool invokeCallbacks)
-        {
-            var control = ResolveSettableControl(target, status)
-                ?? throw new ArgumentException($"Target '{GetTransformPath(target.transform)}' has no supported settable uGUI control.");
-            return new Dictionary<string, object?>
-            {
-                ["controlType"] = control.GetType().Name,
-                ["path"] = GetTransformPath(target.transform),
-                ["operation"] = ResolveSetControlOperation(control, args),
-                ["invokeCallbacks"] = invokeCallbacks,
-                ["setter"] = invokeCallbacks ? "property" : "SetValueWithoutNotify/SetIsOnWithoutNotify/SetTextWithoutNotify when available",
-            };
-        }
-
         internal static Component? ResolveSettableControl(GameObject target, UguiDependencyStatus status)
         {
             for (var current = target.transform; current != null; current = current.parent)
@@ -372,13 +358,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             return "setValue";
-        }
-
-        internal static void ApplyRuntimeControlValue(GameObject target, UguiDependencyStatus status, JToken args, bool invokeCallbacks)
-        {
-            var control = ResolveSettableControl(target, status)
-                ?? throw new ArgumentException($"Target '{GetTransformPath(target.transform)}' has no supported settable uGUI control.");
-            ApplyRuntimeControlValue(control, args["value"] ?? args["text"] ?? args["isOn"], invokeCallbacks, status);
         }
 
         internal static void ApplyRuntimeControlValue(Component control, JToken? valueToken, bool invokeCallbacks, UguiDependencyStatus status)

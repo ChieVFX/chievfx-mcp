@@ -140,8 +140,9 @@ namespace Chievfx.Mcp.Editor.Tests
 
             Assert.AreEqual("ugui-design", CategoryFor(tools, "name", "ugui-create-simple"));
             Assert.AreEqual("ugui-design", CategoryFor(tools, "name", "ugui-image-set"));
-            Assert.AreEqual("ugui-runtime-control", CategoryFor(tools, "name", "ugui-runtime-drag"));
-            Assert.AreEqual("ugui-runtime-control", CategoryFor(tools, "name", "ugui-runtime-set-control-value"));
+            Assert.IsFalse(tools.Any(tool => string.Equals((string?)tool["name"], "ugui-runtime-drag", StringComparison.Ordinal)));
+            Assert.IsFalse(tools.Any(tool => string.Equals((string?)tool["name"], "ugui-runtime-select", StringComparison.Ordinal)));
+            Assert.IsFalse(tools.Any(tool => string.Equals((string?)tool["name"], "ugui-runtime-set-control-value", StringComparison.Ordinal)));
             Assert.AreEqual("ugui-design", CategoryFor(resources, "id", "ugui-status"));
             Assert.AreEqual("ugui-runtime-control", CategoryFor(resources, "id", "ugui-runtime-status"));
             Assert.AreEqual("ugui-design", CategoryFor(resourceTemplates, "id", "ugui-sprite-readiness"));

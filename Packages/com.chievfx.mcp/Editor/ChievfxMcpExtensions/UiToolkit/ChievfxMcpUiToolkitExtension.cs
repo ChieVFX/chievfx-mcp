@@ -18,7 +18,6 @@ using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitInteractions;
 using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitPanelQueries;
 using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitRows;
 using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitShared;
-using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitSchemas;
 
 namespace Chievfx.Mcp.Extensions.UiToolkit
 {
@@ -49,16 +48,6 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             }
         }
 
-        internal static object? RunToolForTests(string toolName, JToken args)
-        {
-            return RunTool(toolName, args);
-        }
-
-        public static object? RunToolForTests(string toolName, string argsJson)
-        {
-            return RunTool(toolName, string.IsNullOrWhiteSpace(argsJson) ? new JObject() : JObject.Parse(argsJson));
-        }
-
         public static object? ReadResourceForTests(string uri)
         {
             return ReadResource(uri);
@@ -73,9 +62,8 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 DisplayName = "ChievFX MCP UI Toolkit Runtime",
                 Version = "0.1.0",
                 Description = status.Available
-                    ? "First-party read-only UI Toolkit runtime panel inspection and guarded runtime interaction."
+                    ? "First-party read-only UI Toolkit runtime panel inspection. Play Mode interactions use core ui-runtime-* tools."
                     : "First-party UI Toolkit runtime inspection unavailable until UI Toolkit runtime types are loaded.",
-                ToolRunner = RunTool,
                 ResourceReader = ReadResource,
             };
 
@@ -121,37 +109,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 MimeType = "application/json",
                 Category = Category,
             });
-            descriptor.Tools.Add(CreateTool(
-                "uitoolkit-runtime-interact",
-                "Dry-run or explicitly dispatch guarded Play Mode UI Toolkit pointer click, focus, navigation submit, or standard control value changes.",
-                RuntimeInteractSchema()));
             return descriptor;
-        }
-
-        private static ChievfxMcpToolDescriptor CreateTool(string name, string description, JObject schema)
-        {
-            return new ChievfxMcpToolDescriptor
-            {
-                Name = name,
-                Description = description,
-                Category = Category,
-                InputSchema = schema,
-            };
-        }
-
-        private static object? RunTool(string toolName, JToken args)
-        {
-            var status = GetDependencyStatus();
-            if (!status.Available)
-            {
-                return CreateUnavailable(StatusUri, status, $"Tool '{toolName}' requires UI Toolkit runtime types.");
-            }
-
-            return toolName switch
-            {
-                "uitoolkit-runtime-interact" => InteractRuntime(args, status),
-                _ => throw new InvalidOperationException($"Unknown UI Toolkit extension tool '{toolName}'."),
-            };
         }
 
         private static object? ReadResource(string uri)

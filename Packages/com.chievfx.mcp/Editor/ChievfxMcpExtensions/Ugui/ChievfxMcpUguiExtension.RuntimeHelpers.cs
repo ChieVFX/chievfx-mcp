@@ -141,19 +141,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return eventSystem;
         }
 
-        internal static void EnsureRuntimeMutationAllowed(JToken args, List<string> warnings)
-        {
-            if (!IsRuntimePlayModeActive())
-            {
-                throw new InvalidOperationException("Runtime uGUI mutations are gated to Play Mode. Enter Play Mode before firing interactions or changing control values.");
-            }
-
-            if (!ReadBool(args, "allowStateMutation", false))
-            {
-                throw new InvalidOperationException("Runtime uGUI mutation requires explicit allowStateMutation:true.");
-            }
-        }
-
         internal static PointerEventData CreatePointerEventData(EventSystem eventSystem, Vector2 position)
         {
             return new PointerEventData(eventSystem)

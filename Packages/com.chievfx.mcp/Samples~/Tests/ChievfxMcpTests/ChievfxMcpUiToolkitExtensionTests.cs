@@ -81,7 +81,7 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
-        public void RuntimeInteractionToolIsRegisteredWithMutationScope()
+        public void RuntimeExtensionRegistersReadOnlySurface()
         {
             RequireUiToolkit();
 
@@ -96,9 +96,9 @@ namespace Chievfx.Mcp.Editor.Tests
         {
             RequireUiToolkit();
 
-            var ex = Assert.Throws<InvalidOperationException>(() => ChievfxMcpUiToolkitExtension.RunToolForTests(
-                "uitoolkit-runtime-interact",
-                "{'action':'focus','name':'missing','dryRun':false,'allowStateMutation':true}"));
+            var ex = Assert.Throws<InvalidOperationException>(() => RunExtensionTool(
+                "ui-runtime-focus",
+                "{'framework':'uitoolkit','name':'missing'}"));
 
             StringAssert.Contains("Play Mode", ex!.Message);
         }
@@ -223,45 +223,7 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [UnityTest]
-        public IEnumerator RuntimeInteractionDryRunDefaultsToNoMutation()
-        {
-            RequireUiToolkit();
-            OpenFixtureScene();
-
-            yield return new EnterPlayMode();
-            yield return PopulateAndSettleUiToolkit();
-
-            var textField = (TextField)ChievfxMcpUiToolkitRuntimeQaFixture.FindElement(ChievfxMcpUiToolkitRuntimeQaFixture.TextFieldName);
-            var before = textField.value;
-
-            var interact = RunTool(
-                "uitoolkit-runtime-interact",
-                "{'action':'setValue','name':'" + ChievfxMcpUiToolkitRuntimeQaFixture.TextFieldName + "','value':'changed by dry run'}");
-
-            Assert.AreEqual(true, interact["dryRun"]);
-            Assert.AreEqual(before, textField.value);
-            Assert.IsTrue(StringArray(interact, "warnings").Any(warning => warning.Contains("dryRun")));
-            Assert.AreEqual(before, Row(interact, "targetStateAfter")["value"]);
-        }
-
-        [UnityTest]
-        public IEnumerator RuntimeInteractionRequiresAllowStateMutationForRealDispatch()
-        {
-            RequireUiToolkit();
-            OpenFixtureScene();
-
-            yield return new EnterPlayMode();
-            yield return PopulateAndSettleUiToolkit();
-
-            var ex = Assert.Throws<InvalidOperationException>(() => ChievfxMcpUiToolkitExtension.RunToolForTests(
-                "uitoolkit-runtime-interact",
-                "{'action':'focus','name':'" + ChievfxMcpUiToolkitRuntimeQaFixture.TextFieldName + "','dryRun':false}"));
-
-            StringAssert.Contains("allowStateMutation", ex!.Message);
-        }
-
-        [UnityTest]
-        public IEnumerator RuntimeInteractionSetValueMutatesStandardControlWhenAllowed()
+        public IEnumerator RuntimeTypeTextMutatesTextFieldInPlayMode()
         {
             RequireUiToolkit();
             OpenFixtureScene();
@@ -272,14 +234,13 @@ namespace Chievfx.Mcp.Editor.Tests
             var textField = (TextField)ChievfxMcpUiToolkitRuntimeQaFixture.FindElement(ChievfxMcpUiToolkitRuntimeQaFixture.TextFieldName);
             Assert.AreEqual("runtime value", textField.value);
 
-            var interact = RunTool(
-                "uitoolkit-runtime-interact",
-                "{'action':'setValue','name':'" + ChievfxMcpUiToolkitRuntimeQaFixture.TextFieldName + "','value':'changed by tool','invokeCallbacks':false,'dryRun':false,'allowStateMutation':true}");
+            var typed = RunExtensionTool(
+                "ui-runtime-type-text",
+                "{'framework':'uitoolkit','name':'" + ChievfxMcpUiToolkitRuntimeQaFixture.TextFieldName + "','text':'changed by tool'}");
 
-            Assert.AreEqual(false, interact["dryRun"]);
             Assert.AreEqual("changed by tool", textField.value);
-            Assert.AreEqual("changed by tool", Row(interact, "targetStateAfter")["value"]);
-            Assert.AreEqual(ChievfxMcpUiToolkitRuntimeQaFixture.TextFieldName, Row(interact, "target")["name"]);
+            Assert.AreEqual(true, typed["resolved"]);
+            Assert.AreEqual("changed by tool", typed["textAfter"]);
         }
 
         [UnityTest]
@@ -332,11 +293,6 @@ namespace Chievfx.Mcp.Editor.Tests
             yield return null;
             yield return null;
             yield return null;
-        }
-
-        private static Dictionary<string, object?> RunTool(string toolName, string argsJson)
-        {
-            return (Dictionary<string, object?>)ChievfxMcpUiToolkitExtension.RunToolForTests(toolName, argsJson)!;
         }
 
         private static Dictionary<string, object?> ReadResource(string uri)

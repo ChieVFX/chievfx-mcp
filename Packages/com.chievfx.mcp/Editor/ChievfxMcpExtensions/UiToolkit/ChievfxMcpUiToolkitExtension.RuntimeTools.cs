@@ -18,8 +18,6 @@ using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitInteractions;
 using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitPanelQueries;
 using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitRows;
 using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitShared;
-using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitSchemas;
-
 namespace Chievfx.Mcp.Extensions.UiToolkit
 {
     internal static class UiToolkitRuntimeTools
@@ -346,57 +344,6 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             }
 
             return cleared;
-        }
-
-        internal static Dictionary<string, object?> InteractRuntime(JToken args, UiToolkitDependencyStatus status)
-        {
-            var warnings = new List<string>();
-            var action = ReadString(args, "action") ?? "pointerClick";
-            var dryRun = ReadBool(args, "dryRun", true);
-            if (args["dryRun"] == null)
-            {
-                warnings.Add("dryRun was not specified; defaulted to true. No UI Toolkit event or value mutation was performed.");
-            }
-
-            var result = CreateEnvelope("tool://uitoolkit-runtime-interact", status);
-            result["action"] = action;
-            result["dryRun"] = dryRun;
-            result["playMode"] = IsRuntimePlayModeActive();
-            result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
-            result["allowStateMutation"] = ReadBool(args, "allowStateMutation", false);
-            result["mutationRisk"] = "Real dispatch can invoke user callbacks and mutate game state; use dryRun:true to inspect first.";
-            result["focusedElementBefore"] = CreateFocusedElementRow(status);
-            result["dispatchedEvents"] = Array.Empty<string>();
-
-            var resolution = ResolveRuntimeInteractionTarget(args, status, warnings);
-            result["input"] = resolution.Position == null ? null : CreateScreenPositionRow(resolution.Position.Value);
-            result["panelPosition"] = resolution.PanelPosition.HasValue ? CreateVector2Row(resolution.PanelPosition.Value) : null;
-            result["resolvedBy"] = resolution.ResolvedBy;
-            result["stack"] = resolution.Stack;
-            result["target"] = resolution.Target == null ? null : CreateVisualElementRow(resolution.Target, status, resolution.Group ?? PanelGroup.FromElement(resolution.Target), includeTextAndValue: true);
-            result["targetStateBefore"] = resolution.Target == null ? null : CreateVisualElementStateRow(resolution.Target, status);
-            result["plan"] = CreateRuntimeInteractionPlan(action, resolution.Target, args);
-
-            if (resolution.Target == null)
-            {
-                warnings.Add("No runtime UI Toolkit target resolved for interaction.");
-            }
-
-            if (!dryRun)
-            {
-                EnsureRuntimeMutationAllowed(args);
-                if (resolution.Target == null)
-                {
-                    throw new InvalidOperationException("Runtime UI Toolkit interaction requires a resolved target.");
-                }
-
-                result["dispatchedEvents"] = ApplyRuntimeInteraction(action, resolution.Target, resolution.PanelPosition, args, warnings);
-            }
-
-            result["focusedElementAfter"] = CreateFocusedElementRow(status);
-            result["targetStateAfter"] = resolution.Target == null ? null : CreateVisualElementStateRow(resolution.Target, status);
-            result["warnings"] = warnings.Distinct().ToArray();
-            return result;
         }
 
         internal static Dictionary<string, object?> ControlFind(JToken args, UiToolkitDependencyStatus status)

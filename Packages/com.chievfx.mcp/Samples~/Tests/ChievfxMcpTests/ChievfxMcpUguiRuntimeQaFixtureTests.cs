@@ -189,9 +189,9 @@ namespace Chievfx.Mcp.Editor.Tests
             OpenFixtureScene();
 
             Assert.Throws<InvalidOperationException>(() =>
-                RunTool("ugui-runtime-set-control-value", "{'targetPath':'" + ChievfxMcpUguiRuntimeQaFixture.SliderPath + "','value':0.5,'allowStateMutation':true}"));
+                RunUiRuntimeSetControlValue("{'path':'" + ChievfxMcpUguiRuntimeQaFixture.SliderPath + "','framework':'ugui','value':0.5}"));
             Assert.Throws<InvalidOperationException>(() =>
-                RunTool("ugui-runtime-select", "{'targetPath':'" + ChievfxMcpUguiRuntimeQaFixture.TogglePath + "','allowStateMutation':true}"));
+                RunUiRuntimeFocus("{'path':'" + ChievfxMcpUguiRuntimeQaFixture.TogglePath + "','framework':'ugui'}"));
         }
 
         [UnityTest]

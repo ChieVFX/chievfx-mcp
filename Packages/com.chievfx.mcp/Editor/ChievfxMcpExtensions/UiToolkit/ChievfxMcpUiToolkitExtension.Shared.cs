@@ -18,8 +18,6 @@ using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitResources;
 using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitInteractions;
 using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitPanelQueries;
 using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitRows;
-using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitSchemas;
-
 namespace Chievfx.Mcp.Extensions.UiToolkit
 {
     internal static class UiToolkitShared

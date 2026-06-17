@@ -18,8 +18,6 @@ using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitResources;
 using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitPanelQueries;
 using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitRows;
 using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitShared;
-using static Chievfx.Mcp.Extensions.UiToolkit.UiToolkitSchemas;
-
 namespace Chievfx.Mcp.Extensions.UiToolkit
 {
     internal static class UiToolkitInteractions
@@ -33,19 +31,6 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
             warnings.Add("Runtime UI Toolkit reads are gated to Play Mode; enter Play Mode before reading runtime UI state.");
             return false;
-        }
-
-        internal static void EnsureRuntimeMutationAllowed(JToken args)
-        {
-            if (!IsRuntimePlayModeActive())
-            {
-                throw new InvalidOperationException("Runtime UI Toolkit mutations are gated to Play Mode. Enter Play Mode before dispatching interactions or changing control values.");
-            }
-
-            if (!ReadBool(args, "allowStateMutation", false))
-            {
-                throw new InvalidOperationException("Runtime UI Toolkit mutation requires explicit allowStateMutation:true.");
-            }
         }
 
         internal static RuntimeInteractionResolution ResolveRuntimeInteractionTarget(JToken args, UiToolkitDependencyStatus status, List<string> warnings)
@@ -155,21 +140,6 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         {
             return ReadBoolMember(visualElement, "enabledInHierarchy", true)
                 && !string.Equals(ReadMemberString(visualElement, "pickingMode"), "Ignore", StringComparison.OrdinalIgnoreCase);
-        }
-
-        internal static Dictionary<string, object?> CreateRuntimeInteractionPlan(string action, object? target, JToken args)
-        {
-            return new Dictionary<string, object?>
-            {
-                ["action"] = action,
-                ["targetRef"] = target == null ? null : CreateVisualElementRef(target),
-                ["events"] = PlannedEvents(action),
-                ["delta"] = action == "pointerDrag" && TryReadVector2(args["delta"], out var delta) ? CreateVector2Row(delta) : null,
-                ["steps"] = action == "pointerDrag" ? Mathf.Clamp(ReadInt(args, "steps", 12), 1, 120) : null,
-                ["value"] = action == "setValue" ? ReadSimpleToken(args["value"] ?? args["text"] ?? args["isOn"]) : null,
-                ["invokeCallbacks"] = action == "setValue" ? ReadBool(args, "invokeCallbacks", true) : null,
-                ["guard"] = "dryRun must be false, Play Mode active, and allowStateMutation true before dispatch or value mutation.",
-            };
         }
 
         internal static string[] PlannedEvents(string action)

@@ -390,53 +390,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
             });
         }
 
-        internal static JObject RuntimeDragSchema()
-        {
-            var properties = RuntimeTargetProperties();
-            properties["startScreenPosition"] = Vector2Property("Start screen-space position in pixels, origin bottom-left.");
-            properties["startNormalized"] = Vector2Property("Start normalized screen coordinate.");
-            properties["endScreenPosition"] = Vector2Property("End screen-space position in pixels, origin bottom-left.");
-            properties["endNormalized"] = Vector2Property("End normalized screen coordinate.");
-            properties["dryRun"] = BoolProperty("Report resolved stack and intended handler without firing drag events.");
-            properties["allowStateMutation"] = BoolProperty("Required true for non-dry-run drags because callbacks may mutate game state.");
-            return Schema(properties);
-        }
-
-        internal static JObject RuntimeSelectSchema()
-        {
-            return Schema(new JObject
-            {
-                ["targetPath"] = StringProperty("Target GameObject path to select/focus."),
-                ["instanceId"] = IntProperty("Target GameObject instance id to select/focus."),
-                ["clear"] = BoolProperty("Clear current EventSystem selection instead of selecting a target."),
-                ["dryRun"] = BoolProperty("Report before/after selection shape and intended operation without mutating selection."),
-                ["allowStateMutation"] = BoolProperty("Required true for non-dry-run selection changes."),
-            });
-        }
-
-        internal static JObject RuntimeSetControlValueSchema()
-        {
-            return Schema(new JObject
-            {
-                ["targetPath"] = StringProperty("Target uGUI control GameObject path."),
-                ["instanceId"] = IntProperty("Target uGUI control GameObject instance id."),
-                ["value"] = new JObject
-                {
-                    ["description"] = "Control value: number for Slider/Scrollbar, boolean for Toggle, integer for Dropdown/TMP_Dropdown, or string for InputField.",
-                    ["oneOf"] = new JArray(
-                        new JObject { ["type"] = "number" },
-                        new JObject { ["type"] = "boolean" },
-                        new JObject { ["type"] = "integer" },
-                        new JObject { ["type"] = "string" }),
-                },
-                ["isOn"] = BoolProperty("Toggle value alias."),
-                ["text"] = StringProperty("InputField text value."),
-                ["invokeCallbacks"] = BoolProperty("When true, use normal control property setters. When false, use SetValueWithoutNotify/SetIsOnWithoutNotify/SetTextWithoutNotify where available."),
-                ["dryRun"] = BoolProperty("Report intended setter without changing control state."),
-                ["allowStateMutation"] = BoolProperty("Required true for non-dry-run value changes."),
-            });
-        }
-
         internal static JObject RuntimeTargetAndPositionProperties()
         {
             var properties = RuntimeTargetProperties();

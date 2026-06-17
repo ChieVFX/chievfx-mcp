@@ -213,21 +213,6 @@ def _build_advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
             },
             "additionalProperties": False,
         }
-    if tool_name == "ugui-runtime-drag":
-        return {
-            "type": "object",
-            "properties": {
-                "targetPath": {},
-                "instanceId": {},
-                "startScreenPosition": {},
-                "startNormalized": {},
-                "endScreenPosition": {},
-                "endNormalized": {},
-                "dryRun": {},
-                "allowStateMutation": {},
-            },
-            "additionalProperties": False,
-        }
     if tool_name == "ugui-image-set":
         return {
             "type": "object",

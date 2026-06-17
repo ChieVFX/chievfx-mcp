@@ -563,8 +563,6 @@ class McpServerCore:
             if name == "gameobject-component-get" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_gameobject_transform_get_text(result)
             if name == "gameobject-transform-get" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
-            else format_uitoolkit_runtime_interact_text(result)
-            if name == "uitoolkit-runtime-interact" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_ugui_runtime_probe_text(result)
             if name == "ui-runtime-probe"
             and arguments.get("outputFormat") != "json"

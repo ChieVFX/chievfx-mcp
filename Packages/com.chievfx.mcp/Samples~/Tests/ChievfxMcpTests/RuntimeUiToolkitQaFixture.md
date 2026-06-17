@@ -52,10 +52,10 @@ Expected proof:
 - `uitoolkit.hits` includes `BottomUiToolkitHit` below the top hit.
 - `ui-runtime-probe` returns separate `ugui` and `uitoolkit` sections with compact `hits` rows.
 
-6. Dry-run a value mutation; it should report a plan and keep the control value unchanged:
+6. Type into the focusable text field in Play Mode:
 
 ```json
-{"tool":"uitoolkit-runtime-interact","arguments":{"action":"setValue","name":"FocusableUiToolkitTextField","value":"dry run only"}}
+{"tool":"ui-runtime-type-text","arguments":{"framework":"uitoolkit","name":"FocusableUiToolkitTextField","text":"typed by tool"}}
 ```
 
-7. For real interaction, stay in Play Mode and pass both `dryRun:false` and `allowStateMutation:true`. Real dispatch can invoke game callbacks and mutate state.
+7. For real interaction, stay in Play Mode. Core `ui-runtime-*` tools mutate runtime UI directly and can invoke game callbacks.

@@ -62,7 +62,10 @@ CATEGORY_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpCategorySel
 CATALOGS_MD_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_text_prompts_resources.md"
 INITIALIZE_INSTRUCTIONS_MD_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_initialize_instructions.md"
 EXTENSION_CAPABILITY_MANIFEST_PATH = PROJECT_ROOT / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
+DEBUG_SETTINGS_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpDebugSettings.json"
 DEBUG_INSTRUCTIONS_PATH = PROJECT_ROOT / ".temp" / "debug_instructions.md"
+DEBUG_DESCRIPTORS_DIR = PROJECT_ROOT / ".temp" / "descriptors"
+DEBUG_SETTINGS_SCHEMA_VERSION = 1
 TOOL_SELECTION_SCHEMA_VERSION = 1
 RESOURCE_SELECTION_SCHEMA_VERSION = 1
 PROMPT_SELECTION_SCHEMA_VERSION = 1
@@ -136,7 +139,9 @@ def configure_project_root(project_root: str | os.PathLike[str] | None) -> None:
     global PROMPT_SELECTION_PATH
     global CATEGORY_SELECTION_PATH
     global EXTENSION_CAPABILITY_MANIFEST_PATH
+    global DEBUG_SETTINGS_PATH
     global DEBUG_INSTRUCTIONS_PATH
+    global DEBUG_DESCRIPTORS_DIR
 
     if project_root is None:
         return
@@ -150,7 +155,9 @@ def configure_project_root(project_root: str | os.PathLike[str] | None) -> None:
     PROMPT_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpPromptSelection.json"
     CATEGORY_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpCategorySelection.json"
     EXTENSION_CAPABILITY_MANIFEST_PATH = PROJECT_ROOT / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
+    DEBUG_SETTINGS_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpDebugSettings.json"
     DEBUG_INSTRUCTIONS_PATH = PROJECT_ROOT / ".temp" / "debug_instructions.md"
+    DEBUG_DESCRIPTORS_DIR = PROJECT_ROOT / ".temp" / "descriptors"
 
 
 DEFAULT_REQUIRED_TOOL_IDS = {

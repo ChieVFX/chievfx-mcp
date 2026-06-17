@@ -12,6 +12,8 @@ namespace Chievfx.Mcp.Editor
 
         public static string DebugInstructionsPath => Path.Combine(ChievfxMcpToolPolicy.ProjectRoot, ".temp", "debug_instructions.md");
 
+        public static string DebugDescriptorsDirectory => Path.Combine(ChievfxMcpToolPolicy.ProjectRoot, ".temp", "descriptors");
+
         public static void TryDump(string trigger)
         {
             if (string.IsNullOrWhiteSpace(trigger))
@@ -23,6 +25,11 @@ namespace Chievfx.Mcp.Editor
             // edit). Signal Cursor to reconnect first so the on-disk dump and the agent's
             // instructions converge; this is independent of whether the debug dump succeeds.
             ChievfxMcpReloadSignal.RequestReload(trigger);
+
+            if (!ChievfxMcpDebugSettings.DebugMode)
+            {
+                return;
+            }
 
             try
             {
@@ -81,7 +88,8 @@ namespace Chievfx.Mcp.Editor
                 }
 
                 var outputPath = string.IsNullOrWhiteSpace(stdout) ? DebugInstructionsPath : stdout;
-                Debug.Log($"ChievFX MCP debug instructions written to {outputPath}. Trigger: {trigger}");
+                Debug.Log(
+                    $"ChievFX MCP debug artifacts written. Instructions: {outputPath}. Tool descriptors: {DebugDescriptorsDirectory}. Trigger: {trigger}");
             }
             catch (Exception ex)
             {

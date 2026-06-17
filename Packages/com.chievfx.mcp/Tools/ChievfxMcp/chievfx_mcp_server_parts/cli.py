@@ -38,7 +38,9 @@ def main() -> int:
         sys.stdout.write(json.dumps(build_prompt_metadata(), ensure_ascii=False, separators=(",", ":")) + "\n")
         return 0
     if args.dump_debug_instructions:
-        sys.stdout.write(str(dump_debug_instructions(args.debug_trigger)) + "\n")
+        path = dump_debug_instructions(args.debug_trigger)
+        if path is not None:
+            sys.stdout.write(str(path) + "\n")
         return 0
 
     server = McpServer(args.unity_url, args.bridge_dir, args.timeout)

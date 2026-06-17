@@ -351,6 +351,21 @@ namespace Chievfx.Mcp.Editor
                 EditorPrefs.SetBool(ChievfxMcpToolPolicy.AutoReloadCursorOnAvailabilityChangeKey, evt.newValue));
             automation.Add(autoReloadCursorToggle);
             automation.Add(CreateMutedLabel("Cursor only re-reads MCP instructions on a reconnect, so a live availability edit otherwise stays stale until you reload manually. Requires the reload-mcps extension installed to watch the signal file."));
+            var debugModeToggle = new Toggle("Debug mode")
+            {
+                value = ChievfxMcpDebugSettings.DebugMode,
+                tooltip = "Generates .temp/debug_instructions.md and .temp/descriptors/ showing what gets sent to the agent on MCP startup."
+            };
+            debugModeToggle.RegisterValueChangedCallback(evt =>
+            {
+                ChievfxMcpDebugSettings.SetDebugMode(evt.newValue);
+                if (evt.newValue)
+                {
+                    ChievfxMcpDebugInstructionsDumper.TryDump("unity-debug-mode-enabled");
+                }
+            });
+            automation.Add(debugModeToggle);
+            automation.Add(CreateMutedLabel("When on, writes debug_instructions (initialize.instructions snapshot) and per-tool tools/list JSON under .temp/descriptors/. Default off."));
             content.Add(automation);
 
             content.Add(CreateConfigPreviewFoldout());

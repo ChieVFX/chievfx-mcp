@@ -93,6 +93,9 @@ def watch_selection_files(send: Any, poll_seconds: float = SELECTION_WATCH_POLL_
             if kind in changed_kinds:
                 send({"jsonrpc": "2.0", "method": LIST_CHANGED_METHOD_BY_KIND[kind]})
 
+        if "tools" in changed_kinds:
+            refresh_debug_artifacts_on_tools_list_changed()
+
 
 def run_stdio(server: McpServer) -> None:
     force_utf8_stdio()

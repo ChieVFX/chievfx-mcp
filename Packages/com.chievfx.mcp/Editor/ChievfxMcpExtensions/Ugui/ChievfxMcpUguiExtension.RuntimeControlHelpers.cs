@@ -203,14 +203,14 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
         }
 
-        internal static Dictionary<string, object?> CreateClickHandlerRow(GameObject target, string sequence)
+        internal static Dictionary<string, object?> CreateClickHandlerRow(GameObject target, string handler)
         {
-            if (sequence == "submit")
+            if (handler == "submit")
             {
                 var submitTarget = ExecuteEvents.GetEventHandler<ISubmitHandler>(target);
                 return new Dictionary<string, object?>
                 {
-                    ["sequence"] = "submit",
+                    ["handler"] = "submit",
                     ["path"] = submitTarget == null ? null : GetTransformPath(submitTarget.transform),
                     ["component"] = submitTarget == null ? null : FirstAssignableComponentName<ISubmitHandler>(submitTarget),
                 };
@@ -219,7 +219,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             var clickTarget = ExecuteEvents.GetEventHandler<IPointerClickHandler>(target);
             return new Dictionary<string, object?>
             {
-                ["sequence"] = "pointerEnterDownUpClick",
+                ["handler"] = "pointerClick",
                 ["path"] = clickTarget == null ? null : GetTransformPath(clickTarget.transform),
                 ["component"] = clickTarget == null ? null : FirstAssignableComponentName<IPointerClickHandler>(clickTarget),
             };

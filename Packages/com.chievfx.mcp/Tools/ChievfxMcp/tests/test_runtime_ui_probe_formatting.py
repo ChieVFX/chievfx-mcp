@@ -58,6 +58,37 @@ class RuntimeUiProbeFormattingTests(unittest.TestCase):
             ],
         )
 
+    def test_initialize_instructions_advertises_typed_click_arguments(self) -> None:
+        schema = mcp.advertised_input_schema({"name": "ui-runtime-click", "inputSchema": {}})
+        self.assertEqual(
+            _schema_arguments(schema),
+            "framework?:all|auto|ugui|uitoolkit, x?:num, y?:num, isNormalized?:bool, path?:str, instanceId?:int, handler?:pointerClick|submit",
+        )
+
+        line = format_tool_for_initialize_instructions(
+            {
+                "name": "ui-runtime-click",
+                "description": "Click runtime UI.",
+                "inputSchema": schema,
+            }
+        )
+        self.assertIn(
+            "args=(framework?:all|auto|ugui|uitoolkit, x?:num, y?:num, isNormalized?:bool, path?:str, instanceId?:int, handler?:pointerClick|submit)",
+            line,
+        )
+        self.assertEqual(
+            list(schema["properties"].keys()),
+            [
+                "framework",
+                "x",
+                "y",
+                "isNormalized",
+                "path",
+                "instanceId",
+                "handler",
+            ],
+        )
+
         # Fallback path: manifest snapshot may arrive alphabetically sorted from Unity.
         manifest_tool = {
             "name": "ui-runtime-type-text",

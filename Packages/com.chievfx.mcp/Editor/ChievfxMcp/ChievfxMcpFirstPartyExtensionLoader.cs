@@ -573,7 +573,7 @@ namespace Chievfx.Mcp.Extensions.Control
 
         private static void TryDispatchUiRuntimeClick(Vector2 screenPosition, List<string> warnings)
         {
-            var args = UiRuntimeClickArgs(screenPosition, dryRun: false);
+            var args = UiRuntimeClickArgs(screenPosition);
             try
             {
                 if (!Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry.TryRunTool("ui-runtime-click", args, out var result)
@@ -589,14 +589,13 @@ namespace Chievfx.Mcp.Extensions.Control
             }
         }
 
-        private static JObject UiRuntimeClickArgs(Vector2 screenPosition, bool dryRun)
+        private static JObject UiRuntimeClickArgs(Vector2 screenPosition)
         {
             return new JObject
             {
                 ["framework"] = "all",
-                ["normalized"] = NormalizedScreenPosition(screenPosition),
-                ["dryRun"] = dryRun,
-                ["allowStateMutation"] = true,
+                ["x"] = screenPosition.x,
+                ["y"] = screenPosition.y,
             };
         }
 

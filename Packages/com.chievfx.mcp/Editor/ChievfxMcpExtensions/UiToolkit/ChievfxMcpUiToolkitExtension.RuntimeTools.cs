@@ -86,9 +86,43 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
         internal static Dictionary<string, object?> RuntimeClickAtPosition(JToken args, UiToolkitDependencyStatus status)
         {
-            var request = args is JObject obj ? (JObject)obj.DeepClone() : new JObject();
-            request["action"] = "pointerClick";
-            var result = InteractRuntime(request, status);
+            var warnings = new List<string>();
+            var handler = ChievfxMcpRuntimeUiAdapterRegistry.ReadRuntimeClickHandler(args);
+            var action = handler == "submit" ? "navigationSubmit" : "pointerClick";
+            var result = CreateEnvelope("tool://ui-runtime-click#uitoolkit", status);
+            result["handler"] = handler;
+            result["playMode"] = IsRuntimePlayModeActive();
+            result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
+            result["focusedElementBefore"] = CreateFocusedElementRow(status);
+            result["dispatchedEvents"] = Array.Empty<string>();
+
+            var resolution = ResolveRuntimeInteractionTarget(args, status, warnings);
+            result["input"] = resolution.Position == null ? null : CreateScreenPositionRow(resolution.Position.Value);
+            result["panelPosition"] = resolution.PanelPosition.HasValue ? CreateVector2Row(resolution.PanelPosition.Value) : null;
+            result["resolvedBy"] = resolution.ResolvedBy;
+            result["stack"] = resolution.Stack;
+            result["target"] = resolution.Target == null ? null : CreateVisualElementRow(resolution.Target, status, resolution.Group ?? PanelGroup.FromElement(resolution.Target), includeTextAndValue: true);
+            result["targetStateBefore"] = resolution.Target == null ? null : CreateVisualElementStateRow(resolution.Target, status);
+            result["intendedHandler"] = resolution.Target == null
+                ? null
+                : new Dictionary<string, object?> { ["handler"] = handler, ["events"] = PlannedEvents(action) };
+
+            if (resolution.Target == null)
+            {
+                warnings.Add("No runtime UI Toolkit target resolved for click.");
+            }
+            else if (!IsRuntimePlayModeActive())
+            {
+                throw new InvalidOperationException("Runtime UI Toolkit click requires Play Mode. Enter Play Mode before firing interactions.");
+            }
+            else
+            {
+                result["dispatchedEvents"] = ApplyRuntimeInteraction(action, resolution.Target, resolution.PanelPosition, args, warnings);
+            }
+
+            result["focusedElementAfter"] = CreateFocusedElementRow(status);
+            result["targetStateAfter"] = resolution.Target == null ? null : CreateVisualElementStateRow(resolution.Target, status);
+            result["warnings"] = warnings.Distinct().ToArray();
             var resolved = result.TryGetValue("target", out var target) && target != null;
             result["resolved"] = resolved;
             result["framework"] = "uitoolkit";

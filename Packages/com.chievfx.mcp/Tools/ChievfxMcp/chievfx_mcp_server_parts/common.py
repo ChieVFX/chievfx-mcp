@@ -605,4 +605,13 @@ TOOL_ADVERTISED_PROPERTY_ORDERS: dict[str, list[str]] = {
         "append",
         "submit",
     ],
+    "ui-runtime-click": [
+        "framework",
+        "x",
+        "y",
+        "isNormalized",
+        "path",
+        "instanceId",
+        "handler",
+    ],
 }

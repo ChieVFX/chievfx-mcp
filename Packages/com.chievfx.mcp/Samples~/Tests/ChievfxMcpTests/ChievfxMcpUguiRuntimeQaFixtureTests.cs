@@ -210,14 +210,10 @@ namespace Chievfx.Mcp.Editor.Tests
                 .onClick
                 .AddListener(() => ChievfxMcpUguiRuntimeQaFixture.ButtonClickCount++);
 
-            var dryRun = RunUiRuntimeClick("{'targetPath':'" + ChievfxMcpUguiRuntimeQaFixture.TopButtonPath + "','framework':'ugui','dryRun':true}");
-            Assert.AreEqual(true, dryRun["dryRun"]);
-            Assert.AreEqual(0, ChievfxMcpUguiRuntimeQaFixture.ButtonClickCount);
-            Assert.IsNotNull(UguiClickSection(dryRun)["handler"]);
-
-            var click = RunUiRuntimeClick("{'targetPath':'" + ChievfxMcpUguiRuntimeQaFixture.TopButtonPath + "','framework':'ugui','allowStateMutation':true}");
+            var click = RunUiRuntimeClick("{'path':'" + ChievfxMcpUguiRuntimeQaFixture.TopButtonPath + "','framework':'ugui'}");
             Assert.AreEqual(1, ChievfxMcpUguiRuntimeQaFixture.ButtonClickCount);
             Assert.AreEqual(true, click["anyClicked"]);
+            Assert.IsNotNull(UguiClickSection(click)["handler"]);
             Assert.IsNotNull(UguiClickSection(click)["selectedAfter"]);
 
             var slider = GameObject.Find(ChievfxMcpUguiRuntimeQaFixture.SliderPath)!.GetComponent<Slider>();
@@ -265,14 +261,8 @@ namespace Chievfx.Mcp.Editor.Tests
                 .AddListener(() => ChievfxMcpUguiRuntimeQaFixture.ButtonClickCount++);
 
             var screenPosition = RectCenterScreenPoint(ChievfxMcpUguiRuntimeQaFixture.TopButtonPath);
-            var dryRun = RunUiRuntimeClick(
-                ClickAtScreenPositionArgs(screenPosition, dryRun: true, framework: "ugui"));
-            StringAssert.EndsWith(
-                ChievfxMcpUguiRuntimeQaFixture.TopButtonPath,
-                (string)Row(UguiClickSection(dryRun), "target")["path"]!);
-
             var click = RunUiRuntimeClick(
-                ClickAtScreenPositionArgs(screenPosition, dryRun: false, allowStateMutation: true, framework: "ugui"));
+                ClickAtScreenPositionArgs(screenPosition, framework: "ugui"));
             Assert.AreEqual(1, ChievfxMcpUguiRuntimeQaFixture.ButtonClickCount);
             StringAssert.EndsWith(
                 ChievfxMcpUguiRuntimeQaFixture.TopButtonPath,
@@ -406,20 +396,15 @@ namespace Chievfx.Mcp.Editor.Tests
 
         private static string ClickAtScreenPositionArgs(
             Vector2 screenPosition,
-            bool dryRun,
-            bool allowStateMutation = false,
             string? framework = null)
         {
             var frameworkArg = string.IsNullOrWhiteSpace(framework)
                 ? string.Empty
                 : ",'framework':'" + framework + "'";
-            return "{'screenPosition':{'x':"
+            return "{'x':"
                 + screenPosition.x.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 + ",'y':"
                 + screenPosition.y.ToString(System.Globalization.CultureInfo.InvariantCulture)
-                + "},'dryRun':"
-                + (dryRun ? "true" : "false")
-                + (allowStateMutation ? ",'allowStateMutation':true" : string.Empty)
                 + frameworkArg
                 + "}";
         }

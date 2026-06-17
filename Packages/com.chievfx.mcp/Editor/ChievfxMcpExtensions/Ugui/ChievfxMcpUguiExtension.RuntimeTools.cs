@@ -103,38 +103,38 @@ namespace Chievfx.Mcp.Extensions.Ugui
         internal static Dictionary<string, object?> RuntimeClick(JToken args, UguiDependencyStatus status)
         {
             var warnings = new List<string>();
-            var dryRun = ReadBool(args, "dryRun", false);
-            var sequence = (ReadString(args, "sequence") ?? "pointer").Trim().ToLowerInvariant();
+            var handler = ChievfxMcpRuntimeUiAdapterRegistry.ReadRuntimeClickHandler(args);
             var position = ReadScreenPosition(args, warnings, status);
-            var result = CreateRuntimeInteractionEnvelope("tool://ui-runtime-click#ugui", status, dryRun, args, warnings);
+            var result = CreateRuntimeInteractionEnvelope("tool://ui-runtime-click#ugui", status, dryRun: false, args, warnings);
             AddCoordinateInfo(result, position);
 
-            var eventSystem = RequireRuntimeEventSystem(status, warnings, dryRun);
+            var eventSystem = RequireRuntimeEventSystem(status, warnings, dryRun: false);
             result["eventSystem"] = eventSystem == null ? null : CreateGameObjectRow(eventSystem.gameObject);
             var target = ResolveRuntimeInteractionTarget(args, status, eventSystem, position.ScreenPosition, warnings, out var stack);
             result["stack"] = stack;
             result["target"] = target == null ? null : CreateRuntimeElementRow(target, status);
             result["targetStateBefore"] = target == null ? null : CreateControlStateRow(target, status);
-            result["intendedHandler"] = target == null ? null : CreateClickHandlerRow(target, sequence);
+            result["intendedHandler"] = target == null ? null : CreateClickHandlerRow(target, handler);
 
             if (target == null)
             {
                 warnings.Add("No runtime uGUI target resolved for click.");
             }
-
-            if (!dryRun)
+            else if (!IsRuntimePlayModeActive())
             {
-                EnsureRuntimeMutationAllowed(args, warnings);
-                if (eventSystem == null || target == null)
+                throw new InvalidOperationException("Runtime uGUI click requires Play Mode. Enter Play Mode before firing interactions.");
+            }
+            else if (eventSystem == null)
+            {
+                throw new InvalidOperationException("Runtime click requires an active EventSystem and a resolved target.");
+            }
+            else
+            {
+                if (handler == "submit")
                 {
-                    throw new InvalidOperationException("Runtime click requires an active EventSystem and a resolved target.");
-                }
-
-                if (sequence == "submit")
-                {
-                    var handler = ExecuteEvents.GetEventHandler<ISubmitHandler>(target) ?? target;
-                    eventSystem.SetSelectedGameObject(handler, new BaseEventData(eventSystem));
-                    ExecuteEvents.Execute(handler, new BaseEventData(eventSystem), ExecuteEvents.submitHandler);
+                    var submitTarget = ExecuteEvents.GetEventHandler<ISubmitHandler>(target) ?? target;
+                    eventSystem.SetSelectedGameObject(submitTarget, new BaseEventData(eventSystem));
+                    ExecuteEvents.Execute(submitTarget, new BaseEventData(eventSystem), ExecuteEvents.submitHandler);
                 }
                 else
                 {

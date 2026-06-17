@@ -246,13 +246,29 @@ namespace Chievfx.Mcp.Editor
                 && resolvedValue;
         }
 
+        internal static string ReadRuntimeClickHandler(JToken args)
+        {
+            var raw = ReadString(args, "handler") ?? ReadString(args, "sequence") ?? "pointerClick";
+            if (string.Equals(raw, "pointerClick", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(raw, "pointer", StringComparison.OrdinalIgnoreCase))
+            {
+                return "pointerClick";
+            }
+
+            if (string.Equals(raw, "submit", StringComparison.OrdinalIgnoreCase))
+            {
+                return "submit";
+            }
+
+            throw new ArgumentException($"Unknown click handler '{raw}'. Use pointerClick or submit.");
+        }
+
         internal static object? RuntimeClick(JToken args)
         {
             ChievfxMcpRuntimeUiProbeCompact.EnsurePlayModeForProbe(EditorApplication.isPlaying || Application.isPlaying);
 
             var request = args is JObject obj ? obj : new JObject();
             var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
-            var dryRun = ReadBool(request, "dryRun", true);
             var warnings = new List<string>();
             var position = ReadScreenPosition(request, warnings);
             var clickAdapters = SnapshotAdapters()
@@ -280,51 +296,28 @@ namespace Chievfx.Mcp.Editor
                     continue;
                 }
 
-                Dictionary<string, object?>? probeDetail;
+                Dictionary<string, object?>? clickDetail;
                 try
                 {
-                    var probeArgs = (JObject)request.DeepClone();
-                    probeArgs["dryRun"] = true;
-                    probeDetail = ReadClickDetail(((IChievfxMcpRuntimeUiClickAdapter)adapter).ClickAtPosition(probeArgs));
+                    clickDetail = ReadClickDetail(((IChievfxMcpRuntimeUiClickAdapter)adapter).ClickAtPosition(request));
                 }
                 catch (Exception ex)
                 {
-                    warnings.Add($"Framework '{adapter.FrameworkId}' click probe failed: {RootMessage(ex)}");
-                    sections.Add(CreateClickSection(adapter.FrameworkId, available: true, resolved: false, clicked: false, detail: null));
-                    continue;
+                    throw new InvalidOperationException($"ui-runtime-click failed for framework '{adapter.FrameworkId}': {RootMessage(ex)}", ex);
                 }
 
-                var resolved = ReadResolvedFlag(probeDetail);
+                var resolved = ReadResolvedFlag(clickDetail);
+                var clicked = resolved;
                 if (resolved)
                 {
                     anyResolved = true;
+                    anyClicked = true;
                 }
 
-                Dictionary<string, object?>? clickDetail = probeDetail;
-                var clicked = false;
-                if (resolved && !dryRun)
-                {
-                    try
-                    {
-                        var clickArgs = (JObject)request.DeepClone();
-                        clickArgs["dryRun"] = false;
-                        clickDetail = ReadClickDetail(((IChievfxMcpRuntimeUiClickAdapter)adapter).ClickAtPosition(clickArgs));
-                        clicked = ReadResolvedFlag(clickDetail);
-                        if (clicked)
-                        {
-                            anyClicked = true;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        throw new InvalidOperationException($"ui-runtime-click failed for framework '{adapter.FrameworkId}': {RootMessage(ex)}", ex);
-                    }
-                }
-
-                sections.Add(CreateClickSection(adapter.FrameworkId, available: true, resolved: resolved, clicked: clicked, detail: clickDetail ?? probeDetail));
+                sections.Add(CreateClickSection(adapter.FrameworkId, available: true, resolved: resolved, clicked: clicked, detail: clickDetail));
             }
 
-            if (!ChievfxMcpRuntimeUiControlFind.IncludesAllFrameworks(framework) && !anyResolved && !dryRun)
+            if (!ChievfxMcpRuntimeUiControlFind.IncludesAllFrameworks(framework) && !anyResolved)
             {
                 throw new InvalidOperationException(
                     $"ui-runtime-click could not resolve a {framework} target at the supplied position or explicit target.");
@@ -338,9 +331,7 @@ namespace Chievfx.Mcp.Editor
             return new Dictionary<string, object?>
             {
                 ["uri"] = "tool://" + ClickToolName,
-                ["dryRun"] = dryRun,
                 ["playMode"] = EditorApplication.isPlaying || Application.isPlaying,
-                ["allowStateMutation"] = ReadBool(request, "allowStateMutation", false),
                 ["frameworkFilter"] = string.IsNullOrEmpty(framework) ? "all" : framework,
                 ["coordinateConvention"] = CreateCoordinateConvention(position, request),
                 ["anyResolved"] = anyResolved,
@@ -1105,6 +1096,12 @@ namespace Chievfx.Mcp.Editor
         private static float ReadFloat(JToken token, string key, float defaultValue)
         {
             return token[key]?.Value<float?>() ?? defaultValue;
+        }
+
+        private static string? ReadString(JToken token, string key)
+        {
+            var value = token[key]?.Value<string>();
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         }
 
         private static string RootMessage(Exception ex)

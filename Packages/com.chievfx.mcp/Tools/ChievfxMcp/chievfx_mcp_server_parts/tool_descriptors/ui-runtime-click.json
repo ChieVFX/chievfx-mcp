@@ -1,6 +1,6 @@
 {
   "name": "ui-runtime-click",
-  "description": "Click Play Mode runtime UI at a screen position. Tries uGUI and UI Toolkit at the same bottom-left-origin coordinates used by ui-control-find. Requires Play Mode and allowStateMutation:true to mutate.",
+  "description": "Click Play Mode runtime UI at a screen position or explicit path. Tries uGUI and UI Toolkit at the same bottom-left-origin coordinates used by ui-control-find. Requires Play Mode.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -11,79 +11,36 @@
         "type": "string",
         "enum": ["all", "auto", "ugui", "uitoolkit"],
         "default": "all",
-        "description": "Framework scope. all/auto (default) tries uGUI and UI Toolkit at the position; ugui/uitoolkit force one."
+        "description": "Framework scope. all/auto (default) tries uGUI and UI Toolkit; ugui/uitoolkit force one."
       },
-      "targetPath": {
-        "type": "string",
-        "description": "Optional explicit uGUI GameObject path or UI Toolkit VisualElement path."
+      "x": {
+        "type": "number",
+        "description": "Bottom-left-origin screen x in pixels, or 0..1 when isNormalized is true."
+      },
+      "y": {
+        "type": "number",
+        "description": "Bottom-left-origin screen y in pixels, or 0..1 when isNormalized is true."
+      },
+      "isNormalized": {
+        "type": "boolean",
+        "default": false,
+        "description": "When true, x/y are normalized bottom-left coordinates where 1 is screen width/height."
       },
       "path": {
         "type": "string",
-        "description": "Alias for targetPath (UI Toolkit)."
+        "description": "uGUI GameObject transform path, UI Toolkit VisualElement path, or visualElementRef (ve:...) from runtime reads/probes."
       },
       "instanceId": {
         "type": "integer",
         "description": "Optional uGUI GameObject instance id."
       },
-      "name": {
+      "handler": {
         "type": "string",
-        "description": "Optional UI Toolkit VisualElement name."
-      },
-      "targetName": {
-        "type": "string",
-        "description": "Alias for name (UI Toolkit)."
-      },
-      "visualElementRef": {
-        "type": "string",
-        "description": "Optional UI Toolkit visualElementRef from runtime reads/probes."
-      },
-      "targetRef": {
-        "type": "string",
-        "description": "Alias for visualElementRef."
-      },
-      "screenPosition": {
-        "type": "object",
-        "description": "Bottom-left-origin screen position in pixels.",
-        "properties": {
-          "x": { "type": "number" },
-          "y": { "type": "number" }
-        },
-        "required": ["x", "y"],
-        "additionalProperties": false
-      },
-      "normalized": {
-        "type": "object",
-        "description": "Normalized bottom-left-origin screen position, where 0,0 is bottom-left and 1,1 is top-right.",
-        "properties": {
-          "x": { "type": "number" },
-          "y": { "type": "number" }
-        },
-        "required": ["x", "y"],
-        "additionalProperties": false
-      },
-      "x": {
-        "type": "number",
-        "description": "Bottom-left-origin screen x in pixels."
-      },
-      "y": {
-        "type": "number",
-        "description": "Bottom-left-origin screen y in pixels."
-      },
-      "sequence": {
-        "type": "string",
-        "enum": ["pointer", "submit"],
-        "description": "uGUI click sequence. pointer sends pointer enter/down/up/click; submit sends EventSystem submit."
-      },
-      "dryRun": {
-        "type": "boolean",
-        "default": true,
-        "description": "Report resolved targets and intended handlers without firing events."
-      },
-      "allowStateMutation": {
-        "type": "boolean",
-        "description": "Required true for non-dry-run clicks because callbacks may mutate game state."
+        "enum": ["pointerClick", "submit"],
+        "default": "pointerClick",
+        "description": "Click dispatch. pointerClick sends pointer enter/down/up/click (uGUI) or pointer events (UI Toolkit). submit sends EventSystem submit (uGUI) or NavigationSubmitEvent (UI Toolkit)."
       }
     },
-    "additionalProperties": false
+    "additionalProperties": true
   }
 }

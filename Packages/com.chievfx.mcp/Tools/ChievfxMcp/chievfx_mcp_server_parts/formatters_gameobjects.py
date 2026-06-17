@@ -182,7 +182,6 @@ def format_ui_runtime_normalized(value: float) -> str:
 
 def format_ui_runtime_click_text(result: dict[str, Any]) -> str:
     header_parts = [
-        f"dryRun:{format_toon_atom(result.get('dryRun'))}",
         f"playMode:{format_toon_atom(result.get('playMode'))}",
     ]
     if result.get("anyClicked") is True:

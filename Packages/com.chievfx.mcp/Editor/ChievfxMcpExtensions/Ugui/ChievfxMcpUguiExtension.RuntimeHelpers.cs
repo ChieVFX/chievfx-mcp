@@ -175,7 +175,8 @@ namespace Chievfx.Mcp.Extensions.Ugui
             List<string> warnings,
             out Dictionary<string, object?>[] stack)
         {
-            var explicitTarget = ResolveGameObject(args, "targetPath", "instanceId");
+            var explicitTarget = ResolveGameObject(args, "path", "instanceId")
+                ?? ResolveGameObject(args, "targetPath", "instanceId");
             if (explicitTarget != null)
             {
                 stack = Array.Empty<Dictionary<string, object?>>();

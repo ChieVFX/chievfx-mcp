@@ -142,7 +142,7 @@ namespace Chievfx.Mcp.Editor
             descriptor.Tools.Add(new ChievfxMcpToolDescriptor
             {
                 Name = TypeTextToolName,
-                Description = "Focus a Play Mode text field and type text into it. Works for uGUI InputField/TMP_InputField and UI Toolkit TextField; auto-detects the framework or use framework to force one. Requires Play Mode and allowStateMutation:true to mutate.",
+                Description = "Focus a Play Mode text field and type text into it like a player. Works for uGUI InputField/TMP_InputField and UI Toolkit TextField; auto-detects the framework or use framework to force one. Requires Play Mode.",
                 Category = CommonCategory,
                 InputSchema = TypeTextSchema(),
             });
@@ -1023,34 +1023,32 @@ namespace Chievfx.Mcp.Editor
                 ["type"] = "object",
                 ["properties"] = new JObject
                 {
-                    ["text"] = new JObject
-                    {
-                        ["type"] = "string",
-                        ["description"] = "Text to type into the focused text field.",
-                    },
                     ["framework"] = new JObject
                     {
                         ["type"] = "string",
                         ["enum"] = new JArray("auto", "ugui", "uitoolkit"),
                         ["description"] = "Target framework. auto (default) resolves the field across registered frameworks; ugui/uitoolkit force one.",
                     },
-                    ["targetPath"] = new JObject { ["type"] = "string", ["description"] = "uGUI GameObject transform path or UI Toolkit VisualElement path of the text field." },
-                    ["path"] = new JObject { ["type"] = "string", ["description"] = "Alias for targetPath (UI Toolkit)." },
+                    ["x"] = NumberSchema("Screen X. Bottom-left origin is 0; top-right is screen width in pixels, or 1 when isNormalized is true."),
+                    ["y"] = NumberSchema("Screen Y. Bottom-left origin is 0; top-right is screen height in pixels, or 1 when isNormalized is true."),
+                    ["isNormalized"] = new JObject
+                    {
+                        ["type"] = "boolean",
+                        ["description"] = "When true, x and y are normalized bottom-left coordinates where 1 is screen width/height.",
+                    },
+                    ["path"] = new JObject
+                    {
+                        ["type"] = "string",
+                        ["description"] = "uGUI GameObject transform path, UI Toolkit VisualElement path, or visualElementRef (ve:...) from runtime reads/probes.",
+                    },
                     ["instanceId"] = new JObject { ["type"] = "integer", ["description"] = "uGUI target GameObject instance id." },
-                    ["name"] = new JObject { ["type"] = "string", ["description"] = "UI Toolkit VisualElement name." },
-                    ["targetName"] = new JObject { ["type"] = "string", ["description"] = "Alias for name (UI Toolkit)." },
-                    ["visualElementRef"] = new JObject { ["type"] = "string", ["description"] = "UI Toolkit visualElementRef from runtime reads/probes." },
-                    ["targetRef"] = new JObject { ["type"] = "string", ["description"] = "Alias for visualElementRef." },
-                    ["screenPosition"] = Vector2Schema("Bottom-left-origin screen position in pixels used to resolve the field when no explicit target is supplied."),
-                    ["normalized"] = Vector2Schema("Normalized bottom-left-origin screen position, where 0.5/0.5 is screen center."),
-                    ["x"] = NumberSchema("Bottom-left-origin screen x in pixels."),
-                    ["y"] = NumberSchema("Bottom-left-origin screen y in pixels."),
+                    ["text"] = new JObject
+                    {
+                        ["type"] = "string",
+                        ["description"] = "Text to type into the field. Use append:true with an empty string to focus without replacing existing text.",
+                    },
                     ["append"] = new JObject { ["type"] = "boolean", ["description"] = "Append to the current text instead of replacing it. Defaults false." },
-                    ["focus"] = new JObject { ["type"] = "boolean", ["description"] = "Focus/select the text field before typing. Defaults true." },
                     ["submit"] = new JObject { ["type"] = "boolean", ["description"] = "After typing, submit/end edit (uGUI onEndEdit, UI Toolkit NavigationSubmit + blur). Defaults false." },
-                    ["invokeCallbacks"] = new JObject { ["type"] = "boolean", ["description"] = "When true (default), use notifying setters that fire onValueChanged/ChangeEvent. When false, prefer SetTextWithoutNotify/SetValueWithoutNotify." },
-                    ["dryRun"] = new JObject { ["type"] = "boolean", ["description"] = "Report resolved target and plan without focusing, typing, or mutating. Defaults false." },
-                    ["allowStateMutation"] = new JObject { ["type"] = "boolean", ["description"] = "Required true for non-dry-run typing because callbacks may mutate game state." },
                 },
                 ["required"] = new JArray("text"),
                 ["additionalProperties"] = true,

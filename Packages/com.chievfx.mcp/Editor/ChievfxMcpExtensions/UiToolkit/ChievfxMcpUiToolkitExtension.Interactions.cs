@@ -98,8 +98,18 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
         internal static object? ResolveVisualElement(JToken args, UiToolkitDependencyStatus status)
         {
+            var pathValue = ReadString(args, "path");
             var targetRef = ReadString(args, "visualElementRef") ?? ReadString(args, "targetRef");
-            var targetPath = ReadString(args, "targetPath") ?? ReadString(args, "path");
+            if (string.IsNullOrWhiteSpace(targetRef)
+                && !string.IsNullOrWhiteSpace(pathValue)
+                && pathValue.StartsWith("ve:", StringComparison.Ordinal))
+            {
+                targetRef = pathValue;
+            }
+
+            var targetPath = !string.IsNullOrWhiteSpace(pathValue) && !pathValue.StartsWith("ve:", StringComparison.Ordinal)
+                ? pathValue
+                : ReadString(args, "targetPath");
             var targetName = ReadString(args, "name") ?? ReadString(args, "targetName");
             if (string.IsNullOrWhiteSpace(targetRef)
                 && string.IsNullOrWhiteSpace(targetPath)
@@ -371,20 +381,15 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         internal static Dictionary<string, object?> TypeTextIntoFocusedTextField(JToken args, UiToolkitDependencyStatus status, bool requireTarget)
         {
             var warnings = new List<string>();
-            var dryRun = ReadBool(args, "dryRun", false);
             var append = ReadBool(args, "append", false);
             var submit = ReadBool(args, "submit", false);
-            var focus = ReadBool(args, "focus", true);
-            var invokeCallbacks = ReadBool(args, "invokeCallbacks", true);
             var text = ReadString(args, "text") ?? ReadString(args, "value")
                 ?? throw new ArgumentException("ui-runtime-type-text requires 'text'.");
 
             var result = CreateEnvelope("tool://ui-runtime-type-text#uitoolkit", status);
             result["framework"] = "uitoolkit";
-            result["dryRun"] = dryRun;
             result["playMode"] = IsRuntimePlayModeActive();
             result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
-            result["allowStateMutation"] = ReadBool(args, "allowStateMutation", false);
             result["focusedElementBefore"] = CreateFocusedElementRow(status);
 
             var resolution = ResolveRuntimeInteractionTarget(args, status, warnings);
@@ -407,7 +412,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 if (requireTarget)
                 {
                     throw new ArgumentException(element == null
-                        ? "ui-runtime-type-text could not resolve a UI Toolkit target from targetPath/name/visualElementRef or screenPosition."
+                        ? "ui-runtime-type-text could not resolve a UI Toolkit target from path or screen position."
                         : $"Target '{GetVisualElementPath(element)}' has no writable string value (not a TextField).");
                 }
 
@@ -415,60 +420,21 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 return result;
             }
 
+            if (!IsRuntimePlayModeActive())
+            {
+                throw new InvalidOperationException("ui-runtime-type-text requires Play Mode. Enter Play Mode before typing into runtime text fields.");
+            }
+
             var textBefore = valueProperty!.GetValue(element) as string ?? string.Empty;
-            var resultingText = append ? textBefore + text : text;
             result["controlType"] = element!.GetType().Name;
             result["textBefore"] = textBefore;
-            result["plan"] = new Dictionary<string, object?>
+
+            TypeWithRealKeyboard(element, status, text, append, focus: true, warnings);
+
+            if (submit)
             {
-                ["controlType"] = element.GetType().Name,
-                ["targetRef"] = CreateVisualElementRef(element),
-                ["focus"] = focus,
-                ["append"] = append,
-                ["submit"] = submit,
-                ["invokeCallbacks"] = invokeCallbacks,
-                ["textToType"] = text,
-                ["resultingText"] = resultingText,
-                ["method"] = invokeCallbacks
-                    ? "focus + per-character KeyDownEvent (imitates real player typing, fires ChangeEvent)"
-                    : "SetValueWithoutNotify (silent, no keystroke simulation)",
-                ["guard"] = "dryRun must be false, Play Mode active, and allowStateMutation true before focusing or typing.",
-            };
-
-            if (!dryRun)
-            {
-                EnsureRuntimeMutationAllowed(args);
-
-                if (invokeCallbacks)
-                {
-                    TypeWithRealKeyboard(element, status, text, append, focus, warnings);
-                }
-                else
-                {
-                    if (focus)
-                    {
-                        element.Focus();
-                    }
-
-                    var setWithoutNotify = element.GetType().GetMethod("SetValueWithoutNotify", BindingFlags.Public | BindingFlags.Instance, null, new[] { typeof(string) }, null);
-                    if (setWithoutNotify != null)
-                    {
-                        setWithoutNotify.Invoke(element, new object[] { resultingText });
-                    }
-                    else
-                    {
-                        valueProperty.SetValue(element, resultingText);
-                        warnings.Add("SetValueWithoutNotify was not found; used value property setter which fires ChangeEvent.");
-                    }
-
-                    TrySetCaretToEnd(element, resultingText.Length);
-                }
-
-                if (submit)
-                {
-                    DispatchNavigationSubmit(element);
-                    element.Blur();
-                }
+                DispatchNavigationSubmit(element);
+                element.Blur();
             }
 
             result["textAfter"] = valueProperty.GetValue(element) as string;

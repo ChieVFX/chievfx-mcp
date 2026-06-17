@@ -25,6 +25,25 @@ class RuntimeUiProbeFormattingTests(unittest.TestCase):
         )
         self.assertIn("args=(x:num, y:num, isNormalized?:bool, page?:int)", line)
 
+    def test_initialize_instructions_advertises_typed_type_text_arguments(self) -> None:
+        schema = mcp.advertised_input_schema({"name": "ui-runtime-type-text", "inputSchema": {}})
+        self.assertEqual(
+            _schema_arguments(schema),
+            "framework?:auto|ugui|uitoolkit, x?:num, y?:num, isNormalized?:bool, path?:str, instanceId?:int, text:str, append?:bool, submit?:bool",
+        )
+
+        line = format_tool_for_initialize_instructions(
+            {
+                "name": "ui-runtime-type-text",
+                "description": "Type into runtime text field.",
+                "inputSchema": schema,
+            }
+        )
+        self.assertIn(
+            "args=(framework?:auto|ugui|uitoolkit, x?:num, y?:num, isNormalized?:bool, path?:str, instanceId?:int, text:str, append?:bool, submit?:bool)",
+            line,
+        )
+
     def test_merged_probe_renders_markdown_sections(self) -> None:
         result = {
             "runtimeAvailable": True,

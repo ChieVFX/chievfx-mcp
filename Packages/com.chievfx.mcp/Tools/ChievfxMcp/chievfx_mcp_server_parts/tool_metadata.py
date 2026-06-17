@@ -65,6 +65,23 @@ def advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
             "required": ["x", "y"],
             "additionalProperties": True,
         }
+    if tool_name == "ui-runtime-type-text":
+        return {
+            "type": "object",
+            "properties": {
+                "framework": {"enum": ["auto", "ugui", "uitoolkit"], "default": "auto"},
+                "x": {"type": "number"},
+                "y": {"type": "number"},
+                "isNormalized": {"type": "boolean", "default": False},
+                "path": {"type": "string"},
+                "instanceId": {"type": "integer"},
+                "text": {"type": "string"},
+                "append": {"type": "boolean", "default": False},
+                "submit": {"type": "boolean", "default": False},
+            },
+            "required": ["text"],
+            "additionalProperties": True,
+        }
     if tool_name == "ui-control-find":
         return {
             "type": "object",

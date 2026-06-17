@@ -271,15 +271,15 @@ namespace Chievfx.Mcp.Extensions.Ugui
         internal static Dictionary<string, object?> TypeTextIntoFocusedTextField(JToken args, UguiDependencyStatus status, bool requireTarget)
         {
             var warnings = new List<string>();
-            var dryRun = ReadBool(args, "dryRun", false);
             var append = ReadBool(args, "append", false);
             var submit = ReadBool(args, "submit", false);
-            var focus = ReadBool(args, "focus", true);
-            var invokeCallbacks = ReadBool(args, "invokeCallbacks", true);
             var text = ReadString(args, "text") ?? ReadString(args, "value")
                 ?? throw new ArgumentException("ui-runtime-type-text requires 'text'.");
 
-            var result = CreateRuntimeInteractionEnvelope("tool://ui-runtime-type-text#ugui", status, dryRun, args, warnings);
+            var result = CreateEnvelope("tool://ui-runtime-type-text#ugui", status);
+            result["playMode"] = IsRuntimePlayModeActive();
+            result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
+            result["selectedObjectBefore"] = CreateSelectedObjectRow(status);
             result["framework"] = "ugui";
 
             var position = ReadScreenPosition(args, warnings, status);
@@ -300,7 +300,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 if (requireTarget)
                 {
                     throw new ArgumentException(target == null
-                        ? "ui-runtime-type-text could not resolve a uGUI target from targetPath/instanceId or screenPosition."
+                        ? "ui-runtime-type-text could not resolve a uGUI target from path/instanceId or screen position."
                         : $"Target '{GetTransformPath(target!.transform)}' has no uGUI InputField or TMP_InputField.");
                 }
 
@@ -308,49 +308,34 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 return result;
             }
 
+            if (!IsRuntimePlayModeActive())
+            {
+                throw new InvalidOperationException("ui-runtime-type-text requires Play Mode. Enter Play Mode before typing into runtime text fields.");
+            }
+
             var controlType = inputField!.GetType().Name;
             var textBefore = GetPropertyValue(inputField, "text") as string ?? string.Empty;
             var resultingText = append ? textBefore + text : text;
             result["controlType"] = controlType;
             result["textBefore"] = textBefore;
-            result["plan"] = new Dictionary<string, object?>
+
+            if (eventSystem == null)
             {
-                ["controlType"] = controlType,
-                ["path"] = GetTransformPath(target!.transform),
-                ["focus"] = focus,
-                ["append"] = append,
-                ["submit"] = submit,
-                ["invokeCallbacks"] = invokeCallbacks,
-                ["textToType"] = text,
-                ["resultingText"] = resultingText,
-                ["setter"] = invokeCallbacks ? "text property (fires onValueChanged)" : "SetTextWithoutNotify when available",
-                ["guard"] = "dryRun must be false, Play Mode active, and allowStateMutation true before focusing or typing.",
-            };
+                throw new InvalidOperationException("ui-runtime-type-text requires an active EventSystem.current.");
+            }
 
-            if (!dryRun)
+            eventSystem.SetSelectedGameObject(target, new BaseEventData(eventSystem));
+            InvokeReflectedMethod(inputField, "ActivateInputField");
+
+            ApplyInputFieldText(inputField, resultingText, invokeCallbacks: true, warnings);
+            TrySetProperty(inputField, "caretPosition", resultingText.Length);
+            InvokeReflectedMethod(inputField, "ForceLabelUpdate");
+
+            if (submit)
             {
-                EnsureRuntimeMutationAllowed(args, warnings);
-                if (focus)
-                {
-                    if (eventSystem == null)
-                    {
-                        throw new InvalidOperationException("ui-runtime-type-text with focus:true requires an active EventSystem.current.");
-                    }
-
-                    eventSystem.SetSelectedGameObject(target, new BaseEventData(eventSystem));
-                    InvokeReflectedMethod(inputField, "ActivateInputField");
-                }
-
-                ApplyInputFieldText(inputField, resultingText, invokeCallbacks, warnings);
-                TrySetProperty(inputField, "caretPosition", resultingText.Length);
-                InvokeReflectedMethod(inputField, "ForceLabelUpdate");
-
-                if (submit)
-                {
-                    InvokeReflectedStringEvent(inputField, "onEndEdit", resultingText);
-                    InvokeReflectedStringEvent(inputField, "onSubmit", resultingText);
-                    InvokeReflectedMethod(inputField, "DeactivateInputField");
-                }
+                InvokeReflectedStringEvent(inputField, "onEndEdit", resultingText);
+                InvokeReflectedStringEvent(inputField, "onSubmit", resultingText);
+                InvokeReflectedMethod(inputField, "DeactivateInputField");
             }
 
             result["textAfter"] = GetPropertyValue(inputField, "text") as string;

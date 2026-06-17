@@ -314,9 +314,11 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         internal static RuntimeScreenPosition ReadScreenPosition(JToken args, List<string> warnings)
         {
             var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
-            if (TryReadVector2(args["normalized"], out var normalized))
+            var isNormalized = ReadBool(args, "isNormalized", false);
+
+            if (TryReadVector2(args["normalized"], out var legacyNormalized))
             {
-                return new RuntimeScreenPosition(new Vector2(normalized.x * screenSize.x, normalized.y * screenSize.y), screenSize, normalized, normalizedInputSupplied: true);
+                return new RuntimeScreenPosition(new Vector2(legacyNormalized.x * screenSize.x, legacyNormalized.y * screenSize.y), screenSize, legacyNormalized, normalizedInputSupplied: true);
             }
 
             if (TryReadVector2(args["screenPosition"], out var screenPosition))
@@ -326,7 +328,19 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
             if (args["x"] != null || args["y"] != null)
             {
-                return RuntimeScreenPosition.FromScreenPosition(new Vector2(ReadFloat(args, "x", 0f), ReadFloat(args, "y", 0f)));
+                var x = ReadFloat(args, "x", 0f);
+                var y = ReadFloat(args, "y", 0f);
+                if (isNormalized)
+                {
+                    var normalizedPosition = new Vector2(x, y);
+                    return new RuntimeScreenPosition(
+                        new Vector2(normalizedPosition.x * screenSize.x, normalizedPosition.y * screenSize.y),
+                        screenSize,
+                        normalizedPosition,
+                        normalizedInputSupplied: true);
+                }
+
+                return RuntimeScreenPosition.FromScreenPosition(new Vector2(x, y));
             }
 
             warnings.Add("No screen position supplied; defaulted to normalized center (0.5, 0.5).");

@@ -5,8 +5,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
-using Chievfx.Mcp.Editor;
-using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -480,19 +478,37 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
 
         private static Dictionary<string, object?> RunRuntimeUiProbe(string argsJson)
         {
-            ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
-            var registryType = FindType("Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry");
-            Assert.IsNotNull(registryType, "ChievFX extension registry must be loaded in the Editor while PlayMode tests run.");
-            var method = registryType!.GetMethod(
+            EnsureRuntimeUiRegistry();
+            var extensionRegistry = FindType("Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry");
+            Assert.IsNotNull(extensionRegistry, "ChievFX extension registry must be loaded in the Editor while PlayMode tests run.");
+            var jTokenType = FindType("Newtonsoft.Json.Linq.JToken");
+            Assert.IsNotNull(jTokenType, "Newtonsoft.Json.Linq must be loaded in the Editor while PlayMode tests run.");
+            var method = extensionRegistry!.GetMethod(
                 "TryRunTool",
                 BindingFlags.NonPublic | BindingFlags.Static,
                 null,
-                new[] { typeof(string), typeof(JToken), typeof(object).MakeByRefType() },
+                new[] { typeof(string), jTokenType!, typeof(object).MakeByRefType() },
                 null);
             Assert.IsNotNull(method);
-            var parameters = new object?[] { "ui-runtime-probe", JObject.Parse(argsJson), null };
+            var parameters = new object?[] { "ui-runtime-probe", ParseJsonToken(argsJson), null };
             Assert.IsTrue((bool)method!.Invoke(null, parameters)!);
             return (Dictionary<string, object?>)parameters[2]!;
+        }
+
+        private static void EnsureRuntimeUiRegistry()
+        {
+            var registryType = FindType("Chievfx.Mcp.Editor.ChievfxMcpRuntimeUiAdapterRegistry");
+            Assert.IsNotNull(registryType, "Runtime UI adapter registry must be loaded in the Editor while PlayMode tests run.");
+            registryType!.GetMethod("EnsureRegistered", BindingFlags.Public | BindingFlags.Static)!
+                .Invoke(null, null);
+        }
+
+        private static object ParseJsonToken(string argsJson)
+        {
+            var jObjectType = FindType("Newtonsoft.Json.Linq.JObject");
+            Assert.IsNotNull(jObjectType, "Newtonsoft.Json.Linq must be loaded in the Editor while PlayMode tests run.");
+            return jObjectType!.GetMethod("Parse", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(string) }, null)!
+                .Invoke(null, new object[] { argsJson })!;
         }
 
         private static Dictionary<string, object?> Row(Dictionary<string, object?> source, string key)

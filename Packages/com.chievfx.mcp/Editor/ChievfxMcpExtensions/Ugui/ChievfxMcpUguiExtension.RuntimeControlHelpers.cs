@@ -57,6 +57,8 @@ namespace Chievfx.Mcp.Extensions.Ugui
         internal static RuntimeScreenPosition ReadScreenPosition(JToken args, List<string> warnings, UguiDependencyStatus status)
         {
             var screenSize = ResolveRuntimeUiScreenSize(status);
+            var isNormalized = ReadBool(args, "isNormalized", false);
+
             if (args["normalized"] is JObject normalized)
             {
                 var normalizedPosition = new Vector2(ReadFloat(normalized, "x", 0f), ReadFloat(normalized, "y", 0f));
@@ -67,17 +69,43 @@ namespace Chievfx.Mcp.Extensions.Ugui
                     normalizedInputSupplied: true);
             }
 
-            var source = args["screenPosition"] is JObject screenPosition ? screenPosition : args;
-            if (source["x"] == null || source["y"] == null)
+            if (args["screenPosition"] is JObject screenPositionObject)
             {
-                warnings.Add("No screenPosition provided; defaulted to center of current screen/game-view.");
+                var screenPosition = new Vector2(ReadFloat(screenPositionObject, "x", screenSize.x * 0.5f), ReadFloat(screenPositionObject, "y", screenSize.y * 0.5f));
+                return new RuntimeScreenPosition(
+                    screenPosition,
+                    screenSize,
+                    new Vector2(screenPosition.x / screenSize.x, screenPosition.y / screenSize.y),
+                    normalizedInputSupplied: false);
             }
 
-            var position = new Vector2(ReadFloat(source, "x", screenSize.x * 0.5f), ReadFloat(source, "y", screenSize.y * 0.5f));
+            if (args["x"] != null || args["y"] != null)
+            {
+                var x = ReadFloat(args, "x", screenSize.x * 0.5f);
+                var y = ReadFloat(args, "y", screenSize.y * 0.5f);
+                if (isNormalized)
+                {
+                    var normalizedPosition = new Vector2(x, y);
+                    return new RuntimeScreenPosition(
+                        new Vector2(normalizedPosition.x * screenSize.x, normalizedPosition.y * screenSize.y),
+                        screenSize,
+                        normalizedPosition,
+                        normalizedInputSupplied: true);
+                }
+
+                var position = new Vector2(x, y);
+                return new RuntimeScreenPosition(
+                    position,
+                    screenSize,
+                    new Vector2(position.x / screenSize.x, position.y / screenSize.y),
+                    normalizedInputSupplied: false);
+            }
+
+            warnings.Add("No screen position provided; defaulted to center of current screen/game-view.");
             return new RuntimeScreenPosition(
-                position,
+                new Vector2(screenSize.x * 0.5f, screenSize.y * 0.5f),
                 screenSize,
-                new Vector2(position.x / screenSize.x, position.y / screenSize.y),
+                new Vector2(0.5f, 0.5f),
                 normalizedInputSupplied: false);
         }
 

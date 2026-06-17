@@ -218,6 +218,46 @@ namespace Chievfx.Mcp.Editor.Tests
             Assert.Greater(slider.value, 0.7f);
         }
 
+        [UnityTest]
+        public System.Collections.IEnumerator RuntimeClickSkipsPanelRaycasterAndClicksButtonUnderneath()
+        {
+            RequireUgui();
+            OpenFixtureScene();
+            DisableEventSystemInputModules();
+
+            yield return new EnterPlayMode();
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            var eventSystem = UnityEngine.Object.FindAnyObjectByType<EventSystem>()!;
+            AddOptionalComponent(eventSystem.gameObject, "UnityEngine.UIElements.PanelRaycaster");
+            AddOptionalComponent(eventSystem.gameObject, "UnityEngine.UIElements.PanelEventHandler");
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            GameObject.Find(ChievfxMcpUguiRuntimeQaFixture.TopButtonPath)!
+                .GetComponent<Button>()
+                .onClick
+                .AddListener(() => ChievfxMcpUguiRuntimeQaFixture.ButtonClickCount++);
+
+            var screenPosition = RectCenterScreenPoint(ChievfxMcpUguiRuntimeQaFixture.TopButtonPath);
+            var dryRun = RunTool(
+                "ugui-runtime-click",
+                ClickAtScreenPositionArgs(screenPosition, dryRun: true));
+            StringAssert.EndsWith(
+                ChievfxMcpUguiRuntimeQaFixture.TopButtonPath,
+                (string)Row(dryRun, "target")["path"]!);
+
+            var click = RunTool(
+                "ugui-runtime-click",
+                ClickAtScreenPositionArgs(screenPosition, dryRun: false, allowStateMutation: true));
+            Assert.AreEqual(1, ChievfxMcpUguiRuntimeQaFixture.ButtonClickCount);
+            StringAssert.EndsWith(
+                ChievfxMcpUguiRuntimeQaFixture.TopButtonPath,
+                (string)Row(click, "target")["path"]!);
+        }
+
         private static Dictionary<string, object?>[] CollectControlFindRows(string framework)
         {
             ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
@@ -306,6 +346,29 @@ namespace Chievfx.Mcp.Editor.Tests
                 + ",'y':"
                 + screenPosition.y.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 + "}}";
+        }
+
+        private static string ClickAtScreenPositionArgs(Vector2 screenPosition, bool dryRun, bool allowStateMutation = false)
+        {
+            return "{'screenPosition':{'x':"
+                + screenPosition.x.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + ",'y':"
+                + screenPosition.y.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + "},'dryRun':"
+                + (dryRun ? "true" : "false")
+                + (allowStateMutation ? ",'allowStateMutation':true" : string.Empty)
+                + "}";
+        }
+
+        private static void AddOptionalComponent(GameObject gameObject, string typeName)
+        {
+            var componentType = AppDomain.CurrentDomain.GetAssemblies()
+                .Select(assembly => assembly.GetType(typeName, throwOnError: false))
+                .FirstOrDefault(type => type != null);
+            if (componentType != null && gameObject.GetComponent(componentType) == null)
+            {
+                gameObject.AddComponent(componentType);
+            }
         }
 
         private static void DisableEventSystemInputModules()

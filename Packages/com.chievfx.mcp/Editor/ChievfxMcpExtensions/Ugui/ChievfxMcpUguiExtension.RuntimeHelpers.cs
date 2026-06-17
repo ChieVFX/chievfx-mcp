@@ -198,9 +198,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             if (raycastResults.Length > 0)
             {
                 stack = raycastResults.Select((raycastResult, index) => CreateRuntimeStackRow(raycastResult, index, status)).ToArray();
-                return raycastResults
-                    .Select(raycastResult => GetMemberValue(raycastResult, "gameObject") as GameObject)
-                    .FirstOrDefault(target => target != null);
+                return ResolveClickableTargetFromRaycastHits(raycastResults, status);
             }
 
             var rectHits = FindRuntimeRectHits(screenPosition, status).ToArray();
@@ -216,7 +214,102 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 row["clickableHandlerTarget"] = CreateClickableHandlerTargetRow(rect.gameObject, status);
                 return row;
             }).ToArray();
-            return rectHits.FirstOrDefault()?.gameObject;
+            return PromoteToClickableControlTarget(
+                rectHits
+                    .Select(rect => rect.gameObject)
+                    .FirstOrDefault(target => IsRuntimeInteractionCandidate(target, status)),
+                status);
+        }
+
+        internal static GameObject? ResolveClickableTargetFromRaycastHits(object[] raycastResults, UguiDependencyStatus status)
+        {
+            foreach (var raycastResult in raycastResults)
+            {
+                if (GetMemberValue(raycastResult, "gameObject") is GameObject target
+                    && IsRuntimeInteractionCandidate(target, status))
+                {
+                    return PromoteToClickableControlTarget(target, status);
+                }
+            }
+
+            return null;
+        }
+
+        internal static GameObject? PromoteToClickableControlTarget(GameObject? hit, UguiDependencyStatus status)
+        {
+            if (hit == null)
+            {
+                return null;
+            }
+            if (GetClickableControlComponents(hit, status).Any(control => IsEnabledComponent(control)))
+            {
+                return hit;
+            }
+
+            for (var current = hit.transform.parent; current != null; current = current.parent)
+            {
+                var candidate = current.gameObject;
+                if (GetClickableControlComponents(candidate, status).Any(control => IsEnabledComponent(control)))
+                {
+                    return candidate;
+                }
+            }
+
+            return ExecuteEvents.GetEventHandler<IPointerClickHandler>(hit) ?? hit;
+        }
+
+        internal static bool IsRuntimeInteractionCandidate(GameObject target, UguiDependencyStatus status)
+        {
+            if (!target.activeInHierarchy)
+            {
+                return false;
+            }
+
+            if (GetClickableControlComponents(target, status).Any(control => IsEnabledComponent(control)))
+            {
+                return true;
+            }
+
+            if (!IsRuntimeProbeHitElement(target, status) || IsRaycastInfrastructureTarget(target, status))
+            {
+                return false;
+            }
+
+            return ExecuteEvents.GetEventHandler<IPointerClickHandler>(target) != null;
+        }
+
+        internal static bool IsRaycastInfrastructureTarget(GameObject target, UguiDependencyStatus status)
+        {
+            if (GetClickableControlComponents(target, status).Any())
+            {
+                return false;
+            }
+
+            var components = target.GetComponents<Component>()
+                .Where(component => component != null && component is not Transform)
+                .ToArray();
+            if (components.Length == 0)
+            {
+                return true;
+            }
+
+            return components.All(IsRaycastInfrastructureComponent);
+        }
+
+        internal static bool IsRaycastInfrastructureComponent(Component component)
+        {
+            return component switch
+            {
+                CanvasRenderer => true,
+                _ => IsRaycastInfrastructureComponentName(component.GetType().Name),
+            };
+        }
+
+        internal static bool IsRaycastInfrastructureComponentName(string typeName)
+        {
+            return string.Equals(typeName, "PanelRaycaster", StringComparison.Ordinal)
+                || string.Equals(typeName, "PanelEventHandler", StringComparison.Ordinal)
+                || string.Equals(typeName, "GraphicRaycaster", StringComparison.Ordinal);
         }
 
         internal static IEnumerable<RectTransform> FindRuntimeRectHits(Vector2 screenPosition, UguiDependencyStatus status)

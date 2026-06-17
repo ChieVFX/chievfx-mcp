@@ -73,7 +73,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 DisplayName = "ChievFX MCP UI Toolkit Runtime",
                 Version = "0.1.0",
                 Description = status.Available
-                    ? "First-party read-only UI Toolkit runtime panel inspection and screen-position probing."
+                    ? "First-party read-only UI Toolkit runtime panel inspection and guarded runtime interaction."
                     : "First-party UI Toolkit runtime inspection unavailable until UI Toolkit runtime types are loaded.",
                 ToolRunner = RunTool,
                 ResourceReader = ReadResource,
@@ -122,10 +122,6 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 Category = Category,
             });
             descriptor.Tools.Add(CreateTool(
-                "uitoolkit-runtime-probe-screen-position",
-                "Probe Play Mode UI Toolkit hit stack at screen position. Requires Play Mode.",
-                RuntimeProbeSchema()));
-            descriptor.Tools.Add(CreateTool(
                 "uitoolkit-runtime-interact",
                 "Dry-run or explicitly dispatch guarded Play Mode UI Toolkit pointer click, focus, navigation submit, or standard control value changes.",
                 RuntimeInteractSchema()));
@@ -153,7 +149,6 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
             return toolName switch
             {
-                "uitoolkit-runtime-probe-screen-position" => ProbeRuntimeScreenPosition(args, status),
                 "uitoolkit-runtime-interact" => InteractRuntime(args, status),
                 _ => throw new InvalidOperationException($"Unknown UI Toolkit extension tool '{toolName}'."),
             };

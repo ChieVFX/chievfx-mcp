@@ -72,8 +72,8 @@ namespace Chievfx.Mcp.Editor.Tests
         {
             RequireUiToolkit();
 
-            var ex = Assert.Throws<InvalidOperationException>(() => ChievfxMcpUiToolkitExtension.RunToolForTests(
-                "uitoolkit-runtime-probe-screen-position",
+            var ex = Assert.Throws<InvalidOperationException>(() => RunExtensionTool(
+                "ui-runtime-probe",
                 "{'normalized':{'x':0.5,'y':0.5}}"));
 
             StringAssert.Contains("Play Mode", ex!.Message);
@@ -174,7 +174,7 @@ namespace Chievfx.Mcp.Editor.Tests
             yield return PopulateAndSettleUiToolkit();
 
             var screenPoint = NormalizedScreenPoint(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized);
-            var probe = RunTool("uitoolkit-runtime-probe-screen-position", NormalizedPositionArgs(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized, maxRows: 12));
+            var probe = RunExtensionTool("ui-runtime-probe", NormalizedPositionArgs(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized, maxRows: 12));
 
             Assert.AreEqual(true, probe["runtimeAvailable"]);
             var probeInfo = Row(probe, "probe");
@@ -206,7 +206,7 @@ namespace Chievfx.Mcp.Editor.Tests
             yield return new EnterPlayMode();
             yield return PopulateAndSettleUiToolkit();
 
-            var probe = RunTool("uitoolkit-runtime-probe-screen-position", NormalizedPositionArgs(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized, maxRows: 1));
+            var probe = RunExtensionTool("ui-runtime-probe", NormalizedPositionArgs(ChievfxMcpUiToolkitRuntimeQaFixture.CenterProbeNormalized, maxRows: 1));
 
             var uitoolkit = Row(probe, "uitoolkit");
             Assert.AreEqual(1, uitoolkit["count"]);

@@ -24,20 +24,6 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 {
     internal static class UiToolkitSchemas
     {
-        internal static JObject RuntimeProbeSchema()
-        {
-            return Schema(new JObject
-            {
-                ["x"] = new JObject { ["type"] = "number", ["description"] = "Screen-space X coordinate in pixels, origin bottom-left." },
-                ["y"] = new JObject { ["type"] = "number", ["description"] = "Screen-space Y coordinate in pixels, origin bottom-left." },
-                ["screenPosition"] = Vector2Property("Screen-space position in pixels, origin bottom-left."),
-                ["normalized"] = Vector2Property("Optional normalized screen coordinate. x/y in 0..1 are multiplied by current screen/game-view size."),
-                ["maxRows"] = new JObject { ["type"] = "integer", ["description"] = "Maximum PickAll hit rows to emit. Defaults to 256, capped to 1024." },
-                ["includeAllComponents"] = BoolProperty("Reserved for parity with uGUI probes. UI Toolkit compact hierarchy [] labels show VisualElement types."),
-                ["includeUssClasses"] = BoolProperty("Show USS class names in compact hierarchy <> labels."),
-            });
-        }
-
         internal static JObject RuntimeInteractSchema()
         {
             return Schema(new JObject

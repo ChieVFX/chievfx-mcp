@@ -270,9 +270,9 @@ TOOL_CATEGORY_DESCRIPTIONS = {
     "Particles": "Optional built-in ParticleSystem authoring, playback, preview, and inspection helpers.",
     "Runtime UI": "Optional runtime UI screen-position probing across registered UI adapters.",
     "ui-runtime-common": "Shared Play Mode runtime UI tools: cross-framework probe, control discovery, and text input.",
-    "UI Toolkit": "Optional runtime UI Toolkit panel inspection and screen-position probing helpers.",
+    "UI Toolkit": "Optional runtime UI Toolkit panel inspection and runtime interaction helpers.",
     "ugui-design": "Optional editor-time uGUI authoring helpers for Canvas, RectTransform, images, layout, TMP, and sprites.",
-    "ugui-runtime-control": "Optional Play Mode uGUI probing and control helpers: hit stacks, clicks, drags, selection, and control values.",
+    "ugui-runtime-control": "Optional Play Mode uGUI control helpers: clicks, drags, selection, and control values.",
     "OBSOLETE": "Deprecated compatibility tools. Only enable explicitly; bulk enable skips this category.",
 }
 DEFAULT_REQUIRED_RESOURCE_IDS: set[str] = {

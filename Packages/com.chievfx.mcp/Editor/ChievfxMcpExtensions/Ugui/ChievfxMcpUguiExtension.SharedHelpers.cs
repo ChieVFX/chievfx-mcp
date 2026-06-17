@@ -52,7 +52,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 "Use screenshot-game-view after scene save or view focus to review actual Canvas rendering.",
                 "If Screen Space Overlay UI is missing from screenshot-game-view evidence, temporarily switch the Canvas to Screen Space Camera with the capture camera, enter Play Mode if the UI only renders there, or use screenshot-editor-window on the visible Game View.",
                 "Use screenshot-editor-window for Scene/Game view framing if layout depends on editor viewport.",
-                "Use ugui-runtime-probe-screen-position in Play Mode to inspect the top-to-bottom uGUI hit stack before runtime interactions.",
+                "Use ui-runtime-probe in Play Mode to inspect the top-to-bottom uGUI hit stack before runtime interactions.",
             };
         }
 

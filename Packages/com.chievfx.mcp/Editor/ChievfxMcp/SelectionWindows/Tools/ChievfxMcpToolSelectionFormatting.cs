@@ -77,7 +77,7 @@ namespace Chievfx.Mcp.Editor
                 "Control" => "Queue Play Mode keyboard and mouse Input System events behind dry-run and mutation gates.",
                 "ugui-design" => "Author and inspect editor-time uGUI Canvas, RectTransform, layout, Image, TMP, and sprite setup.",
                 "ui-runtime-common" => "Shared Play Mode runtime UI tools: cross-framework probe, control discovery, and text input.",
-                "ugui-runtime-control" => "Probe and control Play Mode uGUI elements: hit stacks, clicks, drags, selection, and control values.",
+                "ugui-runtime-control" => "Control Play Mode uGUI elements: clicks, drags, selection, and control values.",
                 "cinemachine-and-timeline" => "Author and inspect Cinemachine cameras, Timeline directors, shots, and camera QA workflows.",
                 "Profiler" => "Record and inspect Unity profiler state, counters, and captures.",
                 _ => "General ChievFX MCP tools for Unity automation."

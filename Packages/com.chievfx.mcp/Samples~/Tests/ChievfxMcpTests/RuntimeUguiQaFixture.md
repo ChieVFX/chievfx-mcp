@@ -41,7 +41,7 @@ Expected marker points:
 3. Probe the center marker:
 
 ```json
-{"tool":"ugui-runtime-probe-screen-position","arguments":{"normalized":{"x":0.5,"y":0.5}}}
+{"tool":"ui-runtime-probe","arguments":{"normalized":{"x":0.5,"y":0.5}}}
 ```
 
 Expected proof:
@@ -49,31 +49,30 @@ Expected proof:
 - Screenshot center crop around pixel `(400, 300)` shows the blue `TOP HIT` button.
 - Probe `probe.origin` is `bottom-left`.
 - `ugui.hits` is top-to-bottom at the probed screen position.
-- Probe `top.path` ends with `QaOverlayTopCanvas/TopHitPanel/TopButton`.
-- Probe `top.sorting.sortingOrder` is `100`.
-- Probe stack includes `QaOverlayCanvas/BottomHitPanel/BottomButton` below the top hit.
+- Probe `ugui.hits[0].path` ends with `QaOverlayTopCanvas/TopHitPanel/TopButton`.
+- Probe `ugui.hits[0].sortingOrder` is `100`.
 
 4. Probe disabled control marker:
 
 ```json
-{"tool":"ugui-runtime-probe-screen-position","arguments":{"normalized":{"x":0.75,"y":0.25}}}
+{"tool":"ui-runtime-probe","arguments":{"normalized":{"x":0.75,"y":0.25}}}
 ```
 
 Expected proof:
 
 - Screenshot crop around pixel `(600, 150)` shows grey `DISABLED` button.
-- Probe `top.path` ends with `QaOverlayCanvas/DisabledButton`.
-- Probe `top.interactable` is `false`.
+- Probe `ugui.hits[0].path` ends with `QaOverlayCanvas/DisabledButton`.
+- Probe `ugui.hits[0].interactable` is `false`.
 
 5. Probe outside bounds:
 
 ```json
-{"tool":"ugui-runtime-probe-screen-position","arguments":{"normalized":{"x":1.2,"y":0.5}}}
+{"tool":"ui-runtime-probe","arguments":{"normalized":{"x":1.2,"y":0.5}}}
 ```
 
 Expected proof:
 
 - Probe warnings include `outside current screen/game-view bounds`.
-- Probe `count` is `0`.
+- Probe `ugui.count` is `0`.
 
 If `screenshot-game-view` misses Screen Space Overlay UI, capture `screenshot-editor-window` for the visible Game View and include the same center/disabled marker coordinates in notes.

@@ -214,7 +214,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
             descriptor.Tools.Add(CreateTool("ugui-sprite-configure", "Configure texture as uGUI Sprite/9-slice.", SpriteConfigureSchema()));
             descriptor.Tools.Add(CreateTool("ugui-ui-hierarchy", "Returns a compact uGUI RectTransform hierarchy for active-scene Canvases or a target root.", UiHierarchySchema()));
             descriptor.Tools.Add(CreateTool("ugui-ui-find", "Finds uGUI elements by path, name, component type, or instance id, with optional detail data.", UiFindSchema()));
-            descriptor.Tools.Add(CreateTool("ugui-runtime-probe-screen-position", "Probe Play Mode uGUI hit stack at screen position. Requires Play Mode.", RuntimeProbeSchema(), RuntimeControlCategory));
             descriptor.Tools.Add(CreateTool("ugui-runtime-drag", "Drag runtime uGUI target. Use dryRun or allowStateMutation.", RuntimeDragSchema(), RuntimeControlCategory));
             descriptor.Tools.Add(CreateTool("ugui-runtime-select", "Select, focus, or clear a runtime uGUI GameObject through EventSystem.", RuntimeSelectSchema(), RuntimeControlCategory));
             descriptor.Tools.Add(CreateTool("ugui-runtime-set-control-value", "Set runtime uGUI Slider, Scrollbar, Toggle, Dropdown, TMP_Dropdown, or InputField values with callback policy.", RuntimeSetControlValueSchema(), RuntimeControlCategory));
@@ -262,7 +261,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 "ugui-sprite-configure" => ConfigureSprite(args, status),
                 "ugui-ui-hierarchy" => UiHierarchy(args, status),
                 "ugui-ui-find" => UiFind(args, status),
-                "ugui-runtime-probe-screen-position" => ProbeRuntimeScreenPosition(args, status),
                 "ugui-runtime-drag" => RuntimeDrag(args, status),
                 "ugui-runtime-select" => RuntimeSelect(args, status),
                 "ugui-runtime-set-control-value" => RuntimeSetControlValue(args, status),

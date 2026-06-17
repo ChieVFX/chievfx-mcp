@@ -53,27 +53,17 @@ def advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
             },
             "additionalProperties": False,
         }
-    if tool_name in {
-        "ui-runtime-probe",
-        "ugui-runtime-probe-screen-position",
-        "uitoolkit-runtime-probe-screen-position",
-    }:
-        properties: dict[str, Any] = {
-            "x": {},
-            "y": {},
-            "screenPosition": {},
-            "normalized": {},
-        }
-        if tool_name != "ugui-runtime-probe-screen-position":
-            properties["maxRows"] = {}
-        if tool_name in {"ugui-runtime-probe-screen-position", "uitoolkit-runtime-probe-screen-position"}:
-            properties["includeAllComponents"] = {}
-        if tool_name == "uitoolkit-runtime-probe-screen-position":
-            properties["includeUssClasses"] = {}
+    if tool_name == "ui-runtime-probe":
         return {
             "type": "object",
-            "properties": properties,
-            "additionalProperties": tool_name == "ui-runtime-probe",
+            "properties": {
+                "x": {},
+                "y": {},
+                "screenPosition": {},
+                "normalized": {},
+                "maxRows": {},
+            },
+            "additionalProperties": True,
         }
     if tool_name == "ui-control-find":
         return {

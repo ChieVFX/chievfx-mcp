@@ -3,7 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Chievfx.Mcp.Editor;
 using Chievfx.Mcp.Extensions.Ugui;
+using Newtonsoft.Json.Linq;
 using UnityEditor;
 using NUnit.Framework;
 using UnityEditor.SceneManagement;
@@ -564,7 +566,7 @@ namespace Chievfx.Mcp.Editor.Tests
             RequireUgui();
 
             var ex = Assert.Throws<InvalidOperationException>(() =>
-                RunTool("ugui-runtime-probe-screen-position", "{'normalized':{'x':0.5,'y':0.5}}"));
+                RunExtensionTool("ui-runtime-probe", "{'normalized':{'x':0.5,'y':0.5}}"));
 
             StringAssert.Contains("Play Mode", ex!.Message);
             StringAssert.Contains("probe", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -585,7 +587,7 @@ namespace Chievfx.Mcp.Editor.Tests
             Canvas.ForceUpdateCanvases();
             yield return null;
 
-            var probe = RunTool("ugui-runtime-probe-screen-position", "{'normalized':{'x':0.5,'y':0.5}}");
+            var probe = RunExtensionTool("ui-runtime-probe", "{'normalized':{'x':0.5,'y':0.5}}");
             Assert.AreEqual(true, probe["runtimeAvailable"]);
             var hits = Rows(Row(probe, "ugui"), "hits");
             Assert.GreaterOrEqual(hits.Length, 2, string.Join("; ", StringArray(probe, "warnings")));
@@ -597,6 +599,18 @@ namespace Chievfx.Mcp.Editor.Tests
             Assert.Less(topIndex, bottomIndex);
             Assert.AreEqual("bottom-left", Row(probe, "probe")["origin"]);
             Assert.IsNotNull(hits[topIndex]["controls"]);
+        }
+
+        private static Dictionary<string, object?> RunExtensionTool(string toolName, string argsJson)
+        {
+            ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
+            var method = typeof(ChievfxMcpExtensionRegistry).GetMethod(
+                "TryRunTool",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.IsNotNull(method);
+            var parameters = new object?[] { toolName, JObject.Parse(argsJson), null };
+            Assert.IsTrue((bool)method!.Invoke(null, parameters)!);
+            return (Dictionary<string, object?>)parameters[2]!;
         }
 
         private static Dictionary<string, object?> RunTool(string toolName, string argsJson)

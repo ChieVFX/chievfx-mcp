@@ -39,7 +39,7 @@ Expected marker points with the default `PanelSettings` scale:
 5. Probe the center marker:
 
 ```json
-{"tool":"uitoolkit-runtime-probe-screen-position","arguments":{"normalized":{"x":0.25,"y":0.75}}}
+{"tool":"ui-runtime-probe","arguments":{"normalized":{"x":0.25,"y":0.75}}}
 ```
 
 Expected proof:
@@ -50,7 +50,7 @@ Expected proof:
 - `uitoolkit.hits[0].path` contains `TopUiToolkitHit`.
 - `uitoolkit.hits[0].sortingOrder` is `100` when multiple panels overlap.
 - `uitoolkit.hits` includes `BottomUiToolkitHit` below the top hit.
-- Merged `ui-runtime-probe` returns separate `ugui` and `uitoolkit` sections with compact `hits` rows.
+- `ui-runtime-probe` returns separate `ugui` and `uitoolkit` sections with compact `hits` rows.
 
 6. Dry-run a value mutation; it should report a plan and keep the control value unchanged:
 

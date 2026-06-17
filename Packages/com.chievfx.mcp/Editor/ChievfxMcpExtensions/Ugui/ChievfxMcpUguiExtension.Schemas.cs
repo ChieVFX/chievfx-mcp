@@ -390,18 +390,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
             });
         }
 
-        internal static JObject RuntimeProbeSchema()
-        {
-            return Schema(new JObject
-            {
-                ["x"] = new JObject { ["type"] = "number", ["description"] = "Screen-space X coordinate in pixels, origin bottom-left." },
-                ["y"] = new JObject { ["type"] = "number", ["description"] = "Screen-space Y coordinate in pixels, origin bottom-left." },
-                ["screenPosition"] = Vector2Property("Screen-space position in pixels, origin bottom-left."),
-                ["normalized"] = Vector2Property("Optional normalized screen coordinate. x/y in 0..1 are multiplied by current screen/game-view size."),
-                ["includeAllComponents"] = BoolProperty("Show every component type in compact hierarchy labels. Defaults false: only uGUI/TMP-facing components are shown."),
-            });
-        }
-
         internal static JObject RuntimeDragSchema()
         {
             var properties = RuntimeTargetProperties();

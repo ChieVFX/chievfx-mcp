@@ -4,7 +4,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Chievfx.Mcp.Editor;
+using Chievfx.Mcp.Editor;
 using Chievfx.Mcp.Extensions.Ugui;
+using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using UnityEngine;
@@ -84,8 +86,8 @@ namespace Chievfx.Mcp.Editor.Tests
             Canvas.ForceUpdateCanvases();
             yield return null;
 
-            var probe = RunTool(
-                "ugui-runtime-probe-screen-position",
+            var probe = RunExtensionTool(
+                "ui-runtime-probe",
                 ScreenPositionArgs(RectCenterScreenPoint(ChievfxMcpUguiRuntimeQaFixture.TopButtonPath)));
             Assert.AreEqual(true, probe["runtimeAvailable"]);
             Assert.AreEqual("bottom-left", Row(probe, "probe")["origin"]);
@@ -111,7 +113,7 @@ namespace Chievfx.Mcp.Editor.Tests
             Canvas.ForceUpdateCanvases();
             yield return null;
 
-            var probe = RunTool("ugui-runtime-probe-screen-position", "{'normalized':{'x':1.2,'y':0.5}}");
+            var probe = RunExtensionTool("ui-runtime-probe", "{'normalized':{'x':1.2,'y':0.5}}");
             Assert.AreEqual(true, probe["runtimeAvailable"]);
             Assert.AreEqual(0, Row(probe, "ugui")["count"]);
             Assert.IsTrue(StringArray(probe, "warnings").Any(warning => warning.Contains("outside current screen/game-view bounds", StringComparison.Ordinal)));
@@ -129,7 +131,7 @@ namespace Chievfx.Mcp.Editor.Tests
             Canvas.ForceUpdateCanvases();
             yield return null;
 
-            var probe = RunTool("ugui-runtime-probe-screen-position", "{'normalized':{'x':0.5,'y':0.5}}");
+            var probe = RunExtensionTool("ui-runtime-probe", "{'normalized':{'x':0.5,'y':0.5}}");
             Assert.AreEqual(true, probe["runtimeAvailable"]);
             Assert.AreEqual(0, Row(probe, "ugui")["count"]);
             Assert.IsTrue(StringArray(probe, "warnings").Any(warning => warning.Contains("No active EventSystem.current", StringComparison.Ordinal)));
@@ -147,15 +149,15 @@ namespace Chievfx.Mcp.Editor.Tests
             Canvas.ForceUpdateCanvases();
             yield return null;
 
-            var disabledProbe = RunTool(
-                "ugui-runtime-probe-screen-position",
+            var disabledProbe = RunExtensionTool(
+                "ui-runtime-probe",
                 ScreenPositionArgs(RectCenterScreenPoint(ChievfxMcpUguiRuntimeQaFixture.DisabledButtonPath)));
-            var disabledTop = Row(disabledProbe, "top");
+            var disabledTop = Rows(Row(disabledProbe, "ugui"), "hits")[0];
             StringAssert.EndsWith(ChievfxMcpUguiRuntimeQaFixture.DisabledButtonPath, (string)disabledTop["path"]!);
             Assert.AreEqual(false, disabledTop["interactable"]);
 
-            var hiddenProbe = RunTool("ugui-runtime-probe-screen-position", "{'normalized':{'x':0.1,'y':0.1}}");
-            var hiddenStack = Rows(hiddenProbe, "stack");
+            var hiddenProbe = RunExtensionTool("ui-runtime-probe", "{'normalized':{'x':0.1,'y':0.1}}");
+            var hiddenStack = Rows(Row(hiddenProbe, "ugui"), "hits");
             Assert.IsFalse(hiddenStack.Any(row => ((string)row["path"]!).Contains("HiddenInactiveButton", StringComparison.Ordinal)));
         }
 
@@ -277,6 +279,18 @@ namespace Chievfx.Mcp.Editor.Tests
             }
 
             return all.ToArray();
+        }
+
+        private static Dictionary<string, object?> RunExtensionTool(string toolName, string argsJson)
+        {
+            ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
+            var method = typeof(ChievfxMcpExtensionRegistry).GetMethod(
+                "TryRunTool",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.IsNotNull(method);
+            var parameters = new object?[] { toolName, JObject.Parse(argsJson), null };
+            Assert.IsTrue((bool)method!.Invoke(null, parameters)!);
+            return (Dictionary<string, object?>)parameters[2]!;
         }
 
         private static Dictionary<string, object?> RunTool(string toolName, string argsJson)

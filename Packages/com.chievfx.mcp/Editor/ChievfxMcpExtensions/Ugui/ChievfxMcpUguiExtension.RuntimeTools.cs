@@ -106,7 +106,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             var dryRun = ReadBool(args, "dryRun", false);
             var sequence = (ReadString(args, "sequence") ?? "pointer").Trim().ToLowerInvariant();
             var position = ReadScreenPosition(args, warnings, status);
-            var result = CreateRuntimeInteractionEnvelope("tool://ugui-runtime-click", status, dryRun, args, warnings);
+            var result = CreateRuntimeInteractionEnvelope("tool://ui-runtime-click#ugui", status, dryRun, args, warnings);
             AddCoordinateInfo(result, position);
 
             var eventSystem = RequireRuntimeEventSystem(status, warnings, dryRun);

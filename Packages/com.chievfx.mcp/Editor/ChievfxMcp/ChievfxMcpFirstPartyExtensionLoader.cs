@@ -605,38 +605,6 @@ namespace Chievfx.Mcp.Extensions.Control
             return source.TryGetValue(key, out var value) ? value : null;
         }
 
-        private static void TryDispatchUiToolkitPointerClick(Vector2 screenPosition, List<string> warnings)
-        {
-            var dryRunArgs = UiToolkitPointerClickArgs(screenPosition, dryRun: true);
-            try
-            {
-                if (!Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry.TryRunTool("uitoolkit-runtime-interact", dryRunArgs, out var dryRunResult)
-                    || dryRunResult is not Dictionary<string, object?> dryRun
-                    || !dryRun.TryGetValue("target", out var target)
-                    || target == null)
-                {
-                    return;
-                }
-
-                Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry.TryRunTool("uitoolkit-runtime-interact", UiToolkitPointerClickArgs(screenPosition, dryRun: false), out _);
-            }
-            catch (Exception ex)
-            {
-                warnings.Add("UI Toolkit runtime pointer dispatch skipped: " + RootMessage(ex));
-            }
-        }
-
-        private static JObject UiToolkitPointerClickArgs(Vector2 screenPosition, bool dryRun)
-        {
-            return new JObject
-            {
-                ["action"] = "pointerClick",
-                ["normalized"] = NormalizedScreenPosition(screenPosition),
-                ["dryRun"] = dryRun,
-                ["allowStateMutation"] = true,
-            };
-        }
-
         private static void TryDispatchUiToolkitPointerDrag(Vector2 screenStartPosition, Vector2 screenDelta, int steps, List<string> warnings)
         {
             var dryRunArgs = UiToolkitPointerDragArgs(screenStartPosition, screenDelta, steps, dryRun: true);
@@ -666,37 +634,6 @@ namespace Chievfx.Mcp.Extensions.Control
                 ["normalized"] = NormalizedScreenPosition(screenStartPosition),
                 ["delta"] = new JObject { ["x"] = screenDelta.x, ["y"] = -screenDelta.y },
                 ["steps"] = Mathf.Clamp(steps, 1, 120),
-                ["dryRun"] = dryRun,
-                ["allowStateMutation"] = true,
-            };
-        }
-
-        private static void TryDispatchUguiPointerClick(Vector2 screenPosition, List<string> warnings)
-        {
-            var dryRunArgs = UguiPointerClickArgs(screenPosition, dryRun: true);
-            try
-            {
-                if (!Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry.TryRunTool("ugui-runtime-click", dryRunArgs, out var dryRunResult)
-                    || dryRunResult is not Dictionary<string, object?> dryRun
-                    || !dryRun.TryGetValue("target", out var target)
-                    || target == null)
-                {
-                    return;
-                }
-
-                Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry.TryRunTool("ugui-runtime-click", UguiPointerClickArgs(screenPosition, dryRun: false), out _);
-            }
-            catch (Exception ex)
-            {
-                warnings.Add("uGUI runtime pointer dispatch skipped: " + RootMessage(ex));
-            }
-        }
-
-        private static JObject UguiPointerClickArgs(Vector2 screenPosition, bool dryRun)
-        {
-            return new JObject
-            {
-                ["normalized"] = NormalizedScreenPosition(screenPosition),
                 ["dryRun"] = dryRun,
                 ["allowStateMutation"] = true,
             };

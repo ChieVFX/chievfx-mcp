@@ -148,22 +148,6 @@ def advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
             },
             "additionalProperties": False,
         }
-    if tool_name == "ugui-runtime-click":
-        return {
-            "type": "object",
-            "properties": {
-                "targetPath": {},
-                "instanceId": {},
-                "x": {},
-                "y": {},
-                "screenPosition": {},
-                "normalized": {},
-                "sequence": {"enum": ["pointer", "submit"]},
-                "dryRun": {},
-                "allowStateMutation": {},
-            },
-            "additionalProperties": False,
-        }
     if tool_name == "ugui-image-set":
         return {
             "type": "object",

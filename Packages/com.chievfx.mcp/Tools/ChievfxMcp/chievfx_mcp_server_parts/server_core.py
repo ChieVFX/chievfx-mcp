@@ -470,8 +470,6 @@ class McpServerCore:
             if name == "ugui-ui-hierarchy" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_ugui_ui_find_text(result)
             if name == "ugui-ui-find" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
-            else format_ugui_runtime_click_text(result)
-            if name == "ugui-runtime-click" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_ugui_rect_get_text(result)
             if name == "ugui-rect-get" and arguments.get("outputFormat") != "json" and isinstance(result, dict)
             else format_ugui_textmeshpro_hierarchy_text(result)

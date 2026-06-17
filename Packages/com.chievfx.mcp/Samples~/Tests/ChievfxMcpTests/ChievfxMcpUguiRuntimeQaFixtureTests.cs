@@ -187,15 +187,15 @@ namespace Chievfx.Mcp.Editor.Tests
                 .onClick
                 .AddListener(() => ChievfxMcpUguiRuntimeQaFixture.ButtonClickCount++);
 
-            var dryRun = RunTool("ugui-runtime-click", "{'targetPath':'" + ChievfxMcpUguiRuntimeQaFixture.TopButtonPath + "','dryRun':true}");
+            var dryRun = RunUiRuntimeClick("{'targetPath':'" + ChievfxMcpUguiRuntimeQaFixture.TopButtonPath + "','framework':'ugui','dryRun':true}");
             Assert.AreEqual(true, dryRun["dryRun"]);
             Assert.AreEqual(0, ChievfxMcpUguiRuntimeQaFixture.ButtonClickCount);
-            Assert.IsNotNull(dryRun["intendedHandler"]);
+            Assert.IsNotNull(UguiClickSection(dryRun)["handler"]);
 
-            var click = RunTool("ugui-runtime-click", "{'targetPath':'" + ChievfxMcpUguiRuntimeQaFixture.TopButtonPath + "','allowStateMutation':true}");
+            var click = RunUiRuntimeClick("{'targetPath':'" + ChievfxMcpUguiRuntimeQaFixture.TopButtonPath + "','framework':'ugui','allowStateMutation':true}");
             Assert.AreEqual(1, ChievfxMcpUguiRuntimeQaFixture.ButtonClickCount);
-            Assert.IsTrue(click.ContainsKey("selectedObjectBefore"));
-            Assert.IsTrue(click.ContainsKey("selectedObjectAfter"));
+            Assert.AreEqual(true, click["anyClicked"]);
+            Assert.IsNotNull(UguiClickSection(click)["selectedAfter"]);
 
             var slider = GameObject.Find(ChievfxMcpUguiRuntimeQaFixture.SliderPath)!.GetComponent<Slider>();
             var setSlider = RunTool("ugui-runtime-set-control-value", "{'targetPath':'" + ChievfxMcpUguiRuntimeQaFixture.SliderPath + "','value':0.25,'invokeCallbacks':false,'allowStateMutation':true}");
@@ -242,20 +242,19 @@ namespace Chievfx.Mcp.Editor.Tests
                 .AddListener(() => ChievfxMcpUguiRuntimeQaFixture.ButtonClickCount++);
 
             var screenPosition = RectCenterScreenPoint(ChievfxMcpUguiRuntimeQaFixture.TopButtonPath);
-            var dryRun = RunTool(
-                "ugui-runtime-click",
-                ClickAtScreenPositionArgs(screenPosition, dryRun: true));
+            var dryRun = RunUiRuntimeClick(
+                ClickAtScreenPositionArgs(screenPosition, dryRun: true, framework: "ugui"));
             StringAssert.EndsWith(
                 ChievfxMcpUguiRuntimeQaFixture.TopButtonPath,
-                (string)Row(dryRun, "target")["path"]!);
+                (string)Row(UguiClickSection(dryRun), "target")["path"]!);
 
-            var click = RunTool(
-                "ugui-runtime-click",
-                ClickAtScreenPositionArgs(screenPosition, dryRun: false, allowStateMutation: true));
+            var click = RunUiRuntimeClick(
+                ClickAtScreenPositionArgs(screenPosition, dryRun: false, allowStateMutation: true, framework: "ugui"));
             Assert.AreEqual(1, ChievfxMcpUguiRuntimeQaFixture.ButtonClickCount);
             StringAssert.EndsWith(
                 ChievfxMcpUguiRuntimeQaFixture.TopButtonPath,
-                (string)Row(click, "target")["path"]!);
+                (string)Row(UguiClickSection(click), "target")["path"]!);
+            Assert.AreEqual(true, UguiClickSection(click)["clicked"]);
         }
 
         private static Dictionary<string, object?>[] CollectControlFindRows(string framework)
@@ -283,6 +282,17 @@ namespace Chievfx.Mcp.Editor.Tests
         private static Dictionary<string, object?> RunTool(string toolName, string argsJson)
         {
             return (Dictionary<string, object?>)ChievfxMcpUguiExtension.RunToolForTests(toolName, argsJson)!;
+        }
+
+        private static Dictionary<string, object?> RunUiRuntimeClick(string argsJson)
+        {
+            ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
+            return (Dictionary<string, object?>)ChievfxMcpRuntimeUiAdapterRegistry.RuntimeClick(JObject.Parse(argsJson))!;
+        }
+
+        private static Dictionary<string, object?> UguiClickSection(Dictionary<string, object?> result)
+        {
+            return Rows(result, "frameworks").First(row => string.Equals((string?)row["framework"], "ugui", StringComparison.Ordinal));
         }
 
         private static Dictionary<string, object?> ReadResource(string uri)
@@ -348,8 +358,15 @@ namespace Chievfx.Mcp.Editor.Tests
                 + "}}";
         }
 
-        private static string ClickAtScreenPositionArgs(Vector2 screenPosition, bool dryRun, bool allowStateMutation = false)
+        private static string ClickAtScreenPositionArgs(
+            Vector2 screenPosition,
+            bool dryRun,
+            bool allowStateMutation = false,
+            string? framework = null)
         {
+            var frameworkArg = string.IsNullOrWhiteSpace(framework)
+                ? string.Empty
+                : ",'framework':'" + framework + "'";
             return "{'screenPosition':{'x':"
                 + screenPosition.x.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 + ",'y':"
@@ -357,6 +374,7 @@ namespace Chievfx.Mcp.Editor.Tests
                 + "},'dryRun':"
                 + (dryRun ? "true" : "false")
                 + (allowStateMutation ? ",'allowStateMutation':true" : string.Empty)
+                + frameworkArg
                 + "}";
         }
 

@@ -402,20 +402,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
             });
         }
 
-        internal static JObject RuntimeClickSchema()
-        {
-            var properties = RuntimeTargetAndPositionProperties();
-            properties["sequence"] = new JObject
-            {
-                ["type"] = "string",
-                ["enum"] = new JArray("pointer", "submit"),
-                ["description"] = "pointer sends pointer enter/down/up/click. submit sends EventSystem submit.",
-            };
-            properties["dryRun"] = BoolProperty("Report resolved stack and intended handler without firing events.");
-            properties["allowStateMutation"] = BoolProperty("Required true for non-dry-run clicks because callbacks may mutate game state.");
-            return Schema(properties);
-        }
-
         internal static JObject RuntimeDragSchema()
         {
             var properties = RuntimeTargetProperties();

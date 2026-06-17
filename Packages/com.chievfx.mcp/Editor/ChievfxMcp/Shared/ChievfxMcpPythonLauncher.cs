@@ -30,10 +30,13 @@ namespace Chievfx.Mcp.Editor
         {
             foreach (var candidate in EnumerateCandidates())
             {
-                if (IsRunnablePython(candidate))
+                if (!IsRunnablePython(candidate))
                 {
-                    return candidate;
+                    continue;
                 }
+
+                var resolved = TryResolveRealExecutablePath(candidate);
+                return resolved ?? candidate;
             }
 
             return "python3";
@@ -154,8 +157,22 @@ namespace Chievfx.Mcp.Editor
             }
 
             var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            TryAdd(candidates, Path.Combine(localAppData, "Microsoft", "WindowsApps", "python.exe"));
-            TryAdd(candidates, Path.Combine(localAppData, "Microsoft", "WindowsApps", "python3.exe"));
+            var windowsApps = Path.Combine(localAppData, "Microsoft", "WindowsApps");
+            if (Directory.Exists(windowsApps))
+            {
+                foreach (var directory in Directory.EnumerateDirectories(windowsApps)
+                             .Where(static path =>
+                                 Path.GetFileName(path)
+                                     .StartsWith("PythonSoftwareFoundation.", StringComparison.OrdinalIgnoreCase))
+                             .OrderByDescending(Path.GetFileName))
+                {
+                    TryAdd(candidates, Path.Combine(directory, "python.exe"));
+                    TryAdd(candidates, Path.Combine(directory, "python3.exe"));
+                }
+            }
+
+            TryAdd(candidates, Path.Combine(windowsApps, "python.exe"));
+            TryAdd(candidates, Path.Combine(windowsApps, "python3.exe"));
 
             var programsPython = Path.Combine(localAppData, "Programs", "Python");
             if (Directory.Exists(programsPython))
@@ -263,6 +280,59 @@ namespace Chievfx.Mcp.Editor
         private static bool IsWindows()
         {
             return RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        }
+
+        private static string? TryResolveRealExecutablePath(string candidate)
+        {
+            try
+            {
+                using var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = candidate,
+                        Arguments = "-c \"import sys; print(sys.executable)\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true,
+                    },
+                };
+                process.Start();
+                var stdout = process.StandardOutput.ReadToEnd().Trim();
+                process.StandardError.ReadToEnd();
+                if (!process.WaitForExit(5000) || process.ExitCode != 0 || string.IsNullOrWhiteSpace(stdout))
+                {
+                    try
+                    {
+                        process.Kill();
+                    }
+                    catch
+                    {
+                        // Ignore kill failures on a probe process.
+                    }
+
+                    return null;
+                }
+
+                if (!File.Exists(stdout))
+                {
+                    return null;
+                }
+
+                try
+                {
+                    return Path.GetFullPath(stdout);
+                }
+                catch
+                {
+                    return stdout;
+                }
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static bool IsRunnablePython(string path)

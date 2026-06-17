@@ -731,7 +731,10 @@ namespace Chievfx.Mcp.Editor
             }
             else if (pythonStatus.PythonFound)
             {
-                UpdateStateChip(pythonChip, "Python unsupported", StatusChipState.Warning);
+                var label = pythonStatus.IsWindowsStoreShim
+                    ? "Python shim"
+                    : "Python unsupported";
+                UpdateStateChip(pythonChip, label, StatusChipState.Warning);
             }
             else
             {

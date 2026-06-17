@@ -1,6 +1,6 @@
 {
   "name": "ui-runtime-click",
-  "description": "Click Play Mode runtime UI at a screen position or explicit path. Tries uGUI and UI Toolkit at the same bottom-left-origin coordinates used by ui-control-find. Requires Play Mode.",
+  "description": "Click Play Mode runtime UI by explicit path/instanceId/visualElementRef or by x/y screen position. framework all/auto tries both stacks but returns only the framework that resolves an explicit path. Requires Play Mode.",
   "inputSchema": {
     "type": "object",
     "properties": {

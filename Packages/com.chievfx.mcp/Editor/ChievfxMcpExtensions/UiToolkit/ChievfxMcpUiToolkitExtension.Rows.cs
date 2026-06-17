@@ -341,8 +341,8 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 return RuntimeScreenPosition.FromScreenPosition(new Vector2(x, y));
             }
 
-            warnings.Add("No screen position supplied; defaulted to normalized center (0.5, 0.5).");
-            return new RuntimeScreenPosition(screenSize * 0.5f, screenSize, new Vector2(0.5f, 0.5f), normalizedInputSupplied: true);
+            throw new ArgumentException(
+                "Runtime UI Toolkit interaction requires x/y screen coordinates when path, visualElementRef, or name is not supplied.");
         }
 
         internal static void AddCoordinateInfo(Dictionary<string, object?> result, RuntimeScreenPosition position)

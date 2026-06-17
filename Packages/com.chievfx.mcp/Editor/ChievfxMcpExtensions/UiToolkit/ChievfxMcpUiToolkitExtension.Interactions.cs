@@ -35,10 +35,28 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
         internal static RuntimeInteractionResolution ResolveRuntimeInteractionTarget(JToken args, UiToolkitDependencyStatus status, List<string> warnings)
         {
-            var explicitTarget = ResolveVisualElement(args, status);
-            if (explicitTarget != null)
+            if (ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args))
             {
-                return RuntimeInteractionResolution.FromTarget(explicitTarget, "explicitTarget");
+                var explicitTarget = ResolveVisualElement(args, status);
+                if (explicitTarget != null)
+                {
+                    return RuntimeInteractionResolution.FromTarget(explicitTarget, "explicitTarget");
+                }
+
+                warnings.Add(ChievfxMcpRuntimeUiInteractionInput.FormatTargetNotFoundMessage(args, "UI Toolkit"));
+                return new RuntimeInteractionResolution(
+                    null,
+                    null,
+                    null,
+                    null,
+                    Array.Empty<Dictionary<string, object?>>(),
+                    "explicitTarget");
+            }
+
+            if (!ChievfxMcpRuntimeUiInteractionInput.HasScreenPositionInput(args))
+            {
+                throw new ArgumentException(
+                    "Runtime UI Toolkit interaction requires path, visualElementRef, name, or x/y screen coordinates.");
             }
 
             var position = ReadScreenPosition(args, warnings);

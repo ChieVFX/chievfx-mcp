@@ -55,23 +55,10 @@ namespace Chievfx.Mcp.Extensions.Ugui
         }
 
         internal static bool HasScreenPositionInput(JToken args)
-        {
-            return args["normalized"] is JObject
-                || args["screenPosition"] is JObject
-                || args["x"] != null
-                || args["y"] != null;
-        }
+            => ChievfxMcpRuntimeUiInteractionInput.HasScreenPositionInput(args);
 
         internal static bool HasExplicitRuntimeInteractionTarget(JToken args)
-        {
-            if (args["instanceId"] != null)
-            {
-                return true;
-            }
-
-            var path = ReadString(args, "path") ?? ReadString(args, "targetPath");
-            return !string.IsNullOrWhiteSpace(path);
-        }
+            => ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args);
 
         internal static RuntimeScreenPosition ReadInteractionScreenPosition(
             JToken args,
@@ -96,8 +83,8 @@ namespace Chievfx.Mcp.Extensions.Ugui
                     normalizedInputSupplied: false);
             }
 
-            includeCoordinateInfo = true;
-            return ReadScreenPosition(args, warnings, status);
+            throw new ArgumentException(
+                "Runtime uGUI interaction requires path, instanceId, or x/y screen coordinates.");
         }
 
         internal static RuntimeScreenPosition ReadScreenPosition(JToken args, List<string> warnings, UguiDependencyStatus status)
@@ -147,12 +134,8 @@ namespace Chievfx.Mcp.Extensions.Ugui
                     normalizedInputSupplied: false);
             }
 
-            warnings.Add("No screen position provided; defaulted to center of current screen/game-view.");
-            return new RuntimeScreenPosition(
-                new Vector2(screenSize.x * 0.5f, screenSize.y * 0.5f),
-                screenSize,
-                new Vector2(0.5f, 0.5f),
-                normalizedInputSupplied: false);
+            throw new ArgumentException(
+                "Runtime uGUI interaction requires x/y screen coordinates when path or instanceId is not supplied.");
         }
 
         internal static RuntimeScreenPosition ReadNamedScreenPosition(JToken args, string screenPositionKey, string normalizedKey, List<string> warnings, UguiDependencyStatus status)
@@ -178,12 +161,8 @@ namespace Chievfx.Mcp.Extensions.Ugui
                     normalizedInputSupplied: false);
             }
 
-            warnings.Add($"{screenPositionKey} was not provided; defaulted to center of current screen/game-view.");
-            return new RuntimeScreenPosition(
-                new Vector2(screenSize.x * 0.5f, screenSize.y * 0.5f),
-                screenSize,
-                new Vector2(0.5f, 0.5f),
-                normalizedInputSupplied: false);
+            throw new ArgumentException(
+                $"Runtime uGUI interaction requires {screenPositionKey} or {normalizedKey} screen coordinates.");
         }
 
         internal static Vector2 ResolveRuntimeUiScreenSize(UguiDependencyStatus status)

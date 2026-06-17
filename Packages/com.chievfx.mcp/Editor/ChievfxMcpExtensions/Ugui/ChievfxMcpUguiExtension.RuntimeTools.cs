@@ -121,7 +121,10 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
             if (target == null)
             {
-                warnings.Add("No runtime uGUI target resolved for click.");
+                if (!ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args))
+                {
+                    warnings.Add("No runtime uGUI target resolved for click.");
+                }
             }
             else if (!IsRuntimePlayModeActive())
             {
@@ -190,7 +193,10 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
             if (target == null)
             {
-                warnings.Add("No runtime uGUI target resolved for drag.");
+                if (!ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args))
+                {
+                    warnings.Add("No runtime uGUI target resolved for drag.");
+                }
             }
             else if (!IsRuntimePlayModeActive())
             {

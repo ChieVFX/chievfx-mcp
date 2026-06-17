@@ -195,6 +195,7 @@ namespace Chievfx.Mcp.Editor
         private static object? TypeText(string uri, JToken args)
         {
             var request = args is JObject obj ? obj : new JObject();
+            ChievfxMcpRuntimeUiInteractionInput.EnsureTargetOrScreenPosition(request, "ui-runtime-type-text");
             var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
             var candidates = SnapshotAdapters()
                 .Where(registered => registered.Adapter is IChievfxMcpRuntimeUiTextInputAdapter)
@@ -254,8 +255,15 @@ namespace Chievfx.Mcp.Editor
                 ["uri"] = uri,
                 ["resolved"] = false,
                 ["framework"] = null,
-                ["warnings"] = new[] { "No uGUI or UI Toolkit text field resolved from the supplied target or screen position. Provide targetPath/instanceId/name/visualElementRef or a screenPosition over a focusable text field, or set framework explicitly." },
-                ["attempts"] = attempts.ToArray(),
+                ["warnings"] = new[]
+                {
+                    ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(request)
+                        ? ChievfxMcpRuntimeUiInteractionInput.FormatCrossFrameworkTargetNotFoundMessage(request)
+                        : "No uGUI or UI Toolkit text field resolved from the supplied screen position. Provide path/instanceId/name/visualElementRef or x/y over a focusable text field, or set framework explicitly.",
+                },
+                ["attempts"] = ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(request)
+                    ? Array.Empty<Dictionary<string, object?>>()
+                    : attempts.ToArray(),
             };
         }
 
@@ -274,6 +282,7 @@ namespace Chievfx.Mcp.Editor
         internal static object? RuntimeSetControlValue(JToken args)
         {
             var request = args is JObject obj ? obj : new JObject();
+            ChievfxMcpRuntimeUiInteractionInput.EnsureTargetOrScreenPosition(request, "ui-runtime-set-control-value");
             var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
             var candidates = SnapshotAdapters()
                 .Where(registered => registered.Adapter is IChievfxMcpRuntimeUiSetControlValueAdapter)
@@ -337,8 +346,15 @@ namespace Chievfx.Mcp.Editor
                 ["uri"] = "tool://" + SetControlValueToolName,
                 ["resolved"] = false,
                 ["framework"] = null,
-                ["warnings"] = new[] { "No uGUI or UI Toolkit settable control resolved from the supplied target or screen position. Provide path/instanceId or x/y over a Slider, Toggle, Dropdown, or other writable control, or set framework explicitly." },
-                ["attempts"] = attempts.ToArray(),
+                ["warnings"] = new[]
+                {
+                    ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(request)
+                        ? ChievfxMcpRuntimeUiInteractionInput.FormatCrossFrameworkTargetNotFoundMessage(request)
+                        : "No uGUI or UI Toolkit settable control resolved from the supplied screen position. Provide path/instanceId or x/y over a Slider, Toggle, Dropdown, or other writable control, or set framework explicitly.",
+                },
+                ["attempts"] = ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(request)
+                    ? Array.Empty<Dictionary<string, object?>>()
+                    : attempts.ToArray(),
             };
         }
 
@@ -364,6 +380,7 @@ namespace Chievfx.Mcp.Editor
             ChievfxMcpRuntimeUiProbeCompact.EnsurePlayModeForProbe(EditorApplication.isPlaying || Application.isPlaying);
 
             var request = args is JObject obj ? obj : new JObject();
+            ChievfxMcpRuntimeUiInteractionInput.EnsureTargetOrScreenPosition(request, "ui-runtime-focus");
             var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
             var candidates = SnapshotAdapters()
                 .Where(registered => registered.Adapter is IChievfxMcpRuntimeUiFocusAdapter)
@@ -424,8 +441,15 @@ namespace Chievfx.Mcp.Editor
                 ["resolved"] = false,
                 ["framework"] = null,
                 ["playMode"] = EditorApplication.isPlaying || Application.isPlaying,
-                ["warnings"] = new[] { "No uGUI or UI Toolkit focus target resolved from the supplied path, instanceId, or screen position. Provide path/instanceId or x/y over a focusable control, or set framework explicitly." },
-                ["attempts"] = attempts.ToArray(),
+                ["warnings"] = new[]
+                {
+                    ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(request)
+                        ? ChievfxMcpRuntimeUiInteractionInput.FormatCrossFrameworkTargetNotFoundMessage(request)
+                        : "No uGUI or UI Toolkit focus target resolved from the supplied screen position. Provide path/instanceId or x/y over a focusable control, or set framework explicitly.",
+                },
+                ["attempts"] = ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(request)
+                    ? Array.Empty<Dictionary<string, object?>>()
+                    : attempts.ToArray(),
             };
         }
 
@@ -618,8 +642,8 @@ namespace Chievfx.Mcp.Editor
             }
             else
             {
-                warnings.Add("No drag start position supplied; defaulted to normalized center (0.5, 0.5).");
-                start = new RuntimeScreenPosition(screenSize * 0.5f, screenSize, new Vector2(0.5f, 0.5f));
+                throw new ArgumentException(
+                    "ui-runtime-drag requires x/y start coordinates (or legacy startScreenPosition/startNormalized).");
             }
 
             RuntimeScreenPosition end;
@@ -647,6 +671,8 @@ namespace Chievfx.Mcp.Editor
 
             var request = args is JObject obj ? obj : new JObject();
             var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
+            ChievfxMcpRuntimeUiInteractionInput.EnsureTargetOrScreenPosition(request, "ui-runtime-drag");
+            var explicitTargetMode = ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(request);
             var warnings = new List<string>();
             var geometry = ReadRuntimeDragGeometry(request, warnings);
             var dragAdapters = SnapshotAdapters()
@@ -695,13 +721,21 @@ namespace Chievfx.Mcp.Editor
                 sections.Add(CreateDragSection(adapter.FrameworkId, available: true, resolved: resolved, dragged: dragged, detail: dragDetail));
             }
 
-            if (!ChievfxMcpRuntimeUiControlFind.IncludesAllFrameworks(framework) && !anyResolved)
+            if (explicitTargetMode)
+            {
+                if (!anyResolved)
+                {
+                    throw new ArgumentException(ChievfxMcpRuntimeUiInteractionInput.FormatCrossFrameworkTargetNotFoundMessage(request));
+                }
+
+                sections = sections.Where(section => section.TryGetValue("resolved", out var resolvedFlag) && resolvedFlag is true).ToList();
+            }
+            else if (!ChievfxMcpRuntimeUiControlFind.IncludesAllFrameworks(framework) && !anyResolved)
             {
                 throw new InvalidOperationException(
                     $"ui-runtime-drag could not resolve a {framework} target at the supplied start position or explicit target.");
             }
-
-            if (!anyResolved)
+            else if (!anyResolved)
             {
                 warnings.Add("No uGUI or UI Toolkit target resolved at the drag start position. Use ui-control-find or ui-runtime-probe to inspect draggable controls and coordinates.");
             }
@@ -853,8 +887,15 @@ namespace Chievfx.Mcp.Editor
 
             var request = args is JObject obj ? obj : new JObject();
             var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
+            ChievfxMcpRuntimeUiInteractionInput.EnsureTargetOrScreenPosition(request, "ui-runtime-click");
+            var explicitTargetMode = ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(request);
             var warnings = new List<string>();
-            var position = ReadScreenPosition(request, warnings);
+            RuntimeScreenPosition? position = null;
+            if (ChievfxMcpRuntimeUiInteractionInput.HasScreenPositionInput(request))
+            {
+                position = ReadScreenPosition(request, warnings);
+            }
+
             var clickAdapters = SnapshotAdapters()
                 .Where(registered => registered.Adapter is IChievfxMcpRuntimeUiClickAdapter)
                 .Where(registered => ChievfxMcpRuntimeUiControlFind.MatchesFrameworkFilter(framework, registered.Adapter.FrameworkId))
@@ -901,28 +942,42 @@ namespace Chievfx.Mcp.Editor
                 sections.Add(CreateClickSection(adapter.FrameworkId, available: true, resolved: resolved, clicked: clicked, detail: clickDetail));
             }
 
-            if (!ChievfxMcpRuntimeUiControlFind.IncludesAllFrameworks(framework) && !anyResolved)
+            if (explicitTargetMode)
+            {
+                if (!anyResolved)
+                {
+                    throw new ArgumentException(ChievfxMcpRuntimeUiInteractionInput.FormatCrossFrameworkTargetNotFoundMessage(request));
+                }
+
+                sections = sections.Where(section => section.TryGetValue("resolved", out var resolvedFlag) && resolvedFlag is true).ToList();
+            }
+            else if (!ChievfxMcpRuntimeUiControlFind.IncludesAllFrameworks(framework) && !anyResolved)
             {
                 throw new InvalidOperationException(
                     $"ui-runtime-click could not resolve a {framework} target at the supplied position or explicit target.");
             }
-
-            if (!anyResolved)
+            else if (!anyResolved)
             {
                 warnings.Add("No uGUI or UI Toolkit target resolved at the supplied position. Use ui-control-find or ui-runtime-probe to inspect clickable controls and coordinates.");
             }
 
-            return new Dictionary<string, object?>
+            var result = new Dictionary<string, object?>
             {
                 ["uri"] = "tool://" + ClickToolName,
                 ["playMode"] = EditorApplication.isPlaying || Application.isPlaying,
                 ["frameworkFilter"] = string.IsNullOrEmpty(framework) ? "all" : framework,
-                ["coordinateConvention"] = CreateCoordinateConvention(position, request),
                 ["anyResolved"] = anyResolved,
                 ["anyClicked"] = anyClicked,
                 ["frameworks"] = sections.ToArray(),
                 ["warnings"] = warnings.Where(warning => !string.IsNullOrWhiteSpace(warning)).Distinct().ToArray(),
             };
+
+            if (position.HasValue)
+            {
+                result["coordinateConvention"] = CreateCoordinateConvention(position.Value, request);
+            }
+
+            return result;
         }
 
         private static Dictionary<string, object?> CreateClickSection(
@@ -1559,8 +1614,8 @@ namespace Chievfx.Mcp.Editor
                 return RuntimeScreenPosition.FromScreenPosition(new Vector2(x, y));
             }
 
-            warnings.Add("No screen position supplied; defaulted to normalized center (0.5, 0.5).");
-            return new RuntimeScreenPosition(screenSize * 0.5f, screenSize, new Vector2(0.5f, 0.5f));
+            throw new ArgumentException(
+                "Runtime UI interaction requires x/y screen coordinates when path, instanceId, visualElementRef, or name is not supplied.");
         }
 
         private static JObject RuntimeProbeSchema()

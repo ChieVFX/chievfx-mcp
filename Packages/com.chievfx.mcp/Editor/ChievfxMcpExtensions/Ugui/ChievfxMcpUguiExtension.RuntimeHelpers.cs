@@ -170,6 +170,13 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 return explicitTarget;
             }
 
+            if (ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args))
+            {
+                warnings.Add(ChievfxMcpRuntimeUiInteractionInput.FormatTargetNotFoundMessage(args, "uGUI"));
+                stack = Array.Empty<Dictionary<string, object?>>();
+                return null;
+            }
+
             if (eventSystem == null)
             {
                 stack = Array.Empty<Dictionary<string, object?>>();

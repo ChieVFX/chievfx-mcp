@@ -107,7 +107,10 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
             if (resolution.Target == null)
             {
-                warnings.Add("No runtime UI Toolkit target resolved for click.");
+                if (!ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args))
+                {
+                    warnings.Add("No runtime UI Toolkit target resolved for click.");
+                }
             }
             else if (!IsRuntimePlayModeActive())
             {
@@ -166,7 +169,10 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
             if (resolution.Target == null)
             {
-                warnings.Add("No runtime UI Toolkit target resolved for drag.");
+                if (!ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args))
+                {
+                    warnings.Add("No runtime UI Toolkit target resolved for drag.");
+                }
             }
             else if (!IsRuntimePlayModeActive())
             {
@@ -235,7 +241,10 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                             : $"Target '{GetVisualElementPath(element)}' has no writable value property.");
                 }
 
-                warnings.Add("No runtime UI Toolkit settable control resolved.");
+                if (!ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args))
+                {
+                    warnings.Add("No runtime UI Toolkit settable control resolved.");
+                }
                 result["warnings"] = warnings.Distinct().ToArray();
                 return result;
             }
@@ -284,7 +293,10 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                         : $"Target '{GetVisualElementPath(element)}' is not focusable.");
                 }
 
-                warnings.Add("No runtime UI Toolkit focus target resolved.");
+                if (!ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args))
+                {
+                    warnings.Add("No runtime UI Toolkit focus target resolved.");
+                }
                 result["warnings"] = warnings.Distinct().ToArray();
                 return result;
             }

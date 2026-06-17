@@ -299,12 +299,18 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 return inputField;
             }
 
+            var textInput = ResolveTextInputComponent(target, status);
+            if (textInput != null)
+            {
+                return textInput;
+            }
+
             return status.TmpDropdownType == null ? null : target.GetComponent(status.TmpDropdownType) as Component;
         }
 
         internal static string ResolveSetControlOperation(Component control, JToken args)
         {
-            if (control is InputField)
+            if (control is InputField || string.Equals(control.GetType().FullName, "TMPro.TMP_InputField", StringComparison.Ordinal))
             {
                 return "setText";
             }
@@ -436,18 +442,13 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
             if (control is InputField inputField)
             {
-                var text = valueToken?.Type == JTokenType.String
-                    ? valueToken.Value<string>() ?? string.Empty
-                    : valueToken?.ToString() ?? inputField.text;
-                if (invokeCallbacks)
-                {
-                    inputField.text = text;
-                }
-                else
-                {
-                    inputField.SetTextWithoutNotify(text);
-                }
+                ApplyInputFieldControlValue(inputField, valueToken, invokeCallbacks);
+                return;
+            }
 
+            if (string.Equals(control.GetType().FullName, "TMPro.TMP_InputField", StringComparison.Ordinal))
+            {
+                ApplyInputFieldControlValue(control, valueToken, invokeCallbacks);
                 return;
             }
 
@@ -547,6 +548,39 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             SetProperty(control, "value", value);
+        }
+
+        private static void ApplyInputFieldControlValue(object inputField, JToken? valueToken, bool invokeCallbacks)
+        {
+            var currentText = inputField is InputField legacyInputField
+                ? legacyInputField.text
+                : GetPropertyValue(inputField, "text") as string ?? string.Empty;
+            var text = valueToken?.Type == JTokenType.String
+                ? valueToken.Value<string>() ?? string.Empty
+                : valueToken?.ToString() ?? currentText;
+            if (invokeCallbacks)
+            {
+                if (inputField is InputField legacyField)
+                {
+                    legacyField.text = text;
+                }
+                else
+                {
+                    SetProperty(inputField, "text", text);
+                }
+
+                return;
+            }
+
+            if (inputField is InputField legacyWithoutNotify)
+            {
+                legacyWithoutNotify.SetTextWithoutNotify(text);
+                return;
+            }
+
+            inputField.GetType()
+                .GetMethod("SetTextWithoutNotify", BindingFlags.Public | BindingFlags.Instance, null, new[] { typeof(string) }, null)
+                ?.Invoke(inputField, new object[] { text });
         }
 
         internal static bool IsOutsideScreen(Vector2 position, Vector2 screenSize)

@@ -436,7 +436,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
                         var elementName = ReadMemberString(item.Element, "name");
                         var elementPath = GetVisualElementPath(item.Element);
-                        if (!ChievfxMcpRuntimeUiControlFind.MatchesWildcards(elementName, elementPath, wildcards))
+                        if (!ChievfxMcpRuntimeUiControlFind.MatchesWildcards(elementName ?? string.Empty, elementPath, wildcards))
                         {
                             continue;
                         }

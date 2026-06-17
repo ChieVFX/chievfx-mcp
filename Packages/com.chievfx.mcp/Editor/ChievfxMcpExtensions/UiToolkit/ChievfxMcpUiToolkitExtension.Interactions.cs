@@ -102,12 +102,12 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             var targetRef = ReadString(args, "visualElementRef") ?? ReadString(args, "targetRef");
             if (string.IsNullOrWhiteSpace(targetRef)
                 && !string.IsNullOrWhiteSpace(pathValue)
-                && pathValue.StartsWith("ve:", StringComparison.Ordinal))
+                && pathValue!.StartsWith("ve:", StringComparison.Ordinal))
             {
                 targetRef = pathValue;
             }
 
-            var targetPath = !string.IsNullOrWhiteSpace(pathValue) && !pathValue.StartsWith("ve:", StringComparison.Ordinal)
+            var targetPath = !string.IsNullOrWhiteSpace(pathValue) && !pathValue!.StartsWith("ve:", StringComparison.Ordinal)
                 ? pathValue
                 : ReadString(args, "targetPath");
             var targetName = ReadString(args, "name") ?? ReadString(args, "targetName");

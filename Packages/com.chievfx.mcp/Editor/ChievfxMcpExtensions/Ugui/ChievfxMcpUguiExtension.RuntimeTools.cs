@@ -504,7 +504,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
             result["textAfter"] = GetPropertyValue(inputField, "text") as string;
             result["selectedObjectAfter"] = CreateSelectedObjectRow(status);
-            result["targetStateAfter"] = CreateControlStateRow(target, status);
+            result["targetStateAfter"] = CreateControlStateRow(target!, status);
             result["warnings"] = warnings.Distinct().ToArray();
             return result;
         }

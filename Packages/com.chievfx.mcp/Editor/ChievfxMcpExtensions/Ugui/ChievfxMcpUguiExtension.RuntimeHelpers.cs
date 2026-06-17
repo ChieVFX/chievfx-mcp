@@ -654,7 +654,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             return controls
-                .GroupBy(component => component.GetInstanceID())
+                .GroupBy(component => UnityObjectIdentity.GetLegacyInstanceId(component))
                 .Select(group => group.First())
                 .ToArray();
         }

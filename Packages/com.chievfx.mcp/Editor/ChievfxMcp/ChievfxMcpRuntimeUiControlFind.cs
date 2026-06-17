@@ -30,7 +30,7 @@ namespace Chievfx.Mcp.Editor
                 }
 
                 GameObjectBridgeService.ValidateWildcardPattern(pattern, key);
-                return new[] { pattern };
+                return new[] { pattern! };
             }
 
             if (token.Type == JTokenType.Array)
@@ -50,7 +50,7 @@ namespace Chievfx.Mcp.Editor
                     }
 
                     GameObjectBridgeService.ValidateWildcardPattern(pattern, key);
-                    patterns.Add(pattern);
+                    patterns.Add(pattern!);
                 }
 
                 return patterns.ToArray();

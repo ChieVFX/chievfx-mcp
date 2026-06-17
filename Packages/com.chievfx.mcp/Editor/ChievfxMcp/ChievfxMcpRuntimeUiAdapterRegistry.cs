@@ -1685,7 +1685,7 @@ namespace Chievfx.Mcp.Editor
         private static string? ReadString(JToken token, string key)
         {
             var value = token[key]?.Value<string>();
-            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            return string.IsNullOrWhiteSpace(value) ? null : value!.Trim();
         }
 
         private static string RootMessage(Exception ex)

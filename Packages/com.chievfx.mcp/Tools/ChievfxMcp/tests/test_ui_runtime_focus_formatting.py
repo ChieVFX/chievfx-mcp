@@ -23,6 +23,21 @@ class UiRuntimeFocusFormattingTests(unittest.TestCase):
         self.assertIn("target path:Canvas/Screen/Toggle", text)
         self.assertIn("selected:Canvas/Screen/Toggle", text)
 
+    def test_path_only_focus_does_not_surface_screen_position_warning(self) -> None:
+        result = {
+            "playMode": True,
+            "resolved": True,
+            "framework": "ugui",
+            "target": {"path": "Canvas/Screen/InputField (TMP)", "instanceId": 57742},
+            "selectedObjectAfter": {"path": "Canvas/Screen/InputField (TMP)"},
+            "warnings": [],
+        }
+
+        text = mcp.format_ui_runtime_focus_text(result)
+
+        self.assertNotIn("No screen position", text)
+        self.assertNotIn("defaulted to center", text)
+
     def test_format_tool_result_text_routes_ui_runtime_focus(self) -> None:
         result = {"playMode": False, "resolved": False, "attempts": []}
         text = mcp.format_tool_result_text("ui-runtime-focus", result, {})

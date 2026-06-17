@@ -54,6 +54,52 @@ namespace Chievfx.Mcp.Extensions.Ugui
             };
         }
 
+        internal static bool HasScreenPositionInput(JToken args)
+        {
+            return args["normalized"] is JObject
+                || args["screenPosition"] is JObject
+                || args["x"] != null
+                || args["y"] != null;
+        }
+
+        internal static bool HasExplicitRuntimeInteractionTarget(JToken args)
+        {
+            if (args["instanceId"] != null)
+            {
+                return true;
+            }
+
+            var path = ReadString(args, "path") ?? ReadString(args, "targetPath");
+            return !string.IsNullOrWhiteSpace(path);
+        }
+
+        internal static RuntimeScreenPosition ReadInteractionScreenPosition(
+            JToken args,
+            List<string> warnings,
+            UguiDependencyStatus status,
+            out bool includeCoordinateInfo)
+        {
+            if (HasScreenPositionInput(args))
+            {
+                includeCoordinateInfo = true;
+                return ReadScreenPosition(args, warnings, status);
+            }
+
+            if (HasExplicitRuntimeInteractionTarget(args))
+            {
+                includeCoordinateInfo = false;
+                var screenSize = ResolveRuntimeUiScreenSize(status);
+                return new RuntimeScreenPosition(
+                    screenSize * 0.5f,
+                    screenSize,
+                    new Vector2(0.5f, 0.5f),
+                    normalizedInputSupplied: false);
+            }
+
+            includeCoordinateInfo = true;
+            return ReadScreenPosition(args, warnings, status);
+        }
+
         internal static RuntimeScreenPosition ReadScreenPosition(JToken args, List<string> warnings, UguiDependencyStatus status)
         {
             var screenSize = ResolveRuntimeUiScreenSize(status);

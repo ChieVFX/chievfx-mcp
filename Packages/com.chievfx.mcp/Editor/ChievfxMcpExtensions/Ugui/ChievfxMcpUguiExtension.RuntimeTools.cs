@@ -104,9 +104,12 @@ namespace Chievfx.Mcp.Extensions.Ugui
         {
             var warnings = new List<string>();
             var handler = ChievfxMcpRuntimeUiAdapterRegistry.ReadRuntimeClickHandler(args);
-            var position = ReadScreenPosition(args, warnings, status);
+            var position = ReadInteractionScreenPosition(args, warnings, status, out var includeCoordinateInfo);
             var result = CreateRuntimeInteractionEnvelope("tool://ui-runtime-click#ugui", status, dryRun: false, args, warnings);
-            AddCoordinateInfo(result, position);
+            if (includeCoordinateInfo)
+            {
+                AddCoordinateInfo(result, position);
+            }
 
             var eventSystem = RequireRuntimeEventSystem(status, warnings, dryRun: false);
             result["eventSystem"] = eventSystem == null ? null : CreateGameObjectRow(eventSystem.gameObject);
@@ -292,8 +295,12 @@ namespace Chievfx.Mcp.Extensions.Ugui
             result["selectedObjectBefore"] = CreateSelectedObjectRow(status);
             result["framework"] = "ugui";
 
-            var position = ReadScreenPosition(args, warnings, status);
-            AddCoordinateInfo(result, position);
+            var position = ReadInteractionScreenPosition(args, warnings, status, out var includeCoordinateInfo);
+            if (includeCoordinateInfo)
+            {
+                AddCoordinateInfo(result, position);
+            }
+
             var eventSystem = GetCurrentEventSystem(status) as EventSystem;
             AddRuntimeWarnings(status, warnings);
             result["eventSystem"] = eventSystem == null ? null : CreateGameObjectRow(eventSystem.gameObject);
@@ -386,8 +393,12 @@ namespace Chievfx.Mcp.Extensions.Ugui
             result["selectedObjectBefore"] = CreateSelectedObjectRow(status);
             result["framework"] = "ugui";
 
-            var position = ReadScreenPosition(args, warnings, status);
-            AddCoordinateInfo(result, position);
+            var position = ReadInteractionScreenPosition(args, warnings, status, out var includeCoordinateInfo);
+            if (includeCoordinateInfo)
+            {
+                AddCoordinateInfo(result, position);
+            }
+
             var eventSystem = GetCurrentEventSystem(status) as EventSystem;
             AddRuntimeWarnings(status, warnings);
             result["eventSystem"] = eventSystem == null ? null : CreateGameObjectRow(eventSystem.gameObject);
@@ -446,7 +457,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             result["selectedObjectBefore"] = CreateSelectedObjectRow(status);
             result["framework"] = "ugui";
 
-            var position = ReadScreenPosition(args, warnings, status);
+            var position = ReadInteractionScreenPosition(args, warnings, status, out _);
             var eventSystem = GetCurrentEventSystem(status) as EventSystem;
             AddRuntimeWarnings(status, warnings);
             result["eventSystem"] = eventSystem == null ? null : CreateGameObjectRow(eventSystem.gameObject);

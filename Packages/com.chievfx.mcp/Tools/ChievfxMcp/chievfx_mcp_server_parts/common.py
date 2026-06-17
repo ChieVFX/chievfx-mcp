@@ -239,6 +239,8 @@ TOOL_CATEGORIES = {
     "ui-runtime-click": "ui-runtime-common",
     "ui-runtime-drag": "ui-runtime-common",
     "ui-runtime-set-control-value": "ui-runtime-common",
+    "ui-runtime-focus": "ui-runtime-common",
+    "ui-runtime-clear-focus": "ui-runtime-common",
     "prefab-open": "Prefab",
     "prefab-close": "Prefab",
     "prefab-save": "Prefab",
@@ -636,5 +638,16 @@ TOOL_ADVERTISED_PROPERTY_ORDERS: dict[str, list[str]] = {
         "path",
         "instanceId",
         "value",
+    ],
+    "ui-runtime-focus": [
+        "framework",
+        "x",
+        "y",
+        "isNormalized",
+        "path",
+        "instanceId",
+    ],
+    "ui-runtime-clear-focus": [
+        "framework",
     ],
 }

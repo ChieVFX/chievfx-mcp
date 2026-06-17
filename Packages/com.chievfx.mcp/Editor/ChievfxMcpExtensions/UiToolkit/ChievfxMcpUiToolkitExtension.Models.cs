@@ -210,7 +210,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         }
     }
 
-    internal sealed class UiToolkitRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter, IChievfxMcpRuntimeUiTextInputAdapter, IChievfxMcpRuntimeUiControlFindAdapter, IChievfxMcpRuntimeUiClickAdapter, IChievfxMcpRuntimeUiDragAdapter, IChievfxMcpRuntimeUiSetControlValueAdapter
+    internal sealed class UiToolkitRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter, IChievfxMcpRuntimeUiTextInputAdapter, IChievfxMcpRuntimeUiControlFindAdapter, IChievfxMcpRuntimeUiClickAdapter, IChievfxMcpRuntimeUiDragAdapter, IChievfxMcpRuntimeUiSetControlValueAdapter, IChievfxMcpRuntimeUiFocusAdapter
     {
         public string FrameworkId => "uitoolkit";
 
@@ -252,6 +252,16 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         public object? SetControlValue(JToken request, bool requireTarget)
         {
             return RuntimeSetControlValueAt(request, GetDependencyStatus(), requireTarget);
+        }
+
+        public object? Focus(JToken request, bool requireTarget)
+        {
+            return RuntimeFocusAt(request, GetDependencyStatus(), requireTarget);
+        }
+
+        public object? ClearFocus(JToken request)
+        {
+            return RuntimeClearFocus(GetDependencyStatus());
         }
     }
 }

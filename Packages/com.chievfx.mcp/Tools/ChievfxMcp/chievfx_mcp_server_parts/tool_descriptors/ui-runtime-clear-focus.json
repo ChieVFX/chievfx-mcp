@@ -1,0 +1,19 @@
+{
+  "name": "ui-runtime-clear-focus",
+  "description": "Clear Play Mode runtime UI focus/selection. uGUI clears EventSystem selection; UI Toolkit blurs the focused VisualElement. Requires Play Mode.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "framework": {
+        "type": "string",
+        "enum": ["all", "auto", "ugui", "uitoolkit"],
+        "default": "all",
+        "description": "Framework scope. all/auto (default) clears uGUI and UI Toolkit; ugui/uitoolkit force one."
+      }
+    },
+    "additionalProperties": true
+  }
+}

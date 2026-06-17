@@ -168,6 +168,27 @@ def _build_advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
             "required": ["value"],
             "additionalProperties": True,
         }
+    if tool_name == "ui-runtime-focus":
+        return {
+            "type": "object",
+            "properties": {
+                "framework": {"enum": ["auto", "ugui", "uitoolkit"], "default": "auto"},
+                "x": {"type": "number"},
+                "y": {"type": "number"},
+                "isNormalized": {"type": "boolean", "default": False},
+                "path": {"type": "string"},
+                "instanceId": {"type": "integer"},
+            },
+            "additionalProperties": True,
+        }
+    if tool_name == "ui-runtime-clear-focus":
+        return {
+            "type": "object",
+            "properties": {
+                "framework": {"enum": ["all", "auto", "ugui", "uitoolkit"], "default": "all"},
+            },
+            "additionalProperties": True,
+        }
     if tool_name == "ugui-scrollrect-create":
         scalar = lambda kind: {"type": kind}
         return {

@@ -243,7 +243,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
         }
     }
 
-    internal sealed class UguiRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter, IChievfxMcpRuntimeUiTextInputAdapter, IChievfxMcpRuntimeUiControlFindAdapter, IChievfxMcpRuntimeUiClickAdapter, IChievfxMcpRuntimeUiDragAdapter, IChievfxMcpRuntimeUiSetControlValueAdapter
+    internal sealed class UguiRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter, IChievfxMcpRuntimeUiTextInputAdapter, IChievfxMcpRuntimeUiControlFindAdapter, IChievfxMcpRuntimeUiClickAdapter, IChievfxMcpRuntimeUiDragAdapter, IChievfxMcpRuntimeUiSetControlValueAdapter, IChievfxMcpRuntimeUiFocusAdapter
     {
         public string FrameworkId => "ugui";
 
@@ -285,6 +285,16 @@ namespace Chievfx.Mcp.Extensions.Ugui
         public object? SetControlValue(JToken request, bool requireTarget)
         {
             return RuntimeSetControlValueAt(request, GetDependencyStatus(), requireTarget);
+        }
+
+        public object? Focus(JToken request, bool requireTarget)
+        {
+            return RuntimeFocusAt(request, GetDependencyStatus(), requireTarget);
+        }
+
+        public object? ClearFocus(JToken request)
+        {
+            return RuntimeClearFocus(GetDependencyStatus());
         }
     }
 }

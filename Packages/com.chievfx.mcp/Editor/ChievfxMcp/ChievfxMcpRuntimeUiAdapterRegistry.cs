@@ -78,6 +78,17 @@ namespace Chievfx.Mcp.Editor
         object? SetControlValue(JToken request, bool requireTarget);
     }
 
+    /// <summary>
+    /// Optional capability for focusing or clearing focus on runtime UI controls.
+    /// Enables shared "ui-runtime-focus" and "ui-runtime-clear-focus" tools.
+    /// </summary>
+    internal interface IChievfxMcpRuntimeUiFocusAdapter
+    {
+        object? Focus(JToken request, bool requireTarget);
+
+        object? ClearFocus(JToken request);
+    }
+
     internal static class ChievfxMcpRuntimeUiAdapterRegistry
     {
         private const string ExtensionId = "chievfx.runtime-ui";
@@ -90,6 +101,8 @@ namespace Chievfx.Mcp.Editor
         internal const string ClickToolName = "ui-runtime-click";
         internal const string DragToolName = "ui-runtime-drag";
         internal const string SetControlValueToolName = "ui-runtime-set-control-value";
+        internal const string FocusToolName = "ui-runtime-focus";
+        internal const string ClearFocusToolName = "ui-runtime-clear-focus";
         private const int AdapterProbeMaxRows = 1024;
 
         private static readonly Regex FrameworkIdPattern = new(@"^[a-z0-9][a-z0-9._-]{0,127}$", RegexOptions.Compiled);
@@ -344,6 +357,213 @@ namespace Chievfx.Mcp.Editor
             }
 
             return row;
+        }
+
+        internal static object? RuntimeFocus(JToken args)
+        {
+            ChievfxMcpRuntimeUiProbeCompact.EnsurePlayModeForProbe(EditorApplication.isPlaying || Application.isPlaying);
+
+            var request = args is JObject obj ? obj : new JObject();
+            var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
+            var candidates = SnapshotAdapters()
+                .Where(registered => registered.Adapter is IChievfxMcpRuntimeUiFocusAdapter)
+                .ToArray();
+            if (candidates.Length == 0)
+            {
+                throw new InvalidOperationException("No runtime UI adapter supports focus.");
+            }
+
+            if (!string.IsNullOrEmpty(framework) && !string.Equals(framework, "auto", StringComparison.Ordinal))
+            {
+                var selected = candidates.FirstOrDefault(registered => string.Equals(registered.Adapter.FrameworkId, framework, StringComparison.Ordinal));
+                if (selected == null)
+                {
+                    throw new ArgumentException($"No focus adapter for framework '{framework}'. Available: {string.Join(", ", candidates.Select(registered => registered.Adapter.FrameworkId))}.");
+                }
+
+                if (!selected.Adapter.Available)
+                {
+                    throw new InvalidOperationException($"Focus adapter '{framework}' is registered but unavailable.");
+                }
+
+                var forced = ((IChievfxMcpRuntimeUiFocusAdapter)selected.Adapter).Focus(request.DeepClone(), requireTarget: true);
+                return WrapFocusResult(forced, selected.Adapter);
+            }
+
+            var attempts = new List<Dictionary<string, object?>>();
+            foreach (var registered in candidates)
+            {
+                if (!registered.Adapter.Available)
+                {
+                    attempts.Add(new Dictionary<string, object?> { ["framework"] = registered.Adapter.FrameworkId, ["available"] = false });
+                    continue;
+                }
+
+                object? result;
+                try
+                {
+                    result = ((IChievfxMcpRuntimeUiFocusAdapter)registered.Adapter).Focus(request.DeepClone(), requireTarget: false);
+                }
+                catch (Exception ex)
+                {
+                    attempts.Add(new Dictionary<string, object?> { ["framework"] = registered.Adapter.FrameworkId, ["error"] = RootMessage(ex) });
+                    continue;
+                }
+
+                if (ReadResolvedFlag(result))
+                {
+                    return WrapFocusResult(result, registered.Adapter);
+                }
+
+                attempts.Add(new Dictionary<string, object?> { ["framework"] = registered.Adapter.FrameworkId, ["resolved"] = false, ["detail"] = result });
+            }
+
+            return new Dictionary<string, object?>
+            {
+                ["uri"] = "tool://" + FocusToolName,
+                ["resolved"] = false,
+                ["framework"] = null,
+                ["playMode"] = EditorApplication.isPlaying || Application.isPlaying,
+                ["warnings"] = new[] { "No uGUI or UI Toolkit focus target resolved from the supplied path, instanceId, or screen position. Provide path/instanceId or x/y over a focusable control, or set framework explicitly." },
+                ["attempts"] = attempts.ToArray(),
+            };
+        }
+
+        internal static object? RuntimeClearFocus(JToken args)
+        {
+            ChievfxMcpRuntimeUiProbeCompact.EnsurePlayModeForProbe(EditorApplication.isPlaying || Application.isPlaying);
+
+            var request = args is JObject obj ? obj : new JObject();
+            var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
+            var warnings = new List<string>();
+            var clearAdapters = SnapshotAdapters()
+                .Where(registered => registered.Adapter is IChievfxMcpRuntimeUiFocusAdapter)
+                .Where(registered => ChievfxMcpRuntimeUiControlFind.MatchesFrameworkFilter(framework, registered.Adapter.FrameworkId))
+                .ToArray();
+
+            if (!ChievfxMcpRuntimeUiControlFind.IncludesAllFrameworks(framework) && clearAdapters.Length == 0)
+            {
+                throw new ArgumentException(
+                    $"No clear-focus adapter for framework '{framework}'. Available: {string.Join(", ", SnapshotAdapters().Where(registered => registered.Adapter is IChievfxMcpRuntimeUiFocusAdapter).Select(registered => registered.Adapter.FrameworkId))}.");
+            }
+
+            var sections = new List<Dictionary<string, object?>>();
+            var anyCleared = false;
+
+            foreach (var registered in clearAdapters)
+            {
+                var adapter = registered.Adapter;
+                if (!adapter.Available)
+                {
+                    warnings.Add($"Framework '{adapter.FrameworkId}' is unavailable.");
+                    sections.Add(CreateClearFocusSection(adapter.FrameworkId, available: false, cleared: false, detail: null));
+                    continue;
+                }
+
+                Dictionary<string, object?>? detail;
+                try
+                {
+                    detail = ReadFocusDetail(((IChievfxMcpRuntimeUiFocusAdapter)adapter).ClearFocus(request));
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"ui-runtime-clear-focus failed for framework '{adapter.FrameworkId}': {RootMessage(ex)}", ex);
+                }
+
+                var cleared = ReadClearedFlag(detail);
+                if (cleared)
+                {
+                    anyCleared = true;
+                }
+
+                sections.Add(CreateClearFocusSection(adapter.FrameworkId, available: true, cleared: cleared, detail: detail));
+            }
+
+            return new Dictionary<string, object?>
+            {
+                ["uri"] = "tool://" + ClearFocusToolName,
+                ["playMode"] = EditorApplication.isPlaying || Application.isPlaying,
+                ["frameworkFilter"] = string.IsNullOrEmpty(framework) ? "all" : framework,
+                ["anyCleared"] = anyCleared,
+                ["frameworks"] = sections.ToArray(),
+                ["warnings"] = warnings.Where(warning => !string.IsNullOrWhiteSpace(warning)).Distinct().ToArray(),
+            };
+        }
+
+        private static Dictionary<string, object?> WrapFocusResult(object? result, IChievfxMcpRuntimeUiAdapter adapter)
+        {
+            if (!TryReadDictionary(result, out var row))
+            {
+                row = new Dictionary<string, object?> { ["result"] = result };
+            }
+
+            row["uri"] = "tool://" + FocusToolName;
+            row["framework"] = adapter.FrameworkId;
+            if (!row.ContainsKey("resolved"))
+            {
+                row["resolved"] = true;
+            }
+
+            return row;
+        }
+
+        private static Dictionary<string, object?>? ReadFocusDetail(object? result)
+        {
+            return TryReadDictionary(result, out var detail) ? detail : null;
+        }
+
+        private static bool ReadClearedFlag(object? result)
+        {
+            return TryReadDictionary(result, out var row)
+                && row.TryGetValue("cleared", out var cleared)
+                && cleared is bool clearedValue
+                && clearedValue;
+        }
+
+        private static Dictionary<string, object?> CreateClearFocusSection(
+            string frameworkId,
+            bool available,
+            bool cleared,
+            Dictionary<string, object?>? detail)
+        {
+            var section = new Dictionary<string, object?>
+            {
+                ["framework"] = frameworkId,
+                ["available"] = available,
+                ["cleared"] = cleared,
+            };
+
+            if (detail == null)
+            {
+                return section;
+            }
+
+            if (detail.TryGetValue("focusBefore", out var focusBefore))
+            {
+                section["focusBefore"] = focusBefore;
+            }
+
+            if (detail.TryGetValue("focusAfter", out var focusAfter))
+            {
+                section["focusAfter"] = focusAfter;
+            }
+
+            if (detail.TryGetValue("selectedBefore", out var selectedBefore))
+            {
+                section["selectedBefore"] = selectedBefore;
+            }
+
+            if (detail.TryGetValue("selectedAfter", out var selectedAfter))
+            {
+                section["selectedAfter"] = selectedAfter;
+            }
+
+            if (detail.TryGetValue("events", out var events))
+            {
+                section["events"] = events;
+            }
+
+            return section;
         }
 
         private static bool ReadResolvedFlag(object? result)

@@ -32,6 +32,18 @@ namespace Chievfx.Mcp.Editor
                 return true;
             }
 
+            if (string.Equals(toolName, ChievfxMcpRuntimeUiAdapterRegistry.FocusToolName, StringComparison.Ordinal))
+            {
+                result = ChievfxMcpRuntimeUiAdapterRegistry.RuntimeFocus(args);
+                return true;
+            }
+
+            if (string.Equals(toolName, ChievfxMcpRuntimeUiAdapterRegistry.ClearFocusToolName, StringComparison.Ordinal))
+            {
+                result = ChievfxMcpRuntimeUiAdapterRegistry.RuntimeClearFocus(args);
+                return true;
+            }
+
             result = null;
             return false;
         }

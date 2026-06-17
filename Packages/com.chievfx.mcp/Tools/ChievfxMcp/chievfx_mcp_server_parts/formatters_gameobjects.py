@@ -441,6 +441,99 @@ def format_ui_runtime_set_control_value_text(result: dict[str, Any]) -> str:
     return "\n".join(line for line in lines if line)
 
 
+def format_ui_runtime_focus_text(result: dict[str, Any]) -> str:
+    header_parts = [f"playMode:{format_toon_atom(result.get('playMode'))}"]
+    if result.get("resolved") is True or result.get("focused") is True:
+        header_parts.append("focused:true")
+    else:
+        header_parts.append("resolved:false")
+    framework = result.get("framework")
+    if not should_omit_toon_value(framework):
+        header_parts.append(f"framework:{format_toon_atom(framework)}")
+    lines = ["focus " + " ".join(header_parts)]
+
+    target = result.get("target")
+    if isinstance(target, dict):
+        path = target.get("path")
+        if not should_omit_toon_value(path):
+            lines.append(f"target path:{format_toon_atom(path)}")
+        instance_id = target.get("instanceId")
+        if not should_omit_toon_value(instance_id):
+            lines.append(f"id:{format_toon_atom(instance_id)}")
+        visual_element_ref = target.get("visualElementRef")
+        if not should_omit_toon_value(visual_element_ref):
+            lines.append(f"ref:{format_toon_atom(visual_element_ref)}")
+
+    selected_before = result.get("selectedObjectBefore")
+    selected_after = result.get("selectedObjectAfter")
+    if isinstance(selected_after, dict):
+        path = selected_after.get("path")
+        if not should_omit_toon_value(path):
+            lines.append(f"selected:{format_toon_atom(path)}")
+    elif isinstance(selected_before, dict) or isinstance(selected_after, dict):
+        lines.append("selected:none")
+
+    focused_before = result.get("focusedElementBefore")
+    focused_after = result.get("focusedElementAfter")
+    if isinstance(focused_after, dict):
+        path = focused_after.get("path")
+        if not should_omit_toon_value(path):
+            lines.append(f"uitk-focus:{format_toon_atom(path)}")
+    elif isinstance(focused_before, dict):
+        lines.append("uitk-focus:none")
+
+    attempts = result.get("attempts")
+    if isinstance(attempts, list):
+        for attempt in attempts:
+            if not isinstance(attempt, dict):
+                continue
+            row_parts = [f"- {format_toon_atom(attempt.get('framework'))}"]
+            if attempt.get("available") is False:
+                row_parts.append("unavailable")
+            elif attempt.get("resolved") is False:
+                row_parts.append("miss")
+            elif attempt.get("error"):
+                row_parts.append(f"error:{format_toon_atom(attempt.get('error'))}")
+            lines.append(" ".join(row_parts))
+
+    warnings = result.get("warnings")
+    if isinstance(warnings, list):
+        for warning in warnings:
+            if isinstance(warning, str) and warning.strip():
+                lines.append(f"! {warning.strip()}")
+
+    return "\n".join(line for line in lines if line)
+
+
+def format_ui_runtime_clear_focus_text(result: dict[str, Any]) -> str:
+    header_parts = [f"playMode:{format_toon_atom(result.get('playMode'))}"]
+    if result.get("anyCleared") is True:
+        header_parts.append("cleared:true")
+    lines = ["clear-focus " + " ".join(header_parts)]
+
+    frameworks = result.get("frameworks")
+    if isinstance(frameworks, list):
+        for section in frameworks:
+            if not isinstance(section, dict):
+                continue
+            parts = [f"- {format_toon_atom(section.get('framework'))}"]
+            if section.get("available") is False:
+                parts.append("unavailable")
+            elif section.get("cleared") is True:
+                parts.append("cleared")
+            else:
+                parts.append("noop")
+            lines.append(" ".join(parts))
+
+    warnings = result.get("warnings")
+    if isinstance(warnings, list):
+        for warning in warnings:
+            if isinstance(warning, str) and warning.strip():
+                lines.append(f"! {warning.strip()}")
+
+    return "\n".join(line for line in lines if line)
+
+
 def format_ui_control_find_row(
     control: dict[str, Any],
     *,
@@ -555,6 +648,14 @@ def format_tool_result_text(tool_name: str, result: Any, arguments: dict[str, An
     if tool_name == "ui-runtime-set-control-value":
         if isinstance(result, dict):
             return format_ui_runtime_set_control_value_text(result)
+
+    if tool_name == "ui-runtime-focus":
+        if isinstance(result, dict):
+            return format_ui_runtime_focus_text(result)
+
+    if tool_name == "ui-runtime-clear-focus":
+        if isinstance(result, dict):
+            return format_ui_runtime_clear_focus_text(result)
 
     return to_toon(result)
 

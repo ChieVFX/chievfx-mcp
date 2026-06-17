@@ -228,7 +228,8 @@ namespace Chievfx.Mcp.Editor.Tests
                 "{'path':'" + ChievfxMcpUguiRuntimeQaFixture.TogglePath + "','framework':'ugui','value':false}");
             Assert.AreEqual(false, toggle.isOn);
 
-            var select = RunTool("ugui-runtime-select", "{'targetPath':'" + ChievfxMcpUguiRuntimeQaFixture.TogglePath + "','allowStateMutation':true}");
+            var select = RunUiRuntimeFocus(
+                "{'path':'" + ChievfxMcpUguiRuntimeQaFixture.TogglePath + "','framework':'ugui'}");
             StringAssert.EndsWith(ChievfxMcpUguiRuntimeQaFixture.TogglePath, (string)Row(select, "selectedObjectAfter")["path"]!);
 
             var dragStart = SliderScreenPoint(slider, 0.1f);
@@ -326,6 +327,12 @@ namespace Chievfx.Mcp.Editor.Tests
         {
             ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
             return (Dictionary<string, object?>)ChievfxMcpRuntimeUiAdapterRegistry.RuntimeSetControlValue(JObject.Parse(argsJson))!;
+        }
+
+        private static Dictionary<string, object?> RunUiRuntimeFocus(string argsJson)
+        {
+            ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
+            return (Dictionary<string, object?>)ChievfxMcpRuntimeUiAdapterRegistry.RuntimeFocus(JObject.Parse(argsJson))!;
         }
 
         private static Dictionary<string, object?> UguiClickSection(Dictionary<string, object?> result)

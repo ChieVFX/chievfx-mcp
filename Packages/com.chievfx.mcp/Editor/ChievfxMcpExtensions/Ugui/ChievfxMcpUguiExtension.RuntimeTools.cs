@@ -283,6 +283,94 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return result;
         }
 
+        internal static Dictionary<string, object?> RuntimeFocusAt(JToken args, UguiDependencyStatus status, bool requireTarget)
+        {
+            var warnings = new List<string>();
+            var result = CreateEnvelope("tool://ui-runtime-focus#ugui", status);
+            result["playMode"] = IsRuntimePlayModeActive();
+            result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
+            result["selectedObjectBefore"] = CreateSelectedObjectRow(status);
+            result["framework"] = "ugui";
+
+            var position = ReadScreenPosition(args, warnings, status);
+            AddCoordinateInfo(result, position);
+            var eventSystem = GetCurrentEventSystem(status) as EventSystem;
+            AddRuntimeWarnings(status, warnings);
+            result["eventSystem"] = eventSystem == null ? null : CreateGameObjectRow(eventSystem.gameObject);
+
+            var target = ResolveRuntimeInteractionTarget(args, status, eventSystem, position.ScreenPosition, warnings, out var stack);
+            result["stack"] = stack;
+            result["target"] = target == null ? null : CreateRuntimeElementRow(target, status);
+            var resolved = target != null;
+            result["resolved"] = resolved;
+            result["targetStateBefore"] = target == null ? null : CreateControlStateRow(target, status);
+            result["intendedHandler"] = new Dictionary<string, object?>
+            {
+                ["operation"] = "setSelectedGameObject",
+                ["path"] = target == null ? null : GetTransformPath(target.transform),
+            };
+
+            if (!resolved)
+            {
+                if (requireTarget)
+                {
+                    throw new ArgumentException("ui-runtime-focus could not resolve a uGUI target from path, instanceId, or screen position.");
+                }
+
+                warnings.Add("No runtime uGUI focus target resolved.");
+                result["warnings"] = warnings.ToArray();
+                return result;
+            }
+
+            if (!IsRuntimePlayModeActive())
+            {
+                throw new InvalidOperationException("Runtime uGUI focus requires Play Mode. Enter Play Mode before changing selection.");
+            }
+
+            if (eventSystem == null)
+            {
+                throw new InvalidOperationException("Runtime uGUI focus requires an active EventSystem.");
+            }
+
+            eventSystem.SetSelectedGameObject(target, new BaseEventData(eventSystem));
+            result["selectedObjectAfter"] = CreateSelectedObjectRow(status);
+            result["targetStateAfter"] = CreateControlStateRow(target!, status);
+            result["focused"] = true;
+            result["warnings"] = warnings.ToArray();
+            return result;
+        }
+
+        internal static Dictionary<string, object?> RuntimeClearFocus(UguiDependencyStatus status)
+        {
+            var warnings = new List<string>();
+            var result = CreateEnvelope("tool://ui-runtime-clear-focus#ugui", status);
+            result["playMode"] = IsRuntimePlayModeActive();
+            result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
+            result["framework"] = "ugui";
+
+            var eventSystem = GetCurrentEventSystem(status) as EventSystem;
+            AddRuntimeWarnings(status, warnings);
+            result["eventSystem"] = eventSystem == null ? null : CreateGameObjectRow(eventSystem.gameObject);
+            result["selectedBefore"] = CreateSelectedObjectRow(status);
+
+            if (!IsRuntimePlayModeActive())
+            {
+                throw new InvalidOperationException("Runtime uGUI clear-focus requires Play Mode. Enter Play Mode before changing selection.");
+            }
+
+            if (eventSystem == null)
+            {
+                throw new InvalidOperationException("Runtime uGUI clear-focus requires an active EventSystem.");
+            }
+
+            var hadSelection = eventSystem.currentSelectedGameObject != null;
+            eventSystem.SetSelectedGameObject(null, new BaseEventData(eventSystem));
+            result["selectedAfter"] = CreateSelectedObjectRow(status);
+            result["cleared"] = hadSelection;
+            result["warnings"] = warnings.ToArray();
+            return result;
+        }
+
         internal static Dictionary<string, object?> RuntimeSetControlValueAt(JToken args, UguiDependencyStatus status, bool requireTarget)
         {
             var warnings = new List<string>();

@@ -254,6 +254,100 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             return result;
         }
 
+        internal static Dictionary<string, object?> RuntimeFocusAt(JToken args, UiToolkitDependencyStatus status, bool requireTarget)
+        {
+            var warnings = new List<string>();
+            var result = CreateEnvelope("tool://ui-runtime-focus#uitoolkit", status);
+            result["framework"] = "uitoolkit";
+            result["playMode"] = IsRuntimePlayModeActive();
+            result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
+            result["focusedElementBefore"] = CreateFocusedElementRow(status);
+
+            var resolution = ResolveRuntimeInteractionTarget(args, status, warnings);
+            result["stack"] = resolution.Stack;
+            result["resolvedBy"] = resolution.ResolvedBy;
+            result["input"] = resolution.Position == null ? null : CreateScreenPositionRow(resolution.Position.Value);
+
+            var element = resolution.Target as VisualElement;
+            var focusable = element != null && ReadBoolMember(element, "focusable", false);
+            result["resolved"] = focusable;
+            result["target"] = element == null ? null : CreateVisualElementRow(element, status, resolution.Group ?? PanelGroup.FromElement(element), includeTextAndValue: true);
+            result["targetStateBefore"] = element == null ? null : CreateVisualElementStateRow(element, status);
+            result["intendedHandler"] = element == null
+                ? null
+                : new Dictionary<string, object?> { ["operation"] = "VisualElement.Focus", ["events"] = new[] { "VisualElement.Focus" } };
+
+            if (!focusable)
+            {
+                if (requireTarget)
+                {
+                    throw new ArgumentException(element == null
+                        ? "ui-runtime-focus could not resolve a UI Toolkit target from path or screen position."
+                        : $"Target '{GetVisualElementPath(element)}' is not focusable.");
+                }
+
+                warnings.Add("No runtime UI Toolkit focus target resolved.");
+                result["warnings"] = warnings.Distinct().ToArray();
+                return result;
+            }
+
+            if (!IsRuntimePlayModeActive())
+            {
+                throw new InvalidOperationException("Runtime UI Toolkit focus requires Play Mode. Enter Play Mode before focusing controls.");
+            }
+
+            element!.Focus();
+            result["dispatchedEvents"] = new[] { "VisualElement.Focus" };
+            result["focusedElementAfter"] = CreateFocusedElementRow(status);
+            result["targetStateAfter"] = CreateVisualElementStateRow(element, status);
+            result["focused"] = true;
+            result["warnings"] = warnings.Distinct().ToArray();
+            return result;
+        }
+
+        internal static Dictionary<string, object?> RuntimeClearFocus(UiToolkitDependencyStatus status)
+        {
+            var warnings = new List<string>();
+            var result = CreateEnvelope("tool://ui-runtime-clear-focus#uitoolkit", status);
+            result["framework"] = "uitoolkit";
+            result["playMode"] = IsRuntimePlayModeActive();
+            result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
+            result["focusBefore"] = CreateFocusedElementRow(status);
+
+            if (!IsRuntimePlayModeActive())
+            {
+                throw new InvalidOperationException("Runtime UI Toolkit clear-focus requires Play Mode. Enter Play Mode before clearing focus.");
+            }
+
+            var cleared = ClearRuntimeFocus(status);
+            result["focusAfter"] = CreateFocusedElementRow(status);
+            result["cleared"] = cleared;
+            result["events"] = cleared ? new[] { "VisualElement.Blur" } : Array.Empty<string>();
+            result["warnings"] = warnings.Distinct().ToArray();
+            return result;
+        }
+
+        internal static bool ClearRuntimeFocus(UiToolkitDependencyStatus status)
+        {
+            var cleared = false;
+            foreach (var group in FindRuntimePanelGroups(status))
+            {
+                var focusController = group.Panel == null ? null : GetMemberValue(group.Panel, "focusController");
+                if (focusController == null)
+                {
+                    continue;
+                }
+
+                if (GetMemberValue(focusController, "focusedElement") is VisualElement focused)
+                {
+                    focused.Blur();
+                    cleared = true;
+                }
+            }
+
+            return cleared;
+        }
+
         internal static Dictionary<string, object?> InteractRuntime(JToken args, UiToolkitDependencyStatus status)
         {
             var warnings = new List<string>();

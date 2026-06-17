@@ -48,6 +48,8 @@
     "ui-runtime-click",
     "ui-runtime-drag",
     "ui-runtime-set-control-value",
+    "ui-runtime-focus",
+    "ui-runtime-clear-focus",
     "prefab-open",
     "prefab-close",
     "prefab-save",

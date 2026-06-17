@@ -43,6 +43,43 @@ class RuntimeUiProbeFormattingTests(unittest.TestCase):
             "args=(framework?:auto|ugui|uitoolkit, x?:num, y?:num, isNormalized?:bool, path?:str, instanceId?:int, text:str, append?:bool, submit?:bool)",
             line,
         )
+        self.assertEqual(
+            list(schema["properties"].keys()),
+            [
+                "framework",
+                "x",
+                "y",
+                "isNormalized",
+                "path",
+                "instanceId",
+                "text",
+                "append",
+                "submit",
+            ],
+        )
+
+        # Fallback path: manifest snapshot may arrive alphabetically sorted from Unity.
+        manifest_tool = {
+            "name": "ui-runtime-type-text",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "append": {"type": "boolean"},
+                    "framework": {"enum": ["auto", "ugui", "uitoolkit"], "type": "string"},
+                    "instanceId": {"type": "integer"},
+                    "isNormalized": {"type": "boolean"},
+                    "path": {"type": "string"},
+                    "submit": {"type": "boolean"},
+                    "text": {"type": "string"},
+                    "x": {"type": "number"},
+                    "y": {"type": "number"},
+                },
+                "required": ["text"],
+                "additionalProperties": True,
+            },
+        }
+        fallback_schema = mcp.advertised_input_schema(manifest_tool)
+        self.assertEqual(list(fallback_schema["properties"].keys()), list(schema["properties"].keys()))
 
     def test_merged_probe_renders_markdown_sections(self) -> None:
         result = {

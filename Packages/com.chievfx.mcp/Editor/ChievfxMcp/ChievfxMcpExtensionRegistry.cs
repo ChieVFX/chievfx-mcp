@@ -513,7 +513,7 @@ namespace Chievfx.Mcp.Editor
             if (token is JObject obj)
             {
                 var normalized = new JObject();
-                foreach (var property in obj.Properties().OrderBy(property => property.Name, StringComparer.Ordinal))
+                foreach (var property in obj.Properties())
                 {
                     normalized[property.Name] = NormalizeJson(property.Value);
                 }

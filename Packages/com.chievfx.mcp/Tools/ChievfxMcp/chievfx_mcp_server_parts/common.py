@@ -583,3 +583,19 @@ ADVERTISED_PROPERTY_OMISSIONS: dict[str, set[str]] = {
         "maxResults",
     },
 }
+# Canonical property order for advertised inputSchema surfaces (tools/list, initialize args=).
+# Short args= lines and full schemas share this order via reorder_advertised_schema_properties().
+TOOL_ADVERTISED_PROPERTY_ORDERS: dict[str, list[str]] = {
+    "ui-runtime-probe": ["x", "y", "isNormalized", "page"],
+    "ui-runtime-type-text": [
+        "framework",
+        "x",
+        "y",
+        "isNormalized",
+        "path",
+        "instanceId",
+        "text",
+        "append",
+        "submit",
+    ],
+}

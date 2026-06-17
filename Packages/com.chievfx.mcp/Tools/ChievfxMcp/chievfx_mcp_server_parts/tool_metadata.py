@@ -40,7 +40,30 @@ def slim_advertised_schema_detail(value: Any, detail_keys: set[str] = ADVERTISED
     return value
 
 
+def reorder_advertised_schema_properties(schema: dict[str, Any], tool_name: str) -> dict[str, Any]:
+    order = TOOL_ADVERTISED_PROPERTY_ORDERS.get(tool_name)
+    if not order:
+        return schema
+
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return schema
+
+    ordered_properties: dict[str, Any] = {}
+    for name in order:
+        if name in properties:
+            ordered_properties[name] = properties[name]
+    for name, prop in properties.items():
+        if name not in ordered_properties:
+            ordered_properties[name] = prop
+    return {**schema, "properties": ordered_properties}
+
+
 def advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
+    return reorder_advertised_schema_properties(_build_advertised_input_schema(tool), str(tool.get("name", "")))
+
+
+def _build_advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
     tool_name = tool.get("name")
     if tool_name == "ugui-canvas-ensure":
         return {

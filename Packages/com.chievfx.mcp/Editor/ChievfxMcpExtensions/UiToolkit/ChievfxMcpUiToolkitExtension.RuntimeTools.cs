@@ -84,6 +84,17 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                     truncated: truncated));
         }
 
+        internal static Dictionary<string, object?> RuntimeClickAtPosition(JToken args, UiToolkitDependencyStatus status)
+        {
+            var request = args is JObject obj ? (JObject)obj.DeepClone() : new JObject();
+            request["action"] = "pointerClick";
+            var result = InteractRuntime(request, status);
+            var resolved = result.TryGetValue("target", out var target) && target != null;
+            result["resolved"] = resolved;
+            result["framework"] = "uitoolkit";
+            return result;
+        }
+
         internal static Dictionary<string, object?> InteractRuntime(JToken args, UiToolkitDependencyStatus status)
         {
             var warnings = new List<string>();

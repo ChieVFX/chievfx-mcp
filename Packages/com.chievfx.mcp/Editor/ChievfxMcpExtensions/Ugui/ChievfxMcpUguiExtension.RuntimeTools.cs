@@ -91,6 +91,15 @@ namespace Chievfx.Mcp.Extensions.Ugui
                     truncated: truncated));
         }
 
+        internal static Dictionary<string, object?> RuntimeClickAtPosition(JToken args, UguiDependencyStatus status)
+        {
+            var result = RuntimeClick(args, status);
+            var resolved = result.TryGetValue("target", out var target) && target != null;
+            result["resolved"] = resolved;
+            result["framework"] = "ugui";
+            return result;
+        }
+
         internal static Dictionary<string, object?> RuntimeClick(JToken args, UguiDependencyStatus status)
         {
             var warnings = new List<string>();

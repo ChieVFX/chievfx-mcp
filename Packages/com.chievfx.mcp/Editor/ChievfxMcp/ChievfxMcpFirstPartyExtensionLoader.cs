@@ -351,8 +351,7 @@ namespace Chievfx.Mcp.Extensions.Control
 
             if (mutated && uiToolkitClickPosition.HasValue)
             {
-                TryDispatchUiToolkitPointerClick(uiToolkitClickPosition.Value, warnings);
-                TryDispatchUguiPointerClick(uiToolkitClickPosition.Value, warnings);
+                TryDispatchUiRuntimeClick(uiToolkitClickPosition.Value, warnings);
             }
 
             return Result("input-control-mouse-event", "Mouse", action, dryRun, mutated, queued.ToArray(), warnings.ToArray(), errors.ToArray());
@@ -498,8 +497,7 @@ namespace Chievfx.Mcp.Extensions.Control
 
             if (mutated && uiToolkitClickPosition.HasValue)
             {
-                TryDispatchUiToolkitPointerClick(uiToolkitClickPosition.Value, warnings);
-                TryDispatchUguiPointerClick(uiToolkitClickPosition.Value, warnings);
+                TryDispatchUiRuntimeClick(uiToolkitClickPosition.Value, warnings);
             }
             else if (mutated && action == "move" && hasPosition && hasDelta)
             {
@@ -571,6 +569,40 @@ namespace Chievfx.Mcp.Extensions.Control
             if (dryRun) return;
             if (!IsPlaying) errors.Add("Real input injection requires Play Mode. Set dryRun=true outside Play Mode.");
             if (!allowStateMutation) errors.Add("Real input injection requires allowStateMutation=true.");
+        }
+
+        private static void TryDispatchUiRuntimeClick(Vector2 screenPosition, List<string> warnings)
+        {
+            var args = UiRuntimeClickArgs(screenPosition, dryRun: false);
+            try
+            {
+                if (!Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry.TryRunTool("ui-runtime-click", args, out var result)
+                    || result is not Dictionary<string, object?> click
+                    || !Equals(ReadObject(click, "anyResolved"), true))
+                {
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                warnings.Add("Runtime UI click dispatch skipped: " + RootMessage(ex));
+            }
+        }
+
+        private static JObject UiRuntimeClickArgs(Vector2 screenPosition, bool dryRun)
+        {
+            return new JObject
+            {
+                ["framework"] = "all",
+                ["normalized"] = NormalizedScreenPosition(screenPosition),
+                ["dryRun"] = dryRun,
+                ["allowStateMutation"] = true,
+            };
+        }
+
+        private static object? ReadObject(Dictionary<string, object?> source, string key)
+        {
+            return source.TryGetValue(key, out var value) ? value : null;
         }
 
         private static void TryDispatchUiToolkitPointerClick(Vector2 screenPosition, List<string> warnings)

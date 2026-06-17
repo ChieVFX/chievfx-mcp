@@ -45,6 +45,7 @@
     "gameobject-set-parent",
     "gameobject-duplicate",
     "ui-control-find",
+    "ui-runtime-click",
     "prefab-open",
     "prefab-close",
     "prefab-save",

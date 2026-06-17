@@ -364,7 +364,8 @@ class McpServerCore:
 
         bridge_arguments = arguments
         force_ui_control_find_json = name == "ui-control-find" and arguments.get("outputFormat") != "json"
-        if force_ui_control_find_json:
+        force_ui_runtime_click_json = name == "ui-runtime-click" and arguments.get("outputFormat") != "json"
+        if force_ui_control_find_json or force_ui_runtime_click_json:
             bridge_arguments = dict(arguments)
             bridge_arguments["outputFormat"] = "json"
 
@@ -408,6 +409,23 @@ class McpServerCore:
                         {
                             "type": "text",
                             "text": format_ui_control_find_text(result, normalize_coords=normalize_coords),
+                        }
+                    ],
+                    "isError": False,
+                }
+
+        if force_ui_runtime_click_json:
+            if not isinstance(result, dict):
+                retry_arguments = dict(arguments)
+                retry_arguments["outputFormat"] = "json"
+                bridge_result = self.call_unity_bridge(name, retry_arguments, request_id, progress_token, notify)
+                result = bridge_result.get("result")
+            if isinstance(result, dict):
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": format_ui_runtime_click_text(result),
                         }
                     ],
                     "isError": False,

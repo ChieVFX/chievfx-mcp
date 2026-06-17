@@ -8,14 +8,20 @@ namespace Chievfx.Mcp.Editor
     {
         public bool TryRunTool(string toolName, JToken args, out object? result)
         {
-            if (!string.Equals(toolName, "ui-control-find", StringComparison.Ordinal))
+            if (string.Equals(toolName, "ui-control-find", StringComparison.Ordinal))
             {
-                result = null;
-                return false;
+                result = ChievfxMcpRuntimeUiAdapterRegistry.ControlFind(args);
+                return true;
             }
 
-            result = ChievfxMcpRuntimeUiAdapterRegistry.ControlFind(args);
-            return true;
+            if (string.Equals(toolName, ChievfxMcpRuntimeUiAdapterRegistry.ClickToolName, StringComparison.Ordinal))
+            {
+                result = ChievfxMcpRuntimeUiAdapterRegistry.RuntimeClick(args);
+                return true;
+            }
+
+            result = null;
+            return false;
         }
     }
 }

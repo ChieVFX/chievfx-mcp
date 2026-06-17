@@ -229,6 +229,7 @@ TOOL_CATEGORIES = {
     "ui-control-find": "ui-runtime-common",
     "ui-runtime-probe": "ui-runtime-common",
     "ui-runtime-type-text": "ui-runtime-common",
+    "ui-runtime-click": "ui-runtime-common",
     "prefab-open": "Prefab",
     "prefab-close": "Prefab",
     "prefab-save": "Prefab",

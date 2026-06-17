@@ -51,6 +51,15 @@ namespace Chievfx.Mcp.Editor
         object? FindControls(JToken request);
     }
 
+    /// <summary>
+    /// Optional capability for clicking runtime UI at a screen position or explicit target.
+    /// Enables the shared cross-framework "ui-runtime-click" tool.
+    /// </summary>
+    internal interface IChievfxMcpRuntimeUiClickAdapter
+    {
+        object? ClickAtPosition(JToken request);
+    }
+
     internal static class ChievfxMcpRuntimeUiAdapterRegistry
     {
         private const string ExtensionId = "chievfx.runtime-ui";
@@ -60,6 +69,7 @@ namespace Chievfx.Mcp.Editor
         private const string StatusUri = UriPrefix + "status";
         private const string ProbeToolName = "ui-runtime-probe";
         private const string TypeTextToolName = "ui-runtime-type-text";
+        internal const string ClickToolName = "ui-runtime-click";
         private const int DefaultMaxRows = 256;
 
         private static readonly Regex FrameworkIdPattern = new(@"^[a-z0-9][a-z0-9._-]{0,127}$", RegexOptions.Compiled);
@@ -234,6 +244,205 @@ namespace Chievfx.Mcp.Editor
                 && row.TryGetValue("resolved", out var resolved)
                 && resolved is bool resolvedValue
                 && resolvedValue;
+        }
+
+        internal static object? RuntimeClick(JToken args)
+        {
+            ChievfxMcpRuntimeUiProbeCompact.EnsurePlayModeForProbe(EditorApplication.isPlaying || Application.isPlaying);
+
+            var request = args is JObject obj ? obj : new JObject();
+            var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
+            var dryRun = ReadBool(request, "dryRun", true);
+            var warnings = new List<string>();
+            var position = ReadScreenPosition(request, warnings);
+            var clickAdapters = SnapshotAdapters()
+                .Where(registered => registered.Adapter is IChievfxMcpRuntimeUiClickAdapter)
+                .Where(registered => ChievfxMcpRuntimeUiControlFind.MatchesFrameworkFilter(framework, registered.Adapter.FrameworkId))
+                .ToArray();
+
+            if (!ChievfxMcpRuntimeUiControlFind.IncludesAllFrameworks(framework) && clickAdapters.Length == 0)
+            {
+                throw new ArgumentException(
+                    $"No click adapter for framework '{framework}'. Available: {string.Join(", ", SnapshotAdapters().Where(registered => registered.Adapter is IChievfxMcpRuntimeUiClickAdapter).Select(registered => registered.Adapter.FrameworkId))}.");
+            }
+
+            var sections = new List<Dictionary<string, object?>>();
+            var anyResolved = false;
+            var anyClicked = false;
+
+            foreach (var registered in clickAdapters)
+            {
+                var adapter = registered.Adapter;
+                if (!adapter.Available)
+                {
+                    warnings.Add($"Framework '{adapter.FrameworkId}' is unavailable.");
+                    sections.Add(CreateClickSection(adapter.FrameworkId, available: false, resolved: false, clicked: false, detail: null));
+                    continue;
+                }
+
+                Dictionary<string, object?>? probeDetail;
+                try
+                {
+                    var probeArgs = (JObject)request.DeepClone();
+                    probeArgs["dryRun"] = true;
+                    probeDetail = ReadClickDetail(((IChievfxMcpRuntimeUiClickAdapter)adapter).ClickAtPosition(probeArgs));
+                }
+                catch (Exception ex)
+                {
+                    warnings.Add($"Framework '{adapter.FrameworkId}' click probe failed: {RootMessage(ex)}");
+                    sections.Add(CreateClickSection(adapter.FrameworkId, available: true, resolved: false, clicked: false, detail: null));
+                    continue;
+                }
+
+                var resolved = ReadResolvedFlag(probeDetail);
+                if (resolved)
+                {
+                    anyResolved = true;
+                }
+
+                Dictionary<string, object?>? clickDetail = probeDetail;
+                var clicked = false;
+                if (resolved && !dryRun)
+                {
+                    try
+                    {
+                        var clickArgs = (JObject)request.DeepClone();
+                        clickArgs["dryRun"] = false;
+                        clickDetail = ReadClickDetail(((IChievfxMcpRuntimeUiClickAdapter)adapter).ClickAtPosition(clickArgs));
+                        clicked = ReadResolvedFlag(clickDetail);
+                        if (clicked)
+                        {
+                            anyClicked = true;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new InvalidOperationException($"ui-runtime-click failed for framework '{adapter.FrameworkId}': {RootMessage(ex)}", ex);
+                    }
+                }
+
+                sections.Add(CreateClickSection(adapter.FrameworkId, available: true, resolved: resolved, clicked: clicked, detail: clickDetail ?? probeDetail));
+            }
+
+            if (!ChievfxMcpRuntimeUiControlFind.IncludesAllFrameworks(framework) && !anyResolved && !dryRun)
+            {
+                throw new InvalidOperationException(
+                    $"ui-runtime-click could not resolve a {framework} target at the supplied position or explicit target.");
+            }
+
+            if (!anyResolved)
+            {
+                warnings.Add("No uGUI or UI Toolkit target resolved at the supplied position. Use ui-control-find or ui-runtime-probe to inspect clickable controls and coordinates.");
+            }
+
+            return new Dictionary<string, object?>
+            {
+                ["uri"] = "tool://" + ClickToolName,
+                ["dryRun"] = dryRun,
+                ["playMode"] = EditorApplication.isPlaying || Application.isPlaying,
+                ["allowStateMutation"] = ReadBool(request, "allowStateMutation", false),
+                ["frameworkFilter"] = string.IsNullOrEmpty(framework) ? "all" : framework,
+                ["coordinateConvention"] = CreateCoordinateConvention(position, request),
+                ["anyResolved"] = anyResolved,
+                ["anyClicked"] = anyClicked,
+                ["frameworks"] = sections.ToArray(),
+                ["warnings"] = warnings.Where(warning => !string.IsNullOrWhiteSpace(warning)).Distinct().ToArray(),
+            };
+        }
+
+        private static Dictionary<string, object?> CreateClickSection(
+            string frameworkId,
+            bool available,
+            bool resolved,
+            bool clicked,
+            Dictionary<string, object?>? detail)
+        {
+            var section = new Dictionary<string, object?>
+            {
+                ["framework"] = frameworkId,
+                ["available"] = available,
+                ["resolved"] = resolved,
+                ["clicked"] = clicked,
+            };
+
+            if (detail == null)
+            {
+                return section;
+            }
+
+            if (detail.TryGetValue("target", out var target))
+            {
+                section["target"] = target;
+            }
+
+            if (detail.TryGetValue("intendedHandler", out var handler))
+            {
+                section["handler"] = handler;
+            }
+
+            if (detail.TryGetValue("dispatchedEvents", out var events))
+            {
+                section["events"] = events;
+            }
+
+            if (detail.TryGetValue("selectedObjectAfter", out var selectedAfter))
+            {
+                section["selectedAfter"] = selectedAfter;
+            }
+
+            if (detail.TryGetValue("focusedElementAfter", out var focusedAfter))
+            {
+                section["focusedAfter"] = focusedAfter;
+            }
+
+            if (detail.TryGetValue("targetStateAfter", out var targetStateAfter))
+            {
+                section["targetStateAfter"] = targetStateAfter;
+            }
+
+            return section;
+        }
+
+        private static Dictionary<string, object?>? ReadClickDetail(object? result)
+        {
+            return TryReadDictionary(result, out var detail) ? detail : null;
+        }
+
+        private static Dictionary<string, object?> CreateCoordinateConvention(RuntimeScreenPosition position, JToken request)
+        {
+            return new Dictionary<string, object?>
+            {
+                ["origin"] = "bottom-left",
+                ["unit"] = "screen-pixels",
+                ["xAxis"] = "right",
+                ["yAxis"] = "up",
+                ["screenSize"] = new Dictionary<string, object?>
+                {
+                    ["width"] = (int)position.ScreenSize.x,
+                    ["height"] = (int)position.ScreenSize.y,
+                },
+                ["screenPosition"] = new Dictionary<string, object?>
+                {
+                    ["x"] = RoundCoordinate(position.ScreenPosition.x),
+                    ["y"] = RoundCoordinate(position.ScreenPosition.y),
+                },
+                ["normalizedPosition"] = new Dictionary<string, object?>
+                {
+                    ["x"] = RoundNormalized(position.NormalizedPosition.x),
+                    ["y"] = RoundNormalized(position.NormalizedPosition.y),
+                },
+                ["normalizedInputSupplied"] = request["normalized"] != null,
+            };
+        }
+
+        private static float RoundCoordinate(float value)
+        {
+            return (float)Math.Round(value, 1, MidpointRounding.AwayFromZero);
+        }
+
+        private static float RoundNormalized(float value)
+        {
+            return (float)Math.Round(Mathf.Clamp01(value), 4, MidpointRounding.AwayFromZero);
         }
 
         internal static object? ControlFind(JToken args)

@@ -172,6 +172,110 @@ def format_ui_control_find_text(result: dict[str, Any], *, normalize_coords: boo
     return "\n".join(line for line in lines if line)
 
 
+def format_ui_runtime_normalized(value: float) -> str:
+    if value <= 0.0:
+        return "0"
+    if value >= 1.0:
+        return "1"
+    return f"{value:.2f}"
+
+
+def format_ui_runtime_click_text(result: dict[str, Any]) -> str:
+    header_parts = [
+        f"dryRun:{format_toon_atom(result.get('dryRun'))}",
+        f"playMode:{format_toon_atom(result.get('playMode'))}",
+    ]
+    if result.get("anyClicked") is True:
+        header_parts.append("clicked:true")
+    elif result.get("anyResolved") is True:
+        header_parts.append("resolved:true")
+    lines = ["click " + " ".join(header_parts)]
+
+    coordinate = result.get("coordinateConvention")
+    if isinstance(coordinate, dict):
+        pos_parts = []
+        screen_position = coordinate.get("screenPosition")
+        if isinstance(screen_position, dict):
+            x = screen_position.get("x")
+            y = screen_position.get("y")
+            if isinstance(x, (int, float)) and isinstance(y, (int, float)):
+                pos_parts.append(f"px:{format_ui_runtime_click_coord(x)},{format_ui_runtime_click_coord(y)}")
+        normalized = coordinate.get("normalizedPosition")
+        if isinstance(normalized, dict):
+            nx = normalized.get("x")
+            ny = normalized.get("y")
+            if isinstance(nx, (int, float)) and isinstance(ny, (int, float)):
+                pos_parts.append(
+                    f"norm:{format_ui_runtime_normalized(float(nx))},{format_ui_runtime_normalized(float(ny))}"
+                )
+        if pos_parts:
+            lines.append("pos " + " ".join(pos_parts))
+
+    frameworks = result.get("frameworks")
+    if isinstance(frameworks, list):
+        for section in frameworks:
+            if not isinstance(section, dict):
+                continue
+            row = format_ui_runtime_click_framework_row(section)
+            if row:
+                lines.append(row)
+
+    warnings = result.get("warnings")
+    if isinstance(warnings, list):
+        for warning in warnings:
+            if isinstance(warning, str) and warning.strip():
+                lines.append(f"! {warning.strip()}")
+
+    return "\n".join(line for line in lines if line)
+
+
+def format_ui_runtime_click_coord(value: float) -> str:
+    rounded = round(float(value), 1)
+    if rounded == int(rounded):
+        return str(int(rounded))
+    return f"{rounded:.1f}"
+
+
+def format_ui_runtime_click_framework_row(section: dict[str, Any]) -> str:
+    framework = section.get("framework")
+    if should_omit_toon_value(framework):
+        return ""
+
+    parts = [f"- {format_toon_atom(framework)}"]
+    if section.get("available") is False:
+        parts.append("unavailable")
+        return " ".join(parts)
+
+    if section.get("resolved") is not True:
+        parts.append("miss")
+        return " ".join(parts)
+
+    target = section.get("target")
+    if isinstance(target, dict):
+        path = target.get("path")
+        if not should_omit_toon_value(path):
+            parts.append(f"path:{format_toon_atom(path)}")
+        if framework == "uitoolkit":
+            visual_element_ref = target.get("visualElementRef")
+            if not should_omit_toon_value(visual_element_ref):
+                parts.append(f"ref:{format_toon_atom(visual_element_ref)}")
+        else:
+            instance_id = target.get("instanceId")
+            if not should_omit_toon_value(instance_id):
+                parts.append(f"id:{format_toon_atom(instance_id)}")
+
+    if section.get("clicked") is True:
+        parts.append("clicked")
+    else:
+        parts.append("resolved")
+
+    events = section.get("events")
+    if isinstance(events, list) and events:
+        parts.append("events:" + ",".join(str(event) for event in events if event))
+
+    return " ".join(parts)
+
+
 def format_ui_control_find_row(
     control: dict[str, Any],
     *,
@@ -274,6 +378,10 @@ def format_tool_result_text(tool_name: str, result: Any, arguments: dict[str, An
         if isinstance(result, dict):
             normalize_coords = arguments.get("normalizeCoords") if "normalizeCoords" in arguments else None
             return format_ui_control_find_text(result, normalize_coords=normalize_coords)
+
+    if tool_name == "ui-runtime-click":
+        if isinstance(result, dict):
+            return format_ui_runtime_click_text(result)
 
     return to_toon(result)
 

@@ -87,6 +87,28 @@ def advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
             },
             "additionalProperties": False,
         }
+    if tool_name == "ui-runtime-click":
+        return {
+            "type": "object",
+            "properties": {
+                "framework": {"enum": ["all", "auto", "ugui", "uitoolkit"], "default": "all"},
+                "targetPath": {},
+                "path": {},
+                "instanceId": {},
+                "name": {},
+                "targetName": {},
+                "visualElementRef": {},
+                "targetRef": {},
+                "x": {},
+                "y": {},
+                "screenPosition": {},
+                "normalized": {},
+                "sequence": {"enum": ["pointer", "submit"]},
+                "dryRun": {},
+                "allowStateMutation": {},
+            },
+            "additionalProperties": False,
+        }
     if tool_name == "ugui-scrollrect-create":
         scalar = lambda kind: {"type": kind}
         return {

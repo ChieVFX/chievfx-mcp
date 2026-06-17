@@ -210,7 +210,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         }
     }
 
-    internal sealed class UiToolkitRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter, IChievfxMcpRuntimeUiTextInputAdapter, IChievfxMcpRuntimeUiControlFindAdapter
+    internal sealed class UiToolkitRuntimeUiAdapter : IChievfxMcpRuntimeUiAdapter, IChievfxMcpRuntimeUiTextInputAdapter, IChievfxMcpRuntimeUiControlFindAdapter, IChievfxMcpRuntimeUiClickAdapter
     {
         public string FrameworkId => "uitoolkit";
 
@@ -237,6 +237,11 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         public object? FindControls(JToken request)
         {
             return ControlFind(request, GetDependencyStatus());
+        }
+
+        public object? ClickAtPosition(JToken request)
+        {
+            return RuntimeClickAtPosition(request, GetDependencyStatus());
         }
     }
 }

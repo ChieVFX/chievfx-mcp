@@ -180,6 +180,7 @@ namespace Chievfx.Mcp.Editor
             "tools-set-enabled-state",
             "tools-set-role",
             "ui-control-find",
+            "ui-runtime-click",
         };
 
         private static readonly HashSet<string> CoreResourceIds = new(

@@ -141,6 +141,13 @@ namespace Chievfx.Mcp.Editor
         // edit never reaches the agent's instructions.
         public static bool AutoReloadCursorOnAvailabilityChange => EditorPrefs.GetBool(AutoReloadCursorOnAvailabilityChangeKey, true);
 
+        public const string StripStyleTagsFromConsoleLogsKey = ServerName + ".stripStyleTagsFromConsoleLogs";
+
+        // Default ON: strip rich-text <b>/<color> style tags from console-get-logs and
+        // console-get-logs-single messages so the agent sees clean text instead of Unity's
+        // markup. Only tags with both opening and closing present are removed.
+        public static bool StripStyleTagsFromConsoleLogs => EditorPrefs.GetBool(StripStyleTagsFromConsoleLogsKey, true);
+
         public static string BridgeUrl => $"http://127.0.0.1:{DefaultBridgePort}";
 
         public static string ProjectRoot => Path.GetFullPath(Path.Combine(Application.dataPath, ".."));

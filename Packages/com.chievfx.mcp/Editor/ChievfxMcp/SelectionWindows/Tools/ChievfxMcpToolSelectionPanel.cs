@@ -305,22 +305,13 @@ namespace Chievfx.Mcp.Editor
 
             if (!hasSavedEnabledIds)
             {
-                var defaultRole = roleDefinitions.FirstOrDefault(role =>
-                    string.Equals(role.Kind, "built-in", StringComparison.Ordinal)
-                    && string.Equals(role.Id, "developer", StringComparison.Ordinal));
-                if (defaultRole != null)
-                {
-                    enabledIds.UnionWith(ChievfxMcpToolPolicy.DefaultEnabledToolIds);
-                    enabledIds.UnionWith(GetRowsForRole(defaultRole).Select(row => row.Id));
-                    activeRoleKind = defaultRole.Kind;
-                    activeRoleId = defaultRole.Id;
-                    activeRoleDisplayName = defaultRole.DisplayName;
-                    activeCustomRolePath = defaultRole.AssetPath;
-                }
-                else
-                {
-                    enabledIds.UnionWith(ChievfxMcpToolPolicy.DefaultEnabledToolIds);
-                }
+                // First install: enable every tool except the autonomy/discovery helpers,
+                // which stay hidden from the Tools tab by default. Leave the role state as the
+                // "manual" defaults set above, since this selection is not a built-in role preset.
+                enabledIds.UnionWith(ChievfxMcpToolPolicy.DefaultEnabledToolIds);
+                enabledIds.UnionWith(toolRows
+                    .Where(row => row.Required || !IsAutonomyTool(row))
+                    .Select(row => row.Id));
             }
 
             foreach (var row in toolRows)

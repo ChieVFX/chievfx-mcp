@@ -395,6 +395,15 @@ namespace Chievfx.Mcp.Editor
             });
             advanced.Add(forceAllCategoriesToggle);
             advanced.Add(CreateMutedLabel("Categories with more than 3 enabled items collapse into a chievfx://categories link unless marked always-supplied (per-category toggle in Tools/Resources info mode)."));
+            var stripStyleTagsToggle = new Toggle("Strip style tags from console log messages")
+            {
+                value = ChievfxMcpToolPolicy.StripStyleTagsFromConsoleLogs,
+                tooltip = "When on, removes rich-text <b> and <color> tags from console-get-logs and console-get-logs-single messages. Only tags with both opening and closing present are stripped. Default on."
+            };
+            stripStyleTagsToggle.RegisterValueChangedCallback(evt =>
+                EditorPrefs.SetBool(ChievfxMcpToolPolicy.StripStyleTagsFromConsoleLogsKey, evt.newValue));
+            advanced.Add(stripStyleTagsToggle);
+            advanced.Add(CreateMutedLabel("Unity console messages often carry <b>/<color> markup. Stripping keeps the agent-facing text clean without touching the live Unity Console. Default on."));
             advanced.Add(CreateExperimentalFoldout());
             content.Add(advanced);
 

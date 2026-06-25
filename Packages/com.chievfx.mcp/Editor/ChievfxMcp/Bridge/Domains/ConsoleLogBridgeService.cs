@@ -28,6 +28,37 @@ namespace Chievfx.Mcp.Editor
 {
     internal sealed class ConsoleLogBridgeService : BridgeDomainServiceBase
     {
+        // Rich-text style tags Unity inlines into console messages. Stripped (open + close) from
+        // get-logs output only when both halves of a pair are present, so partial/literal markup
+        // is left untouched. Gated by ChievfxMcpToolPolicy.StripStyleTagsFromConsoleLogs (default on).
+        private static readonly Regex BoldOpenRegex = new("<b>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex BoldCloseRegex = new("</b>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex ColorOpenRegex = new("<color=[^>]*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex ColorCloseRegex = new("</color>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static string? StripStyleTags(string? message)
+        {
+            if (string.IsNullOrEmpty(message))
+            {
+                return message;
+            }
+
+            var result = message!;
+            result = StripTagPair(result, BoldOpenRegex, BoldCloseRegex);
+            result = StripTagPair(result, ColorOpenRegex, ColorCloseRegex);
+            return result;
+        }
+
+        private static string StripTagPair(string text, Regex openTag, Regex closeTag)
+        {
+            if (!openTag.IsMatch(text) || !closeTag.IsMatch(text))
+            {
+                return text;
+            }
+
+            return closeTag.Replace(openTag.Replace(text, string.Empty), string.Empty);
+        }
+
         private static readonly Dictionary<string, string[]> LogLevelAliases = new(StringComparer.OrdinalIgnoreCase)
         {
             ["ConsoleErrors"] = new[]
@@ -159,12 +190,12 @@ namespace Chievfx.Mcp.Editor
 
         private static Dictionary<string, object> CreateLogEntryOutput(LogEntryDto entry, StackTraceMode stackTraceMode, ref bool truncated)
         {
-            return CreateLogEntryOutput(entry, stackTraceMode, trimMessage: true, ref truncated);
+            return CreateLogEntryOutput(entry, stackTraceMode, trimMessage: true, stripStyleTags: false, ref truncated);
         }
 
-        private static Dictionary<string, object> CreateLogEntryOutput(LogEntryDto entry, StackTraceMode stackTraceMode, bool trimMessage, ref bool truncated)
+        private static Dictionary<string, object> CreateLogEntryOutput(LogEntryDto entry, StackTraceMode stackTraceMode, bool trimMessage, bool stripStyleTags, ref bool truncated)
         {
-            var message = entry.Message ?? string.Empty;
+            var message = (stripStyleTags ? StripStyleTags(entry.Message) : entry.Message) ?? string.Empty;
             var output = new Dictionary<string, object>
             {
                 ["id"] = ComputeLogEntryId(entry),
@@ -184,7 +215,7 @@ namespace Chievfx.Mcp.Editor
 
         // Compact-mode row: id (and optional repeats) come first for fast scanning, then level + first-line msg.
         // Drops `time` and any embedded stack-trace lines (Unity Console reflection inlines them into Message).
-        private static Dictionary<string, object> CreateCompactEntryOutput(LogEntryDto entry, int repeats, ref bool truncated)
+        private static Dictionary<string, object> CreateCompactEntryOutput(LogEntryDto entry, int repeats, bool stripStyleTags, ref bool truncated)
         {
             var output = new Dictionary<string, object>
             {
@@ -195,8 +226,9 @@ namespace Chievfx.Mcp.Editor
                 output["repeats"] = repeats;
             }
 
+            var message = stripStyleTags ? StripStyleTags(entry.Message) : entry.Message;
             output["level"] = entry.LogType;
-            output["msg"] = TrimText(ExtractFirstNonEmptyLine(entry.Message), MaxLogMessageChars, ref truncated);
+            output["msg"] = TrimText(ExtractFirstNonEmptyLine(message), MaxLogMessageChars, ref truncated);
             return output;
         }
 
@@ -296,6 +328,7 @@ namespace Chievfx.Mcp.Editor
             var stackDuplicates = ReadBool(args, "stack", true);
             var includeUnityConsole = ReadBool(args, "includeUnityConsole", true);
             var includeEditorLog = ReadBool(args, "includeEditorLog", false);
+            var stripStyleTags = ChievfxMcpToolPolicy.StripStyleTagsFromConsoleLogs;
             var cutoff = lastMinutes > 0 ? DateTime.UtcNow.AddMinutes(-lastMinutes) : DateTime.MinValue;
 
             var filtered = SnapshotFilteredEntries(
@@ -320,7 +353,7 @@ namespace Chievfx.Mcp.Editor
 
             foreach (var (entry, repeats) in selected)
             {
-                var output = CreateCompactEntryOutput(entry, repeats, ref truncated);
+                var output = CreateCompactEntryOutput(entry, repeats, stripStyleTags, ref truncated);
                 var estimatedSize = EstimateTextSize(output);
                 if (estimatedSize > textBudget)
                 {
@@ -380,7 +413,12 @@ namespace Chievfx.Mcp.Editor
             }
 
             var truncated = false;
-            var entry = CreateLogEntryOutput(match, StackTraceMode.Full, trimMessage: false, ref truncated);
+            var entry = CreateLogEntryOutput(
+                match,
+                StackTraceMode.Full,
+                trimMessage: false,
+                stripStyleTags: ChievfxMcpToolPolicy.StripStyleTagsFromConsoleLogs,
+                ref truncated);
             return new
             {
                 found = true,

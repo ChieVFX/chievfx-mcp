@@ -404,7 +404,7 @@ def format_runtime_ui_probe_markdown_from_adapters(result: dict[str, Any]) -> st
 
     page = result.get("page")
     total_pages = result.get("totalPages")
-    if page is not None and total_pages is not None:
+    if page is not None and isinstance(total_pages, int) and total_pages > 1:
         lines.append(f"page:{page}/{total_pages}")
         lines.append("")
 
@@ -464,7 +464,7 @@ def format_runtime_ui_probe_markdown_from_adapters(result: dict[str, Any]) -> st
 
     warnings = result.get("warnings")
     if isinstance(warnings, list):
-        warning_lines = [str(warning) for warning in warnings if isinstance(warning, str) and warning]
+        warning_lines = summarize_probe_warnings(warnings)
         if warning_lines:
             lines.append("### Warnings")
             lines.extend(f"- {warning}" for warning in warning_lines)
@@ -477,7 +477,7 @@ def format_runtime_ui_probe_markdown(result: dict[str, Any]) -> str:
 
     page = result.get("page")
     total_pages = result.get("totalPages")
-    if page is not None and total_pages is not None:
+    if page is not None and isinstance(total_pages, int) and total_pages > 1:
         lines.append(f"page:{page}/{total_pages}")
         lines.append("")
 
@@ -515,7 +515,7 @@ def format_runtime_ui_probe_markdown(result: dict[str, Any]) -> str:
 
     warnings = result.get("warnings")
     if isinstance(warnings, list):
-        warning_lines = [str(warning) for warning in warnings if isinstance(warning, str) and warning]
+        warning_lines = summarize_probe_warnings(warnings)
         if warning_lines:
             lines.append("### Warnings")
             lines.extend(f"- {warning}" for warning in warning_lines)
@@ -562,7 +562,7 @@ def format_runtime_ui_probe_markdown_legacy(result: dict[str, Any]) -> str:
 
     warnings = result.get("warnings")
     if isinstance(warnings, list):
-        warning_lines = [str(warning) for warning in warnings if isinstance(warning, str) and warning]
+        warning_lines = summarize_probe_warnings(warnings)
         if warning_lines:
             lines.append("### Warnings")
             lines.extend(f"- {warning}" for warning in warning_lines)
@@ -633,7 +633,8 @@ def format_framework_probe_section_markdown(
     total_hits = section.get("totalHits")
     if total_hits is not None:
         header_parts.append(f"**Total hits:** {total_hits}")
-    if count is not None:
+    # "Hits on page" only adds signal when the page is a subset of the total.
+    if count is not None and count != total_hits:
         header_parts.append(f"**Hits on page:** {count}")
     if section.get("truncated") is True:
         header_parts.append("**Truncated:** yes")
@@ -643,7 +644,7 @@ def format_framework_probe_section_markdown(
 
     section_warnings = section.get("warnings")
     if isinstance(section_warnings, list):
-        warning_lines = [str(warning) for warning in section_warnings if isinstance(warning, str) and warning]
+        warning_lines = summarize_probe_warnings(section_warnings)
         if warning_lines:
             lines.append("**Section warnings:** " + "; ".join(warning_lines))
             lines.append("")
@@ -734,6 +735,62 @@ def format_probe_hit_details(hit: dict[str, Any], *, legacy: bool = False) -> st
         parts.extend(flags)
 
     return " · ".join(parts) if parts else "—"
+
+
+def summarize_probe_warnings(warnings: Any) -> list[str]:
+    """Collapse the per-canvas warning flood into one line per category.
+
+    The runtime probe emits one warning per canvas for raycaster/visibility
+    issues, which routinely runs to dozens of near-identical lines and dominates
+    the tool output. Aggregate the repetitive canvas warnings by category
+    (count + a few example leaf names) and pass anything else through verbatim.
+    """
+    if not isinstance(warnings, list):
+        return []
+
+    categories: list[tuple[str, str, list[str]]] = [
+        # (label, matching suffix, collected leaf names)
+        ("inactive, skip raycasts", "will not receive runtime raycasts.", []),
+        ("no GraphicRaycaster", "has no GraphicRaycaster.", []),
+        ("no event camera", "without worldCamera/event camera.", []),
+    ]
+    other: list[str] = []
+
+    for warning in warnings:
+        if not isinstance(warning, str) or not warning:
+            continue
+        for _label, suffix, names in categories:
+            if warning.endswith(suffix) and "'" in warning:
+                names.append(extract_quoted_leaf(warning))
+                break
+        else:
+            other.append(warning)
+
+    summary: list[str] = list(other)
+    for label, _suffix, names in categories:
+        if names:
+            summary.append(format_warning_category(label, names))
+    return summary
+
+
+def extract_quoted_leaf(warning: str) -> str:
+    start = warning.find("'")
+    end = warning.find("'", start + 1)
+    if start == -1 or end == -1:
+        return warning
+    path = warning[start + 1 : end]
+    leaf = path.rsplit("/", 1)[-1]
+    return leaf or path
+
+
+def format_warning_category(label: str, names: list[str]) -> str:
+    shown = names[:3]
+    examples = ", ".join(shown)
+    extra = len(names) - len(shown)
+    if extra > 0:
+        examples += f", +{extra}"
+    noun = "canvas" if len(names) == 1 else "canvases"
+    return f"{len(names)} {noun} {label} ({examples})"
 
 
 def format_markdown_table(headers: list[str], rows: list[tuple[str, ...]]) -> list[str]:

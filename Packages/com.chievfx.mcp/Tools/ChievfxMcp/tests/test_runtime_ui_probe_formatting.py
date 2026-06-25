@@ -209,6 +209,45 @@ class RuntimeUiProbeFormattingTests(unittest.TestCase):
         self.assertIn("- sample warning", text)
         self.assertNotIn("count:", text)
 
+    def test_per_canvas_warnings_are_aggregated_by_category(self) -> None:
+        result = {
+            "runtimeAvailable": True,
+            "page": 1,
+            "totalPages": 1,
+            "totalHits": 1,
+            "ugui": {
+                "available": True,
+                "probed": True,
+                "totalHits": 1,
+                "count": 1,
+                "warnings": [
+                    "No EventSystem.current found; uGUI selection and raycast routing may be unavailable.",
+                    "Inactive canvas 'UI/Notifications(Clone)' will not receive runtime raycasts.",
+                    "Inactive canvas 'UI/Touches(Clone)' will not receive runtime raycasts.",
+                    "Canvas 'UI/Notifications(Clone)' has no GraphicRaycaster.",
+                    "Canvas 'UI/RenderImage(Clone)' has no GraphicRaycaster.",
+                    "Canvas 'UI/Foo/Bar' has no GraphicRaycaster.",
+                    "Canvas 'UI/Top/EventProgress' uses WorldSpace without worldCamera/event camera.",
+                ],
+                "hits": [{"i": 0, "path": "Canvas/Button", "type": "Button"}],
+            },
+        }
+
+        text = mcp.format_ugui_runtime_probe_text(result)
+
+        # Global (non per-canvas) warnings pass through verbatim.
+        self.assertIn("No EventSystem.current found", text)
+        # Per-canvas warnings collapse to one counted line per category with example leaf names.
+        self.assertIn("2 canvases inactive, skip raycasts (Notifications(Clone), Touches(Clone))", text)
+        self.assertIn("3 canvases no GraphicRaycaster (Notifications(Clone), RenderImage(Clone), Bar)", text)
+        self.assertIn("1 canvas no event camera (EventProgress)", text)
+        # The raw per-canvas sentences must not survive.
+        self.assertNotIn("will not receive runtime raycasts.", text)
+        self.assertNotIn("has no GraphicRaycaster.", text)
+        # Single page / single-page hit counts are not echoed as noise.
+        self.assertNotIn("page:1/1", text)
+        self.assertNotIn("Hits on page:", text)
+
     def test_legacy_single_framework_probe_renders_markdown(self) -> None:
         result = {
             "extensionId": "chievfx.ugui",

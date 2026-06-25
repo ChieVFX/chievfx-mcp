@@ -62,21 +62,23 @@ class ToolRoleTests(unittest.TestCase):
         response = self.call_tool(name, payload)
         return json.loads(response["result"]["content"][0]["text"])
 
-    def test_developer_role_is_default_without_saved_selection(self) -> None:
+    def test_all_non_autonomous_tools_are_default_without_saved_selection(self) -> None:
         tools = self.request("tools/list")["result"]["tools"]
         names = {tool["name"] for tool in tools}
         role_state = mcp.load_tool_role_state()
 
         self.assertFalse(self.selection_path.exists())
-        self.assertEqual(role_state["kind"], "built-in")
-        self.assertEqual(role_state["roleId"], "developer")
+        self.assertEqual(role_state["kind"], "manual")
         self.assertFalse(role_state["manualOverride"])
         self.assertIn("scene-open", names)
         self.assertIn("gameobject-find", names)
         self.assertIn("prefab-open", names)
         self.assertIn("tests-run", names)
-        self.assertNotIn("profiler-get-state", names)
-        self.assertNotIn("tools-list-categories", names)
+        # Every non-autonomous tool is enabled out of the box...
+        self.assertIn("profiler-get-state", names)
+        # ...while the autonomy/discovery helpers stay hidden by default.
+        for autonomous_tool in AUTONOMOUS_TOOLS:
+            self.assertNotIn(autonomous_tool, names)
 
     def test_builtin_role_applies_deterministically_and_filters_tools_list(self) -> None:
         result = self.call_json_tool("tools-set-role", {"role": "qa"})
@@ -181,6 +183,7 @@ class ToolRoleTests(unittest.TestCase):
         self.assertIn("error:", text)
 
     def test_tools_list_categories_can_include_disabled(self) -> None:
+        self.call_tool("tools-set-enabled-state", {"category": "Profiler", "enabled": False})
         text = self.call_tool("tools-list-categories", {"includeDisabled": True})["result"]["content"][0]["text"]
 
         self.assertIn("enabled:", text)
@@ -200,6 +203,7 @@ class ToolRoleTests(unittest.TestCase):
         self.assertNotIn("estimatedTokens", text)
 
     def test_tools_list_category_can_include_disabled(self) -> None:
+        self.call_tool("tools-set-enabled-state", {"category": "Profiler", "enabled": False})
         text = self.call_tool("tools-list-category", {"category": "Profiler", "includeDisabled": True})["result"]["content"][0]["text"]
 
         self.assertIn("enabled:", text)
@@ -207,6 +211,7 @@ class ToolRoleTests(unittest.TestCase):
         self.assertIn("- profiler-get-state", text)
 
     def test_tools_list_disabled_category_still_shows_enabled_section(self) -> None:
+        self.call_tool("tools-set-enabled-state", {"category": "Profiler", "enabled": False})
         text = self.call_tool("tools-list-category", {"category": "Profiler", "includeDisabled": True})["result"]["content"][0]["text"]
 
         self.assertIn("enabled:\n- none", text)
@@ -284,6 +289,7 @@ class ToolRoleTests(unittest.TestCase):
         self.assertNotIn("counts", text)
 
     def test_set_enabled_state_default_output_is_compact(self) -> None:
+        self.call_tool("tools-set-enabled-state", {"tool": "profiler-get-state", "enabled": False})
         text = self.call_tool("tools-set-enabled-state", {"tool": "profiler-get-state", "enabled": True})["result"]["content"][0]["text"]
 
         self.assertEqual(text, "success")
@@ -291,6 +297,7 @@ class ToolRoleTests(unittest.TestCase):
         self.assertNotIn("counts", text)
 
     def test_set_enabled_state_no_change_mentions_reason(self) -> None:
+        self.call_tool("tools-set-enabled-state", {"category": "Profiler", "enabled": False})
         text = self.call_tool("tools-set-enabled-state", {"category": "Profiler", "enabled": False})["result"]["content"][0]["text"]
 
         self.assertEqual(text, "success: 5 tools already disabled")

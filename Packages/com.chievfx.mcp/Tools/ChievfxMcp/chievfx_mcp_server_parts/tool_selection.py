@@ -21,10 +21,10 @@ def load_enabled_tool_ids() -> set[str]:
 
     enabled_ids = payload.get("enabledToolIds")
     if not isinstance(enabled_ids, list):
-        default_role = next((role for role in load_builtin_tool_roles() if role.get("id") == "developer"), None)
-        if default_role is not None:
-            return enabled_ids_for_role(default_role, build_tool_metadata())
-        return required_tool_ids | (set(DEFAULT_ENABLED_TOOL_IDS) & tool_names)
+        # First install: enable every tool except the autonomy/discovery helpers
+        # (the "Autonomous" category), which stay hidden from the tools tab by default.
+        default_enabled = {tool["name"] for tool in tools if _tool_category(tool) != "Autonomous"}
+        return (default_enabled | required_tool_ids) & tool_names
 
     selected_tool_ids = {item for item in enabled_ids if isinstance(item, str)}
     if "tools-get-roles" in selected_tool_ids:
@@ -37,17 +37,8 @@ def load_tool_role_state() -> dict[str, Any]:
     state = payload.get("roleState")
     if isinstance(state, dict):
         return state
-    if "enabledToolIds" not in payload:
-        default_role = next((role for role in load_builtin_tool_roles() if role.get("id") == "developer"), None)
-        if default_role is not None:
-            return {
-                "kind": "built-in",
-                "roleId": default_role.get("id"),
-                "displayName": default_role.get("displayName"),
-                "description": default_role.get("description", ""),
-                "customAssetPath": None,
-                "manualOverride": False,
-            }
+    # First install defaults to "all tools except Autonomous", which is not a
+    # built-in role preset, so report it as a manual selection.
     return {"kind": "manual", "manualOverride": False}
 
 

@@ -161,7 +161,7 @@ namespace Chievfx.Mcp.Editor.Tests
                 .First(extension => string.Equals((string?)extension["id"], "chievfx.control", StringComparison.Ordinal));
             var tools = (JArray)control["tools"]!;
 
-            Assert.AreEqual("Essentials", CategoryFor(tools, "name", "editor-playmode-set"));
+            Assert.AreEqual("essentials", CategoryFor(tools, "name", "editor-playmode-set"));
         }
 
         [Test]

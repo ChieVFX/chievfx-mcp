@@ -6,7 +6,7 @@ def compact_prompt_descriptor(prompt: dict[str, Any]) -> dict[str, Any]:
         "name": prompt.get("name"),
         "title": prompt.get("title", ""),
         "description": prompt.get("description", ""),
-        "category": prompt.get("category") or PROMPT_CATEGORIES.get(prompt.get("name"), "General"),
+        "category": prompt.get("category") or PROMPT_CATEGORIES.get(prompt.get("name"), "general"),
         "arguments": prompt.get("arguments", []),
     }
     if not descriptor["title"]:
@@ -84,7 +84,7 @@ def build_prompt_metadata() -> dict[str, Any]:
                 "title": prompt.get("title", ""),
                 "description": prompt.get("description", ""),
                 "arguments": prompt.get("arguments", []),
-                "category": prompt.get("category") or PROMPT_CATEGORIES.get(prompt["name"], "General"),
+                "category": prompt.get("category") or PROMPT_CATEGORIES.get(prompt["name"], "general"),
                 "descriptorHash": hashlib.sha256(descriptor_json.encode("utf-8")).hexdigest(),
                 "descriptorPreview": descriptor_json,
                 "descriptorBytes": descriptor_bytes,
@@ -186,7 +186,7 @@ def save_enabled_prompt_names(enabled_prompt_names: set[str], metadata: dict[str
                 "getEnvelopeBytes": prompt.get("getEnvelopeBytes", 0),
                 "responseEstimateProfile": (prompt.get("responseEstimate") or {}).get("profile", ""),
                 "required": bool(prompt.get("required")),
-                "category": prompt.get("category", "General"),
+                "category": prompt.get("category", "general"),
                 "source": prompt.get("source", "core"),
                 "sourceExtensionId": prompt.get("sourceExtensionId"),
             }

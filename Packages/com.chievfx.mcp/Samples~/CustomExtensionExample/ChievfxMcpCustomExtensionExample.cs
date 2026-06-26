@@ -11,14 +11,14 @@ namespace Chievfx.Mcp.Samples.CustomExtension
     /// <summary>
     /// Reference extension showing how a project adds its own ChievFX MCP capabilities
     /// without editing the core package. Registers one executable tool, one dynamic
-    /// resource, and one dynamic prompt, all under the "Custom" category so they appear
+    /// resource, and one dynamic prompt, all under the "custom" category so they appear
     /// at the top of the optional categories in the ChievFX MCP window.
     /// </summary>
     [InitializeOnLoad]
     public static class ChievfxMcpCustomExtensionExample
     {
         private const string ExtensionId = "chievfx.example.custom";
-        private const string Category = "Custom";
+        private const string Category = "custom";
 
         private const string EchoToolName = "custom-example-echo";
         private const string StatusUri = "chievfx://extensions/chievfx.example.custom/status";

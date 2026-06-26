@@ -93,8 +93,8 @@ namespace Chievfx.Mcp.Extensions.Control
     internal static class ChievfxMcpControlExtension
     {
         private const string ExtensionId = "chievfx.control";
-        private const string Category = "Control";
-        private const string EssentialsCategory = "Essentials";
+        private const string Category = "control";
+        private const string EssentialsCategory = "essentials";
         private const string StatusUri = "chievfx://extensions/chievfx.control/status";
         private static bool? playModeOverrideForTests;
 

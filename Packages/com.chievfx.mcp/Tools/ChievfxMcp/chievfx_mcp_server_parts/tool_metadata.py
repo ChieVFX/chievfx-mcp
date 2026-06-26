@@ -22,7 +22,7 @@ def required_tool_ids_for_tools(tools: list[dict[str, Any]]) -> set[str]:
         for tool in tools
         if tool.get("required")
         or tool["name"] in policy_required_ids
-        or (tool.get("category") or TOOL_CATEGORIES.get(tool["name"], "General")) == "Essentials"
+        or (tool.get("category") or TOOL_CATEGORIES.get(tool["name"], "general")) == "essentials"
     }
 
 
@@ -373,8 +373,8 @@ def _build_advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
                 "spacing": {},
                 "gridSpacing": {},
                 "childAlignment": {},
-                "childControlWidth": {},
-                "childControlHeight": {},
+                "childcontrolWidth": {},
+                "childcontrolHeight": {},
                 "childForceExpandWidth": {},
                 "childForceExpandHeight": {},
                 "childScaleWidth": {},
@@ -600,7 +600,7 @@ def project_relative_path(path: Path) -> str:
 
 
 def load_custom_tool_roles() -> list[dict[str, Any]]:
-    assets_root = PROJECT_ROOT / "Assets"
+    assets_root = PROJECT_ROOT / "assets"
     if not assets_root.exists():
         return []
 
@@ -610,7 +610,7 @@ def load_custom_tool_roles() -> list[dict[str, Any]]:
             text = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        if "ChievfxMcpToolRoleAsset" not in text and "enabledCategoryIds:" not in text and "enabledToolIds:" not in text:
+        if "ChievfxMcpToolRoleasset" not in text and "enabledCategoryIds:" not in text and "enabledToolIds:" not in text:
             continue
 
         role_id = read_unity_yaml_string(text, "roleId")
@@ -678,7 +678,7 @@ def build_tool_metadata() -> dict[str, Any]:
             {
                 "name": tool["name"],
                 "description": tool.get("description", ""),
-                "category": tool.get("category") or TOOL_CATEGORIES.get(tool["name"], "General"),
+                "category": tool.get("category") or TOOL_CATEGORIES.get(tool["name"], "general"),
                 "inputSchema": advertised_input_schema(tool),
                 "descriptorHash": hashlib.sha256(descriptor_json.encode("utf-8")).hexdigest(),
                 "descriptorPreview": descriptor_json,

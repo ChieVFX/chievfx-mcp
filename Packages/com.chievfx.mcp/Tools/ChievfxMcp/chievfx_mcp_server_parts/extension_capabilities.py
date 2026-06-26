@@ -104,7 +104,7 @@ def load_extension_capability_manifest_from_file() -> dict[str, Any]:
     return normalize_extension_manifest_payload(payload)
 
 
-def coerce_extension_category(value: Any, fallback: str = "Extensions") -> str:
+def coerce_extension_category(value: Any, fallback: str = "extensions") -> str:
     return value.strip() if isinstance(value, str) and value.strip() else fallback
 
 

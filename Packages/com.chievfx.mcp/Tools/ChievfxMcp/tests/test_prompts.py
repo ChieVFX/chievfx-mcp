@@ -156,7 +156,7 @@ class PromptTests(unittest.TestCase):
 
         self.assertTrue(expected_shader_prompts.issubset(prompts))
         for name in expected_shader_prompts:
-            self.assertEqual(prompts[name]["category"], "Shader")
+            self.assertEqual(prompts[name]["category"], "shader")
 
         built_in_arguments = {item["name"]: item for item in prompts["unity-shader-built-in-draft"]["arguments"]}
         self.assertTrue(built_in_arguments["goal"]["required"])
@@ -279,7 +279,7 @@ class PromptTests(unittest.TestCase):
                             "name": "gamefeel-ending-session-slowmo",
                             "title": "Guide ending-session slow motion",
                             "description": "Prompt-only slow motion guidance.",
-                            "category": "Game Feel",
+                            "category": "game-feel",
                             "arguments": [{"name": "goal", "required": False}],
                             "staticText": (
                                 "Goal: {goal}\n"
@@ -309,7 +309,7 @@ class PromptTests(unittest.TestCase):
         )["result"]
 
         text = result["messages"][0]["content"]["text"]
-        self.assertEqual(prompts["gamefeel-ending-session-slowmo"]["category"], "Game Feel")
+        self.assertEqual(prompts["gamefeel-ending-session-slowmo"]["category"], "game-feel")
         self.assertIn("Goal: victory zoom", text)
         self.assertIn("public void StartEndingSlowMo()\n{", text)
         self.assertIn("if (adjustFixedDeltaTime)\n    {", text)
@@ -333,15 +333,15 @@ class PromptTests(unittest.TestCase):
             [
                 {
                     "id": "chievfx.diagnostics",
-                    "displayName": "ChievFX MCP Diagnostics",
+                    "displayName": "ChievFX MCP diagnostics",
                     "version": "1.0.0",
-                    "sourceAssembly": "Chievfx.Mcp.Diagnostics",
+                    "sourceAssembly": "Chievfx.Mcp.diagnostics",
                     "prompts": [
                         {
                             "name": "sample-required-review",
                             "title": "Summarize diagnostics",
                             "description": "Diagnostic prompt.",
-                            "category": "Review",
+                            "category": "review",
                             "required": True,
                             "staticText": "diagnostics active",
                             "arguments": [],

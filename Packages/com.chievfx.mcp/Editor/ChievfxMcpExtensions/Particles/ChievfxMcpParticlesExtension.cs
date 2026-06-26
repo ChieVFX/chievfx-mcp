@@ -23,7 +23,7 @@ namespace Chievfx.Mcp.Extensions.Particles
     internal static class ChievfxMcpParticlesExtension
     {
         internal const string ExtensionId = "chievfx.particles";
-        internal const string Category = "Particles";
+        internal const string Category = "particles";
         internal const string UriPrefix = "chievfx://extensions/chievfx.particles/";
         internal const string SystemsUri = UriPrefix + "systems";
         internal const string SystemDetailPrefix = UriPrefix + "system/";

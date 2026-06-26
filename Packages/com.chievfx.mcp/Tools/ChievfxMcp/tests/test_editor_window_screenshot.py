@@ -115,7 +115,7 @@ class ScreenshotSavePathTests(unittest.TestCase):
         self.assertFalse(save_target.exists())
 
 
-class EditorWindowScreenshotMetadataTests(unittest.TestCase):
+class editorWindowScreenshotMetadataTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_dir.cleanup)
@@ -161,7 +161,7 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
         self.assertIn("2-frame plus 1000 ms", delay_ms["description"])
 
     def test_server_metadata_keeps_editor_window_screenshot_image_category(self) -> None:
-        self.assertEqual(mcp.TOOL_CATEGORIES["screenshot-editor-window"], "Editor Window")
+        self.assertEqual(mcp.TOOL_CATEGORIES["screenshot-editor-window"], "editor-window")
         self.assertEqual(mcp.RESPONSE_PROFILE_BY_TOOL["screenshot-editor-window"], "image")
 
     def test_game_view_screenshot_schema_uses_max_dimension(self) -> None:
@@ -184,7 +184,7 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
                     "instanceId": 123,
                     "title": "Console",
                     "typeName": "ConsoleWindow",
-                    "fullTypeName": "UnityEditor.ConsoleWindow",
+                    "fullTypeName": "Unityeditor.ConsoleWindow",
                     "focused": False,
                     "mouseOver": True,
                     "selected": True,
@@ -205,7 +205,7 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
             text,
             "count:1 matched:1 mouseOverInstanceId:123\n"
             "windows[1]:\n"
-            "- id:123 title:Console type:ConsoleWindow full:UnityEditor.ConsoleWindow mouseOver selected docked tab:1/3 host:456",
+            "- id:123 title:Console type:ConsoleWindow full:Unityeditor.ConsoleWindow mouseOver selected docked tab:1/3 host:456",
         )
         self.assertNotIn("contentRect", text)
         self.assertNotIn("tabs[", text)
@@ -218,7 +218,7 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
                 "instanceId": 123,
                 "title": "Game",
                 "typeName": "GameView",
-                "fullTypeName": "UnityEditor.GameView",
+                "fullTypeName": "Unityeditor.GameView",
                 "focused": False,
                 "selected": True,
                 "docked": True,
@@ -229,7 +229,7 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
                 "tabIndex": 1,
                 "selectedTabIndex": 1,
                 "tabCount": 3,
-                "tabs": [{"title": "Scene"}, {"title": "Game"}],
+                "tabs": [{"title": "scene"}, {"title": "Game"}],
             },
             "diagnostics": [],
         }
@@ -419,7 +419,7 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
                         {
                             "name": "sample-extension-inspect",
                             "description": "Descriptor-only inspection tool.",
-                            "category": "Extensions",
+                            "category": "extensions",
                             "inputSchema": {"type": "object", "properties": {"target": {"type": "string"}}},
                         }
                     ],
@@ -456,7 +456,7 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
                         {
                             "name": "sample-extension-inspect",
                             "description": "Executable extension inspection tool.",
-                            "category": "Extensions",
+                            "category": "extensions",
                             "inputSchema": {"type": "object", "properties": {"target": {"type": "string"}}},
                         }
                     ],

@@ -83,7 +83,7 @@ namespace Chievfx.Mcp.Editor
                     ? FormatJson(schemaElement)
                     : "{}";
 
-                var category = ReadString(toolElement, "category", "General");
+                var category = ReadString(toolElement, "category", "general");
                 tools.Add(new ToolRow
                 {
                     Id = name,
@@ -99,7 +99,7 @@ namespace Chievfx.Mcp.Editor
                     CallEnvelopeEstimatedTokens = ReadInt(toolElement, "callEnvelopeEstimatedTokens"),
                     ResponseEstimateLabel = ReadResponseEstimateLabel(toolElement),
                     SchemaJson = inputSchema,
-                    Required = requiredIds.Contains(name) || string.Equals(category, "Essentials", StringComparison.Ordinal)
+                    Required = requiredIds.Contains(name) || string.Equals(category, "essentials", StringComparison.Ordinal)
                 });
             }
 

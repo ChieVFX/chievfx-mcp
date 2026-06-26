@@ -11,7 +11,7 @@ def load_category_settings() -> dict[str, Any]:
     always-supplied categories on, force-all off.
     """
     force_all = False
-    always_supplied = {name.casefold() for name in DEFAULT_ALWAYS_SUPPLIED_CATEGORIES}
+    always_supplied = {category_slug(name) for name in DEFAULT_ALWAYS_SUPPLIED_CATEGORIES}
 
     try:
         payload = json.loads(CATEGORY_SELECTION_PATH.read_text(encoding="utf-8"))
@@ -24,7 +24,7 @@ def load_category_settings() -> dict[str, Any]:
             force_all = force_value
         listed = payload.get("alwaysSuppliedCategories")
         if isinstance(listed, list):
-            always_supplied = {item.casefold() for item in listed if isinstance(item, str) and item.strip()}
+            always_supplied = {category_slug(item) for item in listed if isinstance(item, str) and item.strip()}
 
     return {"forceAll": force_all, "alwaysSupplied": always_supplied}
 
@@ -34,15 +34,15 @@ def category_slug(name: str) -> str:
 
 
 def _tool_category(tool: dict[str, Any]) -> str:
-    return tool.get("category") or TOOL_CATEGORIES.get(tool.get("name", ""), "General")
+    return tool.get("category") or TOOL_CATEGORIES.get(tool.get("name", ""), "general")
 
 
 def _resource_category(resource: dict[str, Any]) -> str:
-    return RESOURCE_CATEGORIES.get(resource.get("id", "")) or resource.get("category") or "General"
+    return RESOURCE_CATEGORIES.get(resource.get("id", "")) or resource.get("category") or "general"
 
 
 def _template_category(template: dict[str, Any]) -> str:
-    return template.get("category") or RESOURCE_TEMPLATE_CATEGORIES.get(template.get("id", ""), "General")
+    return template.get("category") or RESOURCE_TEMPLATE_CATEGORIES.get(template.get("id", ""), "general")
 
 
 def _category_description(name: str) -> str:
@@ -96,7 +96,7 @@ def build_category_plan() -> dict[str, Any]:
     for entry in categories.values():
         total = len(entry["tools"]) + len(entry["resources"]) + len(entry["templates"])
         entry["total"] = total
-        entry["alwaysSupplied"] = force_all or entry["key"] in always_supplied
+        entry["alwaysSupplied"] = force_all or entry["slug"] in always_supplied
         entry["collapsed"] = total > CATEGORY_COLLAPSE_THRESHOLD and not entry["alwaysSupplied"]
 
     return {"categories": categories, "forceAll": force_all}
@@ -230,11 +230,11 @@ def get_category_resource_by_uri(uri: str) -> dict[str, Any] | None:
 # category resource body only when that category exposes resource templates.
 RESOURCE_URI_ENCODING_NOTES = [
     "URI encoding for the templates above:",
-    "- Encode every scene path, GameObject hierarchy path, component key, and asset filterSpec as one URI segment.",
+    "- Encode every scene path, gameobject hierarchy path, component key, and asset filterSpec as one URI segment.",
     "- Use percent-encoding with no safe slash: quote(value, safe='').",
-    "- GameObject paths keep ChievFX grammar: / separator, \\/ literal slash, \\\\ literal backslash, [n] duplicate suffix.",
+    "- gameobject paths keep ChievFX grammar: / separator, \\/ literal slash, \\\\ literal backslash, [n] duplicate suffix.",
     "- Component keys use simple class names. Duplicate simple names are suffixed 1-based, e.g. BoxCollider.1.",
-    "- Asset filterSpec uses semicolon key=value clauses: name, type, label, area, folder, limit, subassets.",
+    "- asset filterSpec uses semicolon key=value clauses: name, type, label, area, folder, limit, subassets.",
     "Outputs are compact text/plain TOON with readAt metadata, drill-down URIs, truncation flags, and hard caps.",
 ]
 

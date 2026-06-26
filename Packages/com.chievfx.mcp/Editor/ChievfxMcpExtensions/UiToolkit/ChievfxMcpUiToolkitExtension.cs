@@ -25,7 +25,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
     internal static class ChievfxMcpUiToolkitExtension
     {
         internal const string ExtensionId = "chievfx.uitoolkit";
-        internal const string Category = "UI Toolkit";
+        internal const string Category = "ui-toolkit";
         internal const string UriPrefix = "chievfx://extensions/chievfx.uitoolkit/";
         internal const string StatusUri = UriPrefix + "status";
         internal const string RuntimeStatusUri = UriPrefix + "runtime/status";

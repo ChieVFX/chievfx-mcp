@@ -29,7 +29,7 @@ namespace Chievfx.Mcp.Extensions.Ecs
         private const int MaxSystemRows = 128;
         private const int MaxSubSceneRows = 64;
         private const int MaxComponentMatches = 16;
-        private const string EcsCategory = "ECS";
+        private const string EcsCategory = "ecs";
         private const string MinimumEntitiesPackageVersion = "1.0.0";
 
 #if CHIEVFX_MCP_HAS_ENTITIES

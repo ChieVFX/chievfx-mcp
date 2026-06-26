@@ -6,10 +6,10 @@
       "displayName": "Developer",
       "description": "Builder mode: scene, objects, prefabs, tests, and sharp tools in one belt.",
       "enabledCategoryIds": [
-        "Scene",
-        "GameObject",
-        "Prefab",
-        "Script Execution / Tests"
+        "scene",
+        "gameobject",
+        "prefab",
+        "script-execution-tests"
       ],
       "enabledToolIds": [],
       "enabledPromptNames": []
@@ -19,10 +19,10 @@
       "displayName": "QA",
       "description": "Bug net: inspect scenes, run tests, and poke windows without opening the toolbox volcano.",
       "enabledCategoryIds": [
-        "Scene",
-        "GameObject",
-        "Script Execution / Tests",
-        "Editor Window"
+        "scene",
+        "gameobject",
+        "script-execution-tests",
+        "editor-window"
       ],
       "enabledToolIds": [],
       "enabledPromptNames": []

@@ -42,7 +42,7 @@ namespace Chievfx.Mcp.Editor
 
         public string Description { get; set; } = string.Empty;
 
-        public string Category { get; set; } = "Extensions";
+        public string Category { get; set; } = "extensions";
 
         public JObject InputSchema { get; set; } = new() { ["type"] = "object" };
     }
@@ -59,7 +59,7 @@ namespace Chievfx.Mcp.Editor
 
         public string MimeType { get; set; } = "text/plain";
 
-        public string Category { get; set; } = "Extensions";
+        public string Category { get; set; } = "extensions";
 
         public bool Required { get; set; }
 
@@ -78,7 +78,7 @@ namespace Chievfx.Mcp.Editor
 
         public string MimeType { get; set; } = "text/plain";
 
-        public string Category { get; set; } = "Extensions";
+        public string Category { get; set; } = "extensions";
 
         public bool Required { get; set; }
     }
@@ -91,7 +91,7 @@ namespace Chievfx.Mcp.Editor
 
         public string Description { get; set; } = string.Empty;
 
-        public string Category { get; set; } = "Extensions";
+        public string Category { get; set; } = "extensions";
 
         public JArray Arguments { get; set; } = new();
 

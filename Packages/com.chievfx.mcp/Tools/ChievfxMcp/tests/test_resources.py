@@ -152,7 +152,7 @@ class ResourceTests(unittest.TestCase):
                             "name": "Test extension static resource",
                             "description": "Registry static resource test.",
                             "mimeType": "text/plain",
-                            "category": "Extensions",
+                            "category": "extensions",
                             "required": True,
                             "staticText": "extension registry active",
                         }
@@ -172,7 +172,7 @@ class ResourceTests(unittest.TestCase):
 
         self.assertIn("test-extension-static", metadata["requiredResourceIds"])
         self.assertIn("chievfx://extensions/test.extension/static", listed_uris)
-        self.assertEqual(static_resource["category"], "Extensions")
+        self.assertEqual(static_resource["category"], "extensions")
         self.assertEqual(static_resource["sourceExtensionId"], "test.extension")
         self.assertEqual(static_resource["sourceAssembly"], "Test.Mcp.Extension")
         self.assertRegex(static_resource["descriptorHash"], r"^[0-9a-f]{64}$")
@@ -203,7 +203,7 @@ class ResourceTests(unittest.TestCase):
                             "uri": "chievfx://extensions/test.one/resource",
                             "name": "Test one resource",
                             "description": "Cached manifest resource.",
-                            "category": "Extensions",
+                            "category": "extensions",
                         }
                     ],
                 }
@@ -222,7 +222,7 @@ class ResourceTests(unittest.TestCase):
                             "uri": "chievfx://extensions/test.two/resource",
                             "name": "Test two resource",
                             "description": "Fresh manifest resource.",
-                            "category": "Extensions",
+                            "category": "extensions",
                         }
                     ],
                 }
@@ -243,17 +243,17 @@ class ResourceTests(unittest.TestCase):
             [
                 {
                     "id": "chievfx.ecs",
-                    "displayName": "ChievFX MCP ECS",
+                    "displayName": "ChievFX MCP ecs",
                     "version": "0.1.0",
-                    "sourceAssembly": "Chievfx.Mcp.Extensions.Ecs",
+                    "sourceAssembly": "Chievfx.Mcp.extensions.Ecs",
                     "resources": [
                         {
                             "id": "ecs-worlds-list",
                             "uri": uri,
-                            "name": "ECS worlds list",
-                            "description": "Dynamic ECS worlds list.",
+                            "name": "ecs worlds list",
+                            "description": "Dynamic ecs worlds list.",
                             "mimeType": "application/json",
-                            "category": "ECS",
+                            "category": "ecs",
                         }
                     ],
                 }
@@ -273,17 +273,17 @@ class ResourceTests(unittest.TestCase):
             [
                 {
                     "id": "chievfx.ecs",
-                    "displayName": "ChievFX MCP ECS",
+                    "displayName": "ChievFX MCP ecs",
                     "version": "0.1.0",
-                    "sourceAssembly": "Chievfx.Mcp.Extensions.Ecs",
+                    "sourceAssembly": "Chievfx.Mcp.extensions.Ecs",
                     "resourceTemplates": [
                         {
                             "id": "ecs-subscene-detail",
                             "uriTemplate": "chievfx://extensions/chievfx.ecs/subscene/{guidOrPath}",
-                            "name": "SubScene detail",
-                            "description": "Dynamic SubScene detail by GUID or URL-encoded path.",
+                            "name": "Subscene detail",
+                            "description": "Dynamic Subscene detail by GUID or URL-encoded path.",
                             "mimeType": "application/json",
-                            "category": "ECS",
+                            "category": "ecs",
                         }
                     ],
                 }
@@ -303,12 +303,12 @@ class ResourceTests(unittest.TestCase):
             [
                 {
                     "id": "chievfx.ecs",
-                    "displayName": "ChievFX MCP ECS",
+                    "displayName": "ChievFX MCP ecs",
                     "resourceTemplates": [
                         {
                             "id": "ecs-entities-query",
                             "uriTemplate": "chievfx://extensions/chievfx.ecs/entities/query/{querySpec}",
-                            "name": "ECS entities query summary",
+                            "name": "ecs entities query summary",
                             "description": "Dynamic entity query summary.",
                         }
                     ],
@@ -349,27 +349,27 @@ class ResourceTests(unittest.TestCase):
             [
                 {
                     "id": "chievfx.control",
-                    "displayName": "ChievFX MCP Control",
+                    "displayName": "ChievFX MCP control",
                     "resources": [
                         {
                             "id": "control-status",
                             "uri": "chievfx://extensions/chievfx.control/status",
-                            "name": "Control extension status",
+                            "name": "control extension status",
                             "description": "Reports control status.",
-                            "category": "Control",
+                            "category": "control",
                         }
                     ],
                 },
                 {
                     "id": "chievfx.runtime-ui",
-                    "displayName": "ChievFX MCP Runtime UI",
+                    "displayName": "ChievFX MCP runtime-ui",
                     "resources": [
                         {
                             "id": "runtime-ui-status",
                             "uri": "chievfx://extensions/chievfx.runtime-ui/status",
-                            "name": "Runtime UI adapter status",
+                            "name": "runtime-ui adapter status",
                             "description": "Reports runtime UI status.",
-                            "category": "Runtime UI",
+                            "category": "runtime-ui",
                         }
                     ],
                 },
@@ -389,7 +389,7 @@ class ResourceTests(unittest.TestCase):
             "control-status",
         ]:
             self.assertTrue(resources[resource_id]["required"])
-            self.assertEqual(resources[resource_id]["category"], "Essentials")
+            self.assertEqual(resources[resource_id]["category"], "essentials")
             self.assertIn(resource_id, enabled_resource_ids)
 
     def test_gameobject_search_resource_templates_are_removed(self) -> None:
@@ -430,12 +430,12 @@ class ResourceTests(unittest.TestCase):
             "scene-all-usage-asset",
             "scene-all-usage-subasset",
         ]:
-            self.assertEqual(templates[template_id]["category"], "Asset")
+            self.assertEqual(templates[template_id]["category"], "asset")
             self.assertLess(templates[template_id]["estimatedTokens"], 100)
 
         resources_by_id = {resource["id"]: resource for resource in metadata["resources"]}
-        self.assertEqual(resources_by_id["scene-all-usage-counts"]["category"], "Asset")
-        self.assertEqual(resources_by_id["scene-all-material-profile-summary"]["category"], "Asset")
+        self.assertEqual(resources_by_id["scene-all-usage-counts"]["category"], "asset")
+        self.assertEqual(resources_by_id["scene-all-material-profile-summary"]["category"], "asset")
 
         self.assertNotIn(
             "chievfx://assets/type/Material",
@@ -446,7 +446,7 @@ class ResourceTests(unittest.TestCase):
         package_root = Path(__file__).resolve().parents[3]
         catalog = (
             package_root
-            / "Editor"
+            / "editor"
             / "ChievfxMcp"
             / "Core"
             / "Metadata"
@@ -487,7 +487,7 @@ class ResourceTests(unittest.TestCase):
             self.assertIn("serialized component data", estimate["label"])
 
     def test_dynamic_resource_read_forwards_hidden_bridge_command(self) -> None:
-        uri = "chievfx://scene/Assets%2FScenes%2FSample.unity/go/Root%2FChild/component/BoxCollider.1"
+        uri = "chievfx://scene/assets%2Fscenes%2FSample.unity/go/Root%2FChild/component/BoxCollider.1"
 
         result = self.request("resources/read", {"uri": uri})["result"]
 
@@ -529,7 +529,7 @@ class ResourceTests(unittest.TestCase):
             "chievfx://assets/name-contains/Wood",
             "chievfx://assets/type/material",
             "chievfx://assets/label/ui",
-            "chievfx://assets/filter/name%3Dwood%3Btype%3DMaterial%2CTexture2D%3Blabel%3Dui%3Barea%3Dassets%3Bfolder%3DAssets%2FArt%3Blimit%3D80%3Bsubassets%3D0",
+            "chievfx://assets/filter/name%3Dwood%3Btype%3DMaterial%2CTexture2D%3Blabel%3Dui%3Barea%3Dassets%3Bfolder%3Dassets%2FArt%3Blimit%3D80%3Bsubassets%3D0",
         ]
 
         for uri in uris:
@@ -585,7 +585,7 @@ class ResourceTests(unittest.TestCase):
     def test_disabled_matching_template_is_not_found(self) -> None:
         self.write_selection(["editor-context"], [])
 
-        response = self.request("resources/read", {"uri": "chievfx://scene/Assets%2FMain.unity/hierarchy"})
+        response = self.request("resources/read", {"uri": "chievfx://scene/assets%2FMain.unity/hierarchy"})
 
         self.assertEqual(response["error"]["code"], -32002)
         self.assertEqual(self.server.calls, [])

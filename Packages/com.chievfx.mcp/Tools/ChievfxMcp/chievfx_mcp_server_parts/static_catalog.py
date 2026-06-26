@@ -26,8 +26,8 @@ RESOURCES: list[dict[str, Any]] = [
     {
         "id": "scene-all-usage-counts",
         "uri": "chievfx://scene/all/usage/counts",
-        "name": "Asset usage counts across loaded scenes",
-        "description": "Asset usage totals across all loaded scenes, grouped by common asset type.",
+        "name": "asset usage counts across loaded scenes",
+        "description": "asset usage totals across all loaded scenes, grouped by common asset type.",
         "mimeType": RESOURCE_MIME_TYPE,
     },
     {
@@ -44,22 +44,22 @@ RESOURCE_TEMPLATES: list[dict[str, Any]] = [
     {
         "id": "scene-go",
         "uriTemplate": "chievfx://scene/{scenePath}/go/{goPath}",
-        "name": "GameObject summary by scene and path",
-        "description": "Compact GameObject summary. Percent-encode scene path and hierarchy path as full URI segments.",
+        "name": "gameobject summary by scene and path",
+        "description": "Compact gameobject summary. Percent-encode scene path and hierarchy path as full URI segments.",
         "mimeType": RESOURCE_MIME_TYPE,
     },
     {
         "id": "scene-component",
         "uriTemplate": "chievfx://scene/{scenePath}/go/{goPath}/component/{componentKey}",
-        "name": "Component serialized values by scene, GameObject path, and component key",
+        "name": "Component serialized values by scene, gameobject path, and component key",
         "description": "Serialized values for one component. Percent-encode every dynamic value as a full URI segment.",
         "mimeType": RESOURCE_MIME_TYPE,
     },
     {
         "id": "scene-all-go",
         "uriTemplate": "chievfx://scene/all/go/{goPath}",
-        "name": "GameObject summary across loaded scenes",
-        "description": "Compact GameObject summary across all loaded scenes. Prefer this default when scene scope is unknown.",
+        "name": "gameobject summary across loaded scenes",
+        "description": "Compact gameobject summary across all loaded scenes. Prefer this default when scene scope is unknown.",
         "mimeType": RESOURCE_MIME_TYPE,
     },
     {
@@ -72,8 +72,8 @@ RESOURCE_TEMPLATES: list[dict[str, Any]] = [
     {
         "id": "asset-detail",
         "uriTemplate": "chievfx://asset/{guid}",
-        "name": "Asset detail by GUID",
-        "description": "Load one persisted main asset by GUID with AssetImporter metadata and subasset drill-down hints.",
+        "name": "asset detail by GUID",
+        "description": "Load one persisted main asset by GUID with assetImporter metadata and subasset drill-down hints.",
         "mimeType": RESOURCE_MIME_TYPE,
     },
     {
@@ -100,15 +100,15 @@ RESOURCE_TEMPLATES: list[dict[str, Any]] = [
     {
         "id": "scene-all-usage-assets",
         "uriTemplate": "chievfx://scene/all/usage/assets/{assetType}",
-        "name": "Asset usage by type across loaded scenes",
+        "name": "asset usage by type across loaded scenes",
         "description": "Summarize loaded-scene references for material, mesh, texture, renderTexture, or all assets.",
         "mimeType": RESOURCE_MIME_TYPE,
     },
     {
         "id": "scene-all-usage-asset",
         "uriTemplate": "chievfx://scene/all/usage/asset/{guid}",
-        "name": "Asset usage by GUID across loaded scenes",
-        "description": "Drill into loaded-scene GameObject/component references to an asset GUID.",
+        "name": "asset usage by GUID across loaded scenes",
+        "description": "Drill into loaded-scene gameobject/component references to an asset GUID.",
         "mimeType": RESOURCE_MIME_TYPE,
     },
     {
@@ -126,7 +126,7 @@ PROMPTS: list[dict[str, Any]] = [
         "name": "unity-scene-review",
         "title": "Review current Unity scene work",
         "description": "Static prompt for reviewing a Unity scene or prefab against a requested goal.",
-        "category": "Scene",
+        "category": "scene",
         "arguments": [
             {
                 "name": "goal",
@@ -157,7 +157,7 @@ PROMPTS: list[dict[str, Any]] = [
         "name": "unity-shader-built-in-draft",
         "title": "Draft Built-in Render Pipeline shader code",
         "description": "Static prompt for drafting Unity Built-in Render Pipeline shader code from project context.",
-        "category": "Shader",
+        "category": "shader",
         "arguments": [
             {
                 "name": "goal",
@@ -181,7 +181,7 @@ PROMPTS: list[dict[str, Any]] = [
                 "text": (
                     "Draft Unity Built-in Render Pipeline shader code for this goal:\n"
                     "{goal}\n\n"
-                    "Shader name or target asset: {shaderName}\n"
+                    "shader name or target asset: {shaderName}\n"
                     "Extra context: {context}\n\n"
                     "Before drafting, read relevant ChievFX MCP resources: chievfx://editor/context, "
                     "matching material/shader/texture asset searches, and asset-detail "
@@ -189,7 +189,7 @@ PROMPTS: list[dict[str, Any]] = [
                     "if URP or HDRP packages/render pipeline assets are active, stop and recommend the matching prompt. "
                     "Account for Unity version, graphics API/platform, shader model target, lighting path, instancing, "
                     "SRP Batcher irrelevance for Built-in, keywords, passes, fallbacks, transparency, shadows, and "
-                    "feature support. Prefer compact ShaderLab/HLSL that compiles in Built-in. Call out assumptions, "
+                    "feature support. Prefer compact shaderLab/HLSL that compiles in Built-in. Call out assumptions, "
                     "required material properties, unsupported features, and validation steps."
                 ),
             }
@@ -199,7 +199,7 @@ PROMPTS: list[dict[str, Any]] = [
         "name": "unity-shader-urp-draft",
         "title": "Draft URP shader code",
         "description": "Static prompt for drafting Unity Universal Render Pipeline shader code from project context.",
-        "category": "Shader",
+        "category": "shader",
         "arguments": [
             {
                 "name": "goal",
@@ -223,7 +223,7 @@ PROMPTS: list[dict[str, Any]] = [
                 "text": (
                     "Draft Unity URP shader code for this goal:\n"
                     "{goal}\n\n"
-                    "Shader name or target asset: {shaderName}\n"
+                    "shader name or target asset: {shaderName}\n"
                     "Extra context: {context}\n\n"
                     "Before drafting, read relevant ChievFX MCP resources: chievfx://editor/context, "
                     "matching material/shader/texture asset searches, and asset-detail "
@@ -231,8 +231,8 @@ PROMPTS: list[dict[str, Any]] = [
                     "URP package/version, Unity version, renderer asset settings, target platforms, shader model, "
                     "lighting/shadow needs, additional lights, depth/normal texture availability, GPU instancing, "
                     "SRP Batcher compatibility, keywords, render queue, transparency, and pass requirements. Use URP "
-                    "ShaderLibrary includes and tags appropriate for the detected version. If the request belongs in "
-                    "Shader Graph or a Renderer Feature instead of handwritten shader code, say so. Return code, "
+                    "shaderLibrary includes and tags appropriate for the detected version. If the request belongs in "
+                    "shader Graph or a Renderer Feature instead of handwritten shader code, say so. Return code, "
                     "assumptions, material properties, unsupported features, and validation steps."
                 ),
             }
@@ -242,7 +242,7 @@ PROMPTS: list[dict[str, Any]] = [
         "name": "unity-shader-hdrp-draft",
         "title": "Draft HDRP shader code",
         "description": "Static prompt for drafting Unity High Definition Render Pipeline shader code from project context.",
-        "category": "Shader",
+        "category": "shader",
         "arguments": [
             {
                 "name": "goal",
@@ -266,15 +266,15 @@ PROMPTS: list[dict[str, Any]] = [
                 "text": (
                     "Draft Unity HDRP shader code for this goal:\n"
                     "{goal}\n\n"
-                    "Shader name or target asset: {shaderName}\n"
+                    "shader name or target asset: {shaderName}\n"
                     "Extra context: {context}\n\n"
                     "Before drafting, read relevant ChievFX MCP resources: chievfx://editor/context, "
                     "matching material/shader/texture asset searches, and asset-detail "
                     "resources for referenced GUIDs. Confirm HDRP is the target render pipeline and check the installed "
-                    "HDRP package/version, Unity version, HDRenderPipelineAsset settings, platform, shader model, "
+                    "HDRP package/version, Unity version, HDRenderPipelineasset settings, platform, shader model, "
                     "lighting model, ray tracing or path tracing requirements, decals, tessellation, transparency, "
                     "motion vectors, depth/normal buffers, keywords, and pass requirements. HDRP custom shader code is "
-                    "version-sensitive; prefer HDRP Shader Graph/custom function guidance when safer. Return code only "
+                    "version-sensitive; prefer HDRP shader Graph/custom function guidance when safer. Return code only "
                     "when the version and feature surface are clear, plus assumptions, material properties, unsupported "
                     "features, and validation steps."
                 ),
@@ -283,13 +283,13 @@ PROMPTS: list[dict[str, Any]] = [
     },
     {
         "name": "unity-shader-graph-plan",
-        "title": "Plan Unity Shader Graph",
-        "description": "Static prompt for planning Shader Graph properties, nodes, targets, and validation.",
-        "category": "Shader",
+        "title": "Plan Unity shader Graph",
+        "description": "Static prompt for planning shader Graph properties, nodes, targets, and validation.",
+        "category": "shader",
         "arguments": [
             {
                 "name": "goal",
-                "description": "Visual effect or material behavior the Shader Graph should implement.",
+                "description": "Visual effect or material behavior the shader Graph should implement.",
                 "required": True,
             },
             {
@@ -307,13 +307,13 @@ PROMPTS: list[dict[str, Any]] = [
             {
                 "role": "user",
                 "text": (
-                    "Plan a Unity Shader Graph for this goal:\n"
+                    "Plan a Unity shader Graph for this goal:\n"
                     "{goal}\n\n"
                     "Target render pipeline: {pipeline}\n"
                     "Extra context: {context}\n\n"
                     "Before planning, read relevant ChievFX MCP resources: chievfx://editor/context, "
-                    "matching Shader Graph/material/texture asset searches, and asset-detail "
-                    "resources for referenced GUIDs. Verify Unity version, installed Shader Graph package/version, "
+                    "matching shader Graph/material/texture asset searches, and asset-detail "
+                    "resources for referenced GUIDs. Verify Unity version, installed shader Graph package/version, "
                     "target pipeline and graph target, supported shader model/features, platform limits, precision, "
                     "keywords, instancing, SRP Batcher expectations, transparency, shadows, depth/normal texture needs, "
                     "and feature availability. Return graph type, Blackboard properties, subgraphs, node groups, "
@@ -327,9 +327,9 @@ PROMPTS: list[dict[str, Any]] = [
     },
     {
         "name": "unity-material-profile-review",
-        "title": "Review Unity material and render profile setup",
+        "title": "review Unity material and render profile setup",
         "description": "Static prompt for reviewing shader, material, render pipeline asset, and profile configuration.",
-        "category": "Shader",
+        "category": "shader",
         "arguments": [
             {
                 "name": "goal",
@@ -351,16 +351,16 @@ PROMPTS: list[dict[str, Any]] = [
             {
                 "role": "user",
                 "text": (
-                    "Review Unity material, shader, and render profile setup for this goal:\n"
+                    "review Unity material, shader, and render profile setup for this goal:\n"
                     "{goal}\n\n"
-                    "Asset hint: {assetHint}\n"
+                    "asset hint: {assetHint}\n"
                     "Focus: {focus}\n\n"
                     "Before reviewing, read relevant ChievFX MCP resources: chievfx://editor/context, "
                     "scene usage resources for materials/shaders, matching asset searches, "
                     "and asset-detail resources for referenced GUIDs. Identify active render pipeline, package/version "
                     "state, pipeline asset or quality-level overrides, material shader assignment, missing textures, "
                     "keywords, render queue, instancing, SRP Batcher compatibility, shader model/platform support, "
-                    "lighting/shadow/depth feature requirements, Shader Graph limitations, and migration mismatches. "
+                    "lighting/shadow/depth feature requirements, shader Graph limitations, and migration mismatches. "
                     "Do not draft shader or graph JSON unless requested after the review; return findings, risks, exact "
                     "assets or settings to inspect/change, and validation steps."
                 ),
@@ -371,7 +371,7 @@ PROMPTS: list[dict[str, Any]] = [
         "name": "unity-editor-context",
         "title": "Summarize live Unity editor context",
         "description": "Dynamic prompt backed by Unity bridge context from current scene, selection, and editor state.",
-        "category": "Editor",
+        "category": "editor",
         "arguments": [
             {
                 "name": "focus",

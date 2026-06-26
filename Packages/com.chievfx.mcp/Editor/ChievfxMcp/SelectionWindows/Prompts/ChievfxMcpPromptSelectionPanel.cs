@@ -277,7 +277,7 @@ namespace Chievfx.Mcp.Editor
                     Name = name,
                     Title = ReadString(promptElement, "title", name),
                     Description = ReadString(promptElement, "description"),
-                    Category = ReadString(promptElement, "category", "General"),
+                    Category = ReadString(promptElement, "category", "general"),
                     DescriptorHash = ReadString(promptElement, "descriptorHash"),
                     DescriptorPreview = ReadString(promptElement, "descriptorPreview", "{}"),
                     DescriptorBytes = ReadInt(promptElement, "descriptorBytes"),
@@ -806,9 +806,9 @@ namespace Chievfx.Mcp.Editor
         {
             return category switch
             {
-                "Editor" => 0,
-                "Scene" => 1,
-                "Diagnostics" => 2,
+                "editor" => 0,
+                "scene" => 1,
+                "diagnostics" => 2,
                 "ugui-design" => 10,
                 _ => 100
             };
@@ -845,7 +845,7 @@ namespace Chievfx.Mcp.Editor
 
             public string Description { get; set; } = string.Empty;
 
-            public string Category { get; set; } = "General";
+            public string Category { get; set; } = "general";
 
             public string DescriptorHash { get; set; } = string.Empty;
 

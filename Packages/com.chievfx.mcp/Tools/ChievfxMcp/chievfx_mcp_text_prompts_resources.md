@@ -164,7 +164,7 @@ type: prompt
 name: unity-scene-review
 title: Review current Unity scene work
 description: Static prompt for reviewing a Unity scene or prefab against a requested goal.
-category: Scene
+category: scene
 arguments: [{"name":"goal","required":true},{"name":"focus","required":false}]
 messageRole: user
 text: |
@@ -181,7 +181,7 @@ type: prompt
 name: unity-shader-built-in-draft
 title: Draft Built-in Render Pipeline shader code
 description: Static prompt for drafting Unity Built-in Render Pipeline shader code from project context.
-category: Shader
+category: shader
 arguments: [{"name":"goal","required":true},{"name":"shaderName","required":false},{"name":"context","required":false}]
 messageRole: user
 text: |

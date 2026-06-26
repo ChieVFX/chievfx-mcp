@@ -289,7 +289,7 @@ namespace Chievfx.Mcp.Editor
                 Description = ReadString(element, "description"),
                 Uri = ReadString(element, uriPropertyName),
                 MimeType = ReadString(element, "mimeType", "text/plain"),
-                Category = ReadString(element, "category", "General"),
+                Category = ReadString(element, "category", "general"),
                 DescriptorHash = ReadString(element, "descriptorHash"),
                 DescriptorPreview = ReadString(element, "descriptorPreview", "{}"),
                 DescriptorBytes = ReadInt(element, "descriptorBytes"),
@@ -635,9 +635,9 @@ namespace Chievfx.Mcp.Editor
 
             return category switch
             {
-                "Editor" => "Unity Editor state and diagnostic resources used while coordinating MCP work.",
-                "Scene" => "Scene-level context for hierarchy, objects, and current editor work.",
-                "GameObject" => "GameObject-oriented templates and resources for targeted scene inspection.",
+                "editor" => "Unity Editor state and diagnostic resources used while coordinating MCP work.",
+                "scene" => "Scene-level context for hierarchy, objects, and current editor work.",
+                "gameobject" => "GameObject-oriented templates and resources for targeted scene inspection.",
                 "ugui-design" => "Editor-time uGUI Canvas, RectTransform, Image, TMP, and sprite authoring references.",
                 "ugui-runtime-control" => "Play Mode uGUI runtime status, visible tree, canvases, and interactable-control references.",
                 _ => "General ChievFX MCP resources and templates."
@@ -1036,10 +1036,10 @@ namespace Chievfx.Mcp.Editor
         {
             return category switch
             {
-                "Essentials" => 0,
-                "Editor" => 1,
-                "Scene" => 2,
-                "GameObject" => 3,
+                "essentials" => 0,
+                "editor" => 1,
+                "scene" => 2,
+                "gameobject" => 3,
                 "ugui-design" => 10,
                 "ugui-runtime-control" => 11,
                 _ => 100
@@ -1062,7 +1062,7 @@ namespace Chievfx.Mcp.Editor
 
             public string MimeType { get; set; } = "text/plain";
 
-            public string Category { get; set; } = "General";
+            public string Category { get; set; } = "general";
 
             public string DescriptorHash { get; set; } = string.Empty;
 

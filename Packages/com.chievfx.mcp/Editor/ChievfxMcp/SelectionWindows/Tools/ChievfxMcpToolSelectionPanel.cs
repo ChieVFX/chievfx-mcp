@@ -19,7 +19,7 @@ namespace Chievfx.Mcp.Editor
     internal sealed class ChievfxMcpToolSelectionPanel
     {
         private const string AllInfoEditorPrefsKey = "ChievfxMcp.Selection.AllInfo";
-        private const string AutonomousCategoryName = "Autonomous";
+        private const string AutonomousCategoryName = "autonomous";
 
         private readonly List<ToolRow> toolRows = new();
         private readonly Dictionary<string, Toggle> toggles = new(StringComparer.Ordinal);
@@ -254,7 +254,7 @@ namespace Chievfx.Mcp.Editor
         {
             var requiredIds = new HashSet<string>(ChievfxMcpToolPolicy.RequiredToolIds, StringComparer.Ordinal);
             requiredIds.UnionWith(toolRows
-                .Where(row => string.Equals(row.Category, "Essentials", StringComparison.Ordinal))
+                .Where(row => string.Equals(row.Category, "essentials", StringComparison.Ordinal))
                 .Select(row => row.Id));
             var enabledIds = new HashSet<string>(requiredIds, StringComparer.Ordinal);
             var hasSavedEnabledIds = false;
@@ -1371,7 +1371,7 @@ namespace Chievfx.Mcp.Editor
 
         private static bool IsObsoleteTool(ToolRow row)
         {
-            return string.Equals(row.Category, "OBSOLETE", StringComparison.Ordinal);
+            return string.Equals(row.Category, "obsolete", StringComparison.Ordinal);
         }
 
         private void ForceHiddenAutonomyToolsOff()

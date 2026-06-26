@@ -20,7 +20,7 @@ namespace Chievfx.Mcp.Extensions.Cameras
     {
         private const string ExtensionId = "chievfx.cameras";
         private const string Category = "cinemachine-and-timeline";
-        private const string GameFeelCategory = "Game Feel";
+        private const string GameFeelCategory = "game-feel";
         private const string CinemachinePackageName = "com.unity.cinemachine";
         private const string TimelinePackageName = "com.unity.timeline";
         private const string SplinesPackageName = "com.unity.splines";

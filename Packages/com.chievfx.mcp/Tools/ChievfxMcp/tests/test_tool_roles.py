@@ -113,7 +113,7 @@ class ToolRoleTests(unittest.TestCase):
             "tools-set-role",
         ]
 
-        result = self.call_json_tool("tools-set-enabled-state", {"category": "Autonomous", "enabled": False})
+        result = self.call_json_tool("tools-set-enabled-state", {"category": "autonomous", "enabled": False})
 
         self.assertTrue(result["mutated"])
         self.assertEqual(result["requestedEnabled"], False)
@@ -122,7 +122,7 @@ class ToolRoleTests(unittest.TestCase):
             self.assertNotIn(tool_id, enabled_tool_ids)
 
     def test_essentials_are_always_on(self) -> None:
-        inventory = self.call_json_tool("tools-list-category", {"category": "Essentials"})
+        inventory = self.call_json_tool("tools-list-category", {"category": "essentials"})
         essentials = inventory["categories"][0]
 
         self.assertTrue(essentials["requiredOnly"])
@@ -131,7 +131,7 @@ class ToolRoleTests(unittest.TestCase):
         self.assertIn("events-check-since", {tool["name"] for tool in essentials["tools"] if tool["required"]})
         self.assertIn("tool-batch", {tool["name"] for tool in essentials["tools"] if tool["required"]})
 
-        result = self.call_json_tool("tools-set-enabled-state", {"category": "Essentials", "enabled": False})
+        result = self.call_json_tool("tools-set-enabled-state", {"category": "essentials", "enabled": False})
 
         self.assertFalse(result["mutated"])
         self.assertTrue(all(row["reason"] == "required-tool-locked-enabled" for row in result["skipped"]))
@@ -144,7 +144,7 @@ class ToolRoleTests(unittest.TestCase):
         essentials_tool_ids = {
             tool["name"]
             for tool in mcp.build_tool_metadata()["tools"]
-            if tool["category"] == "Essentials"
+            if tool["category"] == "essentials"
         }
 
         self.assertEqual(set(), essentials_tool_ids - required_tool_ids)
@@ -153,7 +153,7 @@ class ToolRoleTests(unittest.TestCase):
         text = self.call_tool("tools-list-categories")["result"]["content"][0]["text"]
 
         self.assertIn("enabled:", text)
-        self.assertIn("- Essentials (", text)
+        self.assertIn("- essentials (", text)
         self.assertIn("Always-on safe basics", text)
         self.assertNotIn("disabled:", text)
         self.assertNotIn("descriptorPreview", text)
@@ -185,36 +185,36 @@ class ToolRoleTests(unittest.TestCase):
         self.assertIn("error:", text)
 
     def test_tools_list_categories_can_include_disabled(self) -> None:
-        self.call_tool("tools-set-enabled-state", {"category": "Profiler", "enabled": False})
+        self.call_tool("tools-set-enabled-state", {"category": "profiler", "enabled": False})
         text = self.call_tool("tools-list-categories", {"includeDisabled": True})["result"]["content"][0]["text"]
 
         self.assertIn("enabled:", text)
         self.assertIn("disabled:", text)
-        self.assertIn("- Profiler (0/5)", text)
+        self.assertIn("- profiler (0/5)", text)
 
     def test_tools_list_category_default_output_is_compact(self) -> None:
         self.call_tool("tools-set-role", {"role": "developer"})
-        text = self.call_tool("tools-list-category", {"category": "GameObject"})["result"]["content"][0]["text"]
+        text = self.call_tool("tools-list-category", {"category": "gameobject"})["result"]["content"][0]["text"]
 
         self.assertIn("enabled:", text)
         self.assertIn("- gameobject-find (path, name, namePattern, componentType, instanceId, includeInactive, includeDetails, includeComponents, maxResults)", text)
         self.assertIn("Finds GameObjects by filters", text)
-        self.assertNotIn("GameObject (", text)
+        self.assertNotIn("gameobject (", text)
         self.assertNotIn("disabled:", text)
         self.assertNotIn("descriptorPreview", text)
         self.assertNotIn("estimatedTokens", text)
 
     def test_tools_list_category_can_include_disabled(self) -> None:
-        self.call_tool("tools-set-enabled-state", {"category": "Profiler", "enabled": False})
-        text = self.call_tool("tools-list-category", {"category": "Profiler", "includeDisabled": True})["result"]["content"][0]["text"]
+        self.call_tool("tools-set-enabled-state", {"category": "profiler", "enabled": False})
+        text = self.call_tool("tools-list-category", {"category": "profiler", "includeDisabled": True})["result"]["content"][0]["text"]
 
         self.assertIn("enabled:", text)
         self.assertIn("disabled:", text)
         self.assertIn("- profiler-get-state", text)
 
     def test_tools_list_disabled_category_still_shows_enabled_section(self) -> None:
-        self.call_tool("tools-set-enabled-state", {"category": "Profiler", "enabled": False})
-        text = self.call_tool("tools-list-category", {"category": "Profiler", "includeDisabled": True})["result"]["content"][0]["text"]
+        self.call_tool("tools-set-enabled-state", {"category": "profiler", "enabled": False})
+        text = self.call_tool("tools-list-category", {"category": "profiler", "includeDisabled": True})["result"]["content"][0]["text"]
 
         self.assertIn("enabled:\n- none", text)
         self.assertIn("disabled:", text)
@@ -266,15 +266,15 @@ class ToolRoleTests(unittest.TestCase):
         categories = {category["name"]: category["tools"] for category in result["categories"]}
 
         self.assertEqual(result["role"]["title"], "QA")
-        self.assertIn("Scene", categories)
-        self.assertIn("GameObject", categories)
-        self.assertIn("Script Execution / Tests", categories)
-        self.assertIn("tests-run", categories["Script Execution / Tests"])
-        self.assertIn("gameobject-find", categories["GameObject"])
+        self.assertIn("scene", categories)
+        self.assertIn("gameobject", categories)
+        self.assertIn("script-execution-tests", categories)
+        self.assertIn("tests-run", categories["script-execution-tests"])
+        self.assertIn("gameobject-find", categories["gameobject"])
 
         text = self.call_tool("tools-get-role", {"roleIndex": 2})["result"]["content"][0]["text"]
         self.assertIn("Role 2: QA", text)
-        self.assertIn("- Script Execution / Tests\n  - script-execute", text)
+        self.assertIn("- script-execution-tests\n  - script-execute", text)
 
     def test_set_role_accepts_role_index(self) -> None:
         result = self.call_json_tool("tools-set-role", {"roleIndex": 2})
@@ -289,7 +289,7 @@ class ToolRoleTests(unittest.TestCase):
         text = self.call_tool("tools-set-role", {"roleIndex": 2})["result"]["content"][0]["text"]
 
         self.assertEqual(text, "success")
-        self.assertNotIn("- Scene\n  - scene-list-available", text)
+        self.assertNotIn("- scene\n  - scene-list-available", text)
         self.assertNotIn("appliedEnabledToolIds", text)
         self.assertNotIn("counts", text)
 
@@ -302,8 +302,8 @@ class ToolRoleTests(unittest.TestCase):
         self.assertNotIn("counts", text)
 
     def test_set_enabled_state_no_change_mentions_reason(self) -> None:
-        self.call_tool("tools-set-enabled-state", {"category": "Profiler", "enabled": False})
-        text = self.call_tool("tools-set-enabled-state", {"category": "Profiler", "enabled": False})["result"]["content"][0]["text"]
+        self.call_tool("tools-set-enabled-state", {"category": "profiler", "enabled": False})
+        text = self.call_tool("tools-set-enabled-state", {"category": "profiler", "enabled": False})["result"]["content"][0]["text"]
 
         self.assertEqual(text, "success: 5 tools already disabled")
 
@@ -313,7 +313,7 @@ class ToolRoleTests(unittest.TestCase):
         self.assertEqual(text, "failure: events-wait required-tool-locked-enabled")
 
     def test_custom_role_asset_loads_and_applies(self) -> None:
-        role_path = self.root / "Assets" / "ChievfxMcp" / "Roles" / "QaTiny.asset"
+        role_path = self.root / "assets" / "ChievfxMcp" / "Roles" / "QaTiny.asset"
         role_path.parent.mkdir(parents=True, exist_ok=True)
         role_path.write_text(
             "\n".join(
@@ -326,7 +326,7 @@ class ToolRoleTests(unittest.TestCase):
                     "  displayName: QA Tiny",
                     "  description: Small custom QA role.",
                     "  enabledCategoryIds:",
-                    "  - Scene",
+                    "  - scene",
                     "  enabledToolIds:",
                     "  - tests-run",
                 ]
@@ -334,12 +334,12 @@ class ToolRoleTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-        result = self.call_json_tool("tools-set-role", {"customAssetPath": "Assets/ChievfxMcp/Roles/QaTiny.asset"})
+        result = self.call_json_tool("tools-set-role", {"customassetPath": "assets/ChievfxMcp/Roles/QaTiny.asset"})
         tools = self.request("tools/list")["result"]["tools"]
         names = {tool["name"] for tool in tools}
 
         self.assertEqual(result["roleState"]["roleId"], "qa-tiny")
-        self.assertEqual(result["roleState"]["customAssetPath"], "Assets/ChievfxMcp/Roles/QaTiny.asset")
+        self.assertEqual(result["roleState"]["customassetPath"], "assets/ChievfxMcp/Roles/QaTiny.asset")
         self.assertIn("scene-open", names)
         self.assertIn("tests-run", names)
         self.assertNotIn("gameobject-find", names)

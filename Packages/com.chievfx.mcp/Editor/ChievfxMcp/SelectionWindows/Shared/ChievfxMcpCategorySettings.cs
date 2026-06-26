@@ -19,10 +19,10 @@ namespace Chievfx.Mcp.Editor
 
         public static readonly string[] DefaultAlwaysSuppliedCategories =
         {
-            "Essentials",
-            "Editor Window",
-            "Script Execution / Tests",
-            "Control",
+            "essentials",
+            "editor-window",
+            "script-execution-tests",
+            "control",
             "ui-runtime-common",
         };
 

@@ -22,8 +22,8 @@ def load_enabled_tool_ids() -> set[str]:
     enabled_ids = payload.get("enabledToolIds")
     if not isinstance(enabled_ids, list):
         # First install: enable every tool except the autonomy/discovery helpers
-        # (the "Autonomous" category), which stay hidden from the tools tab by default.
-        default_enabled = {tool["name"] for tool in tools if _tool_category(tool) != "Autonomous"}
+        # (the "autonomous" category), which stay hidden from the tools tab by default.
+        default_enabled = {tool["name"] for tool in tools if _tool_category(tool) != "autonomous"}
         return (default_enabled | required_tool_ids) & tool_names
 
     selected_tool_ids = {item for item in enabled_ids if isinstance(item, str)}
@@ -37,7 +37,7 @@ def load_tool_role_state() -> dict[str, Any]:
     state = payload.get("roleState")
     if isinstance(state, dict):
         return state
-    # First install defaults to "all tools except Autonomous", which is not a
+    # First install defaults to "all tools except autonomous", which is not a
     # built-in role preset, so report it as a manual selection.
     return {"kind": "manual", "manualOverride": False}
 
@@ -81,7 +81,7 @@ def save_enabled_tool_ids(
                 "callEnvelopeBytes": tool.get("callEnvelopeBytes", 0),
                 "responseEstimateProfile": (tool.get("responseEstimate") or {}).get("profile", ""),
                 "required": bool(tool.get("required")),
-                "category": tool.get("category", "General"),
+                "category": tool.get("category", "general"),
                 "source": tool.get("source", "core"),
                 "sourceExtensionId": tool.get("sourceExtensionId"),
             }
@@ -117,12 +117,12 @@ def build_tool_inventory(category_filter: str | None = None, include_tools: bool
     metadata = build_tool_metadata()
     enabled_ids = load_enabled_tool_ids()
     tools = metadata["tools"]
-    category_lookup = {tool["category"].casefold(): tool["category"] for tool in tools}
+    category_lookup = build_category_lookup(tools)
     selected_category = None
     unknown_category = None
 
     if category_filter:
-        selected_category = category_lookup.get(category_filter.strip().casefold())
+        selected_category = resolve_category_name(category_filter, category_lookup)
         if selected_category is None:
             unknown_category = category_filter
 
@@ -245,19 +245,38 @@ def category_state(optional_count: int, enabled_optional_count: int) -> str:
     return "optional-partial"
 
 
+def build_category_lookup(tools: list[dict[str, Any]]) -> dict[str, str]:
+    lookup: dict[str, str] = {}
+    for tool in tools:
+        category = tool["category"]
+        lookup.setdefault(category.casefold(), category)
+        lookup.setdefault(category_slug(category), category)
+    return lookup
+
+
+def resolve_category_name(category_filter: str, lookup: dict[str, str]) -> str | None:
+    stripped = category_filter.strip()
+    if not stripped:
+        return None
+    resolved = lookup.get(stripped.casefold())
+    if resolved is not None:
+        return resolved
+    return lookup.get(category_slug(stripped))
+
+
 def get_category_sort_key(category: str) -> tuple[int, str]:
     order = {
-        "Essentials": 0,
-        "Autonomous": 1,
-        "Editor Window": 2,
-        "Scene": 3,
-        "GameObject": 4,
-        "Prefab": 5,
-        "Package Manager": 6,
-        "Script Execution / Tests": 7,
-        "Profiler": 8,
-        "Frame Debugger": 9,
-        "OBSOLETE": 999,
+        "essentials": 0,
+        "autonomous": 1,
+        "editor-window": 2,
+        "scene": 3,
+        "gameobject": 4,
+        "prefab": 5,
+        "package-manager": 6,
+        "script-execution-tests": 7,
+        "profiler": 8,
+        "frame-debugger": 9,
+        "obsolete": 999,
     }
     return (order.get(category, 100), category)
 
@@ -386,16 +405,14 @@ def set_tools_enabled_state(arguments: dict[str, Any]) -> dict[str, Any]:
     metadata = build_tool_metadata()
     known_tools = {tool["name"]: tool for tool in metadata["tools"]}
     tool_lookup = {name.casefold(): name for name in known_tools}
-    category_lookup: dict[str, str] = {}
-    for tool in metadata["tools"]:
-        category_lookup.setdefault(tool["category"].casefold(), tool["category"])
+    category_lookup = build_category_lookup(metadata["tools"])
 
     skipped: list[dict[str, Any]] = []
     target_tool_ids: set[str] = set()
     matched_categories: list[str] = []
 
     for category in requested_categories:
-        resolved = category_lookup.get(category.casefold())
+        resolved = resolve_category_name(category, category_lookup)
         if resolved is None:
             skipped.append({"target": category, "kind": "category", "reason": "unknown-category"})
             continue
@@ -411,13 +428,13 @@ def set_tools_enabled_state(arguments: dict[str, Any]) -> dict[str, Any]:
 
     enabled_ids = load_enabled_tool_ids()
     required_ids = set(metadata.get("requiredToolIds", [])) & set(known_tools)
-    # Essentials tools must always stay enabled (lock in UI).
+    # essentials tools must always stay enabled (lock in UI).
     required_ids |= {
         tool["name"]
         for tool in metadata.get("tools", [])
-        if tool.get("category") == "Essentials"
+        if tool.get("category") == "essentials"
     }
-    # Ensure first-party Essentials tool cannot be disabled via UI.
+    # Ensure first-party essentials tool cannot be disabled via UI.
     required_ids.add("editor-playmode-set")
     changed: list[dict[str, Any]] = []
     unchanged: list[dict[str, Any]] = []
@@ -430,7 +447,7 @@ def set_tools_enabled_state(arguments: dict[str, Any]) -> dict[str, Any]:
                 {
                     "target": tool_id,
                     "kind": "tool",
-                    "category": tool.get("category", "General"),
+                    "category": tool.get("category", "general"),
                     "reason": "required-tool-locked-enabled",
                 }
             )
@@ -445,7 +462,7 @@ def set_tools_enabled_state(arguments: dict[str, Any]) -> dict[str, Any]:
         after = tool_id in enabled_ids
         change_row = {
             "tool": tool_id,
-            "category": tool.get("category", "General"),
+            "category": tool.get("category", "general"),
             "required": tool_id in required_ids,
             "before": before,
             "after": after,
@@ -482,7 +499,7 @@ def resolve_tool_role(arguments: dict[str, Any], metadata: dict[str, Any]) -> di
             return roles[role_index - 1]
         raise ValueError(f"Unknown ChievFX MCP role index {role_index}. Available role indexes: 1-{len(roles)}.")
 
-    custom_asset_path = arguments.get("customAssetPath")
+    custom_asset_path = arguments.get("customassetPath")
     role_name = arguments.get("role", arguments.get("roleId"))
     candidates: list[tuple[str, dict[str, Any]]] = []
 
@@ -508,7 +525,7 @@ def resolve_tool_role(arguments: dict[str, Any], metadata: dict[str, Any]) -> di
         available = ", ".join(role["id"] for role in roles)
         raise ValueError(f"Unknown ChievFX MCP role '{role_name}'. Available roles: {available}.")
 
-    raise ValueError("tools-set-role requires 'role', 'roleId', 'roleIndex', or 'customAssetPath'.")
+    raise ValueError("tools-set-role requires 'role', 'roleId', 'roleIndex', or 'customassetPath'.")
 
 
 def enabled_ids_for_role(role: dict[str, Any], metadata: dict[str, Any]) -> set[str]:
@@ -578,7 +595,7 @@ def get_tool_role_details(arguments: dict[str, Any]) -> dict[str, Any]:
         name = tool["name"]
         if name not in enabled_ids:
             continue
-        category = tool.get("category") or TOOL_CATEGORIES.get(name, "General")
+        category = tool.get("category") or TOOL_CATEGORIES.get(name, "general")
         enabled_tools_by_category.setdefault(category, []).append(name)
 
     return {
@@ -692,7 +709,7 @@ def set_tool_role(arguments: dict[str, Any]) -> dict[str, Any]:
         "roleId": role.get("id"),
         "displayName": role.get("displayName"),
         "description": role.get("description", ""),
-        "customAssetPath": role.get("assetPath"),
+        "customassetPath": role.get("assetPath"),
         "manualOverride": False,
         "appliedAtUtc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "appliedEnabledToolIds": sorted(after),

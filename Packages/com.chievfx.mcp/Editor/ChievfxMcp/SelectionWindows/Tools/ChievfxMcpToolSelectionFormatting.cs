@@ -66,20 +66,20 @@ namespace Chievfx.Mcp.Editor
         {
             return category switch
             {
-                "Essentials" => "Core screenshots, bridge health, event stream, and safe MCP basics used by most sessions.",
-                "Editor Window" => "Open, focus, list, and capture Unity Editor windows for UI verification.",
-                "Autonomous" => "Discovery and self-configuration tools that help agents inspect and adjust MCP availability.",
-                "Scene" => "Inspect and change scene state, hierarchy, play mode, and scene assets.",
-                "GameObject" => "Find, inspect, create, and edit GameObjects and components in active scenes.",
-                "Prefab" => "Open, instantiate, create, save, and close prefab editing workflows.",
-                "Package Manager" => "Inspect and change Unity packages. Higher-risk because package operations can reload the project.",
-                "Script Execution / Tests" => "Run tests or trusted C# methods inside Unity. Higher-risk because local code executes.",
-                "Control" => "Queue Play Mode keyboard and mouse Input System events behind dry-run and mutation gates.",
+                "essentials" => "Core screenshots, bridge health, event stream, and safe MCP basics used by most sessions.",
+                "editor-window" => "Open, focus, list, and capture Unity Editor windows for UI verification.",
+                "autonomous" => "Discovery and self-configuration tools that help agents inspect and adjust MCP availability.",
+                "scene" => "Inspect and change scene state, hierarchy, play mode, and scene assets.",
+                "gameobject" => "Find, inspect, create, and edit GameObjects and components in active scenes.",
+                "prefab" => "Open, instantiate, create, save, and close prefab editing workflows.",
+                "package-manager" => "Inspect and change Unity packages. Higher-risk because package operations can reload the project.",
+                "script-execution-tests" => "Run tests or trusted C# methods inside Unity. Higher-risk because local code executes.",
+                "control" => "Queue Play Mode keyboard and mouse Input System events behind dry-run and mutation gates.",
                 "ugui-design" => "Author and inspect editor-time uGUI Canvas, RectTransform, layout, Image, TMP, and sprite setup.",
                 "ui-runtime-common" => "Shared Play Mode runtime UI tools: cross-framework probe, control discovery, and text input.",
                 "ugui-runtime-control" => "Control Play Mode uGUI elements: clicks, drags, selection, and control values.",
                 "cinemachine-and-timeline" => "Author and inspect Cinemachine cameras, Timeline directors, shots, and camera QA workflows.",
-                "Profiler" => "Record and inspect Unity profiler state, counters, and captures.",
+                "profiler" => "Record and inspect Unity profiler state, counters, and captures.",
                 _ => "General ChievFX MCP tools for Unity automation."
             };
         }
@@ -120,10 +120,10 @@ namespace Chievfx.Mcp.Editor
         {
             switch (category)
             {
-                case "Package Manager":
+                case "package-manager":
                     notice = "High risk: installs/removes Unity packages and can trigger package or domain reload changes.";
                     return true;
-                case "Script Execution / Tests":
+                case "script-execution-tests":
                     notice = "High risk: executes local C# code and can run long tests. Enable only for trusted tasks.";
                     return true;
                 default:
@@ -136,21 +136,21 @@ namespace Chievfx.Mcp.Editor
         {
             return category switch
             {
-                "Essentials" => 0,
-                "Editor Window" => 10,
-                "Autonomous" => 15,
-                "Scene" => 20,
-                "GameObject" => 30,
-                "Prefab" => 40,
-                "Package Manager" => 50,
-                "Script Execution / Tests" => 60,
-                "Profiler" => 70,
-                "Frame Debugger" => 80,
+                "essentials" => 0,
+                "editor-window" => 10,
+                "autonomous" => 15,
+                "scene" => 20,
+                "gameobject" => 30,
+                "prefab" => 40,
+                "package-manager" => 50,
+                "script-execution-tests" => 60,
+                "profiler" => 70,
+                "frame-debugger" => 80,
                 "cinemachine-and-timeline" => 85,
                 "ugui-design" => 90,
                 "ui-runtime-common" => 90,
                 "ugui-runtime-control" => 91,
-                "OBSOLETE" => 999,
+                "obsolete" => 999,
                 _ => 100
             };
         }

@@ -32,7 +32,7 @@ namespace Chievfx.Mcp.Editor
 
         public string Description { get; set; } = string.Empty;
 
-        public string Category { get; set; } = "General";
+        public string Category { get; set; } = "general";
 
         public string DescriptorHash { get; set; } = string.Empty;
 

@@ -93,7 +93,7 @@ namespace Chievfx.Mcp.Editor
     {
         private const string ExtensionId = "chievfx.runtime-ui";
         private const string CommonCategory = "ui-runtime-common";
-        private const string EssentialsCategory = "Essentials";
+        private const string EssentialsCategory = "essentials";
         private const string UriPrefix = "chievfx://extensions/chievfx.runtime-ui/";
         private const string StatusUri = UriPrefix + "status";
         private const string ProbeToolName = "ui-runtime-probe";

@@ -129,7 +129,7 @@ class CategoryResourceTests(unittest.TestCase):
     def test_always_supplied_category_not_collapsed(self) -> None:
         self.write_tool_selection(FRAME_DEBUGGER_TOOLS)
         self.write_resource_selection(["editor-context"], [])
-        self.write_category_settings(False, ["Frame Debugger"])
+        self.write_category_settings(False, ["frame-debugger"])
 
         instructions = mcp.build_initialize_instructions()
 

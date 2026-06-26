@@ -1,6 +1,10 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+from __future__ import annotations
+
+from typing import Any
+
 def core_descriptor_instructions_header() -> str:
     return f"Core descriptors (if list cut, read {CORE_DESCRIPTOR_INSTRUCTIONS_URI}):"
 

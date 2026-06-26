@@ -187,6 +187,8 @@ def format_ui_runtime_click_text(result: dict[str, Any]) -> str:
     if result.get("anyClicked") is True:
         header_parts.append("clicked:true")
     elif result.get("anyResolved") is True:
+        # A target was hit but no handler responded: make the "nothing happened" case explicit.
+        header_parts.append("clicked:false")
         header_parts.append("resolved:true")
     lines = ["click " + " ".join(header_parts)]
 
@@ -265,13 +267,48 @@ def format_ui_runtime_click_framework_row(section: dict[str, Any]) -> str:
 
     if section.get("clicked") is True:
         parts.append("clicked")
+        handler_ref = format_ui_runtime_click_handler_ref(section, framework)
+        if handler_ref:
+            parts.append("handler:" + handler_ref)
     else:
-        parts.append("resolved")
+        # Hit a raycast target, but no recognized handler responded — nothing was triggered.
+        parts.append("no-handler")
 
     events = section.get("events")
     if isinstance(events, list) and events:
         parts.append("events:" + ",".join(str(event) for event in events if event))
 
+    return " ".join(parts)
+
+
+def format_ui_runtime_click_handler_ref(section: dict[str, Any], framework: Any) -> str:
+    """Compact path/id|ref of the element that actually caught the click.
+
+    Returns "" when the responder is the same as the raycast target (already shown) or
+    when no responder was reported.
+    """
+    handler_object = section.get("handlerObject")
+    if not isinstance(handler_object, dict):
+        return ""
+
+    handler_path = handler_object.get("path")
+    if should_omit_toon_value(handler_path):
+        return ""
+
+    target = section.get("target")
+    target_path = target.get("path") if isinstance(target, dict) else None
+    if handler_path == target_path:
+        return ""
+
+    parts = [format_toon_atom(handler_path)]
+    if framework == "uitoolkit":
+        ref = handler_object.get("visualElementRef")
+        if not should_omit_toon_value(ref):
+            parts.append(format_toon_atom(ref))
+    else:
+        instance_id = handler_object.get("instanceId")
+        if not should_omit_toon_value(instance_id):
+            parts.append(f"id:{format_toon_atom(instance_id)}")
     return " ".join(parts)
 
 

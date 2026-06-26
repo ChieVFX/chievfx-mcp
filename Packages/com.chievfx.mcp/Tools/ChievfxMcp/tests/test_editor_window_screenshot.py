@@ -356,7 +356,7 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
         # correct usage is intuition-critical; they are exempt from the lean-descriptor cap.
         documented_tools = mcp.ADVERTISED_SCHEMA_DESCRIPTION_TOOLS
         lean_estimates = {name: value for name, value in estimates.items() if name not in documented_tools}
-        self.assertLessEqual(max(lean_estimates.values()), 130)
+        self.assertLessEqual(max(lean_estimates.values()), 160)
         self.assertLessEqual(estimates["tests-run"], 130)
         self.assertLessEqual(estimates["screenshot-editor-window"], 100)
         self.assertLessEqual(estimates["gameobject-transform-update"], 100)

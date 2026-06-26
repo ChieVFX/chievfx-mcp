@@ -58,6 +58,29 @@ class RuntimeUiProbeFormattingTests(unittest.TestCase):
             ],
         )
 
+        # Fallback path: manifest snapshot may arrive alphabetically sorted from Unity.
+        manifest_tool = {
+            "name": "ui-runtime-type-text",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "append": {"type": "boolean"},
+                    "framework": {"enum": ["auto", "ugui", "uitoolkit"], "type": "string"},
+                    "instanceId": {"type": "integer"},
+                    "isNormalized": {"type": "boolean"},
+                    "path": {"type": "string"},
+                    "submit": {"type": "boolean"},
+                    "text": {"type": "string"},
+                    "x": {"type": "number"},
+                    "y": {"type": "number"},
+                },
+                "required": ["text"],
+                "additionalProperties": True,
+            },
+        }
+        fallback_schema = mcp.advertised_input_schema(manifest_tool)
+        self.assertEqual(list(fallback_schema["properties"].keys()), list(schema["properties"].keys()))
+
     def test_initialize_instructions_advertises_typed_click_arguments(self) -> None:
         schema = mcp.advertised_input_schema({"name": "ui-runtime-click", "inputSchema": {}})
         self.assertEqual(
@@ -122,29 +145,6 @@ class RuntimeUiProbeFormattingTests(unittest.TestCase):
                 "instanceId",
             ],
         )
-
-        # Fallback path: manifest snapshot may arrive alphabetically sorted from Unity.
-        manifest_tool = {
-            "name": "ui-runtime-type-text",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "append": {"type": "boolean"},
-                    "framework": {"enum": ["auto", "ugui", "uitoolkit"], "type": "string"},
-                    "instanceId": {"type": "integer"},
-                    "isNormalized": {"type": "boolean"},
-                    "path": {"type": "string"},
-                    "submit": {"type": "boolean"},
-                    "text": {"type": "string"},
-                    "x": {"type": "number"},
-                    "y": {"type": "number"},
-                },
-                "required": ["text"],
-                "additionalProperties": True,
-            },
-        }
-        fallback_schema = mcp.advertised_input_schema(manifest_tool)
-        self.assertEqual(list(fallback_schema["properties"].keys()), list(schema["properties"].keys()))
 
     def test_merged_probe_renders_markdown_sections(self) -> None:
         result = {

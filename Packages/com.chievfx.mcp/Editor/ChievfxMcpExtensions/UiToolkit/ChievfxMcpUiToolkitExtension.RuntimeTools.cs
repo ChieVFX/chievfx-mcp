@@ -105,6 +105,9 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 ? null
                 : new Dictionary<string, object?> { ["handler"] = handler, ["events"] = PlannedEvents(action) };
 
+            var handlerInvoked = false;
+            object? handlerElement = null;
+
             if (resolution.Target == null)
             {
                 if (!ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args))
@@ -119,8 +122,18 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             else
             {
                 result["dispatchedEvents"] = ApplyRuntimeInteraction(action, resolution.Target, resolution.PanelPosition, args, warnings);
+                handlerElement = FindRecognizedClickHandlerElement(resolution.Target);
+                handlerInvoked = handlerElement != null;
+                if (!handlerInvoked)
+                {
+                    warnings.Add($"Click dispatched to '{GetVisualElementPath(resolution.Target)}' but no recognized clickable control (Button/Toggle/Slider/Field or Clickable manipulator) was found on it or its ancestors; if it relies only on a custom registered callback the click may still have been handled, otherwise nothing was triggered.");
+                }
             }
 
+            result["handlerInvoked"] = handlerInvoked;
+            result["handlerObject"] = handlerElement == null
+                ? null
+                : CreateVisualElementRow(handlerElement, status, PanelGroup.FromElement(handlerElement), includeTextAndValue: true);
             result["focusedElementAfter"] = CreateFocusedElementRow(status);
             result["targetStateAfter"] = resolution.Target == null ? null : CreateVisualElementStateRow(resolution.Target, status);
             result["warnings"] = warnings.Distinct().ToArray();
@@ -128,6 +141,43 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             result["resolved"] = resolved;
             result["framework"] = "uitoolkit";
             return result;
+        }
+
+        // Best-effort detection of whether a UI Toolkit click landed on something that actually
+        // responds. SendEvent gives no handled/return signal, so we walk the ancestor chain for a
+        // Clickable manipulator (Button and custom clickables expose a non-null `clickable`) or a
+        // recognized interactive control type. Custom elements using only RegisterCallback are not
+        // detectable; callers are warned accordingly.
+        internal static object? FindRecognizedClickHandlerElement(object? target)
+        {
+            for (var current = target as VisualElement; current != null; current = current.parent)
+            {
+                if (!ReadBoolMember(current, "enabledInHierarchy", true))
+                {
+                    continue;
+                }
+
+                var clickable = current.GetType()
+                    .GetProperty("clickable", BindingFlags.Public | BindingFlags.Instance)
+                    ?.GetValue(current);
+                if (clickable != null)
+                {
+                    return current;
+                }
+
+                var typeName = current.GetType().Name;
+                if (typeName.IndexOf("Button", StringComparison.OrdinalIgnoreCase) >= 0
+                    || typeName.IndexOf("Toggle", StringComparison.OrdinalIgnoreCase) >= 0
+                    || typeName.IndexOf("Slider", StringComparison.OrdinalIgnoreCase) >= 0
+                    || typeName.IndexOf("Scroller", StringComparison.OrdinalIgnoreCase) >= 0
+                    || typeName.IndexOf("Dropdown", StringComparison.OrdinalIgnoreCase) >= 0
+                    || typeName.IndexOf("Field", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return current;
+                }
+            }
+
+            return null;
         }
 
         internal static Dictionary<string, object?> RuntimeDragAtPosition(JToken args, UiToolkitDependencyStatus status)

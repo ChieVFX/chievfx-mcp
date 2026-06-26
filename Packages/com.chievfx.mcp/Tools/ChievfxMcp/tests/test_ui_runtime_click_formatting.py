@@ -112,6 +112,85 @@ class UiRuntimeClickFormattingTests(unittest.TestCase):
         self.assertIn("events:PointerDownEvent,PointerUpEvent,ClickEvent", text)
         self.assertIn("! Coordinate is outside current screen/game-view bounds.", text)
 
+    def test_resolved_without_handler_reports_clicked_false(self) -> None:
+        result = {
+            "playMode": True,
+            "anyResolved": True,
+            "anyClicked": False,
+            "frameworks": [
+                {
+                    "framework": "ugui",
+                    "available": True,
+                    "resolved": True,
+                    "clicked": False,
+                    "target": {
+                        "path": "Canvas/PopupBackground",
+                        "instanceId": 4242,
+                    },
+                },
+            ],
+            "warnings": [
+                "Click dispatched at 'Canvas/PopupBackground' but no recognized uGUI handler responded; "
+                "the target is a raycast catcher (background, panel, label) with no click/submit handler, "
+                "so nothing was triggered.",
+            ],
+        }
+
+        text = mcp.format_ui_runtime_click_text(result)
+
+        self.assertIn("click playMode:true clicked:false resolved:true", text)
+        self.assertIn("- ugui path:Canvas/PopupBackground id:4242 no-handler", text)
+        self.assertIn("! Click dispatched at 'Canvas/PopupBackground'", text)
+
+    def test_clicked_surfaces_ancestor_handler_when_it_differs_from_target(self) -> None:
+        result = {
+            "playMode": True,
+            "anyResolved": True,
+            "anyClicked": True,
+            "frameworks": [
+                {
+                    "framework": "ugui",
+                    "available": True,
+                    "resolved": True,
+                    "clicked": True,
+                    "target": {
+                        "path": "Canvas/Btn/Label",
+                        "instanceId": 11,
+                    },
+                    "handlerObject": {
+                        "path": "Canvas/Btn",
+                        "instanceId": 10,
+                    },
+                },
+            ],
+        }
+
+        text = mcp.format_ui_runtime_click_text(result)
+
+        self.assertIn("- ugui path:Canvas/Btn/Label id:11 clicked handler:Canvas/Btn id:10", text)
+
+    def test_clicked_omits_handler_ref_when_same_as_target(self) -> None:
+        result = {
+            "playMode": True,
+            "anyResolved": True,
+            "anyClicked": True,
+            "frameworks": [
+                {
+                    "framework": "ugui",
+                    "available": True,
+                    "resolved": True,
+                    "clicked": True,
+                    "target": {"path": "Canvas/Btn", "instanceId": 10},
+                    "handlerObject": {"path": "Canvas/Btn", "instanceId": 10},
+                },
+            ],
+        }
+
+        text = mcp.format_ui_runtime_click_text(result)
+
+        self.assertIn("- ugui path:Canvas/Btn id:10 clicked", text)
+        self.assertNotIn("handler:", text)
+
     def test_format_tool_result_text_routes_ui_runtime_click(self) -> None:
         result = {
             "playMode": False,

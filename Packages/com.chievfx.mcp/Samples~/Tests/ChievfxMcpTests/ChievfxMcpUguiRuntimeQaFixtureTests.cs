@@ -270,6 +270,37 @@ namespace Chievfx.Mcp.Editor.Tests
                 ChievfxMcpUguiRuntimeQaFixture.TopButtonPath,
                 (string)Row(UguiClickSection(click), "target")["path"]!);
             Assert.AreEqual(true, UguiClickSection(click)["clicked"]);
+            Assert.AreEqual(true, UguiClickSection(click)["handlerInvoked"]);
+            StringAssert.EndsWith(
+                ChievfxMcpUguiRuntimeQaFixture.TopButtonPath,
+                (string)Row(UguiClickSection(click), "handlerObject")["path"]!);
+        }
+
+        [UnityTest]
+        public System.Collections.IEnumerator RuntimeClickReportsNoHandlerForNonInteractiveTarget()
+        {
+            RequireUgui();
+            OpenFixtureScene();
+            DisableEventSystemInputModules();
+
+            yield return new EnterPlayMode();
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            // TopHitPanel is a plain Image with no Button/handler — a non-interactive raycast-catcher
+            // analog (like a popup background). Targeting it explicitly must report a resolved target
+            // but clicked:false, because no handler responded.
+            var panelPath = ChievfxMcpUguiRuntimeQaFixture.TopCanvasName + "/TopHitPanel";
+            var click = RunUiRuntimeClick("{'framework':'ugui','path':'" + panelPath + "'}");
+            var section = UguiClickSection(click);
+
+            Assert.AreEqual(true, section["resolved"], "explicit non-interactive target should still resolve");
+            Assert.AreEqual(false, section["clicked"], "no handler means clicked:false");
+            Assert.AreEqual(false, section["handlerInvoked"]);
+            Assert.IsNull(section["handlerObject"]);
+            Assert.AreEqual(true, click["anyResolved"]);
+            Assert.AreEqual(false, click["anyClicked"]);
         }
 
         private static Dictionary<string, object?>[] CollectControlFindRows(string framework)

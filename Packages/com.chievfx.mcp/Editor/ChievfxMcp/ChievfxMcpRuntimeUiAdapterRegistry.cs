@@ -598,6 +598,14 @@ namespace Chievfx.Mcp.Editor
                 && resolvedValue;
         }
 
+        private static bool ReadHandlerInvokedFlag(object? result)
+        {
+            return TryReadDictionary(result, out var row)
+                && row.TryGetValue("handlerInvoked", out var invoked)
+                && invoked is bool invokedValue
+                && invokedValue;
+        }
+
         internal static string ReadRuntimeClickHandler(JToken args)
         {
             var raw = ReadString(args, "handler") ?? ReadString(args, "sequence") ?? "pointerClick";
@@ -932,10 +940,17 @@ namespace Chievfx.Mcp.Editor
                 }
 
                 var resolved = ReadResolvedFlag(clickDetail);
-                var clicked = resolved;
+                // clicked now means "a recognized handler actually responded" (handlerInvoked),
+                // not merely "a raycast target was resolved". A resolved-but-not-clicked result
+                // means the click landed on a non-interactive element with no click handler.
+                var clicked = ReadHandlerInvokedFlag(clickDetail);
                 if (resolved)
                 {
                     anyResolved = true;
+                }
+
+                if (clicked)
+                {
                     anyClicked = true;
                 }
 
@@ -1008,6 +1023,13 @@ namespace Chievfx.Mcp.Editor
             if (detail.TryGetValue("intendedHandler", out var handler))
             {
                 section["handler"] = handler;
+            }
+
+            // The element that actually caught the click (may be an ancestor of the raycast target,
+            // e.g. clicking a label inside a Button reports the Button). Null when nothing responded.
+            if (detail.TryGetValue("handlerObject", out var handlerObject))
+            {
+                section["handlerObject"] = handlerObject;
             }
 
             if (detail.TryGetValue("dispatchedEvents", out var events))

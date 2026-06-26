@@ -119,6 +119,9 @@ namespace Chievfx.Mcp.Extensions.Ugui
             result["targetStateBefore"] = target == null ? null : CreateControlStateRow(target, status);
             result["intendedHandler"] = target == null ? null : CreateClickHandlerRow(target, handler);
 
+            var handlerInvoked = false;
+            GameObject? handlerObject = null;
+
             if (target == null)
             {
                 if (!ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args))
@@ -138,21 +141,39 @@ namespace Chievfx.Mcp.Extensions.Ugui
             {
                 if (handler == "submit")
                 {
-                    var submitTarget = ExecuteEvents.GetEventHandler<ISubmitHandler>(target) ?? target;
+                    var submitHandlerObject = ExecuteEvents.GetEventHandler<ISubmitHandler>(target);
+                    var submitTarget = submitHandlerObject ?? target;
                     eventSystem.SetSelectedGameObject(submitTarget, new BaseEventData(eventSystem));
-                    ExecuteEvents.Execute(submitTarget, new BaseEventData(eventSystem), ExecuteEvents.submitHandler);
+                    var submitHandled = ExecuteEvents.Execute(submitTarget, new BaseEventData(eventSystem), ExecuteEvents.submitHandler);
+                    handlerInvoked = submitHandled && submitHandlerObject != null;
+                    handlerObject = handlerInvoked ? submitTarget : null;
                 }
                 else
                 {
-                    var clickTarget = ExecuteEvents.GetEventHandler<IPointerClickHandler>(target) ?? target;
+                    // GetEventHandler<IPointerClickHandler> walks up to the first GameObject that can
+                    // actually handle a click; when null the target is a raycast catcher with no click
+                    // handler. We still dispatch enter/down/up so controls that only respond to those
+                    // (Slider, Scrollbar) register, and treat "handler invoked" as any of the action
+                    // events being handled — not merely that a raycast target was resolved.
+                    var clickHandlerObject = ExecuteEvents.GetEventHandler<IPointerClickHandler>(target);
+                    var clickTarget = clickHandlerObject ?? target;
                     var pointer = CreatePointerEventData(eventSystem, position.ScreenPosition);
                     ExecuteEvents.Execute(clickTarget, pointer, ExecuteEvents.pointerEnterHandler);
-                    ExecuteEvents.Execute(clickTarget, pointer, ExecuteEvents.pointerDownHandler);
-                    ExecuteEvents.Execute(clickTarget, pointer, ExecuteEvents.pointerUpHandler);
-                    ExecuteEvents.Execute(clickTarget, pointer, ExecuteEvents.pointerClickHandler);
+                    var downHandled = ExecuteEvents.Execute(clickTarget, pointer, ExecuteEvents.pointerDownHandler);
+                    var upHandled = ExecuteEvents.Execute(clickTarget, pointer, ExecuteEvents.pointerUpHandler);
+                    var clickHandled = ExecuteEvents.Execute(clickTarget, pointer, ExecuteEvents.pointerClickHandler);
+                    handlerInvoked = downHandled || upHandled || clickHandled;
+                    handlerObject = handlerInvoked ? clickTarget : null;
+                }
+
+                if (!handlerInvoked)
+                {
+                    warnings.Add($"Click dispatched at '{GetTransformPath(target.transform)}' but no recognized uGUI handler responded; the target is a raycast catcher (background, panel, label) with no click/submit handler, so nothing was triggered.");
                 }
             }
 
+            result["handlerInvoked"] = handlerInvoked;
+            result["handlerObject"] = handlerObject == null ? null : CreateRuntimeElementRow(handlerObject, status);
             result["selectedObjectAfter"] = CreateSelectedObjectRow(status);
             result["targetStateAfter"] = target == null ? null : CreateControlStateRow(target, status);
             result["warnings"] = warnings.ToArray();

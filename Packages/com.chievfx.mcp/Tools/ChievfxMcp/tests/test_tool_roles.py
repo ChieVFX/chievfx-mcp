@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import sys
 import tempfile
@@ -220,11 +222,14 @@ class ToolRoleTests(unittest.TestCase):
     def test_disabled_tool_call_returns_clear_error(self) -> None:
         self.call_tool("tools-set-role", {"role": "qa"})
 
-        response = self.call_tool("prefab-open", {})
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            response = self.call_tool("prefab-open", {})
 
         self.assertIn("error", response)
         self.assertIn("disabled", response["error"]["message"])
         self.assertIn("MCP Tools", response["error"]["message"])
+        self.assertNotIn("Traceback", stderr.getvalue())
 
     def test_manual_tool_edit_marks_role_modified(self) -> None:
         self.call_tool("tools-set-role", {"role": "qa"})

@@ -124,7 +124,9 @@ class McpServerCore:
             return self.error_response(request_id, -32003, str(exc))
         except PromptArgumentError as exc:
             return self.error_response(request_id, -32602, str(exc))
-        except Exception as exc:  # noqa: BLE001 - JSON-RPC should return tool errors.
+        except ValueError as exc:
+            return self.error_response(request_id, -32000, str(exc))
+        except Exception as exc:  # noqa: BLE001 - unexpected server failures only.
             print(traceback.format_exc(), file=sys.stderr)
             return self.error_response(request_id, -32000, str(exc))
 
@@ -221,15 +223,15 @@ class McpServerCore:
         name = params.get("name")
         arguments = params.get("arguments") or {}
         if not isinstance(name, str):
-            raise ValueError("tools/call requires string param 'name'.")
+            raise ToolCallError("tools/call requires string param 'name'.")
 
         core_tool_ids = {tool["name"] for tool in TOOLS}
         known_tool_ids = {tool["name"] for tool in all_tools()}
         if name not in known_tool_ids:
-            raise ValueError(f"Unknown ChievFX MCP tool '{name}'.")
+            raise ToolCallError(f"Unknown ChievFX MCP tool '{name}'.")
 
         if name not in load_enabled_tool_ids():
-            raise ValueError(
+            raise ToolCallError(
                 f"ChievFX MCP tool '{name}' is disabled. Enable it in Window > ChievFX > MCP Tools, "
                 "then reload MCP tools or restart Cursor."
             )
@@ -610,17 +612,17 @@ class McpServerCore:
         items = arguments.get("items")
         stop_on_error = bool(arguments.get("stopOnError", False))
         if not isinstance(tool_name, str) or not tool_name:
-            raise ValueError("tool-batch requires string 'tool'.")
+            raise ToolCallError("tool-batch requires string 'tool'.")
         if tool_name == "tool-batch":
-            raise ValueError("tool-batch cannot batch itself.")
+            raise ToolCallError("tool-batch cannot batch itself.")
         if not isinstance(items, list) or not items:
-            raise ValueError("tool-batch requires non-empty array 'items'.")
+            raise ToolCallError("tool-batch requires non-empty array 'items'.")
 
         known_tool_ids = {tool["name"] for tool in all_tools()}
         if tool_name not in known_tool_ids:
-            raise ValueError(f"Unknown ChievFX MCP tool '{tool_name}'.")
+            raise ToolCallError(f"Unknown ChievFX MCP tool '{tool_name}'.")
         if tool_name not in load_enabled_tool_ids():
-            raise ValueError(f"ChievFX MCP tool '{tool_name}' is disabled.")
+            raise ToolCallError(f"ChievFX MCP tool '{tool_name}' is disabled.")
 
         failures: list[dict[str, Any]] = []
         success_count = 0

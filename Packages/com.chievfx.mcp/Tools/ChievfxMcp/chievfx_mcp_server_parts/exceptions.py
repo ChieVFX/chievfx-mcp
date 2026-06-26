@@ -11,3 +11,7 @@ class PromptNotFoundError(ValueError):
 
 class PromptArgumentError(ValueError):
     """Raised when prompt/get arguments are malformed or incomplete."""
+
+
+class ToolCallError(ValueError):
+    """Raised when tools/call arguments are invalid or the target tool is unavailable."""

@@ -432,6 +432,10 @@ namespace Chievfx.Mcp.Editor
             return success ? Assembly.Load(stream.ToArray()) : null;
         }
 
+        private static readonly object roslynLoadLock = new();
+        private static Dictionary<string, string>? shippedRoslynAssemblyPaths;
+        private static bool shippedRoslynResolverInstalled;
+
         private Assembly LoadRequiredAssembly(string assemblyName)
         {
             var assembly = AppDomain.CurrentDomain.GetAssemblies()
@@ -445,11 +449,180 @@ namespace Chievfx.Mcp.Editor
             {
                 return Assembly.Load(assemblyName);
             }
-            catch (Exception ex)
+            catch (Exception loadByNameException)
             {
+                // Some editors (e.g. Unity 2022.3) bundle their own
+                // Microsoft.CodeAnalysis / System.Collections.Immutable copies
+                // under MonoBleedingEdge. Because the assembly *names* collide,
+                // Unity silently drops the package's precompiledReferences, so
+                // our DLLs never enter the editor AppDomain and load-by-name
+                // fails. Fall back to the exact copies we ship in the package.
+                var shipped = TryLoadShippedRoslynAssembly(assemblyName);
+                if (shipped != null)
+                {
+                    return shipped;
+                }
+
                 throw new NotSupportedException(
                     $"Roslyn assembly '{assemblyName}' is unavailable in this Unity editor. script-execute requires Microsoft.CodeAnalysis assemblies.",
-                    ex);
+                    loadByNameException);
+            }
+        }
+
+        private Assembly? TryLoadShippedRoslynAssembly(string assemblyName)
+        {
+            var pathsByName = GetShippedRoslynAssemblyPaths();
+            if (pathsByName.Count == 0)
+            {
+                return null;
+            }
+
+            EnsureShippedRoslynResolverInstalled();
+
+            // Pre-load the whole shipped set so Roslyn's transitive references
+            // (System.Collections.Immutable, System.Reflection.Metadata, ...)
+            // bind to our internally-consistent versions instead of the
+            // editor's bundled, possibly mismatched, copies. The first loaded
+            // copy of a given version wins, so loading ours up front matters.
+            foreach (var path in pathsByName.Values)
+            {
+                TryLoadAssemblyFrom(path);
+            }
+
+            return AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(candidate => string.Equals(candidate.GetName().Name, assemblyName, StringComparison.Ordinal));
+        }
+
+        private static void EnsureShippedRoslynResolverInstalled()
+        {
+            lock (roslynLoadLock)
+            {
+                if (shippedRoslynResolverInstalled)
+                {
+                    return;
+                }
+
+                AppDomain.CurrentDomain.AssemblyResolve += ResolveShippedRoslynAssembly;
+                shippedRoslynResolverInstalled = true;
+            }
+        }
+
+        private static Assembly? ResolveShippedRoslynAssembly(object? sender, ResolveEventArgs args)
+        {
+            var pathsByName = shippedRoslynAssemblyPaths;
+            if (pathsByName == null)
+            {
+                return null;
+            }
+
+            string simpleName;
+            try
+            {
+                simpleName = new AssemblyName(args.Name).Name;
+            }
+            catch
+            {
+                return null;
+            }
+
+            var loaded = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(candidate => string.Equals(candidate.GetName().Name, simpleName, StringComparison.Ordinal));
+            if (loaded != null)
+            {
+                return loaded;
+            }
+
+            return pathsByName.TryGetValue(simpleName, out var path) ? TryLoadAssemblyFrom(path) : null;
+        }
+
+        private static Assembly? TryLoadAssemblyFrom(string path)
+        {
+            try
+            {
+                return Assembly.LoadFrom(path);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static Dictionary<string, string> GetShippedRoslynAssemblyPaths()
+        {
+            lock (roslynLoadLock)
+            {
+                if (shippedRoslynAssemblyPaths != null)
+                {
+                    return shippedRoslynAssemblyPaths;
+                }
+
+                var map = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var directory in EnumerateShippedRoslynDirectories())
+                {
+                    if (!Directory.Exists(directory))
+                    {
+                        continue;
+                    }
+
+                    string[] dlls;
+                    try
+                    {
+                        dlls = Directory.GetFiles(directory, "*.dll", SearchOption.AllDirectories);
+                    }
+                    catch
+                    {
+                        continue;
+                    }
+
+                    foreach (var dll in dlls)
+                    {
+                        var name = Path.GetFileNameWithoutExtension(dll);
+                        if (!string.IsNullOrEmpty(name) && !map.ContainsKey(name))
+                        {
+                            map[name] = dll;
+                        }
+                    }
+                }
+
+                shippedRoslynAssemblyPaths = map;
+                return map;
+            }
+        }
+
+        private static IEnumerable<string> EnumerateShippedRoslynDirectories()
+        {
+            // Runs on a background worker thread, so resolve the package on disk
+            // without the main-thread-only AssetDatabase / PackageManager APIs.
+            // The current directory is the Unity project root.
+            var relative = Path.Combine("Editor", "ThirdParty", "Roslyn");
+            var projectRoot = Directory.GetCurrentDirectory();
+            var searchRoots = new[]
+            {
+                Path.Combine(projectRoot, "Packages"),
+                Path.Combine(projectRoot, "Library", "PackageCache"),
+            };
+
+            foreach (var searchRoot in searchRoots)
+            {
+                if (!Directory.Exists(searchRoot))
+                {
+                    continue;
+                }
+
+                string[] packageDirectories;
+                try
+                {
+                    packageDirectories = Directory.GetDirectories(searchRoot, "com.chievfx.mcp*", SearchOption.TopDirectoryOnly);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                foreach (var packageDirectory in packageDirectories)
+                {
+                    yield return Path.Combine(packageDirectory, relative);
+                }
             }
         }
 

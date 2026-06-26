@@ -126,3 +126,5 @@ packages/com.singularity*
 .cursor/rules/caveman*
 .cursor/skills/caveman*
 .generated/
+.vkb/
+.vscode/

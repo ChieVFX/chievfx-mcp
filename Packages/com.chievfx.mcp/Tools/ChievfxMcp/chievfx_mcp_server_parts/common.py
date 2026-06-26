@@ -11,6 +11,7 @@ ChievFX Unity bridge that runs inside the editor.
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import math

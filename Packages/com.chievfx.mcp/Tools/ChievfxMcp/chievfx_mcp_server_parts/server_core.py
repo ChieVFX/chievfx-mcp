@@ -384,6 +384,15 @@ class McpServerCore:
             bridge_arguments = dict(arguments)
             bridge_arguments["outputFormat"] = "json"
 
+        # savePath is handled server-side (we already hold the resulting PNG bytes);
+        # strip it so the Unity bridge never receives an argument it does not use.
+        raw_save_path = arguments.get("savePath")
+        save_path = raw_save_path.strip() if isinstance(raw_save_path, str) else None
+        if save_path:
+            if bridge_arguments is arguments:
+                bridge_arguments = dict(arguments)
+            bridge_arguments.pop("savePath", None)
+
         bridge_result = self.call_unity_bridge(name, bridge_arguments, request_id, progress_token, notify)
         if bridge_result.get("contentType") == "image":
             content: list[dict[str, Any]] = [
@@ -394,6 +403,9 @@ class McpServerCore:
                 }
             ]
             metadata = bridge_result.get("metadata")
+            if save_path:
+                save_info = self.save_image_to_path(bridge_result["base64"], save_path)
+                metadata = {**metadata, **save_info} if metadata is not None else save_info
             if metadata is not None:
                 content.append(
                     {
@@ -703,6 +715,24 @@ class McpServerCore:
                 }
             ]
         }
+
+    @staticmethod
+    def save_image_to_path(base64_data: str, save_path: str) -> dict[str, Any]:
+        """Write a base64-encoded image to disk for the optional savePath argument.
+
+        Absolute paths (e.g. ``C:/Shots/view.png``) are used verbatim; relative paths
+        (e.g. ``./Temp/view.png``) resolve against the Unity project folder. Returns a
+        metadata fragment carrying either ``savedPath`` or ``savePathError``.
+        """
+        try:
+            requested = Path(save_path).expanduser()
+            target = requested if requested.is_absolute() else (PROJECT_ROOT / requested)
+            target = target.resolve()
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(base64.b64decode(base64_data))
+            return {"savedPath": str(target)}
+        except Exception as exc:  # noqa: BLE001 - surface any failure to the caller as metadata
+            return {"savePathError": f"Failed to save screenshot to '{save_path}': {exc}"}
 
     @staticmethod
     def text_tool_result(result: Any, arguments: dict[str, Any]) -> dict[str, Any]:

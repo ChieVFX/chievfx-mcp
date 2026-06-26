@@ -73,6 +73,10 @@
       "timeoutMs": {
         "type": "integer",
         "minimum": 1000
+      },
+      "savePath": {
+        "type": "string",
+        "description": "Optional path to also write the resulting PNG to disk. Accepts an absolute path (e.g. C:/Shots/window.png) or a path relative to the Unity project folder (e.g. ./Temp/window.png). Parent folders are created as needed."
       }
     }
   }

@@ -29,6 +29,10 @@
       },
       "height": {
         "type": "integer"
+      },
+      "savePath": {
+        "type": "string",
+        "description": "Optional path to also write the resulting PNG to disk. Accepts an absolute path (e.g. C:/Shots/cam.png) or a path relative to the Unity project folder (e.g. ./Temp/cam.png). Parent folders are created as needed."
       }
     }
   }

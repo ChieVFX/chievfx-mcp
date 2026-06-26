@@ -1,3 +1,4 @@
+import base64
 import json
 import sys
 import tempfile
@@ -24,6 +25,94 @@ class ExtensionToolBridgeServer(mcp.McpServer):
     ) -> dict[str, object]:
         self.calls.append((name, arguments))
         return {"ok": True, "contentType": "json", "result": {"tool": name, "arguments": arguments}}
+
+
+class ImageScreenshotBridgeServer(mcp.McpServer):
+    def __init__(self, bridge_dir: Path, base64_data: str = "aGVsbG8td29ybGQ=") -> None:
+        super().__init__("http://127.0.0.1:1", str(bridge_dir), timeout_ms=1000)
+        self.base64_data = base64_data
+        self.calls: list[tuple[str, dict[str, object]]] = []
+
+    def call_unity_bridge(
+        self,
+        name: str,
+        arguments: dict[str, object],
+        request_id: object = None,
+        progress_token: object = None,
+        notify: object = None,
+    ) -> dict[str, object]:
+        self.calls.append((name, dict(arguments)))
+        return {"ok": True, "contentType": "image", "base64": self.base64_data, "mimeType": "image/png"}
+
+
+class ScreenshotSavePathTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.original_tool_selection_path = mcp.TOOL_SELECTION_PATH
+        mcp.TOOL_SELECTION_PATH = Path(self.temp_dir.name) / "UserSettings" / "ChievfxMcpToolSelection.json"
+        self.addCleanup(lambda: setattr(mcp, "TOOL_SELECTION_PATH", self.original_tool_selection_path))
+
+    def text_blocks(self, result: dict[str, object]) -> list[str]:
+        return [item["text"] for item in result["content"] if item["type"] == "text"]
+
+    def test_save_path_writes_png_and_is_stripped_from_bridge_args(self) -> None:
+        server = ImageScreenshotBridgeServer(Path(self.temp_dir.name) / "bridge")
+        save_target = Path(self.temp_dir.name) / "shots" / "view.png"
+
+        result = server.call_tool(
+            {"name": "screenshot-game-view", "arguments": {"maxDimension": 512, "savePath": str(save_target)}}
+        )
+
+        self.assertFalse(result["isError"])
+        # savePath is handled server-side and must never reach the Unity bridge.
+        self.assertEqual(server.calls, [("screenshot-game-view", {"maxDimension": 512})])
+        self.assertTrue(save_target.exists())
+        self.assertEqual(save_target.read_bytes(), base64.b64decode(server.base64_data))
+        self.assertEqual(result["structuredContent"]["savedPath"], str(save_target.resolve()))
+        self.assertTrue(any("savedPath" in block for block in self.text_blocks(result)))
+
+    def test_save_path_resolves_relative_to_project_root(self) -> None:
+        server = ImageScreenshotBridgeServer(Path(self.temp_dir.name) / "bridge")
+        project_root = Path(self.temp_dir.name) / "project"
+        original_root = mcp.PROJECT_ROOT
+        mcp.PROJECT_ROOT = project_root
+        self.addCleanup(lambda: setattr(mcp, "PROJECT_ROOT", original_root))
+
+        result = server.call_tool(
+            {"name": "screenshot-camera", "arguments": {"savePath": "./Temp/cam.png"}}
+        )
+
+        expected = (project_root / "Temp" / "cam.png").resolve()
+        self.assertTrue(expected.exists())
+        self.assertEqual(result["structuredContent"]["savedPath"], str(expected))
+        self.assertEqual(server.calls, [("screenshot-camera", {})])
+
+    def test_image_without_save_path_is_unchanged(self) -> None:
+        server = ImageScreenshotBridgeServer(Path(self.temp_dir.name) / "bridge")
+
+        result = server.call_tool({"name": "screenshot-game-view", "arguments": {}})
+
+        self.assertFalse(result["isError"])
+        self.assertEqual(server.calls, [("screenshot-game-view", {})])
+        self.assertNotIn("structuredContent", result)
+        self.assertEqual([item["type"] for item in result["content"]], ["image"])
+
+    def test_save_path_failure_is_reported_without_losing_image(self) -> None:
+        server = ImageScreenshotBridgeServer(Path(self.temp_dir.name) / "bridge")
+        # Point savePath at a path whose parent is an existing file, so mkdir fails.
+        blocker = Path(self.temp_dir.name) / "blocker"
+        blocker.write_text("not a directory", encoding="utf-8")
+        save_target = blocker / "nested" / "view.png"
+
+        result = server.call_tool(
+            {"name": "screenshot-game-view", "arguments": {"savePath": str(save_target)}}
+        )
+
+        self.assertFalse(result["isError"])
+        self.assertEqual([item["type"] for item in result["content"]], ["image", "text"])
+        self.assertIn("savePathError", result["structuredContent"])
+        self.assertFalse(save_target.exists())
 
 
 class EditorWindowScreenshotMetadataTests(unittest.TestCase):
@@ -79,8 +168,9 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
         tool = next(tool for tool in mcp.TOOLS if tool["name"] == "screenshot-game-view")
         properties = tool["inputSchema"]["properties"]
 
-        self.assertEqual(set(properties), {"maxDimension"})
+        self.assertEqual(set(properties), {"maxDimension", "savePath"})
         self.assertEqual(properties["maxDimension"]["default"], 960)
+        self.assertEqual(properties["savePath"]["type"], "string")
 
     def test_editor_window_list_formatter_keeps_target_selectors_compact(self) -> None:
         result = {
@@ -160,7 +250,7 @@ class EditorWindowScreenshotMetadataTests(unittest.TestCase):
         advertised = mcp.advertised_input_schema(tool)
         properties = advertised["properties"]
 
-        self.assertEqual(set(properties), {"target", "openIfMissing"})
+        self.assertEqual(set(properties), {"target", "openIfMissing", "savePath"})
         self.assertIn("selectDockedTab", tool["inputSchema"]["properties"])
         self.assertIn("captureArea", tool["inputSchema"]["properties"])
         self.assertIn("delayFrames", tool["inputSchema"]["properties"])

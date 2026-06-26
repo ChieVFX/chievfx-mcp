@@ -1,5 +1,0 @@
-context source:activeScene
-depthLimited:true
-root:Main%20Camera
-• Main%20Camera
-• Directional%20Light

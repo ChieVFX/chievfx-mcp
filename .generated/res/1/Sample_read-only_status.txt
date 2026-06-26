@@ -1,2 +1,0 @@
-uri:"chievfx://extensions/chievfx.sample-readonly/status" extensionId:chievfx.sample-readonly readOnly:true readAtUtc:"2026-05-17T05:56:53.7503920Z" maxResults:1 truncated:false
-activeScene isLoaded:true rootCount:2

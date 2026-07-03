@@ -396,7 +396,16 @@ namespace Chievfx.Mcp.Extensions.Control
                             api.QueueMouseButton(button, action == "down", -1d, positionOverride);
                             if (action == "up")
                             {
-                                uiToolkitClickPosition = hasPosition ? position : api.ReadMousePosition();
+                                if (hasPosition)
+                                {
+                                    uiToolkitClickPosition = position;
+                                }
+                                else
+                                {
+                                    // The release position lives in the player state buffers; read
+                                    // it there once the queued release has been applied.
+                                    ChievfxMcpControlInputPlayback.RunInInputUpdate(() => DispatchUiRuntimeClickToJournal(api.ReadMousePosition()));
+                                }
                             }
                         }
                     }
@@ -582,10 +591,19 @@ namespace Chievfx.Mcp.Extensions.Control
                     }
                     else
                     {
-                        api.QueueTouch(touchId, TouchPhaseForAction(action), resolvedPosition, hasDelta ? delta : Vector2.zero, -1d);
+                        api.QueueTouch(touchId, TouchPhaseForAction(action), hasPosition ? position : (Vector2?)null, hasDelta ? delta : Vector2.zero, -1d);
                         if (action == "up")
                         {
-                            uiToolkitClickPosition = resolvedPosition;
+                            if (hasPosition)
+                            {
+                                uiToolkitClickPosition = position;
+                            }
+                            else
+                            {
+                                // The release position lives in the player state buffers; read it
+                                // there once the queued release has been applied.
+                                ChievfxMcpControlInputPlayback.RunInInputUpdate(() => DispatchUiRuntimeClickToJournal(api.ReadPrimaryTouchPosition()));
+                            }
                         }
                     }
                 }
@@ -627,7 +645,7 @@ namespace Chievfx.Mcp.Extensions.Control
                     {
                         // Seed the virtual mouse with the physical cursor position so game code
                         // reading Mouse.current does not observe a jump to (0, 0).
-                        api.QueueMouseMove(seedPosition, null, -1d);
+                        api.QueueMouseMove(seedPosition, Vector2.zero, -1d);
                     }
                 }
             }
@@ -665,6 +683,12 @@ namespace Chievfx.Mcp.Extensions.Control
 
         private static Dictionary<string, object?> WithScheduling(Dictionary<string, object?> result, string? completionMarker, bool mutated)
         {
+            if (mutated)
+            {
+                result["appliedIn"] = "player-loop input update";
+                result["probeNote"] = "Editor-context reads (e.g. script-execute polling Mouse.current) use separate editor state buffers and may show stale values. Verify via gameplay behavior, ui-runtime-probe, or input-control-pointer-capture status appliedMousePosition.";
+            }
+
             if (completionMarker == null)
             {
                 return result;
@@ -700,7 +724,7 @@ namespace Chievfx.Mcp.Extensions.Control
 
             if (created)
             {
-                api.QueueMouseMove(seedPosition, null, -1d);
+                api.QueueMouseMove(seedPosition, Vector2.zero, -1d);
             }
         }
 
@@ -1020,17 +1044,19 @@ namespace Chievfx.Mcp.Extensions.Control
 
         private static JObject KeyboardSchema() => Schema(new JObject
         {
-            ["action"] = Enum("Keyboard action.", "down", "up", "tap"),
+            ["action"] = Enum("Keyboard action. Required (alias: eventType).", "down", "up", "tap"),
+            ["eventType"] = Enum("Alias for action.", "down", "up", "tap"),
             ["key"] = Str("Input System Key enum name."),
             ["durationMs"] = Num("Optional metadata; tap queues down then up."),
             ["holdFrames"] = Int("Player frames to hold the key during tap. Default 2, range 1..300."),
             ["dryRun"] = Bool("Report intended events without input mutation."),
             ["allowStateMutation"] = Bool("Required true for real input injection."),
-        }, "action", "key");
+        }, "key");
 
         private static JObject MouseSchema() => Schema(new JObject
         {
-            ["action"] = Enum("Mouse action.", "down", "up", "tap", "move"),
+            ["action"] = Enum("Mouse action. Required (alias: eventType).", "down", "up", "tap", "move"),
+            ["eventType"] = Enum("Alias for action.", "down", "up", "tap", "move"),
             ["button"] = Enum("Mouse button.", "left", "right", "middle", "forward", "back"),
             ["position"] = Vector("Absolute screen position, origin bottom-left."),
             ["screenPosition"] = Vector("Alias for position."),
@@ -1041,7 +1067,7 @@ namespace Chievfx.Mcp.Extensions.Control
             ["capturePointer"] = Bool("Route injection through a virtual mouse and disable physical mice so the OS cursor cannot overwrite injected positions. Default true; ends on Play Mode exit or input-control-pointer-capture end."),
             ["dryRun"] = Bool("Report intended events without input mutation."),
             ["allowStateMutation"] = Bool("Required true for real input injection."),
-        }, "action");
+        });
 
         private static JObject GestureSchema() => Schema(new JObject
         {
@@ -1064,7 +1090,8 @@ namespace Chievfx.Mcp.Extensions.Control
 
         private static JObject TouchSchema() => Schema(new JObject
         {
-            ["action"] = Enum("Touch action.", "down", "up", "tap", "move"),
+            ["action"] = Enum("Touch action. Required (alias: eventType).", "down", "up", "tap", "move"),
+            ["eventType"] = Enum("Alias for action.", "down", "up", "tap", "move"),
             ["touchId"] = Int("Touch identifier. Defaults to 1."),
             ["position"] = Vector("Absolute screen position, origin bottom-left."),
             ["screenPosition"] = Vector("Alias for position."),
@@ -1074,7 +1101,7 @@ namespace Chievfx.Mcp.Extensions.Control
             ["holdFrames"] = Int("Player frames to hold the touch during tap. Default 2, range 1..300."),
             ["dryRun"] = Bool("Report intended events without input mutation."),
             ["allowStateMutation"] = Bool("Required true for real input injection."),
-        }, "action");
+        });
 
         private static JObject PointerCaptureSchema() => Schema(new JObject
         {
@@ -1084,8 +1111,14 @@ namespace Chievfx.Mcp.Extensions.Control
 
         private static JObject PlayModeSetSchema() => Schema(new JObject
         {
-            ["isPlaying"] = Bool("Desired Play Mode state. true enters Play Mode; false exits Play Mode."),
-        }, "isPlaying");
+            // Aliases must be declared here: schemas use additionalProperties=false, so strict
+            // clients strip or reject any property the schema does not list, and the alias would
+            // never reach the handler. No required list for the same reason - a client that
+            // enforces `required: isPlaying` would reject alias-only calls.
+            ["isPlaying"] = Bool("Desired Play Mode state. true enters Play Mode; false exits Play Mode. One of isPlaying/play/playing is required."),
+            ["play"] = Bool("Alias for isPlaying."),
+            ["playing"] = Bool("Alias for isPlaying."),
+        });
 
         private static JObject Schema(JObject properties, params string[] required)
         {
@@ -1113,20 +1146,18 @@ namespace Chievfx.Mcp.Extensions.Control
             private readonly Type mouseType;
             private readonly Type touchscreenType;
             private readonly Type keyType;
-            private readonly MethodInfo queueState;
             private readonly Type keyboardStateType;
             private readonly Type mouseStateType;
             private readonly Type mouseButtonType;
             private readonly Type touchStateType;
             private readonly Type touchPhaseType;
 
-            private InputApi(Type inputSystemType, Type keyboardType, Type mouseType, Type touchscreenType, Type keyType, MethodInfo queueState, Type keyboardStateType, Type mouseStateType, Type mouseButtonType, Type touchStateType, Type touchPhaseType)
+            private InputApi(Type inputSystemType, Type keyboardType, Type mouseType, Type touchscreenType, Type keyType, Type keyboardStateType, Type mouseStateType, Type mouseButtonType, Type touchStateType, Type touchPhaseType)
             {
                 this.keyboardType = keyboardType;
                 this.mouseType = mouseType;
                 this.touchscreenType = touchscreenType;
                 this.keyType = keyType;
-                this.queueState = queueState;
                 this.keyboardStateType = keyboardStateType;
                 this.mouseStateType = mouseStateType;
                 this.mouseButtonType = mouseButtonType;
@@ -1168,15 +1199,7 @@ namespace Chievfx.Mcp.Extensions.Control
                     return false;
                 }
 
-                var queueState = inputSystemType.GetMethods(BindingFlags.Public | BindingFlags.Static)
-                    .FirstOrDefault(method => method.Name == "QueueStateEvent" && method.IsGenericMethodDefinition && method.GetParameters().Length >= 2);
-                if (queueState == null)
-                {
-                    reason = "Input System QueueStateEvent API is unavailable.";
-                    return false;
-                }
-
-                api = new InputApi(inputSystemType, keyboardType, mouseType, touchscreenType, keyType, queueState, keyboardStateType, mouseStateType, mouseButtonType, touchStateType, touchPhaseType);
+                api = new InputApi(inputSystemType, keyboardType, mouseType, touchscreenType, keyType, keyboardStateType, mouseStateType, mouseButtonType, touchStateType, touchPhaseType);
                 reason = "Input System types loaded.";
                 return true;
 #else
@@ -1257,40 +1280,118 @@ namespace Chievfx.Mcp.Extensions.Control
                 return control != null;
             }
 
+            // The Queue* methods defer state building AND application into the player loop's input
+            // update (RunInInputUpdate): reads there hit the player state buffers game code sees,
+            // and InputState.Change bypasses the native event queue, which silently drops events
+            // when the editor application has no OS focus.
+
             public void QueueKeyboardKey(object key, bool pressed, double eventTime)
             {
-                var state = CreateKeyboardState();
-                SetKeyboardStateKey(state, key, pressed);
-                QueueState(Keyboard!, state, keyboardStateType, eventTime);
+                _ = eventTime;
+                ChievfxMcpControlInputPlayback.RunInInputUpdate(() =>
+                {
+                    var state = CreateKeyboardState();
+                    SetKeyboardStateKey(state, key, pressed);
+                    ChievfxMcpControlInputPlayback.ApplyState(Keyboard!, state, keyboardStateType);
+                });
             }
 
             public void QueueMouseButton(string buttonName, bool pressed, double eventTime, Vector2? position = null)
             {
-                // MouseState is a full state snapshot: without an explicit position, a button event
-                // built before a same-batch move is processed would reset the position to its old
-                // value. Callers pass the intended position when the batch also moves the pointer.
-                var state = CreateMouseState(position, null);
-                state = WithMouseButton(state, buttonName, pressed);
-                QueueState(Mouse!, state, mouseStateType, eventTime);
+                _ = eventTime;
+                ChievfxMcpControlInputPlayback.RunInInputUpdate(() =>
+                {
+                    // MouseState is a full snapshot: without an explicit position, a button change
+                    // keeps the current pointer position. Callers pass the intended position when
+                    // the batch also moves the pointer.
+                    var state = CreateMouseState(position, null);
+                    state = WithMouseButton(state, buttonName, pressed);
+                    ChievfxMcpControlInputPlayback.ApplyState(Mouse!, state, mouseStateType);
+                    ChievfxMcpControlAppliedInputState.RecordMouse(position ?? ReadMouseVector("position"), Vector2.zero);
+                });
             }
 
             public void QueueMouseMove(Vector2? position, Vector2? delta, double eventTime)
             {
-                var state = CreateMouseState(position, delta);
-                QueueState(Mouse!, state, mouseStateType, eventTime);
+                _ = eventTime;
+                ChievfxMcpControlInputPlayback.RunInInputUpdate(() =>
+                {
+                    var resolvedDelta = delta;
+                    if (position.HasValue && !resolvedDelta.HasValue)
+                    {
+                        // Real mice always report delta; synthesize it so delta-driven game code
+                        // (e.g. mouse-vs-gamepad input mode detectors) reacts to injected movement.
+                        resolvedDelta = position.Value - ReadMouseVector("position");
+                    }
+
+                    var state = CreateMouseState(position, resolvedDelta);
+                    ChievfxMcpControlInputPlayback.ApplyState(Mouse!, state, mouseStateType);
+                    ChievfxMcpControlAppliedInputState.RecordMouse(position ?? ReadMouseVector("position"), resolvedDelta ?? Vector2.zero);
+                });
             }
 
-            public void QueueTouch(int touchId, string phaseName, Vector2 position, Vector2 delta, double eventTime)
+            public void QueueTouch(int touchId, string phaseName, Vector2? position, Vector2 delta, double eventTime)
             {
-                var state = CreateTouchState(touchId, phaseName, position, delta);
-                QueueState(Touchscreen!, state, touchStateType, eventTime);
+                _ = eventTime;
+                ChievfxMcpControlInputPlayback.RunInInputUpdate(() =>
+                {
+                    var resolvedPosition = position ?? ReadPrimaryTouchPosition();
+                    var state = CreateTouchState(touchId, phaseName, resolvedPosition, delta);
+                    // TouchState targets an individual TouchControl, not the whole Touchscreen
+                    // (whose state format differs). Mirror onto primaryTouch so Touchscreen-level
+                    // reads and bindings see the injected touch.
+                    var slot = ResolveTouchSlotControl(touchId);
+                    if (slot != null)
+                    {
+                        ChievfxMcpControlInputPlayback.ApplyState(slot, state, touchStateType);
+                    }
+
+                    if (TryTouchControl("primaryTouch", out var primaryTouch, out _) && primaryTouch != null)
+                    {
+                        ChievfxMcpControlInputPlayback.ApplyState(primaryTouch, state, touchStateType);
+                    }
+                });
             }
 
-            private void QueueState(object device, object state, Type stateType, double eventTime)
+            private object? ResolveTouchSlotControl(int touchId)
             {
-                var method = queueState.MakeGenericMethod(stateType);
-                var parameters = method.GetParameters();
-                method.Invoke(null, parameters.Length >= 3 ? new[] { device, state, eventTime } : new[] { device, state });
+                if (touchscreenType.GetProperty("touches", BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase)?.GetValue(Touchscreen)
+                    is not System.Collections.IEnumerable touches)
+                {
+                    return null;
+                }
+
+                object? freeSlot = null;
+                foreach (var control in touches)
+                {
+                    if (control == null)
+                    {
+                        continue;
+                    }
+
+                    if (ReadControlValue(control, "touchId") is int currentId && currentId == touchId)
+                    {
+                        return control;
+                    }
+
+                    if (freeSlot == null)
+                    {
+                        var phase = ReadControlValue(control, "phase")?.ToString();
+                        if (phase is null or "None" or "Ended" or "Canceled")
+                        {
+                            freeSlot = control;
+                        }
+                    }
+                }
+
+                return freeSlot;
+            }
+
+            private static object? ReadControlValue(object parentControl, string childName)
+            {
+                var child = parentControl.GetType().GetProperty(childName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase)?.GetValue(parentControl);
+                var readValue = child?.GetType().GetMethod("ReadValue", BindingFlags.Instance | BindingFlags.Public, null, Type.EmptyTypes, null);
+                return readValue?.Invoke(child, Array.Empty<object>());
             }
 
             private object CreateKeyboardState()

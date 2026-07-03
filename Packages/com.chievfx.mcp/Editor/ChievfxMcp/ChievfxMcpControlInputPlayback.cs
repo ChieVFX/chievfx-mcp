@@ -10,10 +10,12 @@ using UnityEngine;
 namespace Chievfx.Mcp.Extensions.Control
 {
     /// <summary>
-    /// Dispatches injected input steps aligned to player-loop frames. Queued events must be
-    /// consumed by the player loop's own input update for wasPressedThisFrame/wasReleasedThisFrame
-    /// edges to be visible to game code polling in MonoBehaviour.Update(); flushing with a manual
-    /// InputSystem.Update() consumes the edge outside any rendered frame.
+    /// Applies injected input from inside the player loop's own input updates. State writes go
+    /// through InputState.Change during InputSystem.onBeforeUpdate of a player update (the pattern
+    /// Unity's VirtualMouseInput uses): the native event queue is bypassed, so injection works even
+    /// when the editor application has no OS focus (natively queued events are silently dropped
+    /// then), and press/release edges land in the exact update step game code polls with
+    /// wasPressedThisFrame. Multi-step sequences (taps, gestures) are spaced across player updates.
     /// </summary>
     internal static class ChievfxMcpControlInputPlayback
     {
@@ -32,10 +34,16 @@ namespace Chievfx.Mcp.Extensions.Control
         }
 
         private static readonly Queue<Sequence> PendingSequences = new();
+        private static readonly Queue<Action> PendingApplies = new();
         private static Sequence? active;
-        private static bool hooked;
+        private static bool playModeHooked;
+        private static bool beforeUpdateHooked;
+        private static bool draining;
         private static long sequenceCounter;
-        private static long lastDispatchFrame = -1_000_000L;
+        private static long updateCounter;
+        private static long lastDispatchUpdate = -1_000_000L;
+        private static PropertyInfo? currentUpdateTypeProperty;
+        private static MethodInfo? changeStateMethod;
 
         public static int PendingSequenceCount => PendingSequences.Count + (active == null ? 0 : 1);
 
@@ -47,16 +55,88 @@ namespace Chievfx.Mcp.Extensions.Control
             return marker;
         }
 
-        private static void EnsureHooked()
+        /// <summary>
+        /// Runs <paramref name="apply"/> inside the next qualifying input update, where state
+        /// reads/writes hit the buffers game code sees (editor-context reads use separate editor
+        /// state buffers). Runs immediately when already inside one (scheduled sequence steps).
+        /// </summary>
+        public static void RunInInputUpdate(Action apply)
         {
-            if (hooked)
+            if (draining)
             {
+                apply();
                 return;
             }
 
-            hooked = true;
-            EditorApplication.update += OnEditorUpdate;
-            EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+            PendingApplies.Enqueue(apply);
+            EnsureHooked();
+        }
+
+        /// <summary>
+        /// Writes a full state snapshot to a device or control via InputState.Change. Must be
+        /// called from inside an input update (see <see cref="RunInInputUpdate"/>).
+        /// </summary>
+        public static void ApplyState(object deviceOrControl, object state, Type stateType)
+        {
+            if (changeStateMethod == null)
+            {
+                var inputStateType = FindType("UnityEngine.InputSystem.LowLevel.InputState")
+                    ?? throw new InvalidOperationException("UnityEngine.InputSystem.LowLevel.InputState is unavailable.");
+                changeStateMethod = inputStateType.GetMethods(BindingFlags.Public | BindingFlags.Static)
+                    .FirstOrDefault(method => method.Name == "Change"
+                        && method.IsGenericMethodDefinition
+                        && method.GetParameters().Length == 4
+                        && !method.GetParameters()[1].ParameterType.IsByRef)
+                    ?? throw new InvalidOperationException("InputState.Change<TState> is unavailable.");
+            }
+
+            var change = changeStateMethod.MakeGenericMethod(stateType);
+            var parameters = change.GetParameters();
+            change.Invoke(null, new[]
+            {
+                deviceOrControl,
+                state,
+                Activator.CreateInstance(parameters[2].ParameterType),
+                Activator.CreateInstance(parameters[3].ParameterType),
+            });
+        }
+
+        private static void EnsureHooked()
+        {
+            if (!playModeHooked)
+            {
+                playModeHooked = true;
+                EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+            }
+
+            if (!beforeUpdateHooked)
+            {
+                beforeUpdateHooked = TryHookBeforeUpdate();
+                if (!beforeUpdateHooked)
+                {
+                    Journal("hook-failed", "error", "Could not subscribe to InputSystem.onBeforeUpdate; injected input will not apply.");
+                }
+            }
+        }
+
+        private static bool TryHookBeforeUpdate()
+        {
+            try
+            {
+                var inputSystemType = FindType("UnityEngine.InputSystem.InputSystem");
+                var beforeUpdateEvent = inputSystemType?.GetEvent("onBeforeUpdate", BindingFlags.Public | BindingFlags.Static);
+                if (beforeUpdateEvent == null)
+                {
+                    return false;
+                }
+
+                beforeUpdateEvent.AddEventHandler(null, new Action(OnBeforeInputUpdate));
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static void OnPlayModeStateChanged(PlayModeStateChange change)
@@ -66,6 +146,7 @@ namespace Chievfx.Mcp.Extensions.Control
                 return;
             }
 
+            PendingApplies.Clear();
             while (active != null || PendingSequences.Count > 0)
             {
                 var sequence = active ?? PendingSequences.Dequeue();
@@ -81,7 +162,44 @@ namespace Chievfx.Mcp.Extensions.Control
             ChievfxMcpControlPointerCapture.EndSession(out _);
         }
 
-        private static void OnEditorUpdate()
+        private static void OnBeforeInputUpdate()
+        {
+            if (PendingApplies.Count == 0 && active == null && PendingSequences.Count == 0)
+            {
+                return;
+            }
+
+            if (!IsQualifyingUpdate())
+            {
+                return;
+            }
+
+            updateCounter++;
+            draining = true;
+            try
+            {
+                while (PendingApplies.Count > 0)
+                {
+                    var apply = PendingApplies.Dequeue();
+                    try
+                    {
+                        apply();
+                    }
+                    catch (Exception ex)
+                    {
+                        Journal("apply-failed", "error", "Injected input state apply failed: " + ex.Message);
+                    }
+                }
+
+                DispatchNextSequenceStep();
+            }
+            finally
+            {
+                draining = false;
+            }
+        }
+
+        private static void DispatchNextSequenceStep()
         {
             if (active == null && PendingSequences.Count > 0)
             {
@@ -94,19 +212,12 @@ namespace Chievfx.Mcp.Extensions.Control
             }
 
             var step = active.Steps[active.NextStep];
-            if (EditorApplication.isPlaying)
+            if (updateCounter - lastDispatchUpdate < step.FrameGapBefore)
             {
-                // Space steps by rendered frames so each event batch lands in a distinct
-                // player-loop input update. Outside Play Mode (test overrides), flush per tick.
-                long frame = Time.frameCount;
-                if (frame - lastDispatchFrame < step.FrameGapBefore)
-                {
-                    return;
-                }
-
-                lastDispatchFrame = frame;
+                return;
             }
 
+            lastDispatchUpdate = updateCounter;
             try
             {
                 step.Dispatch();
@@ -136,6 +247,36 @@ namespace Chievfx.Mcp.Extensions.Control
             }
         }
 
+        private static bool IsQualifyingUpdate()
+        {
+            try
+            {
+                currentUpdateTypeProperty ??= FindType("UnityEngine.InputSystem.LowLevel.InputState")
+                    ?.GetProperty("currentUpdateType", BindingFlags.Public | BindingFlags.Static);
+                var updateType = currentUpdateTypeProperty?.GetValue(null)?.ToString();
+                if (updateType is null or "None" or "BeforeRender")
+                {
+                    return false;
+                }
+
+                // In Play Mode only player-loop updates (Dynamic/Fixed/Manual) write the state
+                // buffers game code reads; editor updates use separate buffers. Outside Play Mode
+                // (test overrides), editor updates are the only ones running.
+                return EditorApplication.isPlaying ? updateType != "Editor" : updateType == "Editor";
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        internal static Type? FindType(string fullName)
+        {
+            return AppDomain.CurrentDomain.GetAssemblies()
+                .Select(assembly => assembly.GetType(fullName, throwOnError: false))
+                .FirstOrDefault(type => type != null);
+        }
+
         internal static void Journal(string type, string level, string message, string? marker = null, string? kind = null)
         {
             global::Chievfx.Mcp.Editor.ChievfxMcpBridgeHost.EventJournal.Write(
@@ -145,6 +286,32 @@ namespace Chievfx.Mcp.Extensions.Control
                 message,
                 marker: marker,
                 data: kind == null ? null : new Dictionary<string, object?> { ["kind"] = kind });
+        }
+    }
+
+    /// <summary>
+    /// Last injected mouse state, recorded at apply time inside the player loop. Exposed for
+    /// observability: editor-context reads (e.g. script-execute polling Mouse.current) use editor
+    /// state buffers and cannot see player-loop input state.
+    /// </summary>
+    internal static class ChievfxMcpControlAppliedInputState
+    {
+        public static Vector2? MousePosition;
+        public static Vector2? MouseDelta;
+        public static long MouseApplyCount;
+
+        public static void RecordMouse(Vector2 position, Vector2 delta)
+        {
+            MousePosition = position;
+            MouseDelta = delta;
+            MouseApplyCount++;
+        }
+
+        public static void Reset()
+        {
+            MousePosition = null;
+            MouseDelta = null;
+            MouseApplyCount = 0;
         }
     }
 
@@ -282,6 +449,7 @@ namespace Chievfx.Mcp.Extensions.Control
             }
 
             RestorePhysicalMice(inputSystemType);
+            ChievfxMcpControlAppliedInputState.Reset();
             return error.Length == 0;
         }
 
@@ -328,12 +496,22 @@ namespace Chievfx.Mcp.Extensions.Control
 
         public static Dictionary<string, object?> Status()
         {
+            var lastPosition = ChievfxMcpControlAppliedInputState.MousePosition;
+            var lastDelta = ChievfxMcpControlAppliedInputState.MouseDelta;
             return new Dictionary<string, object?>
             {
                 ["active"] = Active,
                 ["virtualMouseName"] = Active ? VirtualMouseName : null,
                 ["disabledPhysicalMice"] = DisabledPhysicalMice.Count,
                 ["inputRoutingOverridden"] = routingOverridden,
+                ["appliedMousePosition"] = lastPosition.HasValue
+                    ? new Dictionary<string, object?> { ["x"] = lastPosition.Value.x, ["y"] = lastPosition.Value.y }
+                    : null,
+                ["appliedMouseDelta"] = lastDelta.HasValue
+                    ? new Dictionary<string, object?> { ["x"] = lastDelta.Value.x, ["y"] = lastDelta.Value.y }
+                    : null,
+                ["appliedMouseEventCount"] = ChievfxMcpControlAppliedInputState.MouseApplyCount,
+                ["probeNote"] = "Injected state applies inside player-loop input updates. Editor-context reads (e.g. script-execute polling Mouse.current) use separate editor state buffers and may show stale values; verify via gameplay behavior, ui-runtime-probe, or appliedMousePosition here.",
             };
         }
 

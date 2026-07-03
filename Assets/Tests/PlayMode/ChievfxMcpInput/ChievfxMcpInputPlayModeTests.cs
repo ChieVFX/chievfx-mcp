@@ -63,6 +63,102 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
             yield return TouchDownHitsPhysicsTarget(physicsPoint);
         }
 
+        [UnityTest]
+        public IEnumerator KeyboardTapProducesFrameVisibleEdges()
+        {
+            RequireInputSystem();
+            EnsureInputDevice("Keyboard");
+            var probe = Track(new GameObject("InputMcpKeyboardEdgeProbe")).AddComponent<KeyboardEdgeProbe>();
+            probe.KeyName = "F8";
+            yield return null;
+
+            var result = RunControlTool("input-control-keyboard-event", "{'action':'tap','key':'F8','allowStateMutation':true}");
+            Assert.AreEqual(true, result["ok"], DescribeRow(result));
+            Assert.AreEqual("scheduled", result["status"], "Real keyboard taps should be frame-scheduled. " + DescribeRow(result));
+            Assert.IsNotNull(result["completionMarker"], "Scheduled taps should report a completion marker for events-wait.");
+
+            for (var i = 0; i < 60 && probe.ReleaseEdges == 0; i++)
+            {
+                yield return null;
+            }
+
+            Assert.AreEqual(1, probe.PressEdges, "Keyboard tap should produce exactly one wasPressedThisFrame edge visible to MonoBehaviour.Update().");
+            Assert.AreEqual(1, probe.ReleaseEdges, "Keyboard tap should produce exactly one wasReleasedThisFrame edge visible to MonoBehaviour.Update().");
+            Assert.GreaterOrEqual(probe.HeldFrames, 1, "Keyboard tap should hold the key for at least one full player frame.");
+        }
+
+        [UnityTest]
+        public IEnumerator PointerCaptureRoutesMouseInjectionToVirtualDevice()
+        {
+            RequireInputSystem();
+            EnsureInputDevice("Mouse");
+            yield return null;
+
+            var target = new Vector2(211f, 137f);
+            var moveResult = RunControlTool("input-control-mouse-event", PositionArgs("move", target, null));
+            Assert.AreEqual(true, moveResult["ok"], DescribeRow(moveResult));
+
+            var status = RunControlTool("input-control-pointer-capture", "{'action':'status'}");
+            Assert.AreEqual(true, Row(status, "pointerCapture")["active"], "Real mouse injection should begin a pointer capture session by default. " + DescribeRow(status));
+
+            yield return null;
+            yield return null;
+            for (var i = 0; i < 3; i++)
+            {
+                var position = ReadInputVector("UnityEngine.InputSystem.Mouse", "current", "position");
+                Assert.AreEqual(target.x, position.x, 0.5f, "Injected mouse X should persist while pointer capture is active (frame " + i + ").");
+                Assert.AreEqual(target.y, position.y, 0.5f, "Injected mouse Y should persist while pointer capture is active (frame " + i + ").");
+                yield return null;
+            }
+
+            var end = RunControlTool("input-control-pointer-capture", "{'action':'end'}");
+            Assert.AreEqual(true, end["ok"], DescribeRow(end));
+            Assert.AreEqual(false, Row(end, "pointerCapture")["active"], "Ending pointer capture should remove the virtual mouse and re-enable physical mice.");
+            yield return null;
+        }
+
+        private sealed class KeyboardEdgeProbe : MonoBehaviour
+        {
+            public string KeyName = "F8";
+            public int PressEdges;
+            public int ReleaseEdges;
+            public int HeldFrames;
+
+            private void Update()
+            {
+                var control = ResolveKeyControl();
+                if (control == null)
+                {
+                    return;
+                }
+
+                if (ReadBool(control, "wasPressedThisFrame")) PressEdges++;
+                if (ReadBool(control, "wasReleasedThisFrame")) ReleaseEdges++;
+                if (ReadBool(control, "isPressed")) HeldFrames++;
+            }
+
+            private object? ResolveKeyControl()
+            {
+                var keyboardType = FindType("UnityEngine.InputSystem.Keyboard");
+                var keyType = FindType("UnityEngine.InputSystem.Key");
+                var keyboard = keyboardType?.GetProperty("current", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+                if (keyboard == null || keyType == null)
+                {
+                    return null;
+                }
+
+                var key = Enum.Parse(keyType, KeyName);
+                return keyboard.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                    .FirstOrDefault(property => property.Name == "Item" && property.GetIndexParameters().FirstOrDefault()?.ParameterType == keyType)
+                    ?.GetValue(keyboard, new[] { key });
+            }
+
+            private static bool ReadBool(object control, string name)
+            {
+                return control.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public)?.GetValue(control) is bool value && value;
+            }
+        }
+
         [UnityTearDown]
         public IEnumerator TearDown()
         {

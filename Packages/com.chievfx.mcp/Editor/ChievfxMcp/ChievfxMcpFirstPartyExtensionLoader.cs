@@ -144,10 +144,11 @@ namespace Chievfx.Mcp.Extensions.Control
             descriptor.Tools.Add(Tool("editor-playmode-set", "Enter or exit Unity Play Mode.", PlayModeSetSchema(), EssentialsCategory));
             if (api)
             {
-                descriptor.Tools.Add(Tool("input-control-keyboard-event", "Queue a New Input System keyboard down, up, or tap event.", KeyboardSchema()));
-                descriptor.Tools.Add(Tool("input-control-mouse-event", "Queue a New Input System mouse button or move event.", MouseSchema()));
-                descriptor.Tools.Add(Tool("input-control-mouse-gesture", "Queue a timed mouse down/move/up gesture by interpolating delta over duration. Defaults dryRun=true.", GestureSchema()));
-                descriptor.Tools.Add(Tool("input-control-touch-event", "Queue a New Input System touchscreen down, move, up, or tap event.", TouchSchema()));
+                descriptor.Tools.Add(Tool("input-control-keyboard-event", "Queue a New Input System keyboard down, up, or tap event. Tap holds the key for holdFrames player frames so wasPressedThisFrame edges are visible to game Update() code, and returns a completionMarker for events-wait.", KeyboardSchema()));
+                descriptor.Tools.Add(Tool("input-control-mouse-event", "Queue a New Input System mouse button or move event. Real injection routes through a virtual mouse (capturePointer, default true) so the OS cursor cannot overwrite injected positions; tap is frame-spaced and returns a completionMarker.", MouseSchema()));
+                descriptor.Tools.Add(Tool("input-control-mouse-gesture", "Queue a mouse down/move/up gesture whose steps dispatch one per player frame. Defaults dryRun=true; real runs return a completionMarker for events-wait.", GestureSchema()));
+                descriptor.Tools.Add(Tool("input-control-touch-event", "Queue a New Input System touchscreen down, move, up, or tap event. Tap holds the touch for holdFrames player frames and returns a completionMarker for events-wait.", TouchSchema()));
+                descriptor.Tools.Add(Tool("input-control-pointer-capture", "Begin, end, or inspect a pointer capture session: injected mouse events drive a virtual mouse while physical mice are disabled, preventing the OS cursor from overwriting injected positions. Ends automatically on Play Mode exit.", PointerCaptureSchema()));
             }
 
             _ = reason;
@@ -183,6 +184,7 @@ namespace Chievfx.Mcp.Extensions.Control
                 "input-control-mouse-event" => Mouse(args, api!),
                 "input-control-mouse-gesture" => Gesture(args, api!),
                 "input-control-touch-event" => Touch(args, api!),
+                "input-control-pointer-capture" => PointerCapture(args, api!),
                 _ => throw new InvalidOperationException($"Unknown Control extension tool '{toolName}'."),
             };
         }
@@ -208,8 +210,10 @@ namespace Chievfx.Mcp.Extensions.Control
                 ["keyboard"] = DeviceRow("Keyboard", api?.Keyboard),
                 ["mouse"] = DeviceRow("Mouse", api?.Mouse),
                 ["touchscreen"] = DeviceRow("Touchscreen", api?.Touchscreen),
+                ["pointerCapture"] = ChievfxMcpControlPointerCapture.Status(),
+                ["pendingInputSequences"] = ChievfxMcpControlInputPlayback.PendingSequenceCount,
                 ["tools"] = available
-                    ? new[] { "editor-playmode-set", "input-control-keyboard-event", "input-control-mouse-event", "input-control-mouse-gesture", "input-control-touch-event" }
+                    ? new[] { "editor-playmode-set", "input-control-keyboard-event", "input-control-mouse-event", "input-control-mouse-gesture", "input-control-touch-event", "input-control-pointer-capture" }
                     : new[] { "editor-playmode-set" },
                 ["warnings"] = available ? Array.Empty<string>() : new[] { reason },
             };
@@ -260,6 +264,7 @@ namespace Chievfx.Mcp.Extensions.Control
             var action = Norm(ReadString(args, "action"));
             var keyName = ReadString(args, "key") ?? ReadString(args, "targetKey") ?? string.Empty;
             var dryRun = ReadBool(args, "dryRun", false);
+            var holdFrames = ReadHoldFrames(args);
             var errors = new List<string>();
             var warnings = new List<string>();
             var queued = new List<object>();
@@ -269,32 +274,48 @@ namespace Chievfx.Mcp.Extensions.Control
             object? control = null;
             if (errors.Count == 0 && !api.TryKeyboardControl(key!, out control, out var controlError)) errors.Add(controlError);
             Gate(dryRun, ReadBool(args, "allowStateMutation", false), errors);
+            string? completionMarker = null;
             if (errors.Count == 0)
             {
-                foreach (var item in action == "tap" ? new[] { ("down", 1f), ("up", 0f) } : new[] { (action, action == "down" ? 1f : 0f) })
+                foreach (var item in action == "tap" ? new[] { "down", "up" } : new[] { action })
                 {
-                    queued.Add(EventRow("Keyboard", item.Item1, keyName, null, null, -1d));
-                    if (!dryRun) api.QueueKeyboardKey(key!, item.Item2 > 0f, -1d);
+                    queued.Add(EventRow("Keyboard", item, keyName, null, null, -1d));
+                }
+
+                if (!dryRun)
+                {
+                    ChievfxMcpControlPointerCapture.EnsureInputRoutingOverride();
+                    if (action == "tap")
+                    {
+                        completionMarker = ChievfxMcpControlInputPlayback.Schedule("keyboard-tap", new[]
+                        {
+                            new ChievfxMcpControlInputPlayback.Step { FrameGapBefore = 0, Dispatch = () => api.QueueKeyboardKey(key!, true, -1d) },
+                            new ChievfxMcpControlInputPlayback.Step { FrameGapBefore = holdFrames, Dispatch = () => api.QueueKeyboardKey(key!, false, -1d) },
+                        });
+                    }
+                    else
+                    {
+                        api.QueueKeyboardKey(key!, action == "down", -1d);
+                    }
                 }
             }
 
             var mutated = !dryRun && errors.Count == 0;
-            if (mutated && !api.TryUpdate(out var updateWarning) && !string.IsNullOrEmpty(updateWarning))
-            {
-                warnings.Add(updateWarning);
-            }
-
-            return Result("input-control-keyboard-event", "Keyboard", action, dryRun, mutated, queued.ToArray(), warnings.ToArray(), errors.ToArray());
+            var result = Result("input-control-keyboard-event", "Keyboard", action, dryRun, mutated, queued.ToArray(), warnings.ToArray(), errors.ToArray());
+            return WithScheduling(result, completionMarker, mutated);
         }
 
         private static Dictionary<string, object?> Mouse(JToken args, InputApi api)
         {
             var action = Norm(ReadString(args, "action"));
             var dryRun = ReadBool(args, "dryRun", false);
+            var capturePointer = ReadBool(args, "capturePointer", true);
+            var holdFrames = ReadHoldFrames(args);
             var errors = new List<string>();
             var warnings = new List<string>();
             var queued = new List<object>();
             Vector2? uiToolkitClickPosition = null;
+            string? completionMarker = null;
             if (!OneOf(action, "down", "up", "tap", "move")) errors.Add("action must be one of: down, up, tap, move.");
             if (api.Mouse == null) errors.Add("Mouse.current is null; no mouse device is available.");
 
@@ -309,9 +330,12 @@ namespace Chievfx.Mcp.Extensions.Control
                 Gate(dryRun, ReadBool(args, "allowStateMutation", false), errors);
                 if (errors.Count == 0)
                 {
-                    var value = hasPosition ? position : delta;
                     queued.Add(EventRow("Mouse", "move", null, hasPosition ? position : null, hasDelta ? delta : null, -1d));
-                    if (!dryRun) api.QueueMouseMove(hasPosition ? position : null, hasDelta ? delta : null, -1d);
+                    if (!dryRun)
+                    {
+                        BeginPointerSession(api, capturePointer, warnings);
+                        api.QueueMouseMove(hasPosition ? position : null, hasDelta ? delta : null, -1d);
+                    }
                 }
             }
             else
@@ -327,34 +351,62 @@ namespace Chievfx.Mcp.Extensions.Control
                     if (hasPosition)
                     {
                         queued.Add(EventRow("Mouse", "move", null, position, null, -1d));
-                        if (!dryRun) api.QueueMouseMove(position, null, -1d);
                     }
 
-                    foreach (var item in action == "tap" ? new[] { ("down", 1f), ("up", 0f) } : new[] { (action, action == "down" ? 1f : 0f) })
+                    foreach (var item in action == "tap" ? new[] { "down", "up" } : new[] { action })
                     {
-                        queued.Add(EventRow("Mouse", item.Item1, button, null, null, -1d));
-                        if (!dryRun) api.QueueMouseButton(button, item.Item2 > 0f, -1d);
+                        queued.Add(EventRow("Mouse", item, button, null, null, -1d));
                     }
 
-                    if (action is "up" or "tap")
+                    if (!dryRun)
                     {
-                        uiToolkitClickPosition = hasPosition ? position : api.ReadMousePosition();
+                        BeginPointerSession(api, capturePointer, warnings);
+                        var positionOverride = hasPosition ? position : (Vector2?)null;
+                        if (action == "tap")
+                        {
+                            completionMarker = ChievfxMcpControlInputPlayback.Schedule("mouse-tap", new[]
+                            {
+                                new ChievfxMcpControlInputPlayback.Step
+                                {
+                                    FrameGapBefore = 0,
+                                    Dispatch = () =>
+                                    {
+                                        if (hasPosition) api.QueueMouseMove(position, null, -1d);
+                                        api.QueueMouseButton(button, true, -1d, positionOverride);
+                                    },
+                                },
+                                new ChievfxMcpControlInputPlayback.Step
+                                {
+                                    FrameGapBefore = holdFrames,
+                                    Dispatch = () =>
+                                    {
+                                        api.QueueMouseButton(button, false, -1d, positionOverride);
+                                        DispatchUiRuntimeClickToJournal(hasPosition ? position : api.ReadMousePosition());
+                                    },
+                                },
+                            });
+                        }
+                        else
+                        {
+                            if (hasPosition) api.QueueMouseMove(position, null, -1d);
+                            api.QueueMouseButton(button, action == "down", -1d, positionOverride);
+                            if (action == "up")
+                            {
+                                uiToolkitClickPosition = hasPosition ? position : api.ReadMousePosition();
+                            }
+                        }
                     }
                 }
             }
 
             var mutated = !dryRun && errors.Count == 0;
-            if (mutated && !api.TryUpdate(out var updateWarning) && !string.IsNullOrEmpty(updateWarning))
-            {
-                warnings.Add(updateWarning);
-            }
-
             if (mutated && uiToolkitClickPosition.HasValue)
             {
                 TryDispatchUiRuntimeClick(uiToolkitClickPosition.Value, warnings);
             }
 
-            return Result("input-control-mouse-event", "Mouse", action, dryRun, mutated, queued.ToArray(), warnings.ToArray(), errors.ToArray());
+            var result = Result("input-control-mouse-event", "Mouse", action, dryRun, mutated, queued.ToArray(), warnings.ToArray(), errors.ToArray());
+            return WithScheduling(result, completionMarker, mutated);
         }
 
         private static Dictionary<string, object?> Gesture(JToken args, InputApi api)
@@ -382,13 +434,25 @@ namespace Chievfx.Mcp.Extensions.Control
             if (errors.Count == 0 && hasStart && !api.TryMouseControl("position", out positionControl, out var positionError)) errors.Add(positionError);
             if (errors.Count == 0 && !api.TryMouseControl("delta", out deltaControl, out var deltaError)) errors.Add(deltaError);
             Gate(dryRun, ReadBool(args, "allowStateMutation", false), errors);
+            var warnings = new List<string>();
+            string? completionMarker = null;
             if (errors.Count == 0)
             {
+                var capturePointer = ReadBool(args, "capturePointer", true);
                 var time = api.Time;
+                var playback = new List<ChievfxMcpControlInputPlayback.Step>();
                 if (includeDown)
                 {
                     queued.Add(EventRow("Mouse", "down", button, null, null, time));
-                    if (!dryRun) api.QueueMouseButton(button, true, time);
+                    playback.Add(new ChievfxMcpControlInputPlayback.Step
+                    {
+                        FrameGapBefore = 0,
+                        Dispatch = () =>
+                        {
+                            if (hasStart) api.QueueMouseMove(start, null, -1d);
+                            api.QueueMouseButton(button, true, -1d, hasStart ? start : (Vector2?)null);
+                        },
+                    });
                 }
 
                 var previous = Vector2.zero;
@@ -399,34 +463,42 @@ namespace Chievfx.Mcp.Extensions.Control
                     var frameDelta = current - previous;
                     previous = current;
                     var eventTime = time + (durationMs / 1000d) * t;
-                    queued.Add(EventRow("Mouse", "move", null, hasStart ? start + current : null, frameDelta, eventTime));
-                    if (!dryRun)
+                    var framePosition = hasStart ? start + current : (Vector2?)null;
+                    queued.Add(EventRow("Mouse", "move", null, framePosition, frameDelta, eventTime));
+                    playback.Add(new ChievfxMcpControlInputPlayback.Step
                     {
-                        api.QueueMouseMove(hasStart ? start + current : null, frameDelta, eventTime);
-                    }
+                        FrameGapBefore = 1,
+                        Dispatch = () => api.QueueMouseMove(framePosition, frameDelta, -1d),
+                    });
                 }
 
                 if (includeUp)
                 {
                     var upTime = time + durationMs / 1000d;
                     queued.Add(EventRow("Mouse", "up", button, null, null, upTime));
-                    if (!dryRun) api.QueueMouseButton(button, false, upTime);
+                    var stepCount = steps;
+                    playback.Add(new ChievfxMcpControlInputPlayback.Step
+                    {
+                        FrameGapBefore = 2,
+                        Dispatch = () =>
+                        {
+                            api.QueueMouseButton(button, false, -1d, hasStart ? start + delta : (Vector2?)null);
+                            if (hasStart && includeDown)
+                            {
+                                DispatchUiPointerDragToJournal(start, delta, stepCount);
+                            }
+                        },
+                    });
+                }
+
+                if (!dryRun)
+                {
+                    BeginPointerSession(api, capturePointer, warnings);
+                    completionMarker = ChievfxMcpControlInputPlayback.Schedule("mouse-gesture", playback);
                 }
             }
 
-            var warnings = new List<string>();
             var mutated = !dryRun && errors.Count == 0;
-            if (mutated && !api.TryUpdate(out var updateWarning) && !string.IsNullOrEmpty(updateWarning))
-            {
-                warnings.Add(updateWarning);
-            }
-
-            if (mutated && hasStart && includeDown && includeUp)
-            {
-                TryDispatchUiToolkitPointerDrag(start, delta, steps, warnings);
-                TryDispatchUguiPointerDrag(start, delta, warnings);
-            }
-
             var result = Result("input-control-mouse-gesture", "Mouse", "gesture", dryRun, mutated, queued.ToArray(), warnings.ToArray(), errors.ToArray());
             if (dryRun || errors.Count > 0)
             {
@@ -435,7 +507,7 @@ namespace Chievfx.Mcp.Extensions.Control
                 result["ease"] = ease;
             }
 
-            return result;
+            return WithScheduling(result, completionMarker, mutated);
         }
 
         private static Dictionary<string, object?> Touch(JToken args, InputApi api)
@@ -469,32 +541,53 @@ namespace Chievfx.Mcp.Extensions.Control
             }
 
             Gate(dryRun, ReadBool(args, "allowStateMutation", false), errors);
+            string? completionMarker = null;
             if (errors.Count == 0)
             {
+                var holdFrames = ReadHoldFrames(args);
                 var resolvedPosition = hasPosition ? position : api.ReadPrimaryTouchPosition();
                 foreach (var item in action == "tap"
-                    ? new[] { ("down", "Began", Vector2.zero), ("up", "Ended", Vector2.zero) }
-                    : new[] { (action, TouchPhaseForAction(action), hasDelta ? delta : Vector2.zero) })
+                    ? new[] { ("down", Vector2.zero), ("up", Vector2.zero) }
+                    : new[] { (action, hasDelta ? delta : Vector2.zero) })
                 {
-                    queued.Add(EventRow("Touchscreen", item.Item1, touchId.ToString(CultureInfo.InvariantCulture), resolvedPosition, item.Item3, -1d));
-                    if (!dryRun)
-                    {
-                        api.QueueTouch(touchId, item.Item2, resolvedPosition, item.Item3, -1d);
-                    }
+                    queued.Add(EventRow("Touchscreen", item.Item1, touchId.ToString(CultureInfo.InvariantCulture), resolvedPosition, item.Item2, -1d));
                 }
 
-                if (action is "up" or "tap")
+                if (!dryRun)
                 {
-                    uiToolkitClickPosition = resolvedPosition;
+                    ChievfxMcpControlPointerCapture.EnsureInputRoutingOverride();
+                    if (action == "tap")
+                    {
+                        completionMarker = ChievfxMcpControlInputPlayback.Schedule("touch-tap", new[]
+                        {
+                            new ChievfxMcpControlInputPlayback.Step
+                            {
+                                FrameGapBefore = 0,
+                                Dispatch = () => api.QueueTouch(touchId, "Began", resolvedPosition, Vector2.zero, -1d),
+                            },
+                            new ChievfxMcpControlInputPlayback.Step
+                            {
+                                FrameGapBefore = holdFrames,
+                                Dispatch = () =>
+                                {
+                                    api.QueueTouch(touchId, "Ended", resolvedPosition, Vector2.zero, -1d);
+                                    DispatchUiRuntimeClickToJournal(resolvedPosition);
+                                },
+                            },
+                        });
+                    }
+                    else
+                    {
+                        api.QueueTouch(touchId, TouchPhaseForAction(action), resolvedPosition, hasDelta ? delta : Vector2.zero, -1d);
+                        if (action == "up")
+                        {
+                            uiToolkitClickPosition = resolvedPosition;
+                        }
+                    }
                 }
             }
 
             var mutated = !dryRun && errors.Count == 0;
-            if (mutated && !api.TryUpdate(out var updateWarning) && !string.IsNullOrEmpty(updateWarning))
-            {
-                warnings.Add(updateWarning);
-            }
-
             if (mutated && uiToolkitClickPosition.HasValue)
             {
                 TryDispatchUiRuntimeClick(uiToolkitClickPosition.Value, warnings);
@@ -507,7 +600,125 @@ namespace Chievfx.Mcp.Extensions.Control
 
             var result = Result("input-control-touch-event", "Touchscreen", action, dryRun, mutated, queued.ToArray(), warnings.ToArray(), errors.ToArray());
             result["touchId"] = touchId;
+            return WithScheduling(result, completionMarker, mutated);
+        }
+
+        private static Dictionary<string, object?> PointerCapture(JToken args, InputApi api)
+        {
+            var action = Norm(ReadString(args, "action"));
+            var errors = new List<string>();
+            var warnings = new List<string>();
+            if (!OneOf(action, "begin", "end", "status")) errors.Add("action must be one of: begin, end, status.");
+
+            if (errors.Count == 0 && action == "begin")
+            {
+                Gate(dryRun: false, ReadBool(args, "allowStateMutation", false), errors);
+                if (errors.Count == 0)
+                {
+                    if (!ChievfxMcpControlPointerCapture.TryBegin(out var created, out var seedPosition, out var captureError))
+                    {
+                        errors.Add(captureError);
+                    }
+                    else if (created)
+                    {
+                        // Seed the virtual mouse with the physical cursor position so game code
+                        // reading Mouse.current does not observe a jump to (0, 0).
+                        api.QueueMouseMove(seedPosition, null, -1d);
+                    }
+                }
+            }
+            else if (errors.Count == 0 && action == "end")
+            {
+                if (!ChievfxMcpControlPointerCapture.EndSession(out var endError))
+                {
+                    warnings.Add(endError);
+                }
+            }
+
+            var ok = errors.Count == 0;
+            var result = new Dictionary<string, object?>
+            {
+                ["ok"] = ok,
+                ["status"] = ok ? "success" : "failed",
+                ["action"] = action,
+                ["pointerCapture"] = ChievfxMcpControlPointerCapture.Status(),
+            };
+            if (warnings.Count > 0) result["warnings"] = warnings.ToArray();
+            if (!ok)
+            {
+                result["validationErrors"] = errors.ToArray();
+                result["playMode"] = IsPlaying;
+                result["mutationGate"] = MutationGateRow(dryRun: false);
+            }
+
             return result;
+        }
+
+        private static int ReadHoldFrames(JToken args)
+        {
+            return Mathf.Clamp(ReadInt(args, "holdFrames", 2), 1, 300);
+        }
+
+        private static Dictionary<string, object?> WithScheduling(Dictionary<string, object?> result, string? completionMarker, bool mutated)
+        {
+            if (completionMarker == null)
+            {
+                return result;
+            }
+
+            if (mutated)
+            {
+                result["status"] = "scheduled";
+                result["completionMarker"] = completionMarker;
+                result["hint"] = "Steps dispatch across player frames so pressed/released edges stay visible to game code polling in Update(). Await completion with events-wait marker=" + completionMarker + ".";
+            }
+
+            return result;
+        }
+
+        private static void BeginPointerSession(InputApi api, bool capturePointer, List<string> warnings)
+        {
+            ChievfxMcpControlPointerCapture.EnsureInputRoutingOverride();
+            if (!capturePointer)
+            {
+                return;
+            }
+
+            if (!ChievfxMcpControlPointerCapture.TryBegin(out var created, out var seedPosition, out var captureError))
+            {
+                if (!string.IsNullOrEmpty(captureError))
+                {
+                    warnings.Add("Pointer capture unavailable: " + captureError + " The OS cursor may overwrite injected positions each frame.");
+                }
+
+                return;
+            }
+
+            if (created)
+            {
+                api.QueueMouseMove(seedPosition, null, -1d);
+            }
+        }
+
+        private static void DispatchUiRuntimeClickToJournal(Vector2 screenPosition)
+        {
+            var warnings = new List<string>();
+            TryDispatchUiRuntimeClick(screenPosition, warnings);
+            foreach (var warning in warnings)
+            {
+                ChievfxMcpControlInputPlayback.Journal("dispatch-warning", "warning", warning);
+            }
+        }
+
+        private static void DispatchUiPointerDragToJournal(Vector2 screenStartPosition, Vector2 screenDelta, int steps)
+        {
+            var warnings = new List<string>();
+            TryDispatchUiToolkitPointerDrag(screenStartPosition, screenDelta, steps, warnings);
+            TryDispatchUguiPointerDrag(screenStartPosition, screenDelta, warnings);
+            foreach (var warning in warnings)
+            {
+                ChievfxMcpControlInputPlayback.Journal("dispatch-warning", "warning", warning);
+            }
         }
 
         private static Dictionary<string, object?> Result(string tool, string? device, string? action, bool dryRun, bool mutated, object[] queued, string[] warnings, string[] errors)
@@ -748,6 +959,7 @@ namespace Chievfx.Mcp.Extensions.Control
             ["action"] = Enum("Keyboard action.", "down", "up", "tap"),
             ["key"] = Str("Input System Key enum name."),
             ["durationMs"] = Num("Optional metadata; tap queues down then up."),
+            ["holdFrames"] = Int("Player frames to hold the key during tap. Default 2, range 1..300."),
             ["dryRun"] = Bool("Report intended events without input mutation."),
             ["allowStateMutation"] = Bool("Required true for real input injection."),
         }, "action", "key");
@@ -759,6 +971,8 @@ namespace Chievfx.Mcp.Extensions.Control
             ["position"] = Vector("Absolute screen position, origin bottom-left."),
             ["screenPosition"] = Vector("Alias for position."),
             ["delta"] = Vector("Relative mouse delta."),
+            ["holdFrames"] = Int("Player frames to hold the button during tap. Default 2, range 1..300."),
+            ["capturePointer"] = Bool("Route injection through a virtual mouse and disable physical mice so the OS cursor cannot overwrite injected positions. Default true; ends on Play Mode exit or input-control-pointer-capture end."),
             ["dryRun"] = Bool("Report intended events without input mutation."),
             ["allowStateMutation"] = Bool("Required true for real input injection."),
         }, "action");
@@ -775,6 +989,7 @@ namespace Chievfx.Mcp.Extensions.Control
             ["ease"] = Enum("Interpolation curve.", "inout", "in", "out"),
             ["includeDown"] = Bool("Queue button down at gesture start."),
             ["includeUp"] = Bool("Queue button up at gesture end."),
+            ["capturePointer"] = Bool("Route injection through a virtual mouse and disable physical mice so the OS cursor cannot overwrite injected positions. Default true; ends on Play Mode exit or input-control-pointer-capture end."),
             ["dryRun"] = Bool("Defaults true for gesture."),
             ["allowStateMutation"] = Bool("Required true for real input injection."),
         }, "delta");
@@ -786,8 +1001,15 @@ namespace Chievfx.Mcp.Extensions.Control
             ["position"] = Vector("Absolute screen position, origin bottom-left."),
             ["screenPosition"] = Vector("Alias for position."),
             ["delta"] = Vector("Relative touch delta for move/up metadata."),
+            ["holdFrames"] = Int("Player frames to hold the touch during tap. Default 2, range 1..300."),
             ["dryRun"] = Bool("Report intended events without input mutation."),
             ["allowStateMutation"] = Bool("Required true for real input injection."),
+        }, "action");
+
+        private static JObject PointerCaptureSchema() => Schema(new JObject
+        {
+            ["action"] = Enum("Pointer capture action.", "begin", "end", "status"),
+            ["allowStateMutation"] = Bool("Required true for begin."),
         }, "action");
 
         private static JObject PlayModeSetSchema() => Schema(new JObject
@@ -822,35 +1044,37 @@ namespace Chievfx.Mcp.Extensions.Control
             private readonly Type touchscreenType;
             private readonly Type keyType;
             private readonly MethodInfo queueState;
-            private readonly MethodInfo? updateMethod;
             private readonly Type keyboardStateType;
             private readonly Type mouseStateType;
             private readonly Type mouseButtonType;
             private readonly Type touchStateType;
             private readonly Type touchPhaseType;
 
-            private InputApi(Type inputSystemType, Type keyboardType, Type mouseType, Type touchscreenType, Type keyType, MethodInfo queueState, MethodInfo? updateMethod, Type keyboardStateType, Type mouseStateType, Type mouseButtonType, Type touchStateType, Type touchPhaseType)
+            private InputApi(Type inputSystemType, Type keyboardType, Type mouseType, Type touchscreenType, Type keyType, MethodInfo queueState, Type keyboardStateType, Type mouseStateType, Type mouseButtonType, Type touchStateType, Type touchPhaseType)
             {
                 this.keyboardType = keyboardType;
                 this.mouseType = mouseType;
                 this.touchscreenType = touchscreenType;
                 this.keyType = keyType;
                 this.queueState = queueState;
-                this.updateMethod = updateMethod;
                 this.keyboardStateType = keyboardStateType;
                 this.mouseStateType = mouseStateType;
                 this.mouseButtonType = mouseButtonType;
                 this.touchStateType = touchStateType;
                 this.touchPhaseType = touchPhaseType;
                 Keyboard = keyboardType.GetProperty("current", BindingFlags.Public | BindingFlags.Static | BindingFlags.IgnoreCase)?.GetValue(null);
-                Mouse = mouseType.GetProperty("current", BindingFlags.Public | BindingFlags.Static | BindingFlags.IgnoreCase)?.GetValue(null);
                 Touchscreen = touchscreenType.GetProperty("current", BindingFlags.Public | BindingFlags.Static | BindingFlags.IgnoreCase)?.GetValue(null);
                 Time = EditorApplication.timeSinceStartup;
                 _ = inputSystemType;
             }
 
             public object? Keyboard { get; }
-            public object? Mouse { get; }
+
+            // Resolved per access: while a pointer capture session is active, injected events must
+            // go to the virtual mouse, and the session may begin mid-call.
+            public object? Mouse => ChievfxMcpControlPointerCapture.VirtualMouse
+                ?? mouseType.GetProperty("current", BindingFlags.Public | BindingFlags.Static | BindingFlags.IgnoreCase)?.GetValue(null);
+
             public object? Touchscreen { get; }
             public double Time { get; }
 
@@ -882,8 +1106,7 @@ namespace Chievfx.Mcp.Extensions.Control
                     return false;
                 }
 
-                var updateMethod = inputSystemType.GetMethod("Update", BindingFlags.Public | BindingFlags.Static, null, Type.EmptyTypes, null);
-                api = new InputApi(inputSystemType, keyboardType, mouseType, touchscreenType, keyType, queueState, updateMethod, keyboardStateType, mouseStateType, mouseButtonType, touchStateType, touchPhaseType);
+                api = new InputApi(inputSystemType, keyboardType, mouseType, touchscreenType, keyType, queueState, keyboardStateType, mouseStateType, mouseButtonType, touchStateType, touchPhaseType);
                 reason = "Input System types loaded.";
                 return true;
 #else
@@ -971,9 +1194,12 @@ namespace Chievfx.Mcp.Extensions.Control
                 QueueState(Keyboard!, state, keyboardStateType, eventTime);
             }
 
-            public void QueueMouseButton(string buttonName, bool pressed, double eventTime)
+            public void QueueMouseButton(string buttonName, bool pressed, double eventTime, Vector2? position = null)
             {
-                var state = CreateMouseState(null, null);
+                // MouseState is a full state snapshot: without an explicit position, a button event
+                // built before a same-batch move is processed would reset the position to its old
+                // value. Callers pass the intended position when the batch also moves the pointer.
+                var state = CreateMouseState(position, null);
                 state = WithMouseButton(state, buttonName, pressed);
                 QueueState(Mouse!, state, mouseStateType, eventTime);
             }
@@ -988,19 +1214,6 @@ namespace Chievfx.Mcp.Extensions.Control
             {
                 var state = CreateTouchState(touchId, phaseName, position, delta);
                 QueueState(Touchscreen!, state, touchStateType, eventTime);
-            }
-
-            public bool TryUpdate(out string warning)
-            {
-                warning = string.Empty;
-                if (updateMethod == null)
-                {
-                    warning = "Queued input but could not call InputSystem.Update(); state may not be visible until next player loop.";
-                    return false;
-                }
-
-                updateMethod.Invoke(null, Array.Empty<object>());
-                return true;
             }
 
             private void QueueState(object device, object state, Type stateType, double eventTime)

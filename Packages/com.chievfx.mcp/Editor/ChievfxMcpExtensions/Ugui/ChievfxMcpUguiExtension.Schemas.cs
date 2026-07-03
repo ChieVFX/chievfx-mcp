@@ -382,6 +382,8 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 ["paths"] = new JObject { ["type"] = "array", ["items"] = new JObject { ["type"] = "string" }, ["description"] = "Optional uGUI element paths to inspect. One element is valid." },
                 ["instanceIds"] = new JObject { ["type"] = "array", ["items"] = new JObject { ["type"] = "integer" }, ["description"] = "Optional uGUI element instance ids to inspect. One element is valid." },
                 ["name"] = StringProperty("Optional exact GameObject name filter."),
+                ["nameContains"] = StringProperty("Optional case-insensitive substring filter on the GameObject name."),
+                ["namePattern"] = StringProperty("Optional wildcard filter on the GameObject name; use * and ?."),
                 ["componentType"] = StringProperty("Optional component type name filter, e.g. Image, Button, TextMeshProUGUI."),
                 ["includeInactive"] = BoolProperty("Include inactive uGUI elements."),
                 ["includeDetails"] = BoolProperty("Include RectTransform/Image/TMP details. Defaults true."),

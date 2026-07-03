@@ -53,7 +53,23 @@ namespace Chievfx.Mcp.Editor
                         }
                     }
 
-                    return new ImageResult("image/png", Convert.ToBase64String(png));
+                    var metadata = new Dictionary<string, object?>
+                    {
+                        ["captureSource"] = "gameview.renderTexture",
+                        ["pngWidth"] = dimensions.Width,
+                        ["pngHeight"] = dimensions.Height,
+                        ["gameViewWidth"] = renderTexture.width,
+                        ["gameViewHeight"] = renderTexture.height,
+                        ["pngToGameViewScale"] = Math.Round(dimensions.Width / (double)renderTexture.width, 6),
+                        ["maxDimension"] = maxDimension,
+                        ["warnings"] = Array.Empty<string>()
+                    };
+                    if (dimensions.Width != renderTexture.width || dimensions.Height != renderTexture.height)
+                    {
+                        metadata["coordinateHint"] = "The PNG is downscaled from the Game View. Multiply PNG coordinates by gameViewWidth/pngWidth before using them as screen positions (e.g. for input injection). Pass a larger maxDimension for a full-resolution capture.";
+                    }
+
+                    return new ImageResult("image/png", Convert.ToBase64String(png), metadata);
                 }
             }
 
@@ -369,6 +385,14 @@ namespace Chievfx.Mcp.Editor
             IEnumerable<string> warnings)
         {
             var metadata = CreateCameraCaptureMetadata(camera, width, height);
+            var gameViewTargetSize = TryGetMainGameViewTargetSize();
+            if (gameViewTargetSize.HasValue)
+            {
+                metadata["gameViewWidth"] = (int)gameViewTargetSize.Value.x;
+                metadata["gameViewHeight"] = (int)gameViewTargetSize.Value.y;
+                metadata["coordinateHint"] = "This capture was rendered directly from the camera at pngWidth x pngHeight and may not match the Game View resolution or aspect ratio. Compute screen positions (e.g. for input injection) against gameViewWidth/gameViewHeight, not the PNG size.";
+            }
+
             metadata["renderTextureAvailable"] = gameViewRenderTextureAvailable;
             metadata["screenSpaceOverlayCanvasCount"] = screenSpaceOverlayCanvasCount;
             metadata["screenSpaceOverlayHandling"] = screenSpaceOverlayHandling;
@@ -530,6 +554,20 @@ namespace Chievfx.Mcp.Editor
                 {
                     RenderTexture.ReleaseTemporary(scaledTexture);
                 }
+            }
+        }
+
+        private static Vector2? TryGetMainGameViewTargetSize()
+        {
+            try
+            {
+                var gameViewType = typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");
+                var method = gameViewType?.GetMethod("GetMainGameViewTargetSize", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+                return method?.Invoke(null, null) is Vector2 size && size.x >= 1f && size.y >= 1f ? size : null;
+            }
+            catch
+            {
+                return null;
             }
         }
 

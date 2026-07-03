@@ -14,7 +14,7 @@
         "description": "Framework scope. all (default) searches uGUI and UI Toolkit."
       },
       "wildcards": {
-        "description": "Optional wildcard filter on control name or compact path. Use * and ? like gameobject-find namePattern. String or string array; matches if any pattern hits.",
+        "description": "Optional wildcard filter on control name or compact path. Use * and ? like gameobject-find namePattern; a pattern without * or ? must match the full name or path exactly (use *Lane1* for a contains search). String or string array; matches if any pattern hits. When nothing matches, the result says so explicitly (matched:false) instead of listing other controls.",
         "oneOf": [
           {
             "type": "string"

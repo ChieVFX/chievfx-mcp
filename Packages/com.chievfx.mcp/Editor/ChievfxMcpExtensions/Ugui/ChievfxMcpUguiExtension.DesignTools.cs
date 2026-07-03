@@ -660,14 +660,37 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return result;
         }
 
+        private static readonly string[] UiFindKnownArguments =
+        {
+            "paths", "instanceIds", "name", "nameContains", "namePattern", "componentType",
+            "includeInactive", "includeDetails", "normalizedCoords", "maxResults", "outputFormat",
+        };
+
         internal static Dictionary<string, object?> UiFind(JToken args, UguiDependencyStatus status)
         {
+            var warnings = new List<string>();
+            // An unrecognized filter argument would silently apply no filter and report every
+            // element as a match; call it out so a miss never masquerades as results.
+            if (args is JObject requestObject)
+            {
+                var unknown = requestObject.Properties()
+                    .Select(property => property.Name)
+                    .Where(key => !UiFindKnownArguments.Contains(key, StringComparer.OrdinalIgnoreCase))
+                    .ToArray();
+                if (unknown.Length > 0)
+                {
+                    warnings.Add($"Ignored unsupported argument(s): {string.Join(", ", unknown)}. Supported filters: name (exact), nameContains (substring), namePattern (wildcards * ?), componentType, paths, instanceIds.");
+                }
+            }
+
             var includeInactive = ReadBool(args, "includeInactive", true);
             var includeDetails = ReadBool(args, "includeDetails", true);
             var normalizedCoords = ReadBool(args, "normalizedCoords", false);
             var maxResults = Math.Max(1, Math.Min(ReadInt(args, "maxResults", 16), 64));
             var explicitTargets = ResolveExplicitUiTargets(args);
             var name = ReadString(args, "name");
+            var nameContains = ReadString(args, "nameContains");
+            var namePattern = ReadString(args, "namePattern");
             var componentType = ReadString(args, "componentType");
             var hasExplicitTarget = explicitTargets.Length > 0;
             var source = hasExplicitTarget
@@ -679,8 +702,20 @@ namespace Chievfx.Mcp.Extensions.Ugui
             var matches = source
                 .Where(target => includeInactive || target.activeInHierarchy)
                 .Where(target => string.IsNullOrWhiteSpace(name) || string.Equals(target.name, name, StringComparison.Ordinal))
+                .Where(target => string.IsNullOrWhiteSpace(nameContains) || target.name.IndexOf(nameContains!, StringComparison.OrdinalIgnoreCase) >= 0)
+                .Where(target => string.IsNullOrWhiteSpace(namePattern) || GameObjectBridgeService.WildcardMatches(target.name, namePattern!))
                 .Where(target => string.IsNullOrWhiteSpace(componentType) || HasComponentNamed(target, componentType!))
                 .ToArray();
+            var hasFilter = hasExplicitTarget
+                || !string.IsNullOrWhiteSpace(name)
+                || !string.IsNullOrWhiteSpace(nameContains)
+                || !string.IsNullOrWhiteSpace(namePattern)
+                || !string.IsNullOrWhiteSpace(componentType);
+            if (hasFilter && matches.Length == 0)
+            {
+                warnings.Add("No uGUI elements matched the filters.");
+            }
+
             var selected = matches
                 .Take(maxResults)
                 .Select(target => includeDetails ? CreateUguiElementDetail(target, status, normalizedCoords) : CreateUguiElementRef(target))
@@ -688,11 +723,17 @@ namespace Chievfx.Mcp.Extensions.Ugui
             var result = CreateToolEnvelope("ugui-ui-find");
             result["count"] = selected.Length;
             result["totalMatches"] = matches.Length;
+            result["matched"] = !hasFilter || matches.Length > 0;
             result["maxResults"] = maxResults;
             result["includeDetails"] = includeDetails;
             result["normalizedCoords"] = normalizedCoords;
             result["truncated"] = matches.Length > selected.Length;
             result["objects"] = selected;
+            if (warnings.Count > 0)
+            {
+                result["warnings"] = warnings.ToArray();
+            }
+
             return result;
         }
 

@@ -167,6 +167,23 @@ namespace Chievfx.Mcp.Extensions.Control
 
         public static bool Active => VirtualMouse != null;
 
+        public static bool RoutingOverridden => routingOverridden;
+
+        public static string? CurrentRoutingBehavior()
+        {
+            try
+            {
+                var inputSystemType = FindType("UnityEngine.InputSystem.InputSystem");
+                var settings = inputSystemType?.GetProperty("settings", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+                return settings?.GetType().GetProperty("editorInputBehaviorInPlayMode", BindingFlags.Instance | BindingFlags.Public)
+                    ?.GetValue(settings)?.ToString();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public static bool TryBegin(out bool created, out Vector2 seedPosition, out string error)
         {
             created = false;

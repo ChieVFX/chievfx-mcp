@@ -213,7 +213,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             descriptor.Tools.Add(CreateTool("ugui-image-primitive-create", "Create generated Sprite primitive uGUI Image.", ImagePrimitiveCreateSchema()));
             descriptor.Tools.Add(CreateTool("ugui-sprite-configure", "Configure texture as uGUI Sprite/9-slice.", SpriteConfigureSchema()));
             descriptor.Tools.Add(CreateTool("ugui-ui-hierarchy", "Returns a compact uGUI RectTransform hierarchy for active-scene Canvases or a target root.", UiHierarchySchema()));
-            descriptor.Tools.Add(CreateTool("ugui-ui-find", "Finds uGUI elements by path, name, component type, or instance id, with optional detail data.", UiFindSchema()));
+            descriptor.Tools.Add(CreateTool("ugui-ui-find", "Finds uGUI elements by path, name (exact), nameContains, namePattern (wildcards * ?), component type, or instance id, with optional detail data. totalMatches counts only elements passing the filters; unsupported arguments are reported in warnings instead of silently matching everything.", UiFindSchema()));
 
             return descriptor;
         }

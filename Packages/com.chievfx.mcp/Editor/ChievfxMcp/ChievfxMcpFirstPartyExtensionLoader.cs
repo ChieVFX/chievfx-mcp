@@ -212,6 +212,7 @@ namespace Chievfx.Mcp.Extensions.Control
                 ["touchscreen"] = DeviceRow("Touchscreen", api?.Touchscreen),
                 ["pointerCapture"] = ChievfxMcpControlPointerCapture.Status(),
                 ["pendingInputSequences"] = ChievfxMcpControlInputPlayback.PendingSequenceCount,
+                ["gameView"] = GameViewStateRow(),
                 ["tools"] = available
                     ? new[] { "editor-playmode-set", "input-control-keyboard-event", "input-control-mouse-event", "input-control-mouse-gesture", "input-control-touch-event", "input-control-pointer-capture" }
                     : new[] { "editor-playmode-set" },
@@ -743,6 +744,18 @@ namespace Chievfx.Mcp.Extensions.Control
                 result["coordinateConvention"] = CoordinateConventionRow();
             }
 
+            if (!dryRun)
+            {
+                var gameView = GameViewStateRow();
+                result["gameView"] = gameView;
+                if (mutated && Equals(gameView["focused"], false) && !Equals(gameView["inputRoutingOverridden"], true))
+                {
+                    warnings = warnings
+                        .Append("Game view is not focused and the input routing override is inactive; the editor may mute injected pointer/keyboard events. Focus the Game view (editor-window-focus) before injecting.")
+                        .ToArray();
+                }
+            }
+
             if (warnings.Length > 0)
             {
                 result["warnings"] = warnings;
@@ -768,6 +781,31 @@ namespace Chievfx.Mcp.Extensions.Control
         private static Dictionary<string, object?> MutationGateRow(bool dryRun)
         {
             return new Dictionary<string, object?> { ["requiresPlayMode"] = true, ["requiresAllowStateMutation"] = true, ["playMode"] = IsPlaying, ["dryRun"] = dryRun };
+        }
+
+        private static Dictionary<string, object?> GameViewStateRow()
+        {
+            return new Dictionary<string, object?>
+            {
+                ["focused"] = IsGameViewFocused(),
+                ["applicationFocused"] = UnityEditorInternal.InternalEditorUtility.isApplicationActive,
+                ["inputRouting"] = ChievfxMcpControlPointerCapture.CurrentRoutingBehavior(),
+                ["inputRoutingOverridden"] = ChievfxMcpControlPointerCapture.RoutingOverridden,
+            };
+        }
+
+        private static bool IsGameViewFocused()
+        {
+            for (var type = EditorWindow.focusedWindow?.GetType(); type != null; type = type.BaseType)
+            {
+                if (string.Equals(type.FullName, "UnityEditor.GameView", StringComparison.Ordinal)
+                    || string.Equals(type.FullName, "UnityEditor.PlayModeView", StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static Dictionary<string, object?> CoordinateConventionRow()

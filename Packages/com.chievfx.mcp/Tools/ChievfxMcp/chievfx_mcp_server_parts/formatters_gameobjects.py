@@ -94,6 +94,11 @@ def format_ugui_ui_find_text(result: dict[str, Any]) -> str:
     if result.get("truncated") is True:
         header_parts.append("truncated")
     lines = [" ".join(header_parts)]
+    warnings = result.get("warnings")
+    if isinstance(warnings, list):
+        for warning in warnings:
+            if isinstance(warning, str) and warning.strip():
+                lines.append(f"warning: {warning.strip()}")
     for game_object in objects:
         if isinstance(game_object, dict):
             lines.extend(format_gameobject_find_object_lines(game_object))

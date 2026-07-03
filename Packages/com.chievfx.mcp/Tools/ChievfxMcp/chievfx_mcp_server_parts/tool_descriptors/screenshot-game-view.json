@@ -1,6 +1,6 @@
 {
   "name": "screenshot-game-view",
-  "description": "Captures a screenshot from the Unity Editor Game View.",
+  "description": "Captures a screenshot from the Unity Editor Game View. The PNG may be downscaled (default maxDimension 960); the result metadata reports pngWidth/pngHeight, gameViewWidth/gameViewHeight, and pngToGameViewScale - convert PNG coordinates to screen positions with gameViewWidth/pngWidth before using them for input injection.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -9,7 +9,7 @@
         "minimum": 1,
         "maximum": 16384,
         "default": 960,
-        "description": "Maximum output width or height. Defaults to 960 to avoid oversized images."
+        "description": "Maximum output width or height. Defaults to 960 to avoid oversized images. Pass the Game View resolution (see gameViewWidth/gameViewHeight in result metadata) for a full-resolution capture."
       },
       "savePath": {
         "type": "string",

@@ -1101,10 +1101,11 @@ namespace Chievfx.Mcp.Editor
         {
             var request = args is JObject obj ? obj : new JObject();
             var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
+            var warnings = new List<string>();
+            MapControlFindFilterAliases(request, warnings);
             var wildcards = ChievfxMcpRuntimeUiControlFind.ParseWildcards(request, "wildcards");
             var controlTypeFilter = ChievfxMcpRuntimeUiControlFind.NormalizeControlTypeFilter(request["controlType"]?.Value<string>());
             var pageSize = ChievfxMcpRuntimeUiControlFind.DefaultPageSize;
-            var warnings = new List<string>();
             var controls = new List<Dictionary<string, object?>>();
             var totalMatches = 0;
             var sections = new List<Dictionary<string, object?>>();
@@ -1183,11 +1184,20 @@ namespace Chievfx.Mcp.Editor
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToArray();
+            if (wildcards.Length > 0 && totalMatches == 0)
+            {
+                var containsHint = wildcards.All(pattern => pattern.IndexOfAny(new[] { '*', '?' }) < 0)
+                    ? $" Patterns without * or ? must match the full control name or path exactly; try '*{wildcards[0]}*' for a contains search."
+                    : string.Empty;
+                warnings.Add($"No controls matched wildcards [{string.Join(", ", wildcards)}].{containsHint}");
+            }
+
             var payload = new Dictionary<string, object?>
             {
                 ["page"] = page,
                 ["totalPages"] = totalPages,
                 ["total"] = totalMatches,
+                ["matched"] = wildcards.Length == 0 || totalMatches > 0,
                 ["wildcards"] = wildcards.Length == 0 ? null : wildcards,
                 ["controlTypeFilter"] = controlTypeFilter,
                 ["normalizeCoords"] = normalizeCoords,
@@ -1208,6 +1218,38 @@ namespace Chievfx.Mcp.Editor
             }
 
             return payload;
+        }
+
+        /// <summary>
+        /// The only supported filter argument is 'wildcards'; a misnamed filter (query, name, ...)
+        /// would silently apply no filter and return every control as if it matched. Map the common
+        /// aliases onto wildcards (contains semantics) and say so, instead of lying.
+        /// </summary>
+        private static void MapControlFindFilterAliases(JObject request, List<string> warnings)
+        {
+            if (request["wildcards"] != null && request["wildcards"]!.Type != JTokenType.Null)
+            {
+                return;
+            }
+
+            foreach (var alias in new[] { "query", "name", "nameContains", "namePattern", "search", "pattern", "text" })
+            {
+                if (request[alias]?.Type != JTokenType.String)
+                {
+                    continue;
+                }
+
+                var value = request[alias]!.Value<string>()?.Trim();
+                if (string.IsNullOrEmpty(value))
+                {
+                    continue;
+                }
+
+                var pattern = value!.IndexOfAny(new[] { '*', '?' }) >= 0 ? value! : "*" + value + "*";
+                request["wildcards"] = pattern;
+                warnings.Add($"'{alias}' is not a ui-control-find argument; interpreted it as wildcards='{pattern}'.");
+                return;
+            }
         }
 
         private static object? ReadResource(string uri)

@@ -1,6 +1,6 @@
 {
   "name": "scene-open",
-  "description": "Opens a Unity scene asset, preserving dirty scenes unless explicitly saved first.",
+  "description": "Opens a Unity scene asset by scenePath ('path' as reported by scene-list-available is accepted as an alias), preserving dirty scenes unless explicitly saved first.",
   "inputSchema": {
     "type": "object",
     "properties": {

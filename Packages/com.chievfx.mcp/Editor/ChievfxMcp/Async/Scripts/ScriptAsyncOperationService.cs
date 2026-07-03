@@ -217,15 +217,18 @@ namespace Chievfx.Mcp.Editor
             var includeLogs = ReadBool(args, "includeLogs", true);
             var logType = ReadString(args, "logType");
             var timeoutMs = ClampInt(ReadInt(args, "timeoutMs", DefaultScriptTimeoutMs), 100, HardScriptTimeoutMs);
-            var csharpCode = ReadString(args, "csharpCode");
+            var csharpCode = ReadString(args, "csharpCode")
+                ?? ReadString(args, "code")
+                ?? ReadString(args, "source")
+                ?? ReadString(args, "script");
             if (string.IsNullOrWhiteSpace(csharpCode))
             {
-                throw new ArgumentException("script-execute requires non-empty csharpCode.", nameof(args));
+                throw new ArgumentException("script-execute requires non-empty csharpCode (the C# source text; aliases code/source/script are also accepted).");
             }
 
             if (csharpCode!.Length > MaxScriptCodeChars)
             {
-                throw new ArgumentException($"script-execute csharpCode is too large. Maximum is {MaxScriptCodeChars} characters.", nameof(args));
+                throw new ArgumentException($"script-execute csharpCode is too large. Maximum is {MaxScriptCodeChars} characters.");
             }
 
             var className = ReadString(args, "className");
@@ -759,7 +762,29 @@ namespace Chievfx.Mcp.Editor
 
         private MethodInfo ResolveScriptMethod(Assembly assembly, string? className, string? methodName, int suppliedParameterCount)
         {
-            var resolvedMethodName = string.IsNullOrWhiteSpace(methodName) ? BridgeRuntimeState.DefaultScriptMethodName : methodName!.Trim();
+            var hasExplicitMethodName = !string.IsNullOrWhiteSpace(methodName);
+            var resolvedMethodName = hasExplicitMethodName ? methodName!.Trim() : BridgeRuntimeState.DefaultScriptMethodName;
+            try
+            {
+                return ResolveNamedScriptMethod(assembly, className, resolvedMethodName, suppliedParameterCount);
+            }
+            catch (InvalidOperationException ex) when (!hasExplicitMethodName)
+            {
+                // The default entry point convention is 'static Main' - but when the script defines
+                // exactly one public static method there is nothing to disambiguate, so run it.
+                var single = FindSinglePublicStaticMethod(assembly, className, suppliedParameterCount);
+                if (single != null)
+                {
+                    return single;
+                }
+
+                throw new InvalidOperationException(
+                    $"{ex.Message} script-execute runs 'static Main' by default; either name the method Main, pass methodName, or define exactly one public static method.");
+            }
+        }
+
+        private MethodInfo ResolveNamedScriptMethod(Assembly assembly, string? className, string resolvedMethodName, int suppliedParameterCount)
+        {
             var targetType = ResolveScriptType(assembly, className, resolvedMethodName);
             var methods = targetType
                 .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
@@ -778,6 +803,34 @@ namespace Chievfx.Mcp.Editor
 
             throw new InvalidOperationException(
                 $"Static method '{targetType.FullName}.{resolvedMethodName}' has no overload with {suppliedParameterCount} supplied parameters.");
+        }
+
+        private MethodInfo? FindSinglePublicStaticMethod(Assembly assembly, string? className, int suppliedParameterCount)
+        {
+            Type[] types;
+            if (string.IsNullOrWhiteSpace(className))
+            {
+                types = assembly.GetTypes();
+            }
+            else
+            {
+                var explicitType = FindScriptType(assembly, className!);
+                if (explicitType == null)
+                {
+                    return null;
+                }
+
+                types = new[] { explicitType };
+            }
+
+            var candidates = types
+                .Where(type => !type.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), inherit: false))
+                .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))
+                .Where(method => !method.IsSpecialName)
+                .ToArray();
+            return candidates.Length == 1 && candidates[0].GetParameters().Length == suppliedParameterCount
+                ? candidates[0]
+                : null;
         }
 
         private Type ResolveScriptType(Assembly assembly, string? className, string methodName)

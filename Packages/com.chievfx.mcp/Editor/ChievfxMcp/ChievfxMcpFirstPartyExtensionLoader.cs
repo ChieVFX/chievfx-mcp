@@ -223,13 +223,16 @@ namespace Chievfx.Mcp.Extensions.Control
         private static Dictionary<string, object?> PlayModeSet(JToken args)
         {
             var errors = new List<string>();
-            var hasRequestedState = args["isPlaying"]?.Type == JTokenType.Boolean;
+            var stateToken = new[] { "isPlaying", "play", "playing", "enabled" }
+                .Select(key => args[key])
+                .FirstOrDefault(token => token?.Type == JTokenType.Boolean);
+            var hasRequestedState = stateToken != null;
             if (!hasRequestedState)
             {
-                errors.Add("editor-playmode-set requires isPlaying boolean.");
+                errors.Add("editor-playmode-set requires isPlaying boolean (aliases play/playing are also accepted).");
             }
 
-            var requested = hasRequestedState && args["isPlaying"]!.Value<bool>();
+            var requested = hasRequestedState && stateToken!.Value<bool>();
             var before = IsPlaying;
             // Snapshot the event cursor BEFORE toggling play. Boot logs (e.g. Bootstrap.Awake Debug.Log)
             // fire during the play transition and get higher eventIds; waiting from this cursor catches them,
@@ -262,7 +265,7 @@ namespace Chievfx.Mcp.Extensions.Control
 
         private static Dictionary<string, object?> Keyboard(JToken args, InputApi api)
         {
-            var action = Norm(ReadString(args, "action"));
+            var action = ReadAction(args);
             var keyName = ReadString(args, "key") ?? ReadString(args, "targetKey") ?? string.Empty;
             var dryRun = ReadBool(args, "dryRun", false);
             var holdFrames = ReadHoldFrames(args);
@@ -308,7 +311,7 @@ namespace Chievfx.Mcp.Extensions.Control
 
         private static Dictionary<string, object?> Mouse(JToken args, InputApi api)
         {
-            var action = Norm(ReadString(args, "action"));
+            var action = ReadAction(args);
             var dryRun = ReadBool(args, "dryRun", false);
             var capturePointer = ReadBool(args, "capturePointer", true);
             var holdFrames = ReadHoldFrames(args);
@@ -322,9 +325,9 @@ namespace Chievfx.Mcp.Extensions.Control
 
             if (action == "move")
             {
-                var hasPosition = TryVector(args, "position", out var position) || TryVector(args, "screenPosition", out position);
+                var hasPosition = TryPosition(args, out var position);
                 var hasDelta = TryVector(args, "delta", out var delta);
-                if (!hasPosition && !hasDelta) errors.Add("move action requires position/screenPosition or delta.");
+                if (!hasPosition && !hasDelta) errors.Add("move action requires position/screenPosition (an {x,y} object), top-level x and y numbers, or delta.");
                 if (hasPosition && hasDelta) warnings.Add("Both position and delta were provided; queued absolute position and reported delta for caller context.");
                 object? control = null;
                 if (errors.Count == 0 && !api.TryMouseControl(hasPosition ? "position" : "delta", out control, out var controlError)) errors.Add(controlError);
@@ -342,7 +345,7 @@ namespace Chievfx.Mcp.Extensions.Control
             else
             {
                 var button = ReadString(args, "button") ?? "left";
-                var hasPosition = TryVector(args, "position", out var position) || TryVector(args, "screenPosition", out position);
+                var hasPosition = TryPosition(args, out var position);
                 object? control = null;
                 if (errors.Count == 0 && !api.TryMouseButton(button, out control, out var buttonError)) errors.Add(buttonError);
                 if (errors.Count == 0 && hasPosition && !api.TryMouseControl("position", out _, out var positionError)) errors.Add(positionError);
@@ -416,7 +419,7 @@ namespace Chievfx.Mcp.Extensions.Control
             var errors = new List<string>();
             var queued = new List<object>();
             if (!TryVector(args, "delta", out var delta)) errors.Add("mouse gesture requires delta.");
-            var hasStart = TryVector(args, "position", out var start) || TryVector(args, "startPosition", out start) || TryVector(args, "screenPosition", out start);
+            var hasStart = TryPosition(args, out var start) || TryVector(args, "startPosition", out start);
             var durationMs = ReadDouble(args, "durationMs", 250d);
             var ease = Norm(ReadString(args, "ease") ?? "inout");
             var steps = ReadInt(args, "steps", 0);
@@ -513,7 +516,7 @@ namespace Chievfx.Mcp.Extensions.Control
 
         private static Dictionary<string, object?> Touch(JToken args, InputApi api)
         {
-            var action = Norm(ReadString(args, "action"));
+            var action = ReadAction(args);
             var dryRun = ReadBool(args, "dryRun", false);
             var errors = new List<string>();
             var warnings = new List<string>();
@@ -523,11 +526,11 @@ namespace Chievfx.Mcp.Extensions.Control
             if (api.Touchscreen == null) errors.Add("Touchscreen.current is null; no touchscreen device is available.");
             var touchId = ReadInt(args, "touchId", 1);
             if (touchId < 1) errors.Add("touchId must be greater than or equal to 1.");
-            var hasPosition = TryVector(args, "position", out var position) || TryVector(args, "screenPosition", out position);
+            var hasPosition = TryPosition(args, out var position);
             var hasDelta = TryVector(args, "delta", out var delta);
             if (!hasPosition && !string.Equals(action, "up", StringComparison.Ordinal))
             {
-                errors.Add("touch down, tap, and move actions require position/screenPosition.");
+                errors.Add("touch down, tap, and move actions require position/screenPosition (an {x,y} object) or top-level x and y numbers.");
             }
 
             if (hasDelta && (action == "down" || action == "tap"))
@@ -992,6 +995,29 @@ namespace Chievfx.Mcp.Extensions.Control
             return obj["x"] != null || obj["y"] != null;
         }
 
+        private static bool TryPosition(JToken args, out Vector2 position)
+        {
+            if (TryVector(args, "position", out position) || TryVector(args, "screenPosition", out position))
+            {
+                return true;
+            }
+
+            // Other UI tools take top-level x/y; accept the same shape here.
+            if (args["x"]?.Type is JTokenType.Integer or JTokenType.Float
+                && args["y"]?.Type is JTokenType.Integer or JTokenType.Float)
+            {
+                position = new Vector2(args["x"]!.Value<float>(), args["y"]!.Value<float>());
+                return true;
+            }
+
+            return false;
+        }
+
+        private static string ReadAction(JToken args)
+        {
+            return Norm(ReadString(args, "action") ?? ReadString(args, "eventType") ?? ReadString(args, "type"));
+        }
+
         private static JObject KeyboardSchema() => Schema(new JObject
         {
             ["action"] = Enum("Keyboard action.", "down", "up", "tap"),
@@ -1008,6 +1034,8 @@ namespace Chievfx.Mcp.Extensions.Control
             ["button"] = Enum("Mouse button.", "left", "right", "middle", "forward", "back"),
             ["position"] = Vector("Absolute screen position, origin bottom-left."),
             ["screenPosition"] = Vector("Alias for position."),
+            ["x"] = Num("Alias for position.x (pair with y)."),
+            ["y"] = Num("Alias for position.y (pair with x)."),
             ["delta"] = Vector("Relative mouse delta."),
             ["holdFrames"] = Int("Player frames to hold the button during tap. Default 2, range 1..300."),
             ["capturePointer"] = Bool("Route injection through a virtual mouse and disable physical mice so the OS cursor cannot overwrite injected positions. Default true; ends on Play Mode exit or input-control-pointer-capture end."),
@@ -1021,6 +1049,8 @@ namespace Chievfx.Mcp.Extensions.Control
             ["position"] = Vector("Optional absolute start screen position."),
             ["startPosition"] = Vector("Alias for position."),
             ["screenPosition"] = Vector("Alias for position."),
+            ["x"] = Num("Alias for position.x (pair with y)."),
+            ["y"] = Num("Alias for position.y (pair with x)."),
             ["delta"] = Vector("Total gesture delta."),
             ["durationMs"] = Num("Gesture duration in milliseconds."),
             ["steps"] = Int("Interpolation steps, 1..240."),
@@ -1038,6 +1068,8 @@ namespace Chievfx.Mcp.Extensions.Control
             ["touchId"] = Int("Touch identifier. Defaults to 1."),
             ["position"] = Vector("Absolute screen position, origin bottom-left."),
             ["screenPosition"] = Vector("Alias for position."),
+            ["x"] = Num("Alias for position.x (pair with y)."),
+            ["y"] = Num("Alias for position.y (pair with x)."),
             ["delta"] = Vector("Relative touch delta for move/up metadata."),
             ["holdFrames"] = Int("Player frames to hold the touch during tap. Default 2, range 1..300."),
             ["dryRun"] = Bool("Report intended events without input mutation."),

@@ -85,7 +85,9 @@ namespace Chievfx.Mcp.Editor
 
         public object Open(JToken args)
         {
-            var scenePath = ReadString(args, "scenePath");
+            // scene-list-available reports scenes as 'path'; accept it here so its output can be
+            // passed straight back without renaming the key.
+            var scenePath = ReadString(args, "scenePath") ?? ReadString(args, "path");
             ValidateSceneAssetPath(scenePath, "scenePath");
             if (AssetDatabase.LoadAssetAtPath<SceneAsset>(scenePath!) == null)
             {

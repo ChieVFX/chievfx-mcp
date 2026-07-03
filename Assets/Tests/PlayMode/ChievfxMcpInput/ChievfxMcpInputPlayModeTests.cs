@@ -342,8 +342,11 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
                 text = "UITK INPUT"
             };
             button.pickingMode = PickingMode.Position;
-            button.RegisterCallback<PointerDownEvent>(_ => uiToolkitPointerDownCount++);
-            button.RegisterCallback<PointerUpEvent>(_ => uiToolkitPointerUpCount++);
+            // TrickleDown: since Unity 6, Button's built-in Clickable manipulator calls
+            // StopImmediatePropagation on pointer down/up, so default-phase callbacks
+            // registered after it never fire.
+            button.RegisterCallback<PointerDownEvent>(_ => uiToolkitPointerDownCount++, TrickleDown.TrickleDown);
+            button.RegisterCallback<PointerUpEvent>(_ => uiToolkitPointerUpCount++, TrickleDown.TrickleDown);
             button.style.position = Position.Absolute;
             button.style.left = Screen.width * 0.75f - 110f;
             button.style.top = Screen.height * 0.5f - 50f;

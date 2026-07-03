@@ -616,8 +616,7 @@ namespace Chievfx.Mcp.Extensions.Control
             }
             else if (mutated && action == "move" && hasPosition && hasDelta)
             {
-                TryDispatchUiToolkitPointerDrag(position - delta, delta, 12, warnings);
-                TryDispatchUguiPointerDrag(position - delta, delta, warnings);
+                TryDispatchUiPointerDrag(position - delta, delta, 12, warnings);
             }
 
             var result = Result("input-control-touch-event", "Touchscreen", action, dryRun, mutated, queued.ToArray(), warnings.ToArray(), errors.ToArray());
@@ -741,8 +740,7 @@ namespace Chievfx.Mcp.Extensions.Control
         private static void DispatchUiPointerDragToJournal(Vector2 screenStartPosition, Vector2 screenDelta, int steps)
         {
             var warnings = new List<string>();
-            TryDispatchUiToolkitPointerDrag(screenStartPosition, screenDelta, steps, warnings);
-            TryDispatchUguiPointerDrag(screenStartPosition, screenDelta, warnings);
+            TryDispatchUiPointerDrag(screenStartPosition, screenDelta, steps, warnings);
             foreach (var warning in warnings)
             {
                 ChievfxMcpControlInputPlayback.Journal("dispatch-warning", "warning", warning);
@@ -847,17 +845,22 @@ namespace Chievfx.Mcp.Extensions.Control
             if (!allowStateMutation) errors.Add("Real input injection requires allowStateMutation=true.");
         }
 
+        // Synthetic UI dispatch is a FALLBACK for scenes without an active InputSystemUIInputModule
+        // (e.g. UI Toolkit-only games with no EventSystem). When the module is present, injected
+        // device state already drives uGUI and UI Toolkit through the regular pointer pipeline;
+        // dispatching synthetically as well would double-deliver every click.
+
         private static void TryDispatchUiRuntimeClick(Vector2 screenPosition, List<string> warnings)
         {
-            var args = UiRuntimeClickArgs(screenPosition);
+            if (HasActiveInputSystemUiModule())
+            {
+                return;
+            }
+
             try
             {
-                if (!Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry.TryRunTool("ui-runtime-click", args, out var result)
-                    || result is not Dictionary<string, object?> click
-                    || !Equals(ReadObject(click, "anyResolved"), true))
-                {
-                    return;
-                }
+                Chievfx.Mcp.Editor.ChievfxMcpFirstPartyExtensionLoader.EnsureLoaded();
+                Chievfx.Mcp.Editor.ChievfxMcpRuntimeUiAdapterRegistry.RuntimeClick(UiRuntimeClickArgs(screenPosition));
             }
             catch (Exception ex)
             {
@@ -875,44 +878,39 @@ namespace Chievfx.Mcp.Extensions.Control
             };
         }
 
-        private static object? ReadObject(Dictionary<string, object?> source, string key)
+        private static void TryDispatchUiPointerDrag(Vector2 screenStartPosition, Vector2 screenDelta, int steps, List<string> warnings)
         {
-            return source.TryGetValue(key, out var value) ? value : null;
-        }
+            if (HasActiveInputSystemUiModule())
+            {
+                return;
+            }
 
-        private static void TryDispatchUiToolkitPointerDrag(Vector2 screenStartPosition, Vector2 screenDelta, int steps, List<string> warnings)
-        {
-            var args = UiRuntimeDragArgs(screenStartPosition, screenDelta, steps);
             try
             {
-                if (!Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry.TryRunTool("ui-runtime-drag", args, out var result)
-                    || result is not Dictionary<string, object?> drag
-                    || !Equals(ReadObject(drag, "anyResolved"), true))
-                {
-                    return;
-                }
+                Chievfx.Mcp.Editor.ChievfxMcpFirstPartyExtensionLoader.EnsureLoaded();
+                Chievfx.Mcp.Editor.ChievfxMcpRuntimeUiAdapterRegistry.RuntimeDrag(UiRuntimeDragArgs(screenStartPosition, screenDelta, steps));
             }
             catch (Exception ex)
             {
-                warnings.Add("UI Toolkit runtime pointer drag skipped: " + RootMessage(ex));
+                warnings.Add("Runtime UI pointer drag skipped: " + RootMessage(ex));
             }
         }
 
-        private static void TryDispatchUguiPointerDrag(Vector2 screenStartPosition, Vector2 screenDelta, List<string> warnings)
+        private static bool HasActiveInputSystemUiModule()
         {
-            var args = UiRuntimeDragArgs(screenStartPosition, screenDelta, steps: null);
             try
             {
-                if (!Chievfx.Mcp.Editor.ChievfxMcpExtensionRegistry.TryRunTool("ui-runtime-drag", args, out var result)
-                    || result is not Dictionary<string, object?> drag
-                    || !Equals(ReadObject(drag, "anyResolved"), true))
-                {
-                    return;
-                }
+                var eventSystemType = Type.GetType("UnityEngine.EventSystems.EventSystem, UnityEngine.UI", throwOnError: false);
+                var eventSystem = eventSystemType?.GetProperty("current", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+                var module = eventSystem?.GetType().GetProperty("currentInputModule", BindingFlags.Instance | BindingFlags.Public)?.GetValue(eventSystem);
+                // Only the Input System UI module reacts to injected device state; the legacy
+                // StandaloneInputModule polls UnityEngine.Input and never sees it, so the
+                // synthetic fallback must still run in that case.
+                return module != null && module.GetType().Name == "InputSystemUIInputModule";
             }
-            catch (Exception ex)
+            catch
             {
-                warnings.Add("uGUI runtime pointer drag skipped: " + RootMessage(ex));
+                return false;
             }
         }
 
@@ -932,15 +930,6 @@ namespace Chievfx.Mcp.Extensions.Control
             }
 
             return args;
-        }
-
-        private static JObject NormalizedScreenPosition(Vector2 screenPosition)
-        {
-            return new JObject
-            {
-                ["x"] = Mathf.Clamp01(screenPosition.x / Mathf.Max(1f, Screen.width)),
-                ["y"] = Mathf.Clamp01(screenPosition.y / Mathf.Max(1f, Screen.height)),
-            };
         }
 
         private static string RootMessage(Exception ex)

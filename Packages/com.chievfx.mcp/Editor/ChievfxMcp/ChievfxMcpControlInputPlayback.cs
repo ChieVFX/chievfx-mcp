@@ -92,11 +92,16 @@ namespace Chievfx.Mcp.Extensions.Control
 
             var change = changeStateMethod.MakeGenericMethod(stateType);
             var parameters = change.GetParameters();
+            // Pass the CURRENT update type explicitly. With the default, InputState.Change
+            // resolves the target buffers via defaultUpdateType, which in the editor returns
+            // Editor whenever the Game view lacks focus - the write would then land in editor
+            // state buffers that game code (and the UI input module) never reads.
+            var updateType = currentUpdateTypeProperty?.GetValue(null);
             change.Invoke(null, new[]
             {
                 deviceOrControl,
                 state,
-                Activator.CreateInstance(parameters[2].ParameterType),
+                updateType ?? Activator.CreateInstance(parameters[2].ParameterType),
                 Activator.CreateInstance(parameters[3].ParameterType),
             });
         }

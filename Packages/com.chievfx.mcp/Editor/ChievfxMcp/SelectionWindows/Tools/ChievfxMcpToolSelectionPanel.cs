@@ -797,7 +797,7 @@ namespace Chievfx.Mcp.Editor
             {
                 ["schemaVersion"] = 1,
                 ["updatedAtUtc"] = DateTime.UtcNow.ToString("O"),
-                ["source"] = "Tools/ChievfxMcp/chievfx_mcp_role_presets.json",
+                ["source"] = "Tools~/ChievfxMcp/chievfx_mcp_role_presets.json",
                 ["enabledPromptNames"] = new JArray(role.EnabledPromptNames.OrderBy(name => name, StringComparer.Ordinal))
             };
             File.WriteAllText(ChievfxMcpToolPolicy.PromptSelectionPath, root.ToString(Formatting.Indented) + Environment.NewLine, new UTF8Encoding(false));
@@ -1237,7 +1237,7 @@ namespace Chievfx.Mcp.Editor
                 writer.WritePropertyName("updatedAtUtc");
                 writer.WriteValue(DateTime.UtcNow.ToString("O"));
                 writer.WritePropertyName("source");
-                writer.WriteValue("Tools/ChievfxMcp/chievfx_mcp_server.py:TOOLS");
+                writer.WriteValue("Tools~/ChievfxMcp/chievfx_mcp_server.py:TOOLS");
                 writer.WritePropertyName("estimator");
                 writer.WriteValue(estimator);
                 writer.WritePropertyName("note");

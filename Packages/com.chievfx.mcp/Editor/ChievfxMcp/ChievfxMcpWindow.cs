@@ -382,7 +382,7 @@ namespace Chievfx.Mcp.Editor
             launchInstallerButton = CreateButton("Launch Python Installer", LaunchPythonInstaller);
             advanced.Add(CreateActionRow(launchInstallerButton));
             advanced.Add(CreateMutedLabel(
-                "Opens the PyQt drag-and-drop installer from Packages/com.chievfx.mcp/Install/. FROM/TO are remembered per launching Unity project. Uses Install/.venv when present."));
+                "Opens the PyQt drag-and-drop installer from Packages/com.chievfx.mcp/Install~/. FROM/TO are remembered per launching Unity project. Uses Install~/.venv when present."));
             var forceAllCategoriesToggle = new Toggle("Force all categories always-supplied")
             {
                 value = ChievfxMcpCategorySettings.ForceAll,

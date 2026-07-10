@@ -137,7 +137,7 @@ namespace Chievfx.Mcp.Editor
             {
                 ["schemaVersion"] = 1,
                 ["updatedAtUtc"] = DateTime.UtcNow.ToString("O"),
-                ["source"] = "Tools/ChievfxMcp/chievfx_mcp_server.py:PROMPTS",
+                ["source"] = "Tools~/ChievfxMcp/chievfx_mcp_server.py:PROMPTS",
                 ["promptsHidden"] = true,
                 ["enabledPromptNames"] = new JArray()
             };
@@ -566,7 +566,7 @@ namespace Chievfx.Mcp.Editor
                 writer.WritePropertyName("updatedAtUtc");
                 writer.WriteValue(DateTime.UtcNow.ToString("O"));
                 writer.WritePropertyName("source");
-                writer.WriteValue("Tools/ChievfxMcp/chievfx_mcp_server.py:PROMPTS");
+                writer.WriteValue("Tools~/ChievfxMcp/chievfx_mcp_server.py:PROMPTS");
                 writer.WritePropertyName("estimator");
                 writer.WriteValue(estimator);
                 writer.WritePropertyName("note");

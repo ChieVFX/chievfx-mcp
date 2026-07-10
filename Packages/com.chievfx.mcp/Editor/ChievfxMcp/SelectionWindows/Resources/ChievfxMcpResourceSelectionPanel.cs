@@ -789,7 +789,7 @@ namespace Chievfx.Mcp.Editor
                 writer.WritePropertyName("updatedAtUtc");
                 writer.WriteValue(DateTime.UtcNow.ToString("O"));
                 writer.WritePropertyName("source");
-                writer.WriteValue("Tools/ChievfxMcp/chievfx_mcp_server.py:RESOURCES");
+                writer.WriteValue("Tools~/ChievfxMcp/chievfx_mcp_server.py:RESOURCES");
                 writer.WritePropertyName("estimator");
                 writer.WriteValue(estimator);
                 writer.WritePropertyName("note");

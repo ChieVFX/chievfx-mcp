@@ -48,7 +48,7 @@ namespace Chievfx.Mcp.Editor
             if (!ChievfxMcpToolPolicy.TryResolveInstallerScriptPath(out var scriptPath))
             {
                 error =
-                    "Python installer not found. Expected Packages/com.chievfx.mcp/Install/chievfx_mcp_installer.py in this project.";
+                    "Python installer not found. Expected Packages/com.chievfx.mcp/Install~/chievfx_mcp_installer.py in this project.";
                 return false;
             }
 

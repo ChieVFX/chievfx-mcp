@@ -32,7 +32,7 @@ you also add runtime dispatch in the MCP server/core bridge.
 ## Tool Roles
 
 MCP tool roles are presets on top of per-category and per-tool selection. Built-in
-presets are defined in `Tools/ChievfxMcp/chievfx_mcp_role_presets.json` and
+presets are defined in `Tools~/ChievfxMcp/chievfx_mcp_role_presets.json` and
 custom presets are `ChievfxMcpToolRoleAsset` project assets. A role lists
 category names plus optional explicit tool IDs; applying it enables matching
 tools, disables other optional tools, and never disables required tools.

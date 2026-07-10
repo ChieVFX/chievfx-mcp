@@ -167,7 +167,11 @@ namespace Chievfx.Mcp.Editor
 
         public static string PackageRoot => ResolvePackageRoot();
 
-        public static string PackageToolsDirectory => Path.Combine(PackageRoot, "Tools", "ChievfxMcp");
+        // "Tools~" (trailing tilde) keeps the Python server tree out of Unity's asset
+        // importer, so runtime-generated __pycache__/*.pyc files never trip a Player build
+        // ("has no meta file, but it's in an immutable folder"). It is still a real folder
+        // on disk, so File.Combine paths below resolve normally.
+        public static string PackageToolsDirectory => Path.Combine(PackageRoot, "Tools~", "ChievfxMcp");
 
         public static string BridgeDirectory => Path.Combine(ProjectRoot, "Library", "ChievfxMcpBridge");
 
@@ -197,7 +201,8 @@ namespace Chievfx.Mcp.Editor
 
         public static string ServerScriptPath => Path.Combine(PackageToolsDirectory, "chievfx_mcp_server.py");
 
-        public static string InstallerDirectory => Path.Combine(PackageRoot, "Install");
+        // "Install~" is hidden from Unity's importer for the same reason as Tools~ above.
+        public static string InstallerDirectory => Path.Combine(PackageRoot, "Install~");
 
         public static string InstallerScriptPath => Path.Combine(InstallerDirectory, "chievfx_mcp_installer.py");
 

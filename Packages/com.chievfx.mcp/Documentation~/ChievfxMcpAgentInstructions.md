@@ -14,11 +14,11 @@ Unity windows under `Window > ChievFX > MCP *` write these files. The Python MCP
 
 ## MCP `initialize.instructions`
 
-Built by `build_initialize_instructions()` in `Tools/ChievfxMcp/chievfx_mcp_server_parts/initialize_instructions.py` and returned from the MCP `initialize` response in `server_core.py`.
+Built by `build_initialize_instructions()` in `Tools~/ChievfxMcp/chievfx_mcp_server_parts/initialize_instructions.py` and returned from the MCP `initialize` response in `server_core.py`.
 
 Two layers, both filtered to **enabled** capabilities only:
 
-1. **Curated blurbs** from `Tools/ChievfxMcp/chievfx_mcp_initialize_instructions.md`
+1. **Curated blurbs** from `Tools~/ChievfxMcp/chievfx_mcp_initialize_instructions.md`
    - Records keyed by `type` + `id` (`global`, `tool`, `resource`, `resourceTemplate`, `prompt`)
    - `global` records are always included
    - Other records are included only when the matching item is enabled
@@ -97,7 +97,7 @@ Contents: selection snapshot and the exact `initialize.instructions` payload for
 Manual refresh:
 
 ```bash
-python3 Tools/ChievfxMcp/chievfx_mcp_server.py --project-root . --dump-debug-instructions --debug-trigger manual
+python3 Tools~/ChievfxMcp/chievfx_mcp_server.py --project-root . --dump-debug-instructions --debug-trigger manual
 ```
 
 ## Related files

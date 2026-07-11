@@ -54,14 +54,14 @@ def cursor_server_name_for(project_root: str | os.PathLike[str]) -> str:
 # identity differ from the registered one. Recomputed in configure_project_root
 # from the exact --project-root string the editor passed.
 CURSOR_SERVER_NAME = cursor_server_name_for(PROJECT_ROOT)
-TOOL_POLICY_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_tool_policy.json"
-TOOL_ROLE_PRESETS_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_role_presets.json"
+TOOL_POLICY_PATH = PACKAGE_ROOT / "Tools~" / "ChievfxMcp" / "chievfx_mcp_tool_policy.json"
+TOOL_ROLE_PRESETS_PATH = PACKAGE_ROOT / "Tools~" / "ChievfxMcp" / "chievfx_mcp_role_presets.json"
 TOOL_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpToolSelection.json"
 RESOURCE_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpResourceSelection.json"
 PROMPT_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpPromptSelection.json"
 CATEGORY_SELECTION_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpCategorySelection.json"
-CATALOGS_MD_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_text_prompts_resources.md"
-INITIALIZE_INSTRUCTIONS_MD_PATH = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_initialize_instructions.md"
+CATALOGS_MD_PATH = PACKAGE_ROOT / "Tools~" / "ChievfxMcp" / "chievfx_mcp_text_prompts_resources.md"
+INITIALIZE_INSTRUCTIONS_MD_PATH = PACKAGE_ROOT / "Tools~" / "ChievfxMcp" / "chievfx_mcp_initialize_instructions.md"
 EXTENSION_CAPABILITY_MANIFEST_PATH = PROJECT_ROOT / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
 DEBUG_SETTINGS_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpDebugSettings.json"
 DEBUG_INSTRUCTIONS_PATH = PROJECT_ROOT / ".temp" / "debug_instructions.md"

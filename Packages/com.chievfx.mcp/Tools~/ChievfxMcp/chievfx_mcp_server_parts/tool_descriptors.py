@@ -3,7 +3,7 @@
 
 import copy
 
-TOOL_DESCRIPTOR_DIR = PACKAGE_ROOT / "Tools" / "ChievfxMcp" / "chievfx_mcp_server_parts" / "tool_descriptors"
+TOOL_DESCRIPTOR_DIR = PACKAGE_ROOT / "Tools~" / "ChievfxMcp" / "chievfx_mcp_server_parts" / "tool_descriptors"
 
 _SCHEMA_PLACEHOLDERS = {
     "outputFormat": OUTPUT_FORMAT_PROPERTY,

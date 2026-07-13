@@ -26,24 +26,27 @@ from typing import Callable, Iterable
 from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent, QFont, QPalette, QColor
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QListView,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QTreeView,
     QVBoxLayout,
     QWidget,
 )
 
 
 APP_TITLE = "ChievFX Unity MCP Installer"
-APP_VERSION = "0.3.4"
+APP_VERSION = "0.3.5"
 SETTINGS_ROOT = Path.home() / ".chievfx_mcp_installer"
 LEGACY_SETTINGS_PATH = Path.home() / ".chievfx_mcp_installer.json"
 DEFAULT_PROFILE_CONTEXT = Path("__default__")
@@ -415,6 +418,50 @@ def _macos_activate_process() -> None:
         pass
 
 
+def choose_existing_directories(
+    parent: QWidget,
+    title: str,
+    start_dir: str,
+) -> list[Path]:
+    """Pick one or more folders.
+
+    Native macOS/Windows folder pickers only allow a single directory, so this
+    uses Qt's non-native dialog with extended selection (Cmd/Ctrl-click).
+    """
+    dialog = QFileDialog(parent, title, start_dir)
+    dialog.setFileMode(QFileDialog.FileMode.Directory)
+    dialog.setOption(QFileDialog.Option.ShowDirsOnly, True)
+    dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+    dialog.setOption(QFileDialog.Option.ReadOnly, True)
+
+    for view in dialog.findChildren(QListView):
+        view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+    for view in dialog.findChildren(QTreeView):
+        view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+
+    if dialog.exec() != QFileDialog.DialogCode.Accepted:
+        return []
+
+    selected: list[Path] = []
+    seen: set[str] = set()
+    for raw in dialog.selectedFiles():
+        if not raw:
+            continue
+        path = Path(raw)
+        if not path.is_dir():
+            continue
+        try:
+            resolved = path.resolve()
+        except OSError:
+            continue
+        key = str(resolved)
+        if key in seen:
+            continue
+        seen.add(key)
+        selected.append(resolved)
+    return selected
+
+
 def _bring_window_forward(widget: QWidget) -> None:
     widget.show()
     widget.raise_()
@@ -707,7 +754,8 @@ class MultiTargetZone(QFrame):
 
         hint_label = QLabel(
             "Drop or browse one or more Unity project roots. Each must contain "
-            "`Assets/` and `Packages/manifest.json`."
+            "`Assets/` and `Packages/manifest.json`. In Add…, Cmd/Ctrl-click to "
+            "select multiple folders."
         )
         hint_label.setWordWrap(True)
         hint_label.setStyleSheet("color: #9aa0a6;")
@@ -760,15 +808,16 @@ class MultiTargetZone(QFrame):
         self._refresh_status()
         self.paths_changed.emit()
 
-    def add_path(self, path: Path, emit: bool = True) -> bool:
+    def add_path(self, path: Path, emit: bool = True, show_error: bool = True) -> bool:
         resolved = path.resolve()
         if any(existing == resolved for existing in self._paths):
             return False
 
         result = validate_to(resolved)
         if not result.ok:
-            _bring_window_forward(self.window() if self.window() is not None else self)
-            QMessageBox.warning(self, APP_TITLE, f"{resolved}\n\n{result.message}")
+            if show_error:
+                _bring_window_forward(self.window() if self.window() is not None else self)
+                QMessageBox.warning(self, APP_TITLE, f"{resolved}\n\n{result.message}")
             return False
 
         self._paths.append(resolved)
@@ -780,9 +829,36 @@ class MultiTargetZone(QFrame):
 
     def _on_browse(self) -> None:
         start_dir = str(self._paths[-1]) if self._paths else str(Path.home())
-        chosen = QFileDialog.getExistingDirectory(self, "Choose target Unity project", start_dir)
-        if chosen:
-            self.add_path(Path(chosen))
+        chosen = choose_existing_directories(
+            self,
+            "Choose target Unity project(s)",
+            start_dir,
+        )
+        if not chosen:
+            return
+
+        added_any = False
+        failures: list[str] = []
+        for path in chosen:
+            before = len(self._paths)
+            if self.add_path(path, emit=False, show_error=False):
+                added_any = True
+            elif before == len(self._paths):
+                # Failed validation or duplicate (duplicate is silent).
+                result = validate_to(path.resolve())
+                if not result.ok:
+                    failures.append(f"{path.resolve()}\n  {result.message}")
+
+        if added_any:
+            self.paths_changed.emit()
+
+        if failures:
+            _bring_window_forward(self.window() if self.window() is not None else self)
+            QMessageBox.warning(
+                self,
+                APP_TITLE,
+                "Skipped invalid folders:\n\n" + "\n\n".join(failures),
+            )
 
     def _on_remove_selected(self) -> None:
         rows = sorted(

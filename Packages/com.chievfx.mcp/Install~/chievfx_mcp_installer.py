@@ -2,8 +2,8 @@
 """ChievFX Unity MCP installer.
 
 Drag-and-drop two folders:
-- FROM: root of this repo (the one shipping `Tools/ChievfxMcp/` and
-  `Assets/Editor/ChievfxMcp/`).
+- FROM: root of this repo (the one shipping `Tools~/ChievfxMcp/` and
+  `Editor/ChievfxMcp/` under `Packages/com.chievfx.mcp/`).
 - TO: root of another Unity project where the MCP should be installed.
 
 Click `Install`. Old MCP sources in TO are removed, fresh copies from FROM
@@ -15,7 +15,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,10 +43,34 @@ from PyQt6.QtWidgets import (
 
 
 APP_TITLE = "ChievFX Unity MCP Installer"
-APP_VERSION = "0.3.1"
+APP_VERSION = "0.3.4"
 SETTINGS_ROOT = Path.home() / ".chievfx_mcp_installer"
 LEGACY_SETTINGS_PATH = Path.home() / ".chievfx_mcp_installer.json"
 DEFAULT_PROFILE_CONTEXT = Path("__default__")
+
+INSTALL_BUTTON_STYLE = """
+QPushButton#InstallButton {
+  background-color: #3a6df0;
+  color: #ffffff;
+  border: 1px solid #2f5ad0;
+  border-radius: 6px;
+  padding: 8px 18px;
+  font-weight: 600;
+}
+QPushButton#InstallButton:hover:!disabled {
+  background-color: #4b7cff;
+}
+QPushButton#InstallButton:pressed:!disabled {
+  background-color: #1f45b0;
+  padding-top: 9px;
+  padding-bottom: 7px;
+}
+QPushButton#InstallButton:disabled {
+  background-color: #2a2f38;
+  color: #6b7078;
+  border: 1px solid #3a404a;
+}
+"""
 
 MCP_PATHS: tuple[str, ...] = (
     # New MCP lives as a Unity package inside `Packages/com.chievfx.mcp/`.
@@ -66,18 +92,45 @@ class ValidationResult:
     message: str
 
 
+def _package_server_script(path: Path) -> Path | None:
+    """Return the MCP server entry script under a Unity project root, if present."""
+    for tools_dir in ("Tools~", "Tools"):
+        candidate = (
+            path
+            / "Packages"
+            / "com.chievfx.mcp"
+            / tools_dir
+            / "ChievfxMcp"
+            / "chievfx_mcp_server.py"
+        )
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _package_bridge_host(path: Path) -> Path | None:
+    candidate = (
+        path
+        / "Packages"
+        / "com.chievfx.mcp"
+        / "Editor"
+        / "ChievfxMcp"
+        / "Bridge"
+        / "ChievfxMcpBridgeHost.cs"
+    )
+    return candidate if candidate.is_file() else None
+
+
 def validate_from(path: Path) -> ValidationResult:
     """FROM must contain MCP sources."""
     if not path.is_dir():
         return ValidationResult(False, "Not a folder.")
     missing: list[str] = []
-    if not (path / "Packages" / "com.chievfx.mcp" / "Tools" / "ChievfxMcp" / "chievfx_mcp_server_parts" / "server.py").is_file():
+    if _package_server_script(path) is None:
         missing.append(
-            "Packages/com.chievfx.mcp/Tools/ChievfxMcp/chievfx_mcp_server_parts/server.py"
+            "Packages/com.chievfx.mcp/Tools~/ChievfxMcp/chievfx_mcp_server.py"
         )
-    if not (
-        path / "Packages" / "com.chievfx.mcp" / "Editor" / "ChievfxMcp" / "Bridge" / "ChievfxMcpBridgeHost.cs"
-    ).is_file():
+    if _package_bridge_host(path) is None:
         missing.append(
             "Packages/com.chievfx.mcp/Editor/ChievfxMcp/Bridge/ChievfxMcpBridgeHost.cs"
         )
@@ -104,12 +157,38 @@ class InstallerProfile:
     to_paths: list[Path]
 
 
-def detect_from_root(start: Path | None = None) -> Path | None:
+def detect_from_root(
+    start: Path | None = None,
+    extra_candidates: Iterable[Path] | None = None,
+) -> Path | None:
     """Walk up from the installer folder until a valid MCP source root is found."""
+    seen: set[str] = set()
+    ordered: list[Path] = []
+
+    def consider(path: Path | None) -> None:
+        if path is None:
+            return
+        try:
+            resolved = path.expanduser().resolve()
+        except OSError:
+            return
+        key = str(resolved)
+        if key in seen:
+            return
+        seen.add(key)
+        ordered.append(resolved)
+
+    for path in extra_candidates or ():
+        consider(path)
+
     current = start or Path(__file__).resolve().parent
-    for candidate in (current, *current.parents):
+    consider(current)
+    for parent in current.parents:
+        consider(parent)
+
+    for candidate in ordered:
         if validate_from(candidate).ok:
-            return candidate.resolve()
+            return candidate
     return None
 
 
@@ -230,6 +309,117 @@ def _ignore_python_cache(_: str, names: list[str]) -> list[str]:
         elif name.endswith(COPY_IGNORE_SUFFIXES):
             skip.append(name)
     return skip
+
+
+def _running_installer_root() -> Path:
+    """Package root that owns this running installer script."""
+    return Path(__file__).resolve().parents[1]
+
+
+def _to_contains_running_installer(to_root: Path) -> bool:
+    """True when install would delete the live installer package under TO."""
+    try:
+        running = _running_installer_root().resolve()
+        target_package = (to_root / "Packages" / "com.chievfx.mcp").resolve()
+    except OSError:
+        return False
+    return running == target_package
+
+
+def _macos_bootstrap_foreground_app() -> None:
+    """Promote this bare python process to a foreground GUI app on macOS.
+
+    Unity launches ``python`` without an .app bundle. Those processes often show
+    Qt windows but never get mouse press/release (buttons look dead — no pressed
+    state). ``TransformProcessType`` is the reliable fix for non-bundled tools;
+    ``setActivationPolicy`` alone usually fails outside a real .app.
+    """
+    if sys.platform != "darwin":
+        return
+    try:
+        from ctypes import Structure, byref, c_bool, c_char_p, c_int32, c_uint32, c_void_p, cdll, util
+
+        class ProcessSerialNumber(Structure):
+            _fields_ = [("highLongOfPSN", c_uint32), ("lowLongOfPSN", c_uint32)]
+
+        app_services = util.find_library("ApplicationServices")
+        if app_services:
+            lib = cdll.LoadLibrary(app_services)
+            # kCurrentProcess = {0, 2}; kProcessTransformToForegroundApplication = 1
+            psn = ProcessSerialNumber(0, 2)
+            lib.TransformProcessType.argtypes = [c_void_p, c_int32]
+            lib.TransformProcessType.restype = c_int32
+            lib.TransformProcessType(byref(psn), 1)
+
+        appkit_name = util.find_library("AppKit")
+        objc_name = util.find_library("objc")
+        if not appkit_name or not objc_name:
+            return
+        cdll.LoadLibrary(appkit_name)
+        objc = cdll.LoadLibrary(objc_name)
+        objc.objc_getClass.restype = c_void_p
+        objc.objc_getClass.argtypes = [c_char_p]
+        objc.sel_registerName.restype = c_void_p
+        objc.sel_registerName.argtypes = [c_char_p]
+        objc.objc_msgSend.restype = c_void_p
+        objc.objc_msgSend.argtypes = [c_void_p, c_void_p]
+
+        def _cls(name: str) -> int:
+            return objc.objc_getClass(name.encode("utf-8"))
+
+        def _sel(name: str) -> int:
+            return objc.sel_registerName(name.encode("utf-8"))
+
+        ns_app = objc.objc_msgSend(_cls("NSApplication"), _sel("sharedApplication"))
+        if not ns_app:
+            return
+
+        # Best-effort; may return NO for non-bundled tools.
+        set_policy = objc.objc_msgSend
+        set_policy.restype = c_int32
+        set_policy.argtypes = [c_void_p, c_void_p, c_int32]
+        set_policy(ns_app, _sel("setActivationPolicy:"), 0)
+
+        activate = objc.objc_msgSend
+        activate.restype = None
+        activate.argtypes = [c_void_p, c_void_p, c_bool]
+        activate(ns_app, _sel("activateIgnoringOtherApps:"), True)
+    except Exception:
+        pass
+
+
+def _macos_activate_process() -> None:
+    """Bring this process frontmost on macOS.
+
+    Unity launches the installer as a bare python subprocess. Without an app
+    bundle, macOS often leaves Qt modal dialogs behind Unity, so Install looks
+    like a no-op. Asking System Events to activate this PID fixes that.
+    """
+    if sys.platform != "darwin":
+        return
+    _macos_bootstrap_foreground_app()
+    script = (
+        'tell application "System Events" to set frontmost of '
+        f"(first process whose unix id is {os.getpid()}) to true"
+    )
+    try:
+        subprocess.run(
+            ["osascript", "-e", script],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+        )
+    except Exception:
+        # Activation is best-effort; install must still work without it.
+        pass
+
+
+def _bring_window_forward(widget: QWidget) -> None:
+    widget.show()
+    widget.raise_()
+    widget.activateWindow()
+    _macos_activate_process()
 
 
 def _remove_path(target: Path, log: Callable[[str], None]) -> None:
@@ -577,6 +767,7 @@ class MultiTargetZone(QFrame):
 
         result = validate_to(resolved)
         if not result.ok:
+            _bring_window_forward(self.window() if self.window() is not None else self)
             QMessageBox.warning(self, APP_TITLE, f"{resolved}\n\n{result.message}")
             return False
 
@@ -726,12 +917,20 @@ class InstallerWindow(QMainWindow):
         controls.addStretch(1)
 
         self._install_button = QPushButton("Install")
+        self._install_button.setObjectName("InstallButton")
+        self._install_button.setStyleSheet(INSTALL_BUTTON_STYLE)
         self._install_button.setMinimumHeight(36)
-        self._install_button.setEnabled(False)
+        self._install_button.setMinimumWidth(120)
+        self._install_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._install_button.pressed.connect(self._on_install_pressed)
         self._install_button.clicked.connect(self._on_install_clicked)
         controls.addWidget(self._install_button)
 
         root_layout.addLayout(controls)
+
+        self._install_hint = QLabel()
+        self._install_hint.setWordWrap(True)
+        root_layout.addWidget(self._install_hint)
 
         log_label = QLabel("Log")
         log_label.setStyleSheet("color: #9aa0a6;")
@@ -761,19 +960,95 @@ class InstallerWindow(QMainWindow):
         self._restore_profile_silently()
         if self._from_zone.path() is None:
             self._try_autodetect_from_silently()
+        self._refresh_install_button()
 
     def _refresh_install_button(self) -> None:
-        self._install_button.setEnabled(
-            self._from_zone.is_valid() and self._to_zone.has_valid_paths()
-        )
+        from_ok = self._from_zone.is_valid()
+        to_ok = self._to_zone.has_valid_paths()
+        ready = from_ok and to_ok
+        # Keep Install enabled so macOS/Fusion always shows a pressed visual and
+        # clicked() fires; readiness is enforced inside the click handler.
+        self._install_button.setEnabled(True)
+        if ready:
+            count = len(self._to_zone.paths())
+            self._install_hint.setText(
+                f"Ready. Install will copy into {count} TO project{'s' if count != 1 else ''}."
+            )
+            self._install_hint.setStyleSheet("color: #3fb950;")
+            self._install_button.setToolTip("Install package into all TO projects.")
+        else:
+            reasons: list[str] = []
+            if not from_ok:
+                if self._from_zone.path() is None:
+                    reasons.append("set FROM (source Unity project)")
+                else:
+                    reasons.append("FROM is invalid (needs Packages/com.chievfx.mcp with Tools~/ server)")
+            if not to_ok:
+                reasons.append("add at least one TO Unity project")
+            text = "Not ready: " + "; ".join(reasons) + ". Click Install for details."
+            self._install_hint.setText(text)
+            self._install_hint.setStyleSheet("color: #f0a030;")
+            self._install_button.setToolTip(text)
+
+    def _install_not_ready_reason(self) -> str | None:
+        from_ok = self._from_zone.is_valid()
+        to_ok = self._to_zone.has_valid_paths()
+        if from_ok and to_ok:
+            return None
+        reasons: list[str] = []
+        if not from_ok:
+            if self._from_zone.path() is None:
+                reasons.append("Set FROM to a Unity project that contains Packages/com.chievfx.mcp.")
+            else:
+                reasons.append(
+                    f"FROM is invalid:\n{self._from_zone.path()}\n"
+                    "It must contain Packages/com.chievfx.mcp MCP sources."
+                )
+        if not to_ok:
+            reasons.append("Add at least one TO Unity project (Assets/ + Packages/manifest.json).")
+        return "\n\n".join(reasons)
+
+    def _on_install_pressed(self) -> None:
+        # Visible proof that mouse press reached the widget (helps debug macOS focus).
+        self._append_log("Install button pressed.")
 
     def _on_autodetect_from(self) -> None:
         self._try_autodetect_from_silently(force=True)
 
+    def _from_detect_extra_candidates(self) -> list[Path]:
+        extras: list[Path] = []
+        if self._context_path != DEFAULT_PROFILE_CONTEXT:
+            extras.append(self._context_path)
+        return extras
+
     def _try_autodetect_from_silently(self, force: bool = False) -> None:
-        candidate = detect_from_root()
+        candidate = detect_from_root(extra_candidates=self._from_detect_extra_candidates())
         if candidate is not None and (force or self._from_zone.path() is None):
             self._from_zone.set_path(candidate)
+            if force:
+                self._append_log(f"Auto-detected FROM: {candidate}")
+            return
+
+        if force:
+            searched_from = Path(__file__).resolve().parent
+            self._append_log(
+                "Auto-detect FROM failed. Walked up from "
+                f"{searched_from} looking for "
+                "Packages/com.chievfx.mcp/Tools~/ChievfxMcp/chievfx_mcp_server.py."
+            )
+            _bring_window_forward(self)
+            QMessageBox.warning(
+                self,
+                APP_TITLE,
+                (
+                    "Could not auto-detect FROM.\n\n"
+                    "Expected a Unity project root containing:\n"
+                    "  Packages/com.chievfx.mcp/Tools~/ChievfxMcp/chievfx_mcp_server.py\n"
+                    "  Packages/com.chievfx.mcp/Editor/ChievfxMcp/Bridge/ChievfxMcpBridgeHost.cs\n\n"
+                    f"Searched upward from:\n{searched_from}\n\n"
+                    "Browse to the source Unity project root manually."
+                ),
+            )
 
     def _restore_profile_silently(self) -> None:
         profile = load_profile(self._context_path)
@@ -795,12 +1070,29 @@ class InstallerWindow(QMainWindow):
         self._log_view.appendPlainText(line)
 
     def _on_install_clicked(self) -> None:
+        not_ready = self._install_not_ready_reason()
+        if not_ready is not None:
+            self._append_log("Install blocked: prerequisites missing.")
+            _bring_window_forward(self)
+            QMessageBox.warning(self, APP_TITLE, not_ready)
+            return
+
         from_root = self._from_zone.path()
         to_roots = self._to_zone.paths()
         if from_root is None or not to_roots:
+            # Defensive — _install_not_ready_reason should already catch this.
+            self._append_log("Install blocked: set a valid FROM folder and at least one TO project.")
+            _bring_window_forward(self)
+            QMessageBox.warning(
+                self,
+                APP_TITLE,
+                "Set a valid FROM folder and at least one TO Unity project before installing.",
+            )
             return
+
         matching_roots = [to_root for to_root in to_roots if from_root == to_root]
         if matching_roots:
+            _bring_window_forward(self)
             QMessageBox.warning(
                 self,
                 APP_TITLE,
@@ -808,22 +1100,43 @@ class InstallerWindow(QMainWindow):
             )
             return
 
-        target_lines = "\n".join(f"  - {path}" for path in to_roots)
+        live_installer_targets = [
+            to_root for to_root in to_roots if _to_contains_running_installer(to_root)
+        ]
+        if live_installer_targets:
+            _bring_window_forward(self)
+            QMessageBox.warning(
+                self,
+                APP_TITLE,
+                (
+                    "Cannot install into a TO project that owns this running installer:\n"
+                    + "\n".join(str(path) for path in live_installer_targets)
+                    + "\n\nThat would delete the live Install~ package mid-run. "
+                    "Launch the installer from a different Unity project, or copy FROM "
+                    "into a different TO."
+                ),
+            )
+            return
 
-        confirm = QMessageBox.question(
-            self,
-            APP_TITLE,
-            (
-                "This will install to these TO folders:\n"
-                f"{target_lines}\n\n"
-                "In each TO folder, this will DELETE:\n"
-                "  - Packages/com.chievfx.mcp (and its .meta)\n\n"
-                "Then copy fresh MCP package from FROM. Continue?"
-            ),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+        target_lines = "\n".join(f"  - {path}" for path in to_roots)
+        _bring_window_forward(self)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setWindowTitle(APP_TITLE)
+        box.setText("Install ChievFX MCP into the selected TO folders?")
+        box.setInformativeText(
+            "This will install to these TO folders:\n"
+            f"{target_lines}\n\n"
+            "In each TO folder, this will DELETE:\n"
+            "  - Packages/com.chievfx.mcp (and its .meta)\n\n"
+            "Then copy a fresh MCP package from FROM."
         )
-        if confirm != QMessageBox.StandardButton.Yes:
+        install_button = box.addButton("Install", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(install_button)
+        box.exec()
+        if box.clickedButton() is not install_button:
+            self._append_log("Install cancelled.")
             return
 
         save_profile(
@@ -836,6 +1149,7 @@ class InstallerWindow(QMainWindow):
         self._install_button.setEnabled(False)
         self._autodetect_button.setEnabled(False)
         self._log_view.clear()
+        self._append_log(f"Starting install ({len(to_roots)} target{'s' if len(to_roots) != 1 else ''})...")
 
         self._worker_thread = QThread(self)
         self._worker = _InstallWorker(from_root, to_roots)
@@ -852,10 +1166,12 @@ class InstallerWindow(QMainWindow):
         self._worker_thread.start()
 
     def _on_install_finished_ok(self) -> None:
+        _bring_window_forward(self)
         QMessageBox.information(self, APP_TITLE, "Install complete.")
         self._refresh_buttons_after_run()
 
     def _on_install_finished_err(self, message: str) -> None:
+        _bring_window_forward(self)
         QMessageBox.critical(self, APP_TITLE, f"Install failed:\n{message}")
         self._refresh_buttons_after_run()
 
@@ -883,6 +1199,12 @@ def _apply_dark_palette(app: QApplication) -> None:
     palette.setColor(QPalette.ColorRole.ButtonText, QColor("#e6e8eb"))
     palette.setColor(QPalette.ColorRole.Highlight, QColor("#3a6df0"))
     palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
+    # Without Disabled roles, Fusion keeps Active button colors — Install looks
+    # clickable while setEnabled(False) blocks press visuals and clicked().
+    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor("#6b7078"))
+    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor("#6b7078"))
+    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Button, QColor("#1a1c20"))
+    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor("#6b7078"))
     app.setPalette(palette)
 
 
@@ -894,14 +1216,19 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    # Must run before QApplication so Cocoa treats this subprocess as a real GUI app.
+    _macos_bootstrap_foreground_app()
+
     app = QApplication(sys.argv)
     app.setApplicationName(APP_TITLE)
     app.setStyle("Fusion")
     _apply_dark_palette(app)
+    _macos_bootstrap_foreground_app()
 
     context_path = resolve_profile_context(args.launcher_project)
     window = InstallerWindow(context_path)
     window.show()
+    _bring_window_forward(window)
     return app.exec()
 
 

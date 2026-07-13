@@ -39,7 +39,8 @@ namespace Chievfx.Mcp.Editor
                 return resolved ?? candidate;
             }
 
-            return "python3";
+            // Prefer python3 on macOS/Linux; bare "python" often does not exist.
+            return IsWindows() ? "python" : "python3";
         }
 
         public static bool TryLaunchInstaller(out string error)
@@ -54,36 +55,137 @@ namespace Chievfx.Mcp.Editor
 
             var installDirectory = Path.GetDirectoryName(scriptPath)!;
             var python = ResolveInstallerPythonExecutable(installDirectory) ?? ExecutablePath;
+            if (!LooksLikeAbsoluteExecutable(python))
+            {
+                // Unity's PATH on macOS is often too thin for bare "python3".
+                // Re-resolve against Unix known locations before giving up.
+                InvalidateCache();
+                python = ResolveInstallerPythonExecutable(installDirectory) ?? ResolveExecutablePath();
+            }
+
+            if (!LooksLikeAbsoluteExecutable(python) && !IsWindows())
+            {
+                var probed = ProbeUnixWhich("python3") ?? ProbeUnixWhich("python");
+                if (!string.IsNullOrWhiteSpace(probed))
+                {
+                    python = probed!;
+                }
+            }
+
             var arguments =
                 $"{QuoteArg(scriptPath)} --launcher-project {QuoteArg(ChievfxMcpToolPolicy.ProjectRoot)}";
 
             try
             {
-                var process = new Process
+                if (!TryStartInstallerProcess(python, arguments, installDirectory, out var process, out error))
                 {
-                    StartInfo = new ProcessStartInfo
-                    {
-                        FileName = python,
-                        Arguments = arguments,
-                        WorkingDirectory = installDirectory,
-                        UseShellExecute = false,
-                        CreateNoWindow = true,
-                    },
-                };
-
-                if (!process.Start())
-                {
-                    error = "Failed to start Python installer process.";
-                    process.Dispose();
                     return false;
                 }
 
+                Debug.Log($"ChievFX MCP launched installer via '{python}' ({scriptPath}).");
+                TryActivateInstallerProcessOnMac(process.Id);
                 return true;
             }
             catch (Exception ex)
             {
-                error = $"Could not launch Python installer. {ex.Message}";
+                error =
+                    $"Could not launch Python installer with '{python}'. {ex.Message}\n\n" +
+                    "On macOS install Python 3 and ensure python3 is on PATH, or create " +
+                    "Packages/com.chievfx.mcp/Install~/.venv with PyQt6.";
                 return false;
+            }
+        }
+
+        private static bool TryStartInstallerProcess(
+            string python,
+            string arguments,
+            string workingDirectory,
+            out Process process,
+            out string error)
+        {
+            error = string.Empty;
+            process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = python,
+                    Arguments = arguments,
+                    WorkingDirectory = workingDirectory,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                },
+            };
+
+            // Last-resort macOS/Linux: login shell so Homebrew / pyenv PATH applies.
+            if (!LooksLikeAbsoluteExecutable(python) && !IsWindows())
+            {
+                process.StartInfo.FileName = "/bin/bash";
+                process.StartInfo.Arguments =
+                    $"-lc {QuoteArg($"{QuoteShellArg(python)} {arguments}")}";
+            }
+
+            if (!process.Start())
+            {
+                error = $"Failed to start Python installer process ('{python}').";
+                process.Dispose();
+                process = null!;
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool LooksLikeAbsoluteExecutable(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+
+            try
+            {
+                return Path.IsPathRooted(path) && File.Exists(path);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string QuoteShellArg(string value)
+        {
+            return "'" + value.Replace("'", "'\"'\"'") + "'";
+        }
+
+        private static void TryActivateInstallerProcessOnMac(int processId)
+        {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX) || processId <= 0)
+            {
+                return;
+            }
+
+            try
+            {
+                // Bare python GUIs launched from Unity often open behind the editor and
+                // may not receive mouse presses until made frontmost via System Events.
+                using var activate = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "/usr/bin/osascript",
+                        Arguments =
+                            $"-e \"delay 0.4\" -e \"tell application \\\"System Events\\\" to set frontmost of (first process whose unix id is {processId}) to true\"",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                    },
+                };
+                activate.Start();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"ChievFX MCP could not frontmost installer on macOS. {ex.Message}");
             }
         }
 
@@ -141,49 +243,154 @@ namespace Chievfx.Mcp.Editor
 
             var candidates = new List<string>();
 
-            foreach (var path in QueryWhereExecutable("python"))
+            if (IsWindows())
             {
-                TryAdd(candidates, path);
-            }
-
-            foreach (var path in QueryWhereExecutable("python3"))
-            {
-                TryAdd(candidates, path);
-            }
-
-            foreach (var path in QueryPyLauncherPaths())
-            {
-                TryAdd(candidates, path);
-            }
-
-            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var windowsApps = Path.Combine(localAppData, "Microsoft", "WindowsApps");
-            if (Directory.Exists(windowsApps))
-            {
-                foreach (var directory in Directory.EnumerateDirectories(windowsApps)
-                             .Where(static path =>
-                                 Path.GetFileName(path)
-                                     .StartsWith("PythonSoftwareFoundation.", StringComparison.OrdinalIgnoreCase))
-                             .OrderByDescending(Path.GetFileName))
+                foreach (var path in QueryWhereExecutable("python"))
                 {
-                    TryAdd(candidates, Path.Combine(directory, "python.exe"));
-                    TryAdd(candidates, Path.Combine(directory, "python3.exe"));
+                    TryAdd(candidates, path);
                 }
+
+                foreach (var path in QueryWhereExecutable("python3"))
+                {
+                    TryAdd(candidates, path);
+                }
+
+                foreach (var path in QueryPyLauncherPaths())
+                {
+                    TryAdd(candidates, path);
+                }
+
+                var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                var windowsApps = Path.Combine(localAppData, "Microsoft", "WindowsApps");
+                if (Directory.Exists(windowsApps))
+                {
+                    foreach (var directory in Directory.EnumerateDirectories(windowsApps)
+                                 .Where(static path =>
+                                     Path.GetFileName(path)
+                                         .StartsWith("PythonSoftwareFoundation.", StringComparison.OrdinalIgnoreCase))
+                                 .OrderByDescending(Path.GetFileName))
+                    {
+                        TryAdd(candidates, Path.Combine(directory, "python.exe"));
+                        TryAdd(candidates, Path.Combine(directory, "python3.exe"));
+                    }
+                }
+
+                TryAdd(candidates, Path.Combine(windowsApps, "python.exe"));
+                TryAdd(candidates, Path.Combine(windowsApps, "python3.exe"));
+
+                var programsPython = Path.Combine(localAppData, "Programs", "Python");
+                if (Directory.Exists(programsPython))
+                {
+                    foreach (var directory in Directory.EnumerateDirectories(programsPython).OrderByDescending(Path.GetFileName))
+                    {
+                        TryAdd(candidates, Path.Combine(directory, "python.exe"));
+                    }
+                }
+
+                return candidates;
             }
 
-            TryAdd(candidates, Path.Combine(windowsApps, "python.exe"));
-            TryAdd(candidates, Path.Combine(windowsApps, "python3.exe"));
-
-            var programsPython = Path.Combine(localAppData, "Programs", "Python");
-            if (Directory.Exists(programsPython))
+            // macOS / Linux: Unity's PATH is often empty of Homebrew / python.org installs.
+            // Prefer python3 absolute paths; bare "python" is commonly missing on Mac.
+            TryAdd(candidates, ProbeUnixWhich("python3"));
+            TryAdd(candidates, ProbeUnixWhich("python"));
+            foreach (var path in EnumerateUnixPythonCandidates())
             {
-                foreach (var directory in Directory.EnumerateDirectories(programsPython).OrderByDescending(Path.GetFileName))
-                {
-                    TryAdd(candidates, Path.Combine(directory, "python.exe"));
-                }
+                TryAdd(candidates, path);
             }
 
             return candidates;
+        }
+
+        private static IEnumerable<string> EnumerateUnixPythonCandidates()
+        {
+            yield return "/opt/homebrew/bin/python3";
+            yield return "/usr/local/bin/python3";
+            yield return "/usr/bin/python3";
+            yield return "/Library/Frameworks/Python.framework/Versions/Current/bin/python3";
+
+            var frameworks = "/Library/Frameworks/Python.framework/Versions";
+            if (Directory.Exists(frameworks))
+            {
+                foreach (var directory in Directory.EnumerateDirectories(frameworks)
+                             .Where(static path => !string.Equals(Path.GetFileName(path), "Current", StringComparison.Ordinal))
+                             .OrderByDescending(Path.GetFileName))
+                {
+                    yield return Path.Combine(directory, "bin", "python3");
+                }
+            }
+
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (!string.IsNullOrWhiteSpace(home))
+            {
+                yield return Path.Combine(home, ".local", "bin", "python3");
+                yield return Path.Combine(home, ".pyenv", "shims", "python3");
+
+                var pyenvVersions = Path.Combine(home, ".pyenv", "versions");
+                if (Directory.Exists(pyenvVersions))
+                {
+                    foreach (var directory in Directory.EnumerateDirectories(pyenvVersions).OrderByDescending(Path.GetFileName))
+                    {
+                        yield return Path.Combine(directory, "bin", "python3");
+                    }
+                }
+            }
+
+            // Last: rare systems that only ship "python".
+            yield return "/opt/homebrew/bin/python";
+            yield return "/usr/local/bin/python";
+            yield return "/usr/bin/python";
+        }
+
+        private static string? ProbeUnixWhich(string command)
+        {
+            if (IsWindows() || string.IsNullOrWhiteSpace(command))
+            {
+                return null;
+            }
+
+            try
+            {
+                using var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        // Login shell picks up Homebrew / python.org PATH that Unity lacks.
+                        FileName = "/bin/bash",
+                        Arguments = $"-lc {QuoteArg("command -v " + command)}",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true,
+                    },
+                };
+                process.Start();
+                var output = process.StandardOutput.ReadToEnd().Trim();
+                process.StandardError.ReadToEnd();
+                if (!process.WaitForExit(3000) || process.ExitCode != 0 || string.IsNullOrWhiteSpace(output))
+                {
+                    try
+                    {
+                        process.Kill();
+                    }
+                    catch
+                    {
+                        // Ignore kill failures on a probe process.
+                    }
+
+                    return null;
+                }
+
+                var firstLine = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(static line => line.Trim())
+                    .FirstOrDefault(static line => !string.IsNullOrWhiteSpace(line));
+                return string.IsNullOrWhiteSpace(firstLine) ? null : firstLine;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"ChievFX MCP could not resolve '{command}' via bash command -v. {ex.Message}");
+                return null;
+            }
         }
 
         private static List<string> QueryWhereExecutable(string command)

@@ -90,7 +90,12 @@ The MCP server should appear as `unity-mcp-chievfx`.
 
 ## Notes
 
+- On macOS, Unity launches this as a bare Python process. The installer now
+  forces itself frontmost before confirm/result dialogs so Install does not
+  look like a no-op behind the Unity window.
 - The installer never edits files in `FROM`. Only `TO` is modified.
+- Installing into the same project that owns the running `Install~` package is
+  blocked, because that would delete the live installer mid-run.
 - `.cursor/mcp.json`, `.mcp.json`, or `.codex/config.toml` in `TO` is written
   by the Unity editor button, not by this installer.
 - Runtime artifacts under `Library/ChievfxMcpBridge/` and

@@ -838,6 +838,7 @@ namespace Chievfx.Mcp.Editor
 
         private static void LaunchPythonInstaller()
         {
+            ChievfxMcpPythonLauncher.InvalidateCache();
             if (!ChievfxMcpPythonLauncher.TryLaunchInstaller(out var error))
             {
                 EditorUtility.DisplayDialog("ChievFX MCP", error, "OK");

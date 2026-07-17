@@ -71,8 +71,43 @@ namespace Chievfx.Mcp.Editor
             Open(ChievfxMcpTab.Status);
         }
 
-        public static bool IsOpen =>
-            UnityEngine.Resources.FindObjectsOfTypeAll<ChievfxMcpWindow>().Length > 0;
+        // Writes the MCP config for every supported client (Cursor, Claude Code, Codex) for this
+        // project copy when it is not already current. Used by the on-load auto-setup so the
+        // project is ready without a manual Write Config. No-op for configs already up to date.
+        public static void EnsureAllClientConfigs()
+        {
+            var transport = GetSavedTransport();
+            var port = GetSavedPort();
+            var timeout = GetSavedTimeout();
+
+            ChievfxMcpToolPolicy.EnsureBridgeStarted();
+
+            var written = new List<string>();
+            foreach (var client in ClientChoices)
+            {
+                var clientInfo = GetClientInfo(client);
+                if (IsClientConfigCurrent(clientInfo, transport, port, timeout))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    WriteClientConfig(clientInfo, transport, port, timeout);
+                    written.Add(clientInfo.DisplayName);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"ChievFX MCP could not write {clientInfo.DisplayName} config. {ex.Message}");
+                }
+            }
+
+            if (written.Count > 0)
+            {
+                Debug.Log($"[ChievFX MCP] Configured MCP client files for this project: {string.Join(", ", written)}.");
+                RefreshOpenWindows();
+            }
+        }
 
         public static void OpenTools()
         {
@@ -338,6 +373,16 @@ namespace Chievfx.Mcp.Editor
             content.Add(cursorConfig);
 
             var automation = CreateSectionCard("Automation");
+            var autoWriteClientConfigsToggle = new Toggle("Auto-write MCP client configs on Unity open")
+            {
+                value = ChievfxMcpToolPolicy.AutoWriteClientConfigs,
+                tooltip = "When on, each time Unity opens this project the MCP config for every supported client (Cursor, Claude Code, Codex) is written for this project copy if it is missing, stale, or points at a different copy. Default on."
+            };
+            autoWriteClientConfigsToggle.RegisterValueChangedCallback(evt =>
+                EditorPrefs.SetBool(ChievfxMcpToolPolicy.AutoWriteClientConfigsKey, evt.newValue));
+            automation.Add(autoWriteClientConfigsToggle);
+            automation.Add(CreateMutedLabel("Writes .cursor/mcp.json, .mcp.json, and .codex/config.toml so the project is ready without a manual Write Config. Turn off to manage client configs yourself."));
+
             autoReloadExternallyChangedScenesToggle = new Toggle("Auto-reload externally changed open scenes")
             {
                 value = ChievfxMcpToolPolicy.AutoReloadExternallyChangedScenes
@@ -951,8 +996,7 @@ namespace Chievfx.Mcp.Editor
             SavePreferences();
             ChievfxMcpToolPolicy.EnsureBridgeStarted();
             var clientInfo = GetClientInfo(GetClient());
-            Directory.CreateDirectory(Path.GetDirectoryName(clientInfo.ConfigPath)!);
-            File.WriteAllText(clientInfo.ConfigPath, BuildClientConfigPreview(clientInfo, GetTransport(), GetPort(), GetTimeout()), new UTF8Encoding(false));
+            WriteClientConfig(clientInfo, GetTransport(), GetPort(), GetTimeout());
             RefreshUi();
             EditorUtility.DisplayDialog(
                 "ChievFX MCP",
@@ -1080,7 +1124,16 @@ namespace Chievfx.Mcp.Editor
             return false;
         }
 
-        private string BuildClientConfigPreview(McpClientInfo clientInfo, string transport, int port, int timeout)
+        private static void WriteClientConfig(McpClientInfo clientInfo, string transport, int port, int timeout)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(clientInfo.ConfigPath)!);
+            File.WriteAllText(
+                clientInfo.ConfigPath,
+                BuildClientConfigPreview(clientInfo, transport, port, timeout),
+                new UTF8Encoding(false));
+        }
+
+        private static string BuildClientConfigPreview(McpClientInfo clientInfo, string transport, int port, int timeout)
         {
             if (clientInfo.Format == McpClientConfigFormat.CodexToml)
             {
@@ -1854,6 +1907,25 @@ namespace Chievfx.Mcp.Editor
                     ChievfxMcpToolPolicy.AutoReloadExternallyChangedScenesKey,
                     autoReloadExternallyChangedScenesToggle.value);
             }
+        }
+
+        // Static mirrors of the instance getters above, reading the same saved EditorPrefs so the
+        // on-load auto-setup writes configs with the user's chosen transport/port/timeout.
+        private static string GetSavedTransport()
+        {
+            return EditorPrefs.GetString(PrefKey("transport"), TransportStdio) == TransportHttp
+                ? TransportHttp
+                : TransportStdio;
+        }
+
+        private static int GetSavedPort()
+        {
+            return Mathf.Max(1, EditorPrefs.GetInt(PrefKey("port"), ChievfxMcpToolPolicy.DefaultMcpPort));
+        }
+
+        private static int GetSavedTimeout()
+        {
+            return Mathf.Max(1000, EditorPrefs.GetInt(PrefKey("timeout"), ChievfxMcpToolPolicy.DefaultTimeoutMs));
         }
 
         private static int LoadTransportIndex()

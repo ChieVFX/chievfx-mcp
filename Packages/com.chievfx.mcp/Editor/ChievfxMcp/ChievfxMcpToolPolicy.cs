@@ -21,14 +21,10 @@ namespace Chievfx.Mcp.Editor
             ChievfxMcpFirstPartyExtensionLoader.EnsureLoaded();
             EditorApplication.delayCall += StartBridgeSafely;
             EditorApplication.delayCall += EnforceExperimentalVisibilitySafely;
-            EditorApplication.delayCall += ShowWindowWhenUnconfiguredSafely;
+            EditorApplication.delayCall += EnsureClientConfigsSafely;
         }
 
-        // Session key so an unconfigured project surfaces the setup window once per Unity session
-        // rather than reopening on every domain reload after the user closes it.
-        private const string AutoShownWindowSessionKey = ChievfxMcpToolPolicy.ServerName + ".autoShownSetupWindow";
-
-        private static void ShowWindowWhenUnconfiguredSafely()
+        private static void EnsureClientConfigsSafely()
         {
             try
             {
@@ -37,27 +33,16 @@ namespace Chievfx.Mcp.Editor
                     return;
                 }
 
-                if (SessionState.GetBool(AutoShownWindowSessionKey, false))
+                if (!ChievfxMcpToolPolicy.AutoWriteClientConfigs)
                 {
                     return;
                 }
 
-                if (ChievfxMcpToolPolicy.IsProjectConfiguredForAnyClient())
-                {
-                    return;
-                }
-
-                if (ChievfxMcpWindow.IsOpen)
-                {
-                    return;
-                }
-
-                SessionState.SetBool(AutoShownWindowSessionKey, true);
-                ChievfxMcpWindow.OpenStatus();
+                ChievfxMcpWindow.EnsureAllClientConfigs();
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"ChievFX MCP could not auto-open the setup window. {ex.Message}");
+                Debug.LogWarning($"ChievFX MCP could not auto-write MCP client configs. {ex.Message}");
             }
         }
 
@@ -162,67 +147,12 @@ namespace Chievfx.Mcp.Editor
                 || LegacyProjectServerNamePattern.IsMatch(name);
         }
 
-        // True when at least one supported MCP client (Cursor, Claude Code, Codex) already has
-        // the server entry for THIS project copy — i.e. a server keyed by CursorServerName, which
-        // embeds the SHA of the current project path. An entry for a different copy (wrong SHA) or
-        // no entry at all counts as "not set up".
-        public static bool IsProjectConfiguredForAnyClient()
-        {
-            return IsJsonClientConfigured(CursorConfigPath)
-                || IsJsonClientConfigured(ClaudeCodeConfigPath)
-                || IsCodexClientConfigured(CodexConfigPath);
-        }
+        public const string AutoWriteClientConfigsKey = ServerName + ".autoWriteClientConfigs";
 
-        private static bool IsJsonClientConfigured(string configPath)
-        {
-            if (!File.Exists(configPath))
-            {
-                return false;
-            }
-
-            try
-            {
-                var root = JToken.Parse(File.ReadAllText(configPath));
-                return root is JObject rootObj
-                    && rootObj["mcpServers"] is JObject servers
-                    && servers[CursorServerName] is JToken entry
-                    && entry.Type != JTokenType.Null;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-        }
-
-        private static bool IsCodexClientConfigured(string configPath)
-        {
-            if (!File.Exists(configPath))
-            {
-                return false;
-            }
-
-            try
-            {
-                var quotedHeader = $"[mcp_servers.\"{CursorServerName}\"]";
-                var bareHeader = $"[mcp_servers.{CursorServerName}]";
-                foreach (var rawLine in File.ReadAllText(configPath)
-                             .Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
-                {
-                    var trimmed = rawLine.Trim();
-                    if (string.Equals(trimmed, quotedHeader, StringComparison.Ordinal)
-                        || string.Equals(trimmed, bareHeader, StringComparison.Ordinal))
-                    {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-        }
+        // Default ON: on each Unity open, write the MCP config for every supported client
+        // (Cursor, Claude Code, Codex) for this project copy when it is missing, stale, or points
+        // at a different copy, so the project is always ready without a manual "Write Config".
+        public static bool AutoWriteClientConfigs => EditorPrefs.GetBool(AutoWriteClientConfigsKey, true);
 
         public const string PackageName = "com.chievfx.mcp";
 

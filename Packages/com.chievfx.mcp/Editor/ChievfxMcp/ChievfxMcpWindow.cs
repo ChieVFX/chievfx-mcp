@@ -71,6 +71,9 @@ namespace Chievfx.Mcp.Editor
             Open(ChievfxMcpTab.Status);
         }
 
+        public static bool IsOpen =>
+            UnityEngine.Resources.FindObjectsOfTypeAll<ChievfxMcpWindow>().Length > 0;
+
         public static void OpenTools()
         {
             Open(ChievfxMcpTab.Tools);
@@ -1221,14 +1224,24 @@ namespace Chievfx.Mcp.Editor
             }
 
             if (header.Contains(ChievfxMcpToolPolicy.CursorServerName, StringComparison.Ordinal)
-                || header.Contains(ChievfxMcpToolPolicy.ServerName, StringComparison.Ordinal))
+                || header.Contains(ChievfxMcpToolPolicy.ServerName, StringComparison.Ordinal)
+                || ManagedCodexHeaderPattern.IsMatch(header))
             {
                 return true;
             }
 
             return block.Contains(ServerScriptPath, StringComparison.Ordinal)
-                || block.Contains(HttpUrl(port), StringComparison.Ordinal);
+                || block.Contains(HttpUrl(port), StringComparison.Ordinal)
+                || block.Contains("chievfx_mcp_server.py", StringComparison.Ordinal);
         }
+
+        // Matches [mcp_servers."unity-<hash>"] / [mcp_servers.unity-<hash>] for any project copy
+        // (any SHA) and the legacy unity-mcp-chievfx-<hash> form, so a stale copy's Codex section
+        // is removed when writing config.
+        private static readonly System.Text.RegularExpressions.Regex ManagedCodexHeaderPattern =
+            new(
+                @"^\[mcp_servers\.""?(?:unity-[0-9a-fA-F]{8}|unity-mcp-chievfx(?:-[0-9a-fA-F]{8})?)""?\]$",
+                System.Text.RegularExpressions.RegexOptions.Compiled);
 
         private static JObject BuildExpectedCursorServerEntry(string transport, int port, int timeout)
         {
@@ -1292,14 +1305,57 @@ namespace Chievfx.Mcp.Editor
 
         private static bool ShouldSkipExistingServer(string name, JToken value, int port)
         {
-            if (ChievfxMcpToolPolicy.IsManagedCursorServerName(name))
+            if (ChievfxMcpToolPolicy.IsChievfxManagedServerName(name))
             {
-                // Skip the current project-unique entry (rewritten below) and any
-                // legacy entry this package wrote, so writing config migrates them.
+                // Skip the current project-unique entry (rewritten below), any legacy entry
+                // this package wrote, and any stale entry left by another project copy (a
+                // "unity-<hash>" key with a different SHA), so writing config migrates them
+                // and leaves only the correct entry for this project.
                 return true;
             }
 
-            return IsSameProjectLocalMcpServer(value, port);
+            return IsSameProjectLocalMcpServer(value, port) || ReferencesChievfxServerScript(value);
+        }
+
+        // True when the entry points at a chievfx_mcp_server.py at any path (e.g. a copied
+        // project whose script lives elsewhere), so it is recognised as our server and removed.
+        private static bool ReferencesChievfxServerScript(JToken server)
+        {
+            if (server is not JObject serverObj)
+            {
+                return false;
+            }
+
+            if (serverObj["command"]?.Type == JTokenType.String
+                && PathEndsWithServerScript(serverObj["command"]!.Value<string>()))
+            {
+                return true;
+            }
+
+            if (serverObj["args"] is JArray argsArray)
+            {
+                foreach (var item in argsArray)
+                {
+                    if (item.Type == JTokenType.String && PathEndsWithServerScript(item.Value<string>()))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool PathEndsWithServerScript(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+
+            var normalized = path!.Replace('\\', '/');
+            return normalized.EndsWith("/chievfx_mcp_server.py", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(normalized, "chievfx_mcp_server.py", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsSameProjectLocalMcpServer(JToken server, int port)

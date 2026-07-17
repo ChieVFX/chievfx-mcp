@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -20,6 +21,44 @@ namespace Chievfx.Mcp.Editor
             ChievfxMcpFirstPartyExtensionLoader.EnsureLoaded();
             EditorApplication.delayCall += StartBridgeSafely;
             EditorApplication.delayCall += EnforceExperimentalVisibilitySafely;
+            EditorApplication.delayCall += ShowWindowWhenUnconfiguredSafely;
+        }
+
+        // Session key so an unconfigured project surfaces the setup window once per Unity session
+        // rather than reopening on every domain reload after the user closes it.
+        private const string AutoShownWindowSessionKey = ChievfxMcpToolPolicy.ServerName + ".autoShownSetupWindow";
+
+        private static void ShowWindowWhenUnconfiguredSafely()
+        {
+            try
+            {
+                if (Application.isBatchMode)
+                {
+                    return;
+                }
+
+                if (SessionState.GetBool(AutoShownWindowSessionKey, false))
+                {
+                    return;
+                }
+
+                if (ChievfxMcpToolPolicy.IsProjectConfiguredForAnyClient())
+                {
+                    return;
+                }
+
+                if (ChievfxMcpWindow.IsOpen)
+                {
+                    return;
+                }
+
+                SessionState.SetBool(AutoShownWindowSessionKey, true);
+                ChievfxMcpWindow.OpenStatus();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"ChievFX MCP could not auto-open the setup window. {ex.Message}");
+            }
         }
 
         private static void StartBridgeSafely()
@@ -99,6 +138,90 @@ namespace Chievfx.Mcp.Editor
             return string.Equals(name, CursorServerName, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(name, ServerName, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(name, $"{ServerName}-{ProjectKeySuffix()}", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Matches the current "unity-<hash>" form for the SHA of ANY project copy plus the
+        // legacy "unity-mcp-chievfx-<hash>" form, in addition to this project's managed names.
+        // Used when writing config so a stale copy from another project path (wrong SHA) is
+        // removed, leaving only the correct entry for the current project.
+        private static readonly Regex ProjectServerNamePattern =
+            new(@"^unity-[0-9a-fA-F]{8}$", RegexOptions.Compiled);
+
+        private static readonly Regex LegacyProjectServerNamePattern =
+            new(@"^unity-mcp-chievfx-[0-9a-fA-F]{8}$", RegexOptions.Compiled);
+
+        public static bool IsChievfxManagedServerName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return false;
+            }
+
+            return IsManagedCursorServerName(name)
+                || ProjectServerNamePattern.IsMatch(name)
+                || LegacyProjectServerNamePattern.IsMatch(name);
+        }
+
+        // True when at least one supported MCP client (Cursor, Claude Code, Codex) already has
+        // the server entry for THIS project copy — i.e. a server keyed by CursorServerName, which
+        // embeds the SHA of the current project path. An entry for a different copy (wrong SHA) or
+        // no entry at all counts as "not set up".
+        public static bool IsProjectConfiguredForAnyClient()
+        {
+            return IsJsonClientConfigured(CursorConfigPath)
+                || IsJsonClientConfigured(ClaudeCodeConfigPath)
+                || IsCodexClientConfigured(CodexConfigPath);
+        }
+
+        private static bool IsJsonClientConfigured(string configPath)
+        {
+            if (!File.Exists(configPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                var root = JToken.Parse(File.ReadAllText(configPath));
+                return root is JObject rootObj
+                    && rootObj["mcpServers"] is JObject servers
+                    && servers[CursorServerName] is JToken entry
+                    && entry.Type != JTokenType.Null;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private static bool IsCodexClientConfigured(string configPath)
+        {
+            if (!File.Exists(configPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                var quotedHeader = $"[mcp_servers.\"{CursorServerName}\"]";
+                var bareHeader = $"[mcp_servers.{CursorServerName}]";
+                foreach (var rawLine in File.ReadAllText(configPath)
+                             .Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
+                {
+                    var trimmed = rawLine.Trim();
+                    if (string.Equals(trimmed, quotedHeader, StringComparison.Ordinal)
+                        || string.Equals(trimmed, bareHeader, StringComparison.Ordinal))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         public const string PackageName = "com.chievfx.mcp";

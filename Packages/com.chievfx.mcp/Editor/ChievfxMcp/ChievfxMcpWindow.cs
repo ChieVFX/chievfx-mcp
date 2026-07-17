@@ -22,12 +22,13 @@ namespace Chievfx.Mcp.Editor
         private const string ClientCursor = "Cursor";
         private const string ClientClaudeCode = "Claude Code";
         private const string ClientCodex = "Codex";
+        private const string ClientKimiCode = "Kimi Code";
         private const string AllInfoEditorPrefsKey = "ChievfxMcp.Selection.AllInfo";
         private const string ShowExperimentalPromptsEditorPrefsKey = "ChievfxMcp.Experimental.ShowPromptsTab";
         private const string ShowExperimentalAutonomyToolsEditorPrefsKey = "ChievfxMcp.Experimental.ShowAutonomyTools";
 
         private static readonly string[] TransportChoices = { TransportStdio, TransportHttp };
-        private static readonly string[] ClientChoices = { ClientCursor, ClientClaudeCode, ClientCodex };
+        private static readonly string[] ClientChoices = { ClientCursor, ClientClaudeCode, ClientCodex, ClientKimiCode };
         private static Process? httpProcess;
         private static ChievfxMcpTab? pendingTab;
 
@@ -97,8 +98,8 @@ namespace Chievfx.Mcp.Editor
             return GetClientsNeedingConfigWrite().Count == 0;
         }
 
-        // Writes the MCP config for every supported client (Cursor, Claude Code, Codex) for this
-        // project copy when it is not already current. Used by the on-load auto-setup so the
+        // Writes the MCP config for every supported client (Cursor, Claude Code, Codex, Kimi Code)
+        // for this project copy when it is not already current. Used by the on-load auto-setup so the
         // project is ready without a manual Write Config. No-op for configs already up to date.
         // Returns one human-readable line per config file that was (re)written, e.g.
         // "Cursor — .cursor/mcp.json", for the Welcome window's "what was done" report.
@@ -422,12 +423,12 @@ namespace Chievfx.Mcp.Editor
             var autoWriteClientConfigsToggle = new Toggle("Auto-write MCP client configs on Unity open")
             {
                 value = ChievfxMcpToolPolicy.AutoWriteClientConfigs,
-                tooltip = "When on, each time Unity opens this project the MCP config for every supported client (Cursor, Claude Code, Codex) is written for this project copy if it is missing, stale, or points at a different copy. Default on."
+                tooltip = "When on, each time Unity opens this project the MCP config for every supported client (Cursor, Claude Code, Codex, Kimi Code) is written for this project copy if it is missing, stale, or points at a different copy. Default on."
             };
             autoWriteClientConfigsToggle.RegisterValueChangedCallback(evt =>
                 EditorPrefs.SetBool(ChievfxMcpToolPolicy.AutoWriteClientConfigsKey, evt.newValue));
             automation.Add(autoWriteClientConfigsToggle);
-            automation.Add(CreateMutedLabel("Writes .cursor/mcp.json, .mcp.json, and .codex/config.toml so the project is ready without a manual Write Config. Turn off to manage client configs yourself."));
+            automation.Add(CreateMutedLabel("Writes .cursor/mcp.json, .mcp.json, .codex/config.toml, and .kimi-code/mcp.json so the project is ready without a manual Write Config. Turn off to manage client configs yourself."));
 
             autoReloadExternallyChangedScenesToggle = new Toggle("Auto-reload externally changed open scenes")
             {
@@ -560,6 +561,8 @@ namespace Chievfx.Mcp.Editor
         private static string ClaudeCodeConfigPath => ChievfxMcpToolPolicy.ClaudeCodeConfigPath;
 
         private static string CodexConfigPath => ChievfxMcpToolPolicy.CodexConfigPath;
+
+        private static string KimiCodeConfigPath => ChievfxMcpToolPolicy.KimiCodeConfigPath;
 
         private static string ServerScriptPath => ChievfxMcpToolPolicy.ServerScriptPath;
 
@@ -1090,6 +1093,22 @@ namespace Chievfx.Mcp.Editor
                     "Codex CLI missing");
             }
 
+            if (client == ClientKimiCode)
+            {
+                // Kimi Code's documented mcp.json schema has no "type" field; stdio is implied
+                // by command/args and HTTP by url, so the entry is written without it.
+                return new McpClientInfo(
+                    ClientKimiCode,
+                    KimiCodeConfigPath,
+                    "Kimi Code reads project MCP servers from .kimi-code/mcp.json on session start. Run /mcp in a session to check server status.",
+                    McpClientConfigFormat.JsonMcpServers,
+                    true,
+                    "kimi",
+                    "Kimi CLI found",
+                    "Kimi CLI missing",
+                    includeTypeField: false);
+            }
+
             return new McpClientInfo(
                 ClientCursor,
                 CursorConfigPath,
@@ -1192,7 +1211,7 @@ namespace Chievfx.Mcp.Editor
                 mcpServers[existingServer.Name] = existingServer.Value;
             }
 
-            mcpServers[ChievfxMcpToolPolicy.CursorServerName] = BuildExpectedCursorServerEntry(transport, port, timeout);
+            mcpServers[ChievfxMcpToolPolicy.CursorServerName] = BuildExpectedServerEntry(transport, port, timeout, clientInfo.IncludeTypeField);
 
             var root = new JObject { ["mcpServers"] = mcpServers };
             return root.ToString(Formatting.Indented);
@@ -1342,17 +1361,25 @@ namespace Chievfx.Mcp.Editor
                 @"^\[mcp_servers\.""?(?:unity-[0-9a-fA-F]{8}|unity-mcp-chievfx(?:-[0-9a-fA-F]{8})?)""?\]$",
                 System.Text.RegularExpressions.RegexOptions.Compiled);
 
-        private static JObject BuildExpectedCursorServerEntry(string transport, int port, int timeout)
+        private static JObject BuildExpectedServerEntry(string transport, int port, int timeout, bool includeTypeField)
         {
             var server = new JObject();
             if (transport == TransportHttp)
             {
-                server["type"] = TransportHttp;
+                if (includeTypeField)
+                {
+                    server["type"] = TransportHttp;
+                }
+
                 server["url"] = HttpUrl(port);
                 return server;
             }
 
-            server["type"] = TransportStdio;
+            if (includeTypeField)
+            {
+                server["type"] = TransportStdio;
+            }
+
             server["command"] = ChievfxMcpPythonLauncher.ExecutablePath;
             server["args"] = new JArray(
                 ServerScriptPath,
@@ -1807,7 +1834,7 @@ namespace Chievfx.Mcp.Editor
                     return false;
                 }
 
-                return JToken.DeepEquals(server, BuildExpectedCursorServerEntry(transport, port, timeout));
+                return JToken.DeepEquals(server, BuildExpectedServerEntry(transport, port, timeout, clientInfo.IncludeTypeField));
             }
             catch (JsonException)
             {
@@ -2030,7 +2057,8 @@ namespace Chievfx.Mcp.Editor
                 bool requiresToolProbe,
                 string? probeExecutableName,
                 string availableLabel,
-                string missingLabel)
+                string missingLabel,
+                bool includeTypeField = true)
             {
                 DisplayName = displayName;
                 ConfigPath = configPath;
@@ -2040,6 +2068,7 @@ namespace Chievfx.Mcp.Editor
                 ProbeExecutableName = probeExecutableName;
                 AvailableLabel = availableLabel;
                 MissingLabel = missingLabel;
+                IncludeTypeField = includeTypeField;
             }
 
             public string DisplayName { get; }
@@ -2057,6 +2086,10 @@ namespace Chievfx.Mcp.Editor
             public string AvailableLabel { get; }
 
             public string MissingLabel { get; }
+
+            // Whether the generated JSON server entry carries an explicit "type" field.
+            // Cursor/Claude Code accept it; Kimi Code's documented schema does not have it.
+            public bool IncludeTypeField { get; }
         }
 
         private readonly struct CursorServerConfig

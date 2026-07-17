@@ -38,7 +38,7 @@ namespace Chievfx.Mcp.Editor
                     : new System.Collections.Generic.List<string>();
 
                 // Welcome only surfaces on initial setup: when configs were just (re)written —
-                // signalling the MCP is now available to Cursor/Claude/Codex — or when something
+                // signalling the MCP is now available to Cursor/Claude/Codex/Kimi — or when something
                 // is wrong and needs the user's attention. A healthy, already-configured project
                 // opens silently.
                 ChievfxMcpWelcomeWindow.ShowOnStartupIfNeeded(writtenConfigs);
@@ -160,8 +160,9 @@ namespace Chievfx.Mcp.Editor
         public const string AutoWriteClientConfigsKey = ServerName + ".autoWriteClientConfigs";
 
         // Default ON: on each Unity open, write the MCP config for every supported client
-        // (Cursor, Claude Code, Codex) for this project copy when it is missing, stale, or points
-        // at a different copy, so the project is always ready without a manual "Write Config".
+        // (Cursor, Claude Code, Codex, Kimi Code) for this project copy when it is missing,
+        // stale, or points at a different copy, so the project is always ready without a manual
+        // "Write Config".
         public static bool AutoWriteClientConfigs => EditorPrefs.GetBool(AutoWriteClientConfigsKey, true);
 
         public const string PackageName = "com.chievfx.mcp";
@@ -257,6 +258,8 @@ namespace Chievfx.Mcp.Editor
         public static string ClaudeCodeConfigPath => Path.Combine(ProjectRoot, ".mcp.json");
 
         public static string CodexConfigPath => Path.Combine(ProjectRoot, ".codex", "config.toml");
+
+        public static string KimiCodeConfigPath => Path.Combine(ProjectRoot, ".kimi-code", "mcp.json");
 
         // Watched by the reload-mcps extension (when its file-reload setting is on). Writing
         // {"serverName": CursorServerName} here asks Cursor to reload just this project's MCP.

@@ -116,8 +116,9 @@ namespace Chievfx.Mcp.Editor
         // Writes the MCP config for every supported client (Cursor, Claude Code, Codex) for this
         // project copy when it is not already current. Used by the on-load auto-setup so the
         // project is ready without a manual Write Config. No-op for configs already up to date.
-        // Returns true when at least one config file was (re)written.
-        public static bool EnsureAllClientConfigs()
+        // Returns one human-readable line per config file that was (re)written, e.g.
+        // "Cursor — .cursor/mcp.json", for the Welcome window's "what was done" report.
+        public static List<string> EnsureAllClientConfigs()
         {
             var transport = GetSavedTransport();
             var port = GetSavedPort();
@@ -137,7 +138,7 @@ namespace Chievfx.Mcp.Editor
                 try
                 {
                     WriteClientConfig(clientInfo, transport, port, timeout);
-                    written.Add(clientInfo.DisplayName);
+                    written.Add($"{clientInfo.DisplayName} — {ProjectRelativePath(clientInfo.ConfigPath)}");
                 }
                 catch (Exception ex)
                 {
@@ -147,11 +148,27 @@ namespace Chievfx.Mcp.Editor
 
             if (written.Count > 0)
             {
-                Debug.Log($"[ChievFX MCP] Configured MCP client files for this project: {string.Join(", ", written)}.");
+                Debug.Log($"[ChievFX MCP] Wrote MCP client configs for this project: {string.Join("; ", written)}.");
                 RefreshOpenWindows();
             }
 
-            return written.Count > 0;
+            return written;
+        }
+
+        private static string ProjectRelativePath(string path)
+        {
+            try
+            {
+                var root = ProjectRoot.Replace('\\', '/').TrimEnd('/') + "/";
+                var normalized = Path.GetFullPath(path).Replace('\\', '/');
+                return normalized.StartsWith(root, StringComparison.OrdinalIgnoreCase)
+                    ? normalized.Substring(root.Length)
+                    : path;
+            }
+            catch
+            {
+                return path;
+            }
         }
 
         public static void OpenTools()

@@ -33,17 +33,15 @@ namespace Chievfx.Mcp.Editor
                     return;
                 }
 
-                var configsWritten = false;
-                if (ChievfxMcpToolPolicy.AutoWriteClientConfigs)
-                {
-                    configsWritten = ChievfxMcpWindow.EnsureAllClientConfigs();
-                }
+                var writtenConfigs = ChievfxMcpToolPolicy.AutoWriteClientConfigs
+                    ? ChievfxMcpWindow.EnsureAllClientConfigs()
+                    : new System.Collections.Generic.List<string>();
 
                 // Welcome only surfaces on initial setup: when configs were just (re)written —
                 // signalling the MCP is now available to Cursor/Claude/Codex — or when something
                 // is wrong and needs the user's attention. A healthy, already-configured project
                 // opens silently.
-                ChievfxMcpWelcomeWindow.ShowOnStartupIfNeeded(configsWritten);
+                ChievfxMcpWelcomeWindow.ShowOnStartupIfNeeded(writtenConfigs);
             }
             catch (Exception ex)
             {

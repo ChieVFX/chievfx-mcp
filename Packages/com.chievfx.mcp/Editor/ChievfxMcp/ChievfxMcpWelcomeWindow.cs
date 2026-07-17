@@ -24,11 +24,16 @@ namespace Chievfx.Mcp.Editor
             window.Focus();
         }
 
+        // What the auto-setup just did (one line per written config file), shown in the window
+        // so the user sees which files were created/updated. Static on purpose: transient
+        // session memory, cleared by the next domain reload once the info has served its point.
+        private static List<string>? lastSetupActions;
+
         // Surfaces only at initial setup of the plugin: when MCP client configs were just
         // (re)written — telling the user the MCP is now available to Cursor/Claude/Codex — or
         // when something is wrong and needs attention. A healthy, already-configured project
         // never pops it.
-        public static void ShowOnStartupIfNeeded(bool configsWritten)
+        public static void ShowOnStartupIfNeeded(List<string> writtenConfigs)
         {
             if (Application.isBatchMode)
             {
@@ -40,8 +45,9 @@ namespace Chievfx.Mcp.Editor
                 return;
             }
 
-            if (configsWritten)
+            if (writtenConfigs.Count > 0)
             {
+                lastSetupActions = writtenConfigs;
                 SessionState.SetBool(CheckedThisSessionKey, true);
                 Open();
                 return;
@@ -126,6 +132,19 @@ namespace Chievfx.Mcp.Editor
             verdict.style.color = new StyleColor(ready ? new Color(0.58f, 0.78f, 0.58f) : new Color(1f, 0.88f, 0.58f));
             content.Add(verdict);
 
+            if (lastSetupActions is { Count: > 0 })
+            {
+                var doneCard = CreateSectionCard("What was just done");
+                doneCard.Add(CreateMutedLabel("Wrote MCP client config files for this project:"));
+                foreach (var action in lastSetupActions)
+                {
+                    doneCard.Add(CreateMutedLabel($"• {action}"));
+                }
+
+                doneCard.Add(CreateMutedLabel("Your AI clients pick these up on their next start or MCP reload."));
+                content.Add(doneCard);
+            }
+
             content.Add(BuildChecklist(pythonStatus, serverScriptExists, clientStates));
 
             if (!pythonStatus.IsReady)
@@ -154,7 +173,12 @@ namespace Chievfx.Mcp.Editor
             {
                 ChievfxMcpPythonLauncher.InvalidateCache();
                 ChievfxMcpPythonEnvironment.GetStatus(forceRefresh: true);
-                ChievfxMcpWindow.EnsureAllClientConfigs();
+                var written = ChievfxMcpWindow.EnsureAllClientConfigs();
+                if (written.Count > 0)
+                {
+                    lastSetupActions = written;
+                }
+
                 BuildContent();
             }));
             content.Add(actions);

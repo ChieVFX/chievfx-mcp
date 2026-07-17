@@ -22,6 +22,21 @@ namespace Chievfx.Mcp.Editor
             EditorApplication.delayCall += StartBridgeSafely;
             EditorApplication.delayCall += EnforceExperimentalVisibilitySafely;
             EditorApplication.delayCall += EnsureClientConfigsSafely;
+            // Registered after EnsureClientConfigsSafely so the welcome window reports the state
+            // that exists after configs were auto-written, not the stale pre-write state.
+            EditorApplication.delayCall += ShowWelcomeSafely;
+        }
+
+        private static void ShowWelcomeSafely()
+        {
+            try
+            {
+                ChievfxMcpWelcomeWindow.ShowOnStartupIfNeeded();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"ChievFX MCP could not open the welcome window. {ex.Message}");
+            }
         }
 
         private static void EnsureClientConfigsSafely()
@@ -146,6 +161,12 @@ namespace Chievfx.Mcp.Editor
                 || ProjectServerNamePattern.IsMatch(name)
                 || LegacyProjectServerNamePattern.IsMatch(name);
         }
+
+        public const string ShowWelcomeOnStartupKey = ServerName + ".showWelcomeOnStartup";
+
+        // Default ON: show the small Welcome window once per Unity session summarizing setup
+        // state — "ready to use" tips when everything is fine, fix-it guidance when not.
+        public static bool ShowWelcomeOnStartup => EditorPrefs.GetBool(ShowWelcomeOnStartupKey, true);
 
         public const string AutoWriteClientConfigsKey = ServerName + ".autoWriteClientConfigs";
 

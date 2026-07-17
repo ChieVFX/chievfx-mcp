@@ -71,6 +71,29 @@ namespace Chievfx.Mcp.Editor
             Open(ChievfxMcpTab.Status);
         }
 
+        // Per-client setup snapshot for the Welcome window: config written for this project copy,
+        // plus whether the client's CLI could be detected (always true for Cursor, which has no
+        // reliable probe).
+        internal static List<ChievfxMcpClientSetupState> GetClientSetupStates()
+        {
+            var transport = GetSavedTransport();
+            var port = GetSavedPort();
+            var timeout = GetSavedTimeout();
+            var states = new List<ChievfxMcpClientSetupState>(ClientChoices.Length);
+            foreach (var client in ClientChoices)
+            {
+                var clientInfo = GetClientInfo(client);
+                states.Add(new ChievfxMcpClientSetupState(
+                    clientInfo.DisplayName,
+                    IsClientConfigCurrent(clientInfo, transport, port, timeout),
+                    IsClientAvailable(clientInfo),
+                    clientInfo.RequiresToolProbe,
+                    clientInfo.Hint));
+            }
+
+            return states;
+        }
+
         // Writes the MCP config for every supported client (Cursor, Claude Code, Codex) for this
         // project copy when it is not already current. Used by the on-load auto-setup so the
         // project is ready without a manual Write Config. No-op for configs already up to date.
@@ -2011,6 +2034,30 @@ namespace Chievfx.Mcp.Editor
             public string AvailableLabel { get; }
 
             public string MissingLabel { get; }
+        }
+
+        internal readonly struct ChievfxMcpClientSetupState
+        {
+            public ChievfxMcpClientSetupState(string displayName, bool configured, bool clientDetected, bool detectionReliable, string hint)
+            {
+                DisplayName = displayName;
+                Configured = configured;
+                ClientDetected = clientDetected;
+                DetectionReliable = detectionReliable;
+                Hint = hint;
+            }
+
+            public string DisplayName { get; }
+
+            public bool Configured { get; }
+
+            public bool ClientDetected { get; }
+
+            // False for clients (Cursor) with no reliable install probe; ClientDetected is
+            // then always true and should not be presented as a verified detection.
+            public bool DetectionReliable { get; }
+
+            public string Hint { get; }
         }
 
         private readonly struct CursorServerConfig

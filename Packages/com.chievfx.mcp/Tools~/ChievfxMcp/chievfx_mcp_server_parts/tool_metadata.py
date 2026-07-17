@@ -30,8 +30,16 @@ def required_tool_ids_for_tools(tools: list[dict[str, Any]]) -> set[str]:
 
 def slim_advertised_schema_detail(value: Any, detail_keys: set[str] = ADVERTISED_SCHEMA_DETAIL_KEYS) -> Any:
     if isinstance(value, dict):
-        if value == VECTOR3_REF:
-            return ADVERTISED_VECTOR3_SCHEMA.copy()
+        if value.get("$ref") == VECTOR3_REF["$ref"]:
+            # Inline the Vector3 reference (even when the property carries extra keys such as a
+            # description). The advertised surface drops $defs, and strict clients (Kimi/Moonshot)
+            # reject any schema whose $ref no longer resolves.
+            slimmed = {
+                key: slim_advertised_schema_detail(item, detail_keys)
+                for key, item in value.items()
+                if key not in detail_keys and key != "$ref"
+            }
+            return {**ADVERTISED_VECTOR3_SCHEMA, **slimmed}
         return {
             key: slim_advertised_schema_detail(item, detail_keys)
             for key, item in value.items()

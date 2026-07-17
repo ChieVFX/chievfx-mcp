@@ -59,7 +59,8 @@ namespace Chievfx.Mcp.Editor
         private Label? clientConfigHintLabel;
         private ChievfxMcpTab activeTab = ChievfxMcpTab.Status;
 
-        [MenuItem("Window/ChievFX MCP")]
+        // "%&m" = Ctrl+Alt+M on Windows/Linux, Cmd+Alt+M on macOS.
+        [MenuItem("Window/ChievFX MCP %&m")]
         public static void Open()
         {
             Open(LoadActiveTab());

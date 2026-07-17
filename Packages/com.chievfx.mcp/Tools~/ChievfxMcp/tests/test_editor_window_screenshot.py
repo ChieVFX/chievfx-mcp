@@ -348,6 +348,34 @@ class editorWindowScreenshotMetadataTests(unittest.TestCase):
         self.assertEqual(properties["position"], {"type": "object"})
         self.assertEqual(properties["rotationEuler"], {"type": "object"})
 
+    def test_advertised_vector3_ref_with_extra_keys_is_inlined(self) -> None:
+        # gameobject-duplicate declares position as {"$ref": ..., "description": ...}; the extra
+        # key must not defeat inlining, or the advertised schema ships a dangling $ref.
+        tool = next(tool for tool in mcp.TOOLS if tool["name"] == "gameobject-duplicate")
+
+        properties = mcp.advertised_input_schema(tool)["properties"]
+
+        self.assertEqual(properties["position"], {"type": "object"})
+        self.assertEqual(properties["rotationEuler"], {"type": "object"})
+
+    def test_advertised_schemas_never_contain_refs(self) -> None:
+        # Strict clients (Kimi/Moonshot) reject tool schemas with unresolved $ref; the advertised
+        # surface drops $defs, so no $ref may survive anywhere in any tool schema.
+        def collect_keys(value: object, found: set[str]) -> None:
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    if key in {"$ref", "$defs"}:
+                        found.add(key)
+                    collect_keys(item, found)
+            elif isinstance(value, list):
+                for item in value:
+                    collect_keys(item, found)
+
+        for tool in mcp.TOOLS:
+            found: set[str] = set()
+            collect_keys(mcp.advertised_input_schema(tool), found)
+            self.assertFalse(found, f"{tool['name']} advertises {sorted(found)} in its inputSchema")
+
     def test_advertised_descriptor_estimates_stay_compact(self) -> None:
         metadata = mcp.build_tool_metadata()
         estimates = {tool["name"]: tool["estimatedTokens"] for tool in metadata["tools"]}

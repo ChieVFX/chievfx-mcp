@@ -1,4 +1,4 @@
-# ChievFX MCP — Python 3.10+ required.
+# ChievFX MCP — Python 3.9+ required.
 # The MCP server (Tools~/ChievfxMcp/chievfx_mcp_server.py) uses the standard library only;
 # no third-party packages are required for Cursor/Claude/Codex MCP stdio or HTTP transport.
 #

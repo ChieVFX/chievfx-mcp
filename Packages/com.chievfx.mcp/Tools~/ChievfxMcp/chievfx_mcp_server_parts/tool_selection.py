@@ -1,6 +1,8 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+from __future__ import annotations
+
 def tool_required_ids_for_metadata(metadata: dict[str, Any]) -> set[str]:
     return {tool["name"] for tool in metadata.get("tools", []) if tool.get("required")} | set(metadata.get("requiredToolIds", []))
 

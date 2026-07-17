@@ -1,6 +1,8 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+from __future__ import annotations
+
 def format_scene_opened_resource_text(result: Any) -> str:
     if not isinstance(result, dict):
         return to_toon(result)

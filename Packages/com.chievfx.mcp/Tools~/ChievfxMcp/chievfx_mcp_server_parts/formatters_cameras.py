@@ -1,6 +1,8 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+from __future__ import annotations
+
 CAMERA_RESOURCE_ROW_KEYS: dict[str, str] = {
     "cameras-cinemachine-cameras": "cameras",
     "cameras-cinemachine-brains": "brains",

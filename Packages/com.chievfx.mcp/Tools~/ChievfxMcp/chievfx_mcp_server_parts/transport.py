@@ -1,6 +1,8 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+from __future__ import annotations
+
 def force_utf8_stdio() -> None:
     """JSON-RPC is UTF-8, but Windows stdio defaults to cp1252 and mangles multibyte chars.
 

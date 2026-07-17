@@ -1,6 +1,8 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+from __future__ import annotations
+
 def get_extension_resource_by_uri(uri: str) -> dict[str, Any] | None:
     for resource in collect_extension_capabilities()["resources"]:
         if resource["uri"] == uri:

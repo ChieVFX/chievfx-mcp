@@ -1,6 +1,8 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+from __future__ import annotations
+
 class BridgeTransportMixin:
     def call_unity_bridge(self, name: str, arguments: dict[str, Any], request_id: Any = None, progress_token: Any = None, notify: Any | None = None) -> dict[str, Any]:
         if self.bridge_dir:

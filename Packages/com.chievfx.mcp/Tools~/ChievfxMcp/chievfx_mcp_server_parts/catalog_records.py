@@ -1,6 +1,8 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+from __future__ import annotations
+
 _CATALOGS_CACHE: dict[str, Any] = {}
 _CATALOGS_CACHE_MTIME: float | None = None
 _INITIALIZE_INSTRUCTIONS_CACHE: dict[str, Any] = {}

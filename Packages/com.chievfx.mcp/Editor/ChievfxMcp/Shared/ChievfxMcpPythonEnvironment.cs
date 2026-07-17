@@ -42,7 +42,12 @@ namespace Chievfx.Mcp.Editor
     internal static class ChievfxMcpPythonEnvironment
     {
         public const int MinimumMajor = 3;
-        public const int MinimumMinor = 10;
+
+        // The server tree targets Python 3.9: every part file uses `from __future__ import
+        // annotations`, so PEP 604 "X | None" hints stay unevaluated strings, and it otherwise
+        // relies only on 3.9-era stdlib (PEP 585 builtin generics). Keep this at 9 so a working
+        // 3.9 interpreter is not rejected as unsupported.
+        public const int MinimumMinor = 9;
 
         private static readonly Regex VersionPattern = new(
             @"Python\s+(?<major>\d+)\.(?<minor>\d+)(?:\.(?<patch>\d+))?",
@@ -272,7 +277,7 @@ namespace Chievfx.Mcp.Editor
             }
 
             return
-                "Install Python 3.10+ with your package manager, e.g. sudo apt install python3 python3-pip (Debian/Ubuntu) or sudo dnf install python3 python3-pip (Fedora).";
+                $"Install Python {MinimumMajor}.{MinimumMinor}+ with your package manager, e.g. sudo apt install python3 python3-pip (Debian/Ubuntu) or sudo dnf install python3 python3-pip (Fedora).";
         }
 
         private static string BuildWindowsStoreShimGuidance(string executablePath)

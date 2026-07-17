@@ -1,6 +1,8 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+from __future__ import annotations
+
 def load_required_tool_ids() -> set[str]:
     try:
         payload = json.loads(TOOL_POLICY_PATH.read_text(encoding="utf-8"))

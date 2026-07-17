@@ -1,6 +1,8 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+from __future__ import annotations
+
 def format_asset_find_text(result: dict[str, Any]) -> str:
     assets = result.get("assets")
     if not isinstance(assets, list):

@@ -1,6 +1,8 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+from __future__ import annotations
+
 class McpServerCore:
     def __init__(self, unity_url: str, bridge_dir: str, timeout_ms: int) -> None:
         self.unity_url = unity_url.rstrip("/")

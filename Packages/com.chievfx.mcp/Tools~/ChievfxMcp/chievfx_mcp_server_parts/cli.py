@@ -1,6 +1,8 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+from __future__ import annotations
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="unity-mcp-chievfx local MCP server")
     parser.add_argument("--transport", choices=["stdio", "http"], default="stdio")

@@ -1,6 +1,8 @@
 # This file is loaded by chievfx_mcp_server.py into its module namespace.
 # Keep this part focused and below 1000 lines.
 
+from __future__ import annotations
+
 from collections.abc import Callable
 
 _extension_manifest_cache: dict[str, Any] | None = None

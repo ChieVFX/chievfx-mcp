@@ -18,7 +18,7 @@ Existing copies in `TO` are deleted first. `__pycache__/`, `tests/`, `*.pyc`, an
 
 ## Requirements
 
-- Python 3.10+ on the host machine.
+- Python 3.9+ on the host machine.
 - Unity Editor (for the target project).
 - Target project's `Packages/manifest.json` must list:
   - `com.unity.nuget.newtonsoft-json` at `3.2.2` or newer — required by the

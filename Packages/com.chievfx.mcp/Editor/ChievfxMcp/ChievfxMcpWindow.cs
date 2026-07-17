@@ -94,10 +94,30 @@ namespace Chievfx.Mcp.Editor
             return states;
         }
 
+        // True when every supported client's config file already carries the current entry for
+        // this project copy. Unlike GetClientSetupStates, this never probes client CLIs, so it is
+        // cheap enough for the on-load welcome decision.
+        internal static bool AreAllClientConfigsCurrent()
+        {
+            var transport = GetSavedTransport();
+            var port = GetSavedPort();
+            var timeout = GetSavedTimeout();
+            foreach (var client in ClientChoices)
+            {
+                if (!IsClientConfigCurrent(GetClientInfo(client), transport, port, timeout))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         // Writes the MCP config for every supported client (Cursor, Claude Code, Codex) for this
         // project copy when it is not already current. Used by the on-load auto-setup so the
         // project is ready without a manual Write Config. No-op for configs already up to date.
-        public static void EnsureAllClientConfigs()
+        // Returns true when at least one config file was (re)written.
+        public static bool EnsureAllClientConfigs()
         {
             var transport = GetSavedTransport();
             var port = GetSavedPort();
@@ -130,6 +150,8 @@ namespace Chievfx.Mcp.Editor
                 Debug.Log($"[ChievFX MCP] Configured MCP client files for this project: {string.Join(", ", written)}.");
                 RefreshOpenWindows();
             }
+
+            return written.Count > 0;
         }
 
         public static void OpenTools()

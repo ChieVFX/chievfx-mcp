@@ -13,7 +13,7 @@ namespace Chievfx.Mcp.Editor
     // detailed controls live in the main MCP window.
     internal sealed class ChievfxMcpWelcomeWindow : EditorWindow
     {
-        private const string ShownThisSessionKey = ChievfxMcpToolPolicy.ServerName + ".welcomeShownThisSession";
+        private const string CheckedThisSessionKey = ChievfxMcpToolPolicy.ServerName + ".welcomeCheckedThisSession";
 
         [MenuItem("Window/ChievFX MCP Welcome")]
         public static void Open()
@@ -24,7 +24,11 @@ namespace Chievfx.Mcp.Editor
             window.Focus();
         }
 
-        public static void ShowOnStartupIfNeeded()
+        // Surfaces only at initial setup of the plugin: when MCP client configs were just
+        // (re)written — telling the user the MCP is now available to Cursor/Claude/Codex — or
+        // when something is wrong and needs attention. A healthy, already-configured project
+        // never pops it.
+        public static void ShowOnStartupIfNeeded(bool configsWritten)
         {
             if (Application.isBatchMode)
             {
@@ -36,14 +40,42 @@ namespace Chievfx.Mcp.Editor
                 return;
             }
 
-            // Once per Unity session, not on every domain reload.
-            if (SessionState.GetBool(ShownThisSessionKey, false))
+            if (configsWritten)
+            {
+                SessionState.SetBool(CheckedThisSessionKey, true);
+                Open();
+                return;
+            }
+
+            // The health probe runs Python subprocesses, so evaluate it once per Unity session,
+            // not on every domain reload.
+            if (SessionState.GetBool(CheckedThisSessionKey, false))
             {
                 return;
             }
 
-            SessionState.SetBool(ShownThisSessionKey, true);
+            SessionState.SetBool(CheckedThisSessionKey, true);
+            if (IsSetupHealthy())
+            {
+                return;
+            }
+
             Open();
+        }
+
+        private static bool IsSetupHealthy()
+        {
+            if (!File.Exists(ChievfxMcpToolPolicy.ServerScriptPath))
+            {
+                return false;
+            }
+
+            if (!ChievfxMcpWindow.AreAllClientConfigsCurrent())
+            {
+                return false;
+            }
+
+            return ChievfxMcpPythonEnvironment.GetStatus().IsReady;
         }
 
         public void CreateGUI()
@@ -127,9 +159,10 @@ namespace Chievfx.Mcp.Editor
             }));
             content.Add(actions);
 
-            var showOnStartupToggle = new Toggle("Show this window when Unity opens")
+            var showOnStartupToggle = new Toggle("Show automatically on first setup or problems")
             {
-                value = ChievfxMcpToolPolicy.ShowWelcomeOnStartup
+                value = ChievfxMcpToolPolicy.ShowWelcomeOnStartup,
+                tooltip = "Opens this window when MCP client configs were just written for this project or when setup needs attention. A healthy, already-configured project never shows it."
             };
             showOnStartupToggle.style.marginTop = 8;
             showOnStartupToggle.RegisterValueChangedCallback(evt =>

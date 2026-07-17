@@ -22,21 +22,6 @@ namespace Chievfx.Mcp.Editor
             EditorApplication.delayCall += StartBridgeSafely;
             EditorApplication.delayCall += EnforceExperimentalVisibilitySafely;
             EditorApplication.delayCall += EnsureClientConfigsSafely;
-            // Registered after EnsureClientConfigsSafely so the welcome window reports the state
-            // that exists after configs were auto-written, not the stale pre-write state.
-            EditorApplication.delayCall += ShowWelcomeSafely;
-        }
-
-        private static void ShowWelcomeSafely()
-        {
-            try
-            {
-                ChievfxMcpWelcomeWindow.ShowOnStartupIfNeeded();
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"ChievFX MCP could not open the welcome window. {ex.Message}");
-            }
         }
 
         private static void EnsureClientConfigsSafely()
@@ -48,12 +33,17 @@ namespace Chievfx.Mcp.Editor
                     return;
                 }
 
-                if (!ChievfxMcpToolPolicy.AutoWriteClientConfigs)
+                var configsWritten = false;
+                if (ChievfxMcpToolPolicy.AutoWriteClientConfigs)
                 {
-                    return;
+                    configsWritten = ChievfxMcpWindow.EnsureAllClientConfigs();
                 }
 
-                ChievfxMcpWindow.EnsureAllClientConfigs();
+                // Welcome only surfaces on initial setup: when configs were just (re)written —
+                // signalling the MCP is now available to Cursor/Claude/Codex — or when something
+                // is wrong and needs the user's attention. A healthy, already-configured project
+                // opens silently.
+                ChievfxMcpWelcomeWindow.ShowOnStartupIfNeeded(configsWritten);
             }
             catch (Exception ex)
             {
@@ -164,8 +154,9 @@ namespace Chievfx.Mcp.Editor
 
         public const string ShowWelcomeOnStartupKey = ServerName + ".showWelcomeOnStartup";
 
-        // Default ON: show the small Welcome window once per Unity session summarizing setup
-        // state — "ready to use" tips when everything is fine, fix-it guidance when not.
+        // Default ON: allow the Welcome window to surface automatically — only when MCP client
+        // configs were just (re)written (initial setup of the plugin) or when setup is unhealthy.
+        // A healthy, already-configured project never pops it.
         public static bool ShowWelcomeOnStartup => EditorPrefs.GetBool(ShowWelcomeOnStartupKey, true);
 
         public const string AutoWriteClientConfigsKey = ServerName + ".autoWriteClientConfigs";

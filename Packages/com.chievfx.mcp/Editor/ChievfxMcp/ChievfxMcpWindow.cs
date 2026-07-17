@@ -71,46 +71,30 @@ namespace Chievfx.Mcp.Editor
             Open(ChievfxMcpTab.Status);
         }
 
-        // Per-client setup snapshot for the Welcome window: config written for this project copy,
-        // plus whether the client's CLI could be detected (always true for Cursor, which has no
-        // reliable probe).
-        internal static List<ChievfxMcpClientSetupState> GetClientSetupStates()
+        // Display names of clients whose config file does not carry the current entry for this
+        // project copy. Never probes client CLIs, so it is cheap enough for the on-load welcome
+        // decision.
+        internal static List<string> GetClientsNeedingConfigWrite()
         {
             var transport = GetSavedTransport();
             var port = GetSavedPort();
             var timeout = GetSavedTimeout();
-            var states = new List<ChievfxMcpClientSetupState>(ClientChoices.Length);
+            var needing = new List<string>();
             foreach (var client in ClientChoices)
             {
                 var clientInfo = GetClientInfo(client);
-                states.Add(new ChievfxMcpClientSetupState(
-                    clientInfo.DisplayName,
-                    IsClientConfigCurrent(clientInfo, transport, port, timeout),
-                    IsClientAvailable(clientInfo),
-                    clientInfo.RequiresToolProbe,
-                    clientInfo.Hint));
-            }
-
-            return states;
-        }
-
-        // True when every supported client's config file already carries the current entry for
-        // this project copy. Unlike GetClientSetupStates, this never probes client CLIs, so it is
-        // cheap enough for the on-load welcome decision.
-        internal static bool AreAllClientConfigsCurrent()
-        {
-            var transport = GetSavedTransport();
-            var port = GetSavedPort();
-            var timeout = GetSavedTimeout();
-            foreach (var client in ClientChoices)
-            {
-                if (!IsClientConfigCurrent(GetClientInfo(client), transport, port, timeout))
+                if (!IsClientConfigCurrent(clientInfo, transport, port, timeout))
                 {
-                    return false;
+                    needing.Add(clientInfo.DisplayName);
                 }
             }
 
-            return true;
+            return needing;
+        }
+
+        internal static bool AreAllClientConfigsCurrent()
+        {
+            return GetClientsNeedingConfigWrite().Count == 0;
         }
 
         // Writes the MCP config for every supported client (Cursor, Claude Code, Codex) for this
@@ -2073,30 +2057,6 @@ namespace Chievfx.Mcp.Editor
             public string AvailableLabel { get; }
 
             public string MissingLabel { get; }
-        }
-
-        internal readonly struct ChievfxMcpClientSetupState
-        {
-            public ChievfxMcpClientSetupState(string displayName, bool configured, bool clientDetected, bool detectionReliable, string hint)
-            {
-                DisplayName = displayName;
-                Configured = configured;
-                ClientDetected = clientDetected;
-                DetectionReliable = detectionReliable;
-                Hint = hint;
-            }
-
-            public string DisplayName { get; }
-
-            public bool Configured { get; }
-
-            public bool ClientDetected { get; }
-
-            // False for clients (Cursor) with no reliable install probe; ClientDetected is
-            // then always true and should not be presented as a verified detection.
-            public bool DetectionReliable { get; }
-
-            public string Hint { get; }
         }
 
         private readonly struct CursorServerConfig

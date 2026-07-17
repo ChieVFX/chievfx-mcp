@@ -8,26 +8,26 @@ using static Chievfx.Mcp.Editor.ChievfxMcpSelectionUi;
 
 namespace Chievfx.Mcp.Editor
 {
-    // Small once-per-session status card: "ready to use" tips when setup is healthy,
-    // fix-it guidance when something (usually Python) is broken. Deliberately minimal —
-    // detailed controls live in the main MCP window.
+    // Minimal once-per-setup status card. Shows only actionable info: the big verdict, what the
+    // auto-setup just did, and fix-it guidance when something is broken. Detailed controls live
+    // in the main MCP window.
     internal sealed class ChievfxMcpWelcomeWindow : EditorWindow
     {
         private const string CheckedThisSessionKey = ChievfxMcpToolPolicy.ServerName + ".welcomeCheckedThisSession";
-
-        [MenuItem("Window/ChievFX MCP Welcome")]
-        public static void Open()
-        {
-            var window = GetWindow<ChievfxMcpWelcomeWindow>(utility: false, title: "Welcome (ChievFX MCP)");
-            window.minSize = new Vector2(380, 320);
-            window.Show();
-            window.Focus();
-        }
 
         // What the auto-setup just did (one line per written config file), shown in the window
         // so the user sees which files were created/updated. Static on purpose: transient
         // session memory, cleared by the next domain reload once the info has served its point.
         private static List<string>? lastSetupActions;
+
+        [MenuItem("Window/ChievFX MCP Welcome")]
+        public static void Open()
+        {
+            var window = GetWindow<ChievfxMcpWelcomeWindow>(utility: false, title: "Unity (chievfx) MCP");
+            window.minSize = new Vector2(360, 220);
+            window.Show();
+            window.Focus();
+        }
 
         // Surfaces only at initial setup of the plugin: when MCP client configs were just
         // (re)written — telling the user the MCP is now available to Cursor/Claude/Codex — or
@@ -108,60 +108,68 @@ namespace Chievfx.Mcp.Editor
 
             var pythonStatus = ChievfxMcpPythonEnvironment.GetStatus();
             var serverScriptExists = File.Exists(ChievfxMcpToolPolicy.ServerScriptPath);
-            var clientStates = ChievfxMcpWindow.GetClientSetupStates();
-            var allConfigured = true;
-            foreach (var state in clientStates)
-            {
-                allConfigured &= state.Configured;
-            }
+            var clientsNeedingWrite = ChievfxMcpWindow.GetClientsNeedingConfigWrite();
+            var ready = pythonStatus.IsReady && serverScriptExists && clientsNeedingWrite.Count == 0;
 
-            var ready = pythonStatus.IsReady && serverScriptExists && allConfigured;
-
-            var title = new Label("ChievFX MCP");
-            title.style.unityFontStyleAndWeight = FontStyle.Bold;
-            title.style.fontSize = 18;
+            var title = CreateMutedLabel("Unity (chievfx) MCP");
+            title.style.fontSize = 12;
             content.Add(title);
 
-            var verdict = new Label(ready
-                ? "Ready to use. Unity side is set up — open your AI client and go."
-                : "Almost there — one or more setup steps need attention below.");
-            verdict.style.marginTop = 6;
-            verdict.style.marginBottom = 8;
-            verdict.style.whiteSpace = WhiteSpace.Normal;
+            var verdict = new Label(ready ? "Ready to use." : "Needs attention.");
+            verdict.style.fontSize = 22;
             verdict.style.unityFontStyleAndWeight = FontStyle.Bold;
-            verdict.style.color = new StyleColor(ready ? new Color(0.58f, 0.78f, 0.58f) : new Color(1f, 0.88f, 0.58f));
+            verdict.style.marginTop = 2;
+            verdict.style.marginBottom = 8;
+            verdict.style.color = new StyleColor(ready ? new Color(0.58f, 0.82f, 0.58f) : new Color(1f, 0.8f, 0.45f));
             content.Add(verdict);
 
             if (lastSetupActions is { Count: > 0 })
             {
                 var doneCard = CreateSectionCard("What was just done");
-                doneCard.Add(CreateMutedLabel("Wrote MCP client config files for this project:"));
                 foreach (var action in lastSetupActions)
                 {
-                    doneCard.Add(CreateMutedLabel($"• {action}"));
+                    doneCard.Add(CreateMutedLabel($"• Wrote {action}"));
                 }
 
-                doneCard.Add(CreateMutedLabel("Your AI clients pick these up on their next start or MCP reload."));
                 content.Add(doneCard);
-            }
-
-            content.Add(BuildChecklist(pythonStatus, serverScriptExists, clientStates));
-
-            if (!pythonStatus.IsReady)
-            {
-                content.Add(BuildPythonFixCard(pythonStatus));
-            }
-            else if (!serverScriptExists)
-            {
-                var card = CreateSectionCard("Fix: server script missing");
-                card.Add(CreateMutedLabel(
-                    $"Expected at: {ChievfxMcpToolPolicy.ServerScriptPath}\nReinstall or update the com.chievfx.mcp package to restore it."));
-                content.Add(card);
             }
 
             if (ready)
             {
-                content.Add(BuildTipsCard(clientStates));
+                content.Add(CreateMutedLabel(
+                    $"Agents connect automatically on their next start. Cursor only: enable \"{ChievfxMcpToolPolicy.CursorServerName}\" under Settings > MCP."));
+            }
+            else
+            {
+                if (!pythonStatus.IsReady)
+                {
+                    content.Add(BuildPythonFixCard(pythonStatus));
+                }
+
+                if (!serverScriptExists)
+                {
+                    var card = CreateSectionCard("Server script missing");
+                    card.Add(CreateMutedLabel(
+                        $"Expected at: {ChievfxMcpToolPolicy.ServerScriptPath}\nReinstall or update the com.chievfx.mcp package to restore it."));
+                    content.Add(card);
+                }
+
+                if (clientsNeedingWrite.Count > 0)
+                {
+                    var card = CreateSectionCard("MCP config not written");
+                    card.Add(CreateMutedLabel($"Missing for: {string.Join(", ", clientsNeedingWrite)}."));
+                    card.Add(CreateButton("Write Configs Now", () =>
+                    {
+                        var written = ChievfxMcpWindow.EnsureAllClientConfigs();
+                        if (written.Count > 0)
+                        {
+                            lastSetupActions = written;
+                        }
+
+                        BuildContent();
+                    }));
+                    content.Add(card);
+                }
             }
 
             var actions = new VisualElement
@@ -192,60 +200,6 @@ namespace Chievfx.Mcp.Editor
             showOnStartupToggle.RegisterValueChangedCallback(evt =>
                 EditorPrefs.SetBool(ChievfxMcpToolPolicy.ShowWelcomeOnStartupKey, evt.newValue));
             content.Add(showOnStartupToggle);
-        }
-
-        private static VisualElement BuildChecklist(
-            ChievfxMcpPythonEnvironmentStatus pythonStatus,
-            bool serverScriptExists,
-            List<ChievfxMcpWindow.ChievfxMcpClientSetupState> clientStates)
-        {
-            var card = CreateSectionCard("Setup status");
-
-            card.Add(CreateCheckRow(
-                pythonStatus.IsReady,
-                pythonStatus.IsReady
-                    ? $"Python — {pythonStatus.VersionDisplay}"
-                    : pythonStatus.PythonFound
-                        ? $"Python — found but not usable ({pythonStatus.VersionDisplay})"
-                        : "Python — not found"));
-
-            card.Add(CreateCheckRow(
-                serverScriptExists,
-                serverScriptExists ? "MCP server script — found" : "MCP server script — missing"));
-
-            foreach (var state in clientStates)
-            {
-                var detectionNote = state.DetectionReliable && !state.ClientDetected
-                    ? " (CLI not detected — install it or ignore if unused)"
-                    : string.Empty;
-                card.Add(CreateCheckRow(
-                    state.Configured,
-                    state.Configured
-                        ? $"{state.DisplayName} — config written{detectionNote}"
-                        : $"{state.DisplayName} — config not written{detectionNote}"));
-            }
-
-            return card;
-        }
-
-        private static VisualElement CreateCheckRow(bool ok, string text)
-        {
-            var row = new VisualElement
-            {
-                style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginBottom = 2 }
-            };
-
-            var mark = new Label(ok ? "✓" : "✕");
-            mark.style.width = 18;
-            mark.style.unityFontStyleAndWeight = FontStyle.Bold;
-            mark.style.color = new StyleColor(ok ? new Color(0.5f, 0.8f, 0.5f) : new Color(0.95f, 0.65f, 0.4f));
-            row.Add(mark);
-
-            var label = new Label(text);
-            label.style.whiteSpace = WhiteSpace.Normal;
-            label.style.flexShrink = 1;
-            row.Add(label);
-            return row;
         }
 
         private static VisualElement BuildPythonFixCard(ChievfxMcpPythonEnvironmentStatus pythonStatus)
@@ -283,33 +237,6 @@ namespace Chievfx.Mcp.Editor
             }
 
             card.Add(actions);
-            return card;
-        }
-
-        private static VisualElement BuildTipsCard(List<ChievfxMcpWindow.ChievfxMcpClientSetupState> clientStates)
-        {
-            var card = CreateSectionCard("Using it from your AI client");
-            card.Add(CreateMutedLabel(
-                $"The server is registered as \"{ChievfxMcpToolPolicy.CursorServerName}\" in each client's project config."));
-
-            card.Add(CreateMutedLabel(
-                "• Cursor — if tools don't appear, enable the server under Settings > MCP, or reload MCP tools."));
-            card.Add(CreateMutedLabel(
-                "• Claude Code — project servers may need one-time approval: run /mcp in a session."));
-            card.Add(CreateMutedLabel(
-                "• Codex — trust the project folder, then restart Codex so it reads .codex/config.toml."));
-            card.Add(CreateMutedLabel(
-                "• Still not showing? Restart the client app — most clients read MCP config only on startup."));
-
-            foreach (var state in clientStates)
-            {
-                if (state.DetectionReliable && !state.ClientDetected)
-                {
-                    card.Add(CreateMutedLabel(
-                        $"Note: {state.DisplayName} CLI was not detected on this machine. Its config file is written and harmless; install the CLI if you plan to use it."));
-                }
-            }
-
             return card;
         }
     }

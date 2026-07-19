@@ -1100,11 +1100,12 @@ namespace Chievfx.Mcp.Extensions.Control
 
         private static JObject PlayModeSetSchema() => Schema(new JObject
         {
-            // Aliases must be declared here: schemas use additionalProperties=false, so strict
-            // clients strip or reject any property the schema does not list, and the alias would
-            // never reach the handler. No required list for the same reason - a client that
-            // enforces `required: isPlaying` would reject alias-only calls.
-            ["isPlaying"] = Bool("Desired Play Mode state. true enters Play Mode; false exits Play Mode. One of isPlaying/play/playing is required."),
+            // isPlaying is the sole advertised, canonical property. The play/playing aliases are kept
+            // in the full schema (and enabled is read by the handler) for back-compat, but hidden from
+            // the advertised surface via ADVERTISED_PROPERTY_OMISSIONS. They must stay declared here:
+            // schemas use additionalProperties=false, so strict clients strip properties the full schema
+            // omits. No required list - a client enforcing `required: isPlaying` would reject alias-only calls.
+            ["isPlaying"] = Bool("Required. Desired Play Mode state: true enters Play Mode, false exits Play Mode."),
             ["play"] = Bool("Alias for isPlaying."),
             ["playing"] = Bool("Alias for isPlaying."),
         });

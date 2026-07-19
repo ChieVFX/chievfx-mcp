@@ -564,6 +564,8 @@ ADVERTISED_PROPERTY_OMISSIONS: dict[str, set[str]] = {
     "bridge-get-status": {"maxOperations", "verbose"},
     "console-get-logs": {"lastMinutes", "stack"},
     "console-get-logs-single": {"includeUnityConsole"},
+    # isPlaying is the canonical name; play/playing (and enabled) stay accepted for back-compat but unadvertised.
+    "editor-playmode-set": {"play", "playing"},
     "events-check-since": {"includeData", "level", "maxEntries", "source", "type"},
     "events-wait": {"includeData", "level", "source", "type"},
     "gameobject-duplicate": {

@@ -30,7 +30,9 @@ namespace Chievfx.Mcp.Editor
             return Interlocked.Read(ref lastEventId);
         }
 
-        public void Write(
+        // Returns the event id assigned to the written record so callers (e.g. console log capture)
+        // can carry the cursor alongside the entry. Returns the id even if the durable write throws.
+        public long Write(
             string source,
             string type,
             string level,
@@ -39,10 +41,10 @@ namespace Chievfx.Mcp.Editor
             string? operationId = null,
             Dictionary<string, object?>? data = null)
         {
-            Write(NextEventId(), source, type, level, message, marker, operationId, data);
+            return Write(NextEventId(), source, type, level, message, marker, operationId, data);
         }
 
-        public void Write(
+        public long Write(
             long eventId,
             string source,
             string type,
@@ -101,6 +103,8 @@ namespace Chievfx.Mcp.Editor
             {
                 // Log callbacks may run off-thread; event writes must never recurse through Unity logging.
             }
+
+            return eventId;
         }
 
         public void RestoreCursorFromStream()

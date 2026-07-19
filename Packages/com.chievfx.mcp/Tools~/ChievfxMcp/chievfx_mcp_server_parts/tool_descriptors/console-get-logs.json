@@ -1,6 +1,6 @@
 {
   "name": "console-get-logs",
-  "description": "Recent Unity Console entries. Filter severity with levels. Exact contains values error/exception/warning/issue are severity filters, not text search.",
+  "description": "Recent Unity Console entries. Filter severity with levels. Exact contains values error/exception/warning/issue are severity filters, not text search. For freshness: capture lastEventId (returned here or from bridge-get-status), then re-run with sinceEventId to see only logs emitted after that cursor (e.g. a recompile or reimport).",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -27,6 +27,20 @@
       },
       "contains": {
         "type": "string"
+      },
+      "sinceEventId": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Only return logs with an event cursor greater than this. Use the lastEventId from a prior console-get-logs (or bridge-get-status) captured before a compile/reimport to distinguish fresh entries from stale ones. Matches only bridge-captured logs; Console/Editor.log rows without a cursor are excluded while this is set."
+      },
+      "sinceTimestampUtc": {
+        "type": "string",
+        "description": "Only return logs at or after this UTC timestamp (ISO 8601). Prefer sinceEventId for precise freshness; timestamps on Console/Editor.log rows reflect read time, not capture time."
+      },
+      "dedupe": {
+        "type": "boolean",
+        "default": true,
+        "description": "Collapse identical entries into one row with a repeats count. Default on. Set false to see every raw occurrence."
       },
       "stack": {
         "type": "boolean",

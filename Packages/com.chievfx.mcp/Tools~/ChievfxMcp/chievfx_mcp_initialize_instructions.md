@@ -62,7 +62,7 @@ text: |
 type: tool
 id: console-get-logs
 text: |
-  console-get-logs: filter console severity with levels, not contains. Default levels are Error, Exception, Assert, Warning. Exact contains tokens error, exception, warning, or issue are reinterpreted as severity filters so Assert rows like "Map must be contained in state" still match.
+  console-get-logs: filter console severity with levels, not contains. Default levels are Error, Exception, Assert, Warning. Exact contains tokens error, exception, warning, or issue are reinterpreted as severity filters so Assert rows like "Map must be contained in state" still match. For freshness, capture the returned lastEventId (or bridge-get-status lastEventId) before a compile/reimport, then re-run with sinceEventId to see only logs emitted after that cursor instead of stale pre-existing ones. Duplicates collapse by default (dedupe=false to disable).
 ---
 
 ---

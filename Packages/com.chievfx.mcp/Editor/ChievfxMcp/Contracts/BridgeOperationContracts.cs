@@ -12,12 +12,13 @@ namespace Chievfx.Mcp.Editor
 {
     internal sealed class LogEntryDto
     {
-        public LogEntryDto(string logType, string message, DateTime timestamp, string stackTrace)
+        public LogEntryDto(string logType, string message, DateTime timestamp, string stackTrace, long eventId = 0)
         {
             LogType = logType;
             Message = message;
             Timestamp = timestamp;
             StackTrace = stackTrace;
+            EventId = eventId;
         }
 
         public string LogType { get; }
@@ -27,6 +28,10 @@ namespace Chievfx.Mcp.Editor
         public DateTime Timestamp { get; }
 
         public string StackTrace { get; }
+
+        // Event-journal cursor assigned when this entry was captured by the bridge (0 when it came from
+        // the live Unity Console or Editor.log rather than the in-memory capture, which carry no cursor).
+        public long EventId { get; }
     }
 
     internal enum StackTraceMode

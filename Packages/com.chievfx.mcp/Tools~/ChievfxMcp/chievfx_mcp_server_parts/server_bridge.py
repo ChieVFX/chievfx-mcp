@@ -173,9 +173,58 @@ class BridgeTransportMixin:
         )
         if not ready_after:
             result["warning"] = "Timed out waiting for Unity compile/import busy state to clear."
+
+        # Surface compile errors/warnings produced by this recompile directly, so callers do not need a
+        # separate console-get-logs round-trip. Read from the event stream (which survives the domain
+        # reload a successful compile triggers) using the pre-recompile cursor.
+        since_event_id = status_before.get("lastEventId") if isinstance(status_before, dict) else None
+        if isinstance(since_event_id, int):
+            result["compile"] = self.collect_recompile_issues(since_event_id)
+
         invalidate_extension_manifest_cache()
         self.emit_progress(progress_token, notify, 1.0, "recompile completed.")
         return result
+
+    def collect_recompile_issues(self, since_event_id: int) -> dict[str, Any]:
+        """Gather compile errors/warnings emitted after `since_event_id` from the event stream.
+
+        Compiler messages are journaled as source=log events (with cursors), so this survives the
+        domain reload a clean compile triggers, unlike the in-memory console buffer which is wiped."""
+        stream = self.read_event_stream()
+        log_events = self.filter_events(
+            stream.get("events", []),
+            since_event_id=since_event_id,
+            filters={"source": "log"},
+            include_data=False,
+        )
+        # Compiler messages are journaled twice (the compilation callback and the log callback), so
+        # dedupe by (level, message) keeping the earliest, to show each unique issue once.
+        errors: list[dict[str, Any]] = []
+        warnings: list[dict[str, Any]] = []
+        seen: set[tuple[str, str]] = set()
+        for event in log_events:
+            level = str(event.get("level", "")).lower()
+            message = event.get("message", "")
+            key = (level, message)
+            if key in seen:
+                continue
+            seen.add(key)
+            row = {"eventId": event.get("eventId"), "message": message}
+            if level in ("error", "exception", "assert"):
+                errors.append(row)
+            elif level == "warning":
+                warnings.append(row)
+
+        issues: dict[str, Any] = {"errorCount": len(errors), "warningCount": len(warnings)}
+        if errors:
+            issues["errors"] = errors[:RECOMPILE_MAX_ISSUES]
+            if len(errors) > RECOMPILE_MAX_ISSUES:
+                issues["errorsTruncated"] = True
+        if warnings:
+            issues["warnings"] = warnings[:RECOMPILE_MAX_ISSUES]
+            if len(warnings) > RECOMPILE_MAX_ISSUES:
+                issues["warningsTruncated"] = True
+        return issues
 
     def discard_timed_out_request(self, request_id: str) -> None:
         """After the MCP server gives up waiting, stop Unity from later draining

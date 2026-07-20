@@ -1,6 +1,6 @@
 {
   "name": "recompile",
-  "description": "Refreshes scripts, requests Unity script compilation, and returns only after Unity is idle again.",
+  "description": "Refreshes scripts, requests Unity script compilation, and returns only after Unity is idle again. The result includes a compile summary (errorCount/warningCount plus the error/warning messages) produced by this recompile, so no separate console-get-logs call is needed to check whether it succeeded.",
   "inputSchema": {
     "type": "object",
     "properties": {

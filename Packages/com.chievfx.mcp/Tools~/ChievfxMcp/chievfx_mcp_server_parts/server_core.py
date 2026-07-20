@@ -361,10 +361,18 @@ class McpServerCore:
 
         progress_token = self.get_progress_token(params)
         if name == "recompile":
-            return self.text_tool_result(
-                self.recompile(arguments, request_id, progress_token, notify),
-                arguments,
-            )
+            result = self.recompile(arguments, request_id, progress_token, notify)
+            if arguments.get("outputFormat") == "json":
+                return self.text_tool_result(result, arguments)
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": format_recompile_text(result),
+                    }
+                ],
+                "isError": False,
+            }
 
         if name == "editor-playmode-set":
             result = self.editor_playmode_set(arguments, request_id, progress_token, notify)

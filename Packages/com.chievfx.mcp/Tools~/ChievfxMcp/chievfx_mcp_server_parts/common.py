@@ -574,6 +574,13 @@ ADVERTISED_PROPERTY_OMISSIONS: dict[str, set[str]] = {
     "editor-playmode-set": {"play", "playing"},
     "events-check-since": {"includeData", "level", "maxEntries", "source", "type"},
     "events-wait": {"includeData", "level", "source", "type"},
+    # allowStateMutation is deprecated (real injection is the default, gated to Play Mode); action is
+    # the canonical name, so the eventType/type aliases stay accepted but unadvertised.
+    "input-control-keyboard-event": {"allowStateMutation", "eventType"},
+    "input-control-mouse-event": {"allowStateMutation", "eventType"},
+    "input-control-mouse-gesture": {"allowStateMutation"},
+    "input-control-touch-event": {"allowStateMutation", "eventType"},
+    "input-control-pointer-capture": {"allowStateMutation"},
     "gameobject-duplicate": {
         "count",
         "euler",

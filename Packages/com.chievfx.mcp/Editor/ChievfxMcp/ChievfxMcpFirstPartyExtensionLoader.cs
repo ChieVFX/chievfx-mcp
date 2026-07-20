@@ -277,7 +277,7 @@ namespace Chievfx.Mcp.Extensions.Control
             if (!api.TryKey(keyName, out var key, out var keyError)) errors.Add(keyError);
             object? control = null;
             if (errors.Count == 0 && !api.TryKeyboardControl(key!, out control, out var controlError)) errors.Add(controlError);
-            Gate(dryRun, ReadBool(args, "allowStateMutation", false), errors);
+            Gate(dryRun, errors);
             string? completionMarker = null;
             if (errors.Count == 0)
             {
@@ -331,7 +331,7 @@ namespace Chievfx.Mcp.Extensions.Control
                 if (hasPosition && hasDelta) warnings.Add("Both position and delta were provided; queued absolute position and reported delta for caller context.");
                 object? control = null;
                 if (errors.Count == 0 && !api.TryMouseControl(hasPosition ? "position" : "delta", out control, out var controlError)) errors.Add(controlError);
-                Gate(dryRun, ReadBool(args, "allowStateMutation", false), errors);
+                Gate(dryRun, errors);
                 if (errors.Count == 0)
                 {
                     queued.Add(EventRow("Mouse", "move", null, hasPosition ? position : null, hasDelta ? delta : null, -1d));
@@ -349,7 +349,7 @@ namespace Chievfx.Mcp.Extensions.Control
                 object? control = null;
                 if (errors.Count == 0 && !api.TryMouseButton(button, out control, out var buttonError)) errors.Add(buttonError);
                 if (errors.Count == 0 && hasPosition && !api.TryMouseControl("position", out _, out var positionError)) errors.Add(positionError);
-                Gate(dryRun, ReadBool(args, "allowStateMutation", false), errors);
+                Gate(dryRun, errors);
                 if (errors.Count == 0)
                 {
                     if (hasPosition)
@@ -466,7 +466,7 @@ namespace Chievfx.Mcp.Extensions.Control
             if (errors.Count == 0 && (includeDown || includeUp) && !api.TryMouseButton(button, out buttonControl, out var buttonError)) errors.Add(buttonError);
             if (errors.Count == 0 && hasStart && !api.TryMouseControl("position", out positionControl, out var positionError)) errors.Add(positionError);
             if (errors.Count == 0 && !api.TryMouseControl("delta", out deltaControl, out var deltaError)) errors.Add(deltaError);
-            Gate(dryRun, ReadBool(args, "allowStateMutation", false), errors);
+            Gate(dryRun, errors);
             var warnings = new List<string>();
             string? completionMarker = null;
             if (errors.Count == 0)
@@ -573,7 +573,7 @@ namespace Chievfx.Mcp.Extensions.Control
                 errors.Add(controlError);
             }
 
-            Gate(dryRun, ReadBool(args, "allowStateMutation", false), errors);
+            Gate(dryRun, errors);
             string? completionMarker = null;
             if (errors.Count == 0)
             {
@@ -653,7 +653,7 @@ namespace Chievfx.Mcp.Extensions.Control
 
             if (errors.Count == 0 && action == "begin")
             {
-                Gate(dryRun: false, ReadBool(args, "allowStateMutation", false), errors);
+                Gate(dryRun: false, errors);
                 if (errors.Count == 0)
                 {
                     if (!ChievfxMcpControlPointerCapture.TryBegin(out var created, out var seedPosition, out var captureError))
@@ -700,10 +700,9 @@ namespace Chievfx.Mcp.Extensions.Control
             return Mathf.Clamp(ReadInt(args, "holdFrames", 2), 1, 300);
         }
 
-        // Unified dry-run resolution across every input tool. Explicit dryRun wins; otherwise
-        // allowStateMutation:true signals intent to inject, so dryRun=false. With neither set it
-        // defaults to a safe dry-run preview. This removes the footgun where a tool accepted
-        // allowStateMutation:true yet silently returned a dry-run no-op (ok:true, mutated:false).
+        // Real injection is the default (calling an input tool means you want the input). Explicit
+        // dryRun wins; the legacy allowStateMutation:false still forces a preview for back-compat.
+        // Injection is gated to Play Mode by Gate(), so there is no accidental edit-mode mutation.
         private static bool ResolveDryRun(JToken args)
         {
             if (args["dryRun"]?.Type == JTokenType.Boolean)
@@ -711,35 +710,29 @@ namespace Chievfx.Mcp.Extensions.Control
                 return args["dryRun"]!.Value<bool>();
             }
 
-            return !ReadBool(args, "allowStateMutation", false);
+            if (args["allowStateMutation"]?.Type == JTokenType.Boolean && !args["allowStateMutation"]!.Value<bool>())
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private static Dictionary<string, object?> WithScheduling(Dictionary<string, object?> result, string? completionMarker, bool mutated)
         {
-            if (mutated)
-            {
-                result["appliedIn"] = "player-loop input update";
-                result["probeNote"] = "Editor-context reads (e.g. script-execute polling Mouse.current) use separate editor state buffers and may show stale values. Verify via gameplay behavior, ui-runtime-probe, or input-control-pointer-capture status appliedMousePosition.";
-            }
-
-            if (completionMarker == null)
+            if (completionMarker == null || !mutated)
             {
                 return result;
             }
 
-            if (mutated)
-            {
-                // The sequence dispatches on later player frames, so the completion event can fire before
-                // the caller arms events-wait. Return the pre-dispatch cursor so the wait/check can use it
-                // as sinceEventId and still catch an already-finished sequence (the marker-race the bare
-                // "events-wait marker=..." pattern hits).
-                var eventCursorBefore = global::Chievfx.Mcp.Editor.ChievfxMcpBridgeHost.EventJournal.CurrentEventId();
-                result["status"] = "scheduled";
-                result["completionMarker"] = completionMarker;
-                result["eventCursorBefore"] = eventCursorBefore;
-                result["hint"] = "Steps dispatch across player frames so pressed/released edges stay visible to game code polling in Update(). Await completion with events-wait marker=" + completionMarker + " sinceEventId=" + eventCursorBefore + " (sinceEventId catches it even if the sequence already finished), or recover with events-check-since marker=" + completionMarker + " sinceEventId=" + eventCursorBefore + ".";
-            }
-
+            // The sequence dispatches on later player frames, so the completion event can fire before the
+            // caller arms events-wait. Return the pre-dispatch cursor so a wait/check can use it as
+            // sinceEventId and still catch an already-finished sequence.
+            var eventCursorBefore = global::Chievfx.Mcp.Editor.ChievfxMcpBridgeHost.EventJournal.CurrentEventId();
+            result["status"] = "scheduled";
+            result["completionMarker"] = completionMarker;
+            result["eventCursorBefore"] = eventCursorBefore;
+            result["hint"] = "Await: events-wait marker=" + completionMarker + " sinceEventId=" + eventCursorBefore;
             return result;
         }
 
@@ -830,13 +823,15 @@ namespace Chievfx.Mcp.Extensions.Control
 
             if (!dryRun)
             {
+                // Only surface the game-view state when it is actually a problem; on the happy path it is
+                // pure noise. When injected input may be muted, warn AND include the state for context.
                 var gameView = GameViewStateRow();
-                result["gameView"] = gameView;
                 if (mutated && Equals(gameView["focused"], false) && !Equals(gameView["inputRoutingOverridden"], true))
                 {
                     warnings = warnings
                         .Append("Game view is not focused and the input routing override is inactive; the editor may mute injected pointer/keyboard events. Focus the Game view (editor-window-focus) before injecting.")
                         .ToArray();
+                    result["gameView"] = gameView;
                 }
             }
 
@@ -864,7 +859,7 @@ namespace Chievfx.Mcp.Extensions.Control
 
         private static Dictionary<string, object?> MutationGateRow(bool dryRun)
         {
-            return new Dictionary<string, object?> { ["requiresPlayMode"] = true, ["requiresAllowStateMutation"] = true, ["playMode"] = IsPlaying, ["dryRun"] = dryRun };
+            return new Dictionary<string, object?> { ["requiresPlayMode"] = true, ["playMode"] = IsPlaying, ["dryRun"] = dryRun };
         }
 
         private static Dictionary<string, object?> GameViewStateRow()
@@ -897,11 +892,10 @@ namespace Chievfx.Mcp.Extensions.Control
             return new Dictionary<string, object?> { ["origin"] = "bottom-left", ["unit"] = "screen-pixels", ["xAxis"] = "right", ["yAxis"] = "up" };
         }
 
-        private static void Gate(bool dryRun, bool allowStateMutation, List<string> errors)
+        private static void Gate(bool dryRun, List<string> errors)
         {
             if (dryRun) return;
-            if (!IsPlaying) errors.Add("Real input injection requires Play Mode. Set dryRun=true outside Play Mode.");
-            if (!allowStateMutation) errors.Add("Real input injection requires allowStateMutation=true.");
+            if (!IsPlaying) errors.Add("Real input injection requires Play Mode. Set dryRun=true to preview outside Play Mode.");
         }
 
         // Synthetic UI dispatch is a FALLBACK for scenes without an active InputSystemUIInputModule
@@ -1098,7 +1092,7 @@ namespace Chievfx.Mcp.Extensions.Control
             ["durationMs"] = Num("Optional metadata; tap queues down then up."),
             ["holdFrames"] = Int("Player frames to hold the key during tap. Default 2, range 1..300."),
             ["dryRun"] = Bool("Report intended events without input mutation. Defaults to !allowStateMutation, so allowStateMutation=true alone performs a real run."),
-            ["allowStateMutation"] = Bool("Required true for real input injection."),
+            ["allowStateMutation"] = Bool("Deprecated and optional; real injection is the default in Play Mode. Set dryRun:true to preview instead."),
         }, "key");
 
         private static JObject MouseSchema() => Schema(new JObject
@@ -1114,7 +1108,7 @@ namespace Chievfx.Mcp.Extensions.Control
             ["holdFrames"] = Int("Player frames to hold the button during tap. Default 2, range 1..300."),
             ["capturePointer"] = Bool("Route injection through a virtual mouse and disable physical mice so the OS cursor cannot overwrite injected positions. Default true; ends on Play Mode exit or input-control-pointer-capture end."),
             ["dryRun"] = Bool("Report intended events without input mutation. Defaults to !allowStateMutation, so allowStateMutation=true alone performs a real run."),
-            ["allowStateMutation"] = Bool("Required true for real input injection."),
+            ["allowStateMutation"] = Bool("Deprecated and optional; real injection is the default in Play Mode. Set dryRun:true to preview instead."),
         });
 
         private static JObject GestureSchema() => Schema(new JObject
@@ -1134,7 +1128,7 @@ namespace Chievfx.Mcp.Extensions.Control
             ["includeUp"] = Bool("Queue button up at gesture end."),
             ["capturePointer"] = Bool("Route injection through a virtual mouse and disable physical mice so the OS cursor cannot overwrite injected positions. Default true; ends on Play Mode exit or input-control-pointer-capture end."),
             ["dryRun"] = Bool("Report intended events without input mutation. Defaults to !allowStateMutation, so allowStateMutation=true alone performs a real run."),
-            ["allowStateMutation"] = Bool("Required true for real input injection."),
+            ["allowStateMutation"] = Bool("Deprecated and optional; real injection is the default in Play Mode. Set dryRun:true to preview instead."),
         });
 
         private static JObject TouchSchema() => Schema(new JObject
@@ -1149,13 +1143,13 @@ namespace Chievfx.Mcp.Extensions.Control
             ["delta"] = Vector("Relative touch delta for move/up metadata."),
             ["holdFrames"] = Int("Player frames to hold the touch during tap. Default 2, range 1..300."),
             ["dryRun"] = Bool("Report intended events without input mutation. Defaults to !allowStateMutation, so allowStateMutation=true alone performs a real run."),
-            ["allowStateMutation"] = Bool("Required true for real input injection."),
+            ["allowStateMutation"] = Bool("Deprecated and optional; real injection is the default in Play Mode. Set dryRun:true to preview instead."),
         });
 
         private static JObject PointerCaptureSchema() => Schema(new JObject
         {
             ["action"] = Enum("Pointer capture action.", "begin", "end", "status"),
-            ["allowStateMutation"] = Bool("Required true for begin."),
+            ["allowStateMutation"] = Bool("Deprecated and optional; no longer required for begin."),
         }, "action");
 
         private static JObject PlayModeSetSchema() => Schema(new JObject

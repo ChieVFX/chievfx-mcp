@@ -563,7 +563,7 @@ VECTOR3_REF: dict[str, str] = {"$ref": "#/$defs/Vector3"}
 ADVERTISED_SCHEMA_DETAIL_KEYS = {"$defs", "default", "description", "maximum", "minimum"}
 # Tools that are intuition-critical enough to justify keeping per-property descriptions in the
 # advertised schema (the agent-facing surface), instead of stripping them for leanness.
-ADVERTISED_SCHEMA_DESCRIPTION_TOOLS = {"asset-find", "console-get-logs", "editor-playmode-set", "events-wait", "events-check-since"}
+ADVERTISED_SCHEMA_DESCRIPTION_TOOLS = {"asset-find", "console-get-logs", "editor-playmode-set", "events-wait", "events-check-since", "input-control-mouse-gesture"}
 ADVERTISED_VECTOR3_SCHEMA: dict[str, str] = {"type": "object"}
 ADVERTISED_PROPERTY_OMISSIONS: dict[str, set[str]] = {
     "assets-refresh": {"options"},

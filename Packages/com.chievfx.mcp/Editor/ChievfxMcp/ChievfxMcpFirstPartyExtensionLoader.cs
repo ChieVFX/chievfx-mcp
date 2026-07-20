@@ -267,7 +267,7 @@ namespace Chievfx.Mcp.Extensions.Control
         {
             var action = ReadAction(args);
             var keyName = ReadString(args, "key") ?? ReadString(args, "targetKey") ?? string.Empty;
-            var dryRun = ReadBool(args, "dryRun", false);
+            var dryRun = ResolveDryRun(args);
             var holdFrames = ReadHoldFrames(args);
             var errors = new List<string>();
             var warnings = new List<string>();
@@ -312,7 +312,7 @@ namespace Chievfx.Mcp.Extensions.Control
         private static Dictionary<string, object?> Mouse(JToken args, InputApi api)
         {
             var action = ReadAction(args);
-            var dryRun = ReadBool(args, "dryRun", false);
+            var dryRun = ResolveDryRun(args);
             var capturePointer = ReadBool(args, "capturePointer", true);
             var holdFrames = ReadHoldFrames(args);
             var errors = new List<string>();
@@ -424,11 +424,31 @@ namespace Chievfx.Mcp.Extensions.Control
 
         private static Dictionary<string, object?> Gesture(JToken args, InputApi api)
         {
-            var dryRun = ReadBool(args, "dryRun", true);
+            var dryRun = ResolveDryRun(args);
             var errors = new List<string>();
             var queued = new List<object>();
-            if (!TryVector(args, "delta", out var delta)) errors.Add("mouse gesture requires delta.");
             var hasStart = TryPosition(args, out var start) || TryVector(args, "startPosition", out start);
+            var hasDelta = TryVector(args, "delta", out var delta);
+            // Accept endPosition as an alternative to delta: derive delta = end - start. This is the
+            // more intuitive way to express a drag and matches how positions are given elsewhere.
+            if (!hasDelta && TryVector(args, "endPosition", out var end))
+            {
+                if (!hasStart)
+                {
+                    errors.Add("endPosition requires startPosition (or position) to derive the gesture delta.");
+                }
+                else
+                {
+                    delta = end - start;
+                    hasDelta = true;
+                }
+            }
+
+            if (!hasDelta)
+            {
+                errors.Add("mouse gesture requires delta (or startPosition + endPosition).");
+            }
+
             var durationMs = ReadDouble(args, "durationMs", 250d);
             var ease = Norm(ReadString(args, "ease") ?? "inout");
             var steps = ReadInt(args, "steps", 0);
@@ -526,7 +546,7 @@ namespace Chievfx.Mcp.Extensions.Control
         private static Dictionary<string, object?> Touch(JToken args, InputApi api)
         {
             var action = ReadAction(args);
-            var dryRun = ReadBool(args, "dryRun", false);
+            var dryRun = ResolveDryRun(args);
             var errors = new List<string>();
             var warnings = new List<string>();
             var queued = new List<object>();
@@ -680,6 +700,20 @@ namespace Chievfx.Mcp.Extensions.Control
             return Mathf.Clamp(ReadInt(args, "holdFrames", 2), 1, 300);
         }
 
+        // Unified dry-run resolution across every input tool. Explicit dryRun wins; otherwise
+        // allowStateMutation:true signals intent to inject, so dryRun=false. With neither set it
+        // defaults to a safe dry-run preview. This removes the footgun where a tool accepted
+        // allowStateMutation:true yet silently returned a dry-run no-op (ok:true, mutated:false).
+        private static bool ResolveDryRun(JToken args)
+        {
+            if (args["dryRun"]?.Type == JTokenType.Boolean)
+            {
+                return args["dryRun"]!.Value<bool>();
+            }
+
+            return !ReadBool(args, "allowStateMutation", false);
+        }
+
         private static Dictionary<string, object?> WithScheduling(Dictionary<string, object?> result, string? completionMarker, bool mutated)
         {
             if (mutated)
@@ -695,9 +729,15 @@ namespace Chievfx.Mcp.Extensions.Control
 
             if (mutated)
             {
+                // The sequence dispatches on later player frames, so the completion event can fire before
+                // the caller arms events-wait. Return the pre-dispatch cursor so the wait/check can use it
+                // as sinceEventId and still catch an already-finished sequence (the marker-race the bare
+                // "events-wait marker=..." pattern hits).
+                var eventCursorBefore = global::Chievfx.Mcp.Editor.ChievfxMcpBridgeHost.EventJournal.CurrentEventId();
                 result["status"] = "scheduled";
                 result["completionMarker"] = completionMarker;
-                result["hint"] = "Steps dispatch across player frames so pressed/released edges stay visible to game code polling in Update(). Await completion with events-wait marker=" + completionMarker + ".";
+                result["eventCursorBefore"] = eventCursorBefore;
+                result["hint"] = "Steps dispatch across player frames so pressed/released edges stay visible to game code polling in Update(). Await completion with events-wait marker=" + completionMarker + " sinceEventId=" + eventCursorBefore + " (sinceEventId catches it even if the sequence already finished), or recover with events-check-since marker=" + completionMarker + " sinceEventId=" + eventCursorBefore + ".";
             }
 
             return result;
@@ -747,6 +787,25 @@ namespace Chievfx.Mcp.Extensions.Control
             }
         }
 
+        // Long gestures queue dozens of near-identical move events; dumping them all is noise. Show the
+        // full list only when small, otherwise summarize to count + first + last.
+        private static object SummarizeQueuedEvents(object[] queued)
+        {
+            const int maxInline = 8;
+            if (queued.Length <= maxInline)
+            {
+                return queued;
+            }
+
+            return new Dictionary<string, object?>
+            {
+                ["count"] = queued.Length,
+                ["first"] = queued[0],
+                ["last"] = queued[queued.Length - 1],
+                ["note"] = $"{queued.Length} events queued; showing first and last only.",
+            };
+        }
+
         private static Dictionary<string, object?> Result(string tool, string? device, string? action, bool dryRun, bool mutated, object[] queued, string[] warnings, string[] errors)
         {
             var ok = errors.Length == 0;
@@ -760,7 +819,7 @@ namespace Chievfx.Mcp.Extensions.Control
 
             if (dryRun)
             {
-                result["queuedEvents"] = queued;
+                result["queuedEvents"] = SummarizeQueuedEvents(queued);
                 result["queuedEventCount"] = queued.Length;
                 result["dryRun"] = true;
                 result["mutated"] = mutated;
@@ -789,7 +848,7 @@ namespace Chievfx.Mcp.Extensions.Control
             if (!ok)
             {
                 result["tool"] = tool;
-                result["queuedEvents"] = queued;
+                result["queuedEvents"] = SummarizeQueuedEvents(queued);
                 result["queuedEventCount"] = queued.Length;
                 result["dryRun"] = dryRun;
                 result["mutated"] = mutated;
@@ -1038,7 +1097,7 @@ namespace Chievfx.Mcp.Extensions.Control
             ["key"] = Str("Input System Key enum name."),
             ["durationMs"] = Num("Optional metadata; tap queues down then up."),
             ["holdFrames"] = Int("Player frames to hold the key during tap. Default 2, range 1..300."),
-            ["dryRun"] = Bool("Report intended events without input mutation."),
+            ["dryRun"] = Bool("Report intended events without input mutation. Defaults to !allowStateMutation, so allowStateMutation=true alone performs a real run."),
             ["allowStateMutation"] = Bool("Required true for real input injection."),
         }, "key");
 
@@ -1054,7 +1113,7 @@ namespace Chievfx.Mcp.Extensions.Control
             ["delta"] = Vector("Relative mouse delta."),
             ["holdFrames"] = Int("Player frames to hold the button during tap. Default 2, range 1..300."),
             ["capturePointer"] = Bool("Route injection through a virtual mouse and disable physical mice so the OS cursor cannot overwrite injected positions. Default true; ends on Play Mode exit or input-control-pointer-capture end."),
-            ["dryRun"] = Bool("Report intended events without input mutation."),
+            ["dryRun"] = Bool("Report intended events without input mutation. Defaults to !allowStateMutation, so allowStateMutation=true alone performs a real run."),
             ["allowStateMutation"] = Bool("Required true for real input injection."),
         });
 
@@ -1066,16 +1125,17 @@ namespace Chievfx.Mcp.Extensions.Control
             ["screenPosition"] = Vector("Alias for position."),
             ["x"] = Num("Alias for position.x (pair with y)."),
             ["y"] = Num("Alias for position.y (pair with x)."),
-            ["delta"] = Vector("Total gesture delta."),
+            ["delta"] = Vector("Total gesture delta. Provide this OR endPosition (with a start)."),
+            ["endPosition"] = Vector("Absolute end screen position; delta is derived as endPosition - startPosition. Alternative to delta."),
             ["durationMs"] = Num("Gesture duration in milliseconds."),
             ["steps"] = Int("Interpolation steps, 1..240."),
             ["ease"] = Enum("Interpolation curve.", "inout", "in", "out"),
             ["includeDown"] = Bool("Queue button down at gesture start."),
             ["includeUp"] = Bool("Queue button up at gesture end."),
             ["capturePointer"] = Bool("Route injection through a virtual mouse and disable physical mice so the OS cursor cannot overwrite injected positions. Default true; ends on Play Mode exit or input-control-pointer-capture end."),
-            ["dryRun"] = Bool("Defaults true for gesture."),
+            ["dryRun"] = Bool("Report intended events without input mutation. Defaults to !allowStateMutation, so allowStateMutation=true alone performs a real run."),
             ["allowStateMutation"] = Bool("Required true for real input injection."),
-        }, "delta");
+        });
 
         private static JObject TouchSchema() => Schema(new JObject
         {
@@ -1088,7 +1148,7 @@ namespace Chievfx.Mcp.Extensions.Control
             ["y"] = Num("Alias for position.y (pair with x)."),
             ["delta"] = Vector("Relative touch delta for move/up metadata."),
             ["holdFrames"] = Int("Player frames to hold the touch during tap. Default 2, range 1..300."),
-            ["dryRun"] = Bool("Report intended events without input mutation."),
+            ["dryRun"] = Bool("Report intended events without input mutation. Defaults to !allowStateMutation, so allowStateMutation=true alone performs a real run."),
             ["allowStateMutation"] = Bool("Required true for real input injection."),
         });
 
@@ -1221,13 +1281,33 @@ namespace Chievfx.Mcp.Extensions.Control
                     ["control"] = "LeftCtrl",
                     ["shift"] = "LeftShift",
                     ["alt"] = "LeftAlt",
+                    // Bare digits map to the Digit* row keys (the Key enum has no "1").
+                    ["0"] = "Digit0",
+                    ["1"] = "Digit1",
+                    ["2"] = "Digit2",
+                    ["3"] = "Digit3",
+                    ["4"] = "Digit4",
+                    ["5"] = "Digit5",
+                    ["6"] = "Digit6",
+                    ["7"] = "Digit7",
+                    ["8"] = "Digit8",
+                    ["9"] = "Digit9",
+                    // Arrow shorthands.
+                    ["up"] = "UpArrow",
+                    ["down"] = "DownArrow",
+                    ["left"] = "LeftArrow",
+                    ["right"] = "RightArrow",
+                    ["del"] = "Delete",
+                    ["ins"] = "Insert",
+                    ["pgup"] = "PageUp",
+                    ["pgdn"] = "PageDown",
                 };
                 var normalized = Norm(name);
                 var match = System.Enum.GetNames(keyType).FirstOrDefault(enumName => Norm(enumName) == normalized)
                     ?? (aliases.TryGetValue(normalized, out var alias) ? alias : null);
                 if (match == null)
                 {
-                    error = $"Invalid key '{name}'. Use a UnityEngine.InputSystem.Key enum name.";
+                    error = $"Invalid key '{name}'. Use a UnityEngine.InputSystem.Key enum name (e.g. A, Digit1, Space, UpArrow); bare digits 0-9 and up/down/left/right are also accepted.";
                     return false;
                 }
 

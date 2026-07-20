@@ -43,6 +43,11 @@
         "default": true,
         "description": "Collapse identical entries into one row with a repeats count. Default on. Set false to see every raw occurrence."
       },
+      "includeStack": {
+        "type": "boolean",
+        "default": false,
+        "description": "Include each entry's full stack trace inline. Use this instead of console-get-logs-single when a per-frame exception is churning the buffer (an id can be evicted before the follow-up call lands)."
+      },
       "stack": {
         "type": "boolean",
         "default": true

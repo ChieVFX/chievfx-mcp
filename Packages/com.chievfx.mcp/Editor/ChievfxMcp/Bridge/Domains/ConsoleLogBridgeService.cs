@@ -247,7 +247,7 @@ namespace Chievfx.Mcp.Editor
 
         // Compact-mode row: id (and optional repeats) come first for fast scanning, then level + first-line msg.
         // Drops `time` and any embedded stack-trace lines (Unity Console reflection inlines them into Message).
-        private static Dictionary<string, object> CreateCompactEntryOutput(LogEntryDto entry, int repeats, bool stripStyleTags, ref bool truncated)
+        private static Dictionary<string, object> CreateCompactEntryOutput(LogEntryDto entry, int repeats, bool stripStyleTags, bool includeStack, ref bool truncated)
         {
             var output = new Dictionary<string, object>
             {
@@ -265,6 +265,17 @@ namespace Chievfx.Mcp.Editor
             if (importHint != null)
             {
                 output["hint"] = importHint;
+            }
+
+            // includeStack lets callers get the trace inline instead of racing console-get-logs-single,
+            // whose id can be evicted by a per-frame exception before the follow-up call lands.
+            if (includeStack)
+            {
+                var stack = FormatStackTrace(entry.StackTrace, StackTraceMode.Full, ref truncated);
+                if (!string.IsNullOrEmpty(stack))
+                {
+                    output["stack"] = stack;
+                }
             }
 
             return output;
@@ -367,6 +378,7 @@ namespace Chievfx.Mcp.Editor
             var dedupe = ReadBool(args, "dedupe", ReadBool(args, "stack", true));
             var includeUnityConsole = ReadBool(args, "includeUnityConsole", true);
             var includeEditorLog = ReadBool(args, "includeEditorLog", false);
+            var includeStack = ReadBool(args, "includeStack", false);
             var sinceEventId = ReadSinceEventId(args);
             var sinceTimestamp = ReadSinceTimestamp(args, out var sinceTimestampUnparseable);
             var stripStyleTags = ChievfxMcpToolPolicy.StripStyleTagsFromConsoleLogs;
@@ -412,7 +424,7 @@ namespace Chievfx.Mcp.Editor
 
             foreach (var (entry, repeats) in selected)
             {
-                var output = CreateCompactEntryOutput(entry, repeats, stripStyleTags, ref truncated);
+                var output = CreateCompactEntryOutput(entry, repeats, stripStyleTags, includeStack, ref truncated);
                 var estimatedSize = EstimateTextSize(output);
                 if (estimatedSize > textBudget)
                 {

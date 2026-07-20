@@ -36,6 +36,32 @@ namespace Chievfx.Mcp.Editor
         private static readonly Regex ColorOpenRegex = new("<color=[^>]*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex ColorCloseRegex = new("</color>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+        // Unity asset-import failures surface as an Error whose text ends in a terse "Import Error Code:(N)".
+        // The code alone is meaningless to an agent, so decode known ones into a plain-English hint that
+        // also conveys severity (is it fatal / recoverable?).
+        private static readonly Regex ImportErrorCodeRegex = new(@"Import Error Code:\s*\((\d+)\)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static string? TryDecodeImportError(string? message)
+        {
+            if (string.IsNullOrEmpty(message))
+            {
+                return null;
+            }
+
+            var match = ImportErrorCodeRegex.Match(message!);
+            if (!match.Success)
+            {
+                return null;
+            }
+
+            var code = match.Groups[1].Value;
+            return code switch
+            {
+                "4" => "Import code 4 = SourceAssetDB mtime mismatch: usually benign, triggered by files changed outside Unity (e.g. git stash/checkout/pull). Re-run assets-refresh (a full AssetDatabase.Refresh reconciles the mtime); not fatal on its own.",
+                _ => $"Unity asset import error code {code}. Fetch this id via console-get-logs-single for the importer detail/stack to judge severity.",
+            };
+        }
+
         private static string? StripStyleTags(string? message)
         {
             if (string.IsNullOrEmpty(message))
@@ -204,6 +230,12 @@ namespace Chievfx.Mcp.Editor
                 ["msg"] = trimMessage ? TrimText(message, MaxLogMessageChars, ref truncated) : message,
             };
 
+            var importHint = TryDecodeImportError(entry.Message);
+            if (importHint != null)
+            {
+                output["hint"] = importHint;
+            }
+
             var stack = FormatStackTrace(entry.StackTrace, stackTraceMode, ref truncated);
             if (!string.IsNullOrEmpty(stack))
             {
@@ -229,6 +261,12 @@ namespace Chievfx.Mcp.Editor
             var message = stripStyleTags ? StripStyleTags(entry.Message) : entry.Message;
             output["level"] = entry.LogType;
             output["msg"] = TrimText(ExtractFirstNonEmptyLine(message), MaxLogMessageChars, ref truncated);
+            var importHint = TryDecodeImportError(entry.Message);
+            if (importHint != null)
+            {
+                output["hint"] = importHint;
+            }
+
             return output;
         }
 

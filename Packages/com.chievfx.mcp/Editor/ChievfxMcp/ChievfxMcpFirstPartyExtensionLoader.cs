@@ -1108,6 +1108,11 @@ namespace Chievfx.Mcp.Extensions.Control
             ["isPlaying"] = Bool("Required. Desired Play Mode state: true enters Play Mode, false exits Play Mode."),
             ["play"] = Bool("Alias for isPlaying."),
             ["playing"] = Bool("Alias for isPlaying."),
+            // waitForReady/settleMs/timeoutMs are honored by the MCP server (it polls the heartbeat), not
+            // the Unity handler, but must be declared here so additionalProperties=false clients keep them.
+            ["waitForReady"] = Bool("When true (default), the call blocks until Play Mode actually reaches the requested isPlaying state (surviving the domain reload entering Play Mode can trigger) before returning, instead of returning mid-transition."),
+            ["settleMs"] = Int("Extra milliseconds to wait after the state is reached so initial frames render. Default 250."),
+            ["timeoutMs"] = Int("Max milliseconds to wait for the Play Mode transition before returning with a warning. Default 20000."),
         });
 
         private static JObject Schema(JObject properties, params string[] required)

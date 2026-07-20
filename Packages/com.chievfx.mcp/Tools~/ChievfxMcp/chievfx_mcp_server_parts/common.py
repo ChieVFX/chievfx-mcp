@@ -101,6 +101,10 @@ RECOMPILE_WAIT_SECONDS = 300.0
 RECOMPILE_START_GRACE_SECONDS = 1.5
 # Max compile errors/warnings echoed inline in the recompile result (each list capped independently).
 RECOMPILE_MAX_ISSUES = 50
+# editor-playmode-set waitForReady defaults: how long to wait for the play-mode transition, and how
+# long to settle afterwards so initial frames render before returning.
+PLAYMODE_WAIT_TIMEOUT_SECONDS = 20.0
+PLAYMODE_SETTLE_MS_DEFAULT = 250
 BRIDGE_RECOVERY_WAIT_SECONDS = 300.0
 BRIDGE_STALE_RECOVERY_WAIT_SECONDS = 60.0
 BRIDGE_RECOVERY_RECHECK_SECONDS = 1.0
@@ -559,7 +563,7 @@ VECTOR3_REF: dict[str, str] = {"$ref": "#/$defs/Vector3"}
 ADVERTISED_SCHEMA_DETAIL_KEYS = {"$defs", "default", "description", "maximum", "minimum"}
 # Tools that are intuition-critical enough to justify keeping per-property descriptions in the
 # advertised schema (the agent-facing surface), instead of stripping them for leanness.
-ADVERTISED_SCHEMA_DESCRIPTION_TOOLS = {"asset-find", "console-get-logs", "events-wait", "events-check-since"}
+ADVERTISED_SCHEMA_DESCRIPTION_TOOLS = {"asset-find", "console-get-logs", "editor-playmode-set", "events-wait", "events-check-since"}
 ADVERTISED_VECTOR3_SCHEMA: dict[str, str] = {"type": "object"}
 ADVERTISED_PROPERTY_OMISSIONS: dict[str, set[str]] = {
     "assets-refresh": {"options"},

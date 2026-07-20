@@ -366,6 +366,20 @@ class McpServerCore:
                 arguments,
             )
 
+        if name == "editor-playmode-set":
+            result = self.editor_playmode_set(arguments, request_id, progress_token, notify)
+            if arguments.get("outputFormat") == "json":
+                return self.text_tool_result(result, arguments)
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": format_editor_playmode_set_text(result),
+                    }
+                ],
+                "isError": False,
+            }
+
         bridge_arguments = arguments
         force_ui_control_find_json = name == "ui-control-find" and arguments.get("outputFormat") != "json"
         force_ui_runtime_click_json = name == "ui-runtime-click" and arguments.get("outputFormat") != "json"

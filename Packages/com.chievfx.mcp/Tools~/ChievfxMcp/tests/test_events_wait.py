@@ -324,6 +324,51 @@ class EventsWaitTests(unittest.TestCase):
         self.assertNotIn("events-get", {tool["name"] for tool in mcp.TOOLS})
         self.assertNotIn("events-get", mcp.DEFAULT_REQUIRED_TOOL_IDS)
 
+    def test_include_recent_matches_csharp_seven_digit_fraction_timestamp(self) -> None:
+        # Regression: C# DateTime "o" timestamps carry 7 fractional digits, which
+        # datetime.fromisoformat rejects before Python 3.11. If parse_utc_iso fails on them,
+        # min_timestamp filtering (used by includeRecentMs / events-check-since) drops every
+        # event and the marker is never found. Build the timestamp from a real recent time so
+        # the includeRecentMs window covers it regardless of when the test runs.
+        recent = time.gmtime(time.time() - 1)
+        csharp_timestamp = time.strftime("%Y-%m-%dT%H:%M:%S", recent) + ".7105270Z"
+        self.write_events([
+            {
+                "eventId": 7,
+                "timestamp": csharp_timestamp,
+                "source": "input",
+                "type": "sequence-complete",
+                "level": "info",
+                "marker": "input-seq-1-mouse-gesture",
+                "message": "Input sequence complete.",
+            }
+        ])
+
+        self.assertIsNotNone(mcp.parse_utc_iso(csharp_timestamp))
+        result = self.server.events_wait(
+            {"marker": "input-seq-1-mouse-gesture", "includeRecentMs": 10000, "timeoutMs": 20},
+            request_id="frac-wait",
+        )
+        self.assertTrue(result["matched"], result)
+        self.assertEqual(result["event"]["marker"], "input-seq-1-mouse-gesture")
+
+
+class ParseUtcIsoTests(unittest.TestCase):
+    def test_handles_fraction_lengths_and_offsets(self) -> None:
+        seven = mcp.parse_utc_iso("2026-07-20T20:03:23.7105270Z")
+        six = mcp.parse_utc_iso("2026-07-20T20:03:23.710527Z")
+        self.assertIsNotNone(seven)
+        self.assertEqual(seven, six)
+        for value in (
+            "2020-01-01T00:00:00Z",
+            "2026-07-20T20:03:23.123Z",
+            "2026-07-20T20:03:23Z",
+            "2026-07-20T20:03:23.7105270+00:00",
+        ):
+            self.assertIsNotNone(mcp.parse_utc_iso(value), value)
+        self.assertIsNone(mcp.parse_utc_iso("garbage"))
+        self.assertIsNone(mcp.parse_utc_iso(None))
+
 
 if __name__ == "__main__":
     unittest.main()

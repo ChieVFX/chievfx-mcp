@@ -25,10 +25,33 @@ def parse_utc_iso(value: Any) -> float | None:
     if not isinstance(value, str) or not value:
         return None
 
+    text = value.strip()
+    if text[-1:] in ("Z", "z"):
+        text = text[:-1] + "+00:00"
+    # datetime.fromisoformat before Python 3.11 only accepts 3- or 6-digit fractional seconds,
+    # but C#'s round-trip ("o") timestamps emit 7 (e.g. "...:23.7105270Z"). Normalize the fraction
+    # to exactly 6 digits so every runtime parses it — otherwise every event timestamp fails to
+    # parse and min_timestamp filtering silently drops all events (breaking events-check-since and
+    # events-wait includeRecentMs). See _normalize_iso_fraction.
+    text = _normalize_iso_fraction(text)
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+        return datetime.fromisoformat(text).timestamp()
     except ValueError:
         return None
+
+
+def _normalize_iso_fraction(text: str) -> str:
+    dot = text.find(".")
+    if dot == -1:
+        return text
+    end = dot + 1
+    while end < len(text) and text[end].isdigit():
+        end += 1
+    fraction = text[dot + 1:end]
+    if len(fraction) == 6:
+        return text
+    normalized = (fraction + "000000")[:6]
+    return text[:dot + 1] + normalized + text[end:]
 
 
 def is_transient_file_lock_error(exc: BaseException) -> bool:

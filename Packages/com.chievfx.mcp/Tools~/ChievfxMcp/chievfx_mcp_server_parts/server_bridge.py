@@ -229,15 +229,23 @@ class BridgeTransportMixin:
         return result
 
     def read_playmode_state(self) -> bool | None:
-        """Current EditorApplication.isPlaying from the heartbeat, or None when the bridge is unreachable
-        (e.g. mid domain reload) so callers keep polling instead of trusting a stale value."""
+        """Settled EditorApplication.isPlaying from the heartbeat, or None when it can't be trusted yet
+        (bridge unreachable, or mid-transition). During a transition isPlaying and
+        isPlayingOrWillChangePlaymode disagree (entering: false/true, exiting: true/false); returning
+        None then makes the wait keep polling until the state is fully settled, so it never reports
+        'ready' while play mode is still entering or exiting."""
         heartbeat = read_json_file(self.state_path) or {}
         heartbeat_age = file_age_seconds(self.state_path, time.time()) if self.state_path.exists() else None
         if heartbeat_age is None or heartbeat_age > HEARTBEAT_STALE_SECONDS:
             return None
         editor = heartbeat.get("editor") if isinstance(heartbeat.get("editor"), dict) else {}
-        value = editor.get("isPlaying")
-        return value if isinstance(value, bool) else None
+        is_playing = editor.get("isPlaying")
+        if not isinstance(is_playing, bool):
+            return None
+        will_change = editor.get("isPlayingOrWillChangePlaymode")
+        if isinstance(will_change, bool) and will_change != is_playing:
+            return None
+        return is_playing
 
     def wait_for_playmode(
         self,

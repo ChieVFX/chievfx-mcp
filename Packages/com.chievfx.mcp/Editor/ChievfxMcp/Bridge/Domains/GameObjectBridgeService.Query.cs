@@ -659,6 +659,14 @@ namespace Chievfx.Mcp.Editor
 
         internal static void MarkGameObjectMutationDirty(GameObject gameObject)
         {
+            // In play mode the mutation applied to the live instance; skip editor persistence, which is
+            // meaningless there and whose PrefabUtility/scene-dirty calls throw "This cannot be used
+            // during play mode." for prefab instances. Play-mode edits are intentionally non-persisting.
+            if (EditorApplication.isPlaying)
+            {
+                return;
+            }
+
             EditorUtility.SetDirty(gameObject);
             EditorUtility.SetDirty(gameObject.transform);
             if (PrefabUtility.IsPartOfPrefabInstance(gameObject))

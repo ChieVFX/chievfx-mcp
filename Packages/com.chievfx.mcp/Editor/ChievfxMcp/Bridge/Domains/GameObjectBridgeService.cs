@@ -358,6 +358,9 @@ namespace Chievfx.Mcp.Editor
                 success = true,
                 created,
                 componentIndex = finalIndex >= 0 ? finalIndex : componentIndex,
+                // Play-mode edits apply to the live instance only and are discarded on exit; flag it so
+                // callers know the change is not persisted to the scene/prefab.
+                playModeLiveEdit = EditorApplication.isPlaying ? true : (bool?)null,
                 component = CreateComponentMutationSummary(component, updatedProperties, created)
             };
         }

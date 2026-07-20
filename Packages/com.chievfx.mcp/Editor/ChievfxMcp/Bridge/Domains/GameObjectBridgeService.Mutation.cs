@@ -1138,6 +1138,14 @@ namespace Chievfx.Mcp.Editor
 
         private static void MarkComponentMutationDirty(Component component)
         {
+            // In play mode the property write already applied to the live instance; editor persistence
+            // is meaningless there and PrefabUtility.RecordPrefabInstancePropertyModifications throws
+            // "This cannot be used during play mode." Skipping it lets play-mode (non-persisting) edits work.
+            if (EditorApplication.isPlaying)
+            {
+                return;
+            }
+
             EditorUtility.SetDirty(component);
             if (PrefabUtility.IsPartOfPrefabInstance(component))
             {

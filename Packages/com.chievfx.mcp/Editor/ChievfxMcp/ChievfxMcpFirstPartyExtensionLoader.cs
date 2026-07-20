@@ -1100,13 +1100,19 @@ namespace Chievfx.Mcp.Extensions.Control
 
         private static JObject PlayModeSetSchema() => Schema(new JObject
         {
-            // Aliases must be declared here: schemas use additionalProperties=false, so strict
-            // clients strip or reject any property the schema does not list, and the alias would
-            // never reach the handler. No required list for the same reason - a client that
-            // enforces `required: isPlaying` would reject alias-only calls.
-            ["isPlaying"] = Bool("Desired Play Mode state. true enters Play Mode; false exits Play Mode. One of isPlaying/play/playing is required."),
+            // isPlaying is the sole advertised, canonical property. The play/playing aliases are kept
+            // in the full schema (and enabled is read by the handler) for back-compat, but hidden from
+            // the advertised surface via ADVERTISED_PROPERTY_OMISSIONS. They must stay declared here:
+            // schemas use additionalProperties=false, so strict clients strip properties the full schema
+            // omits. No required list - a client enforcing `required: isPlaying` would reject alias-only calls.
+            ["isPlaying"] = Bool("Required. Desired Play Mode state: true enters Play Mode, false exits Play Mode."),
             ["play"] = Bool("Alias for isPlaying."),
             ["playing"] = Bool("Alias for isPlaying."),
+            // waitForReady/settleMs/timeoutMs are honored by the MCP server (it polls the heartbeat), not
+            // the Unity handler, but must be declared here so additionalProperties=false clients keep them.
+            ["waitForReady"] = Bool("When true (default), the call blocks until Play Mode actually reaches the requested isPlaying state (surviving the domain reload entering Play Mode can trigger) before returning, instead of returning mid-transition."),
+            ["settleMs"] = Int("Extra milliseconds to wait after the state is reached so initial frames render. Default 250."),
+            ["timeoutMs"] = Int("Max milliseconds to wait for the Play Mode transition before returning with a warning. Default 20000."),
         });
 
         private static JObject Schema(JObject properties, params string[] required)

@@ -385,6 +385,12 @@ def format_editor_playmode_set_text(result: dict[str, Any]) -> str:
         cursor_hint = f" eventCursorBefore:{cursor_before} (use as events-wait sinceEventId to catch boot logs)"
     if result.get("status") == "unchanged":
         return f"playmode already {format_toon_atom(is_playing)}{cursor_hint}"
+    if result.get("waitedForReady"):
+        settle_ms = result.get("settleMs")
+        settle_txt = f", settled {settle_ms}ms" if isinstance(settle_ms, int) and settle_ms > 0 else ""
+        if result.get("playmodeReady"):
+            return f"playmode now {format_toon_atom(is_playing)} (ready{settle_txt}){cursor_hint}"
+        return f"playmode requested {format_toon_atom(requested)} but not confirmed within timeout{cursor_hint}"
     if requested is not None:
         return f"playmode switching to {format_toon_atom(requested)}{cursor_hint}"
     return f"playmode {format_toon_atom(is_playing)}{cursor_hint}"

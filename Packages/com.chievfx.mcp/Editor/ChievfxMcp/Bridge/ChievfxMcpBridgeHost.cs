@@ -160,19 +160,24 @@ namespace Chievfx.Mcp.Editor
                 var logType = msg.type == UnityEditor.Compilation.CompilerMessageType.Error
                     ? LogType.Error
                     : LogType.Warning;
-                var text = string.IsNullOrEmpty(msg.file)
-                    ? msg.message
-                    : $"{msg.file}({msg.line},{msg.column}): {msg.message}";
+                // CompilerMessage.message already carries the "file(line,col): ..." prefix in current
+                // Unity, so only prepend location when it is genuinely missing (avoids a doubled prefix).
+                var messageBody = msg.message ?? string.Empty;
+                var text = string.IsNullOrEmpty(msg.file) || messageBody.Contains(msg.file)
+                    ? messageBody
+                    : $"{msg.file}({msg.line},{msg.column}): {messageBody}";
+                // Write the event first so the buffered entry carries its cursor. Without this the
+                // compile message got eventId 0 and console-get-logs sinceEventId (and the recompile
+                // fresh-issue summary) would exclude it — exactly the logs a recompile most needs.
+                var eventId = EventJournal.Write("log", "message", logType.ToString(), text);
                 lock (RuntimeState.LogLock)
                 {
-                    RuntimeState.LogEntries.Add(new LogEntryDto(logType.ToString(), text, DateTime.UtcNow, string.Empty));
+                    RuntimeState.LogEntries.Add(new LogEntryDto(logType.ToString(), text, DateTime.UtcNow, string.Empty, eventId));
                     if (RuntimeState.LogEntries.Count > MaxLogEntries)
                     {
                         RuntimeState.LogEntries.RemoveRange(0, RuntimeState.LogEntries.Count - MaxLogEntries);
                     }
                 }
-
-                EventJournal.Write("log", "message", logType.ToString(), text);
             }
         }
 

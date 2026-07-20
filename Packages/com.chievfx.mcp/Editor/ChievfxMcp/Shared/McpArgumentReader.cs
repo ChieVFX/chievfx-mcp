@@ -105,9 +105,21 @@ namespace Chievfx.Mcp.Editor
 
         public static bool ReadBool(JToken? element, string name, bool defaultValue)
         {
-            if (ReadProperty(element, name) is JToken value && value.Type == JTokenType.Boolean)
+            if (ReadProperty(element, name) is not JToken value)
+            {
+                return defaultValue;
+            }
+
+            if (value.Type == JTokenType.Boolean)
             {
                 return value.Value<bool>();
+            }
+
+            // Some MCP clients stringify arguments (e.g. "true"/"false"); tolerate that like ReadInt does.
+            if (value.Type == JTokenType.String
+                && bool.TryParse(value.Value<string>(), out var parsed))
+            {
+                return parsed;
             }
 
             return defaultValue;

@@ -325,9 +325,12 @@ namespace Chievfx.Mcp.Editor
             var lastMinutes = Math.Max(0, ReadInt(args, "lastMinutes", DefaultLogLastMinutes));
             var (levels, contains, filterNote) = ResolveLogFilters(args);
             var caseSensitive = ReadBool(args, "caseSensitive", false);
-            var stackDuplicates = ReadBool(args, "stack", true);
+            // `dedupe` is the current name for duplicate collapsing; `stack` is the legacy alias. Default on.
+            var dedupe = ReadBool(args, "dedupe", ReadBool(args, "stack", true));
             var includeUnityConsole = ReadBool(args, "includeUnityConsole", true);
             var includeEditorLog = ReadBool(args, "includeEditorLog", false);
+            var sinceEventId = ReadSinceEventId(args);
+            var sinceTimestamp = ReadSinceTimestamp(args, out var sinceTimestampUnparseable);
             var stripStyleTags = ChievfxMcpToolPolicy.StripStyleTagsFromConsoleLogs;
             var cutoff = lastMinutes > 0 ? DateTime.UtcNow.AddMinutes(-lastMinutes) : DateTime.MinValue;
 
@@ -337,10 +340,28 @@ namespace Chievfx.Mcp.Editor
                 cutoff,
                 levels,
                 contains,
-                caseSensitive);
+                caseSensitive,
+                sinceEventId,
+                sinceTimestamp);
+
+            var notes = new List<string>();
+            if (!string.IsNullOrEmpty(filterNote))
+            {
+                notes.Add(filterNote!);
+            }
+
+            if (sinceEventId.HasValue)
+            {
+                notes.Add("sinceEventId matches only bridge-captured logs (each carries an event cursor); Unity Console / Editor.log rows without a cursor are excluded.");
+            }
+
+            if (sinceTimestampUnparseable)
+            {
+                notes.Add("sinceTimestampUtc could not be parsed as an ISO-8601 UTC timestamp and was ignored.");
+            }
 
             var matched = filtered.Count;
-            var working = stackDuplicates ? CollapseDuplicates(filtered) : filtered.Select(e => (entry: e, repeats: 1)).ToList();
+            var working = dedupe ? CollapseDuplicates(filtered) : filtered.Select(e => (entry: e, repeats: 1)).ToList();
             var groupCount = working.Count;
             var selected = working
                 .Skip(Math.Max(0, groupCount - maxEntries))
@@ -373,9 +394,66 @@ namespace Chievfx.Mcp.Editor
                 groups = groupCount,
                 dropped,
                 truncated,
-                filterNote = filterNote ?? (string?)null,
+                // Current high-water event cursor. Pass it back as sinceEventId next call to fetch only newer logs.
+                lastEventId = EventJournal.CurrentEventId(),
+                filterNote = notes.Count > 0 ? string.Join(" ", notes) : (string?)null,
                 entries
             };
+        }
+
+        private static long? ReadSinceEventId(JToken args)
+        {
+            var sinceEventId = ReadNullableInt(args, "sinceEventId");
+            return sinceEventId.HasValue ? Math.Max(0, sinceEventId.Value) : (long?)null;
+        }
+
+        private static DateTime? ReadSinceTimestamp(JToken args, out bool unparseable)
+        {
+            unparseable = false;
+            var value = ReadProperty(args, "sinceTimestampUtc");
+            if (value == null || value.Type == JTokenType.Null)
+            {
+                return null;
+            }
+
+            // Newtonsoft deserializes a valid ISO-8601 string into a Date token; an unparseable one
+            // stays a String token. Handle both, and treat an unspecified/local kind as UTC.
+            if (value.Type == JTokenType.Date)
+            {
+                try
+                {
+                    var date = value.Value<DateTime>();
+                    return date.Kind == DateTimeKind.Unspecified
+                        ? DateTime.SpecifyKind(date, DateTimeKind.Utc)
+                        : date.ToUniversalTime();
+                }
+                catch (Exception)
+                {
+                    unparseable = true;
+                    return null;
+                }
+            }
+
+            if (value.Type == JTokenType.String)
+            {
+                var text = value.Value<string>();
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    return null;
+                }
+
+                if (DateTime.TryParse(
+                    text,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal,
+                    out var parsed))
+                {
+                    return parsed;
+                }
+            }
+
+            unparseable = true;
+            return null;
         }
 
         public object GetSingle(JToken args)
@@ -433,13 +511,17 @@ namespace Chievfx.Mcp.Editor
             DateTime cutoff,
             HashSet<string> levels,
             string? contains,
-            bool caseSensitive)
+            bool caseSensitive,
+            long? sinceEventId,
+            DateTime? sinceTimestamp)
         {
             var snapshot = ReadConsoleSnapshot(includeUnityConsole, includeEditorLog, out _, out _, out _);
             var comparison = caseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
 
             return snapshot
                 .Where(entry => entry.Timestamp >= cutoff)
+                .Where(entry => !sinceTimestamp.HasValue || entry.Timestamp >= sinceTimestamp.Value)
+                .Where(entry => !sinceEventId.HasValue || entry.EventId > sinceEventId.Value)
                 .Where(entry => levels.Contains(entry.LogType))
                 .Where(entry => string.IsNullOrEmpty(contains) || entry.Message.IndexOf(contains!, comparison) >= 0)
                 .ToList();
@@ -854,17 +936,10 @@ namespace Chievfx.Mcp.Editor
 
         internal static void CollectLog(string condition, string stackTrace, LogType type)
         {
-            lock (RuntimeState.LogLock)
-            {
-                RuntimeState.LogEntries.Add(new LogEntryDto(type.ToString(), condition, DateTime.UtcNow, stackTrace));
-                if (RuntimeState.LogEntries.Count > MaxLogEntries)
-                {
-                    RuntimeState.LogEntries.RemoveRange(0, RuntimeState.LogEntries.Count - MaxLogEntries);
-                }
-            }
-
+            // Write the event first so the entry can carry its event-journal cursor; console-get-logs
+            // uses that cursor for sinceEventId freshness filtering.
             var marker = TryParseLogMarker(condition);
-            EventJournal.Write(
+            var eventId = EventJournal.Write(
                 "log",
                 marker == null ? "message" : "marker",
                 type.ToString(),
@@ -873,6 +948,15 @@ namespace Chievfx.Mcp.Editor
                 data: marker == null
                     ? null
                     : new Dictionary<string, object?> { ["locationMarker"] = marker });
+
+            lock (RuntimeState.LogLock)
+            {
+                RuntimeState.LogEntries.Add(new LogEntryDto(type.ToString(), condition, DateTime.UtcNow, stackTrace, eventId));
+                if (RuntimeState.LogEntries.Count > MaxLogEntries)
+                {
+                    RuntimeState.LogEntries.RemoveRange(0, RuntimeState.LogEntries.Count - MaxLogEntries);
+                }
+            }
         }
 
         private static string? TryParseLogMarker(string condition)

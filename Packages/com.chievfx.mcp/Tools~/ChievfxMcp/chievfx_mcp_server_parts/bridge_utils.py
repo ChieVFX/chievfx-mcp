@@ -104,6 +104,20 @@ def clamp_int(value: Any, default: int, minimum: int, maximum: int) -> int:
     return max(minimum, min(maximum, value))
 
 
+def parse_bool(value: Any, default: bool) -> bool:
+    """Read a boolean argument, tolerating string-encoded forms ("true"/"false") from MCP clients
+    that stringify arguments. Falls back to default for anything unrecognized."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in ("true", "1", "yes", "on"):
+            return True
+        if lowered in ("false", "0", "no", "off"):
+            return False
+    return default
+
+
 def unity_test_result_paths() -> list[Path]:
     company = read_unity_project_setting("companyName") or "DefaultCompany"
     product = read_unity_project_setting("productName") or PROJECT_ROOT.name

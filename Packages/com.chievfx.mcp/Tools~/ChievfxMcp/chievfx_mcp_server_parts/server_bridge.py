@@ -173,9 +173,133 @@ class BridgeTransportMixin:
         )
         if not ready_after:
             result["warning"] = "Timed out waiting for Unity compile/import busy state to clear."
+
+        # Surface compile errors/warnings produced by this recompile directly, so callers do not need a
+        # separate console-get-logs round-trip. Read from the event stream (which survives the domain
+        # reload a successful compile triggers) using the pre-recompile cursor.
+        since_event_id = status_before.get("lastEventId") if isinstance(status_before, dict) else None
+        if isinstance(since_event_id, int):
+            result["compile"] = self.collect_recompile_issues(since_event_id)
+
         invalidate_extension_manifest_cache()
         self.emit_progress(progress_token, notify, 1.0, "recompile completed.")
         return result
+
+    def editor_playmode_set(
+        self,
+        arguments: dict[str, Any],
+        request_id: Any = None,
+        progress_token: Any = None,
+        notify: Any | None = None,
+    ) -> dict[str, Any]:
+        bridge_result = self.call_unity_bridge("editor-playmode-set", arguments, request_id, progress_token, notify)
+        result = bridge_result.get("result")
+        if not isinstance(result, dict):
+            result = {}
+
+        # Entering/exiting Play Mode is async (and may domain-reload), so the bridge returns mid-transition.
+        # When waitForReady is set, poll the heartbeat until isPlaying actually matches the request, then
+        # settle briefly so initial frames render — removing the caller's guess-and-sleep.
+        requested = result.get("requestedIsPlaying")
+        if result.get("ok") is False or not isinstance(requested, bool) or not self.bridge_dir:
+            return result
+        if not parse_bool(arguments.get("waitForReady"), True):
+            return result
+
+        timeout_ms = clamp_int(
+            arguments.get("timeoutMs"), int(PLAYMODE_WAIT_TIMEOUT_SECONDS * 1000), 100, 5 * 60 * 1000
+        )
+        settle_ms = clamp_int(arguments.get("settleMs"), PLAYMODE_SETTLE_MS_DEFAULT, 0, 60 * 1000)
+        self.emit_progress(progress_token, notify, 0.3, f"Waiting for Play Mode to reach isPlaying={requested}.")
+        reached, waited_ms = self.wait_for_playmode(requested, timeout_ms / 1000, progress_token, notify)
+
+        if reached and settle_ms > 0:
+            time.sleep(settle_ms / 1000)
+        final_state = self.read_playmode_state()
+
+        result["waitedForReady"] = True
+        result["playmodeReady"] = reached
+        result["waitedMs"] = waited_ms
+        result["settleMs"] = settle_ms
+        if isinstance(final_state, bool):
+            result["isPlaying"] = final_state
+        if not reached:
+            result["warning"] = f"Play mode did not reach isPlaying={requested} within {timeout_ms}ms."
+        self.emit_progress(progress_token, notify, 1.0, "editor-playmode-set completed.")
+        return result
+
+    def read_playmode_state(self) -> bool | None:
+        """Current EditorApplication.isPlaying from the heartbeat, or None when the bridge is unreachable
+        (e.g. mid domain reload) so callers keep polling instead of trusting a stale value."""
+        heartbeat = read_json_file(self.state_path) or {}
+        heartbeat_age = file_age_seconds(self.state_path, time.time()) if self.state_path.exists() else None
+        if heartbeat_age is None or heartbeat_age > HEARTBEAT_STALE_SECONDS:
+            return None
+        editor = heartbeat.get("editor") if isinstance(heartbeat.get("editor"), dict) else {}
+        value = editor.get("isPlaying")
+        return value if isinstance(value, bool) else None
+
+    def wait_for_playmode(
+        self,
+        requested: bool,
+        timeout_seconds: float,
+        progress_token: Any = None,
+        notify: Any | None = None,
+    ) -> tuple[bool, int]:
+        started = time.monotonic()
+        deadline = started + max(timeout_seconds, 0.0)
+        next_progress_at = started + PROGRESS_INTERVAL_SECONDS
+        while True:
+            if self.read_playmode_state() == requested:
+                return True, int((time.monotonic() - started) * 1000)
+            now = time.monotonic()
+            if now >= deadline:
+                return False, int((now - started) * 1000)
+            if progress_token is not None and notify is not None and now >= next_progress_at:
+                self.emit_progress(progress_token, notify, 0.5, f"Waiting for Play Mode to reach isPlaying={requested}.")
+                next_progress_at = now + PROGRESS_INTERVAL_SECONDS
+            time.sleep(BRIDGE_READY_POLL_SECONDS)
+
+    def collect_recompile_issues(self, since_event_id: int) -> dict[str, Any]:
+        """Gather compile errors/warnings emitted after `since_event_id` from the event stream.
+
+        Compiler messages are journaled as source=log events (with cursors), so this survives the
+        domain reload a clean compile triggers, unlike the in-memory console buffer which is wiped."""
+        stream = self.read_event_stream()
+        log_events = self.filter_events(
+            stream.get("events", []),
+            since_event_id=since_event_id,
+            filters={"source": "log"},
+            include_data=False,
+        )
+        # Compiler messages are journaled twice (the compilation callback and the log callback), so
+        # dedupe by (level, message) keeping the earliest, to show each unique issue once.
+        errors: list[dict[str, Any]] = []
+        warnings: list[dict[str, Any]] = []
+        seen: set[tuple[str, str]] = set()
+        for event in log_events:
+            level = str(event.get("level", "")).lower()
+            message = event.get("message", "")
+            key = (level, message)
+            if key in seen:
+                continue
+            seen.add(key)
+            row = {"eventId": event.get("eventId"), "message": message}
+            if level in ("error", "exception", "assert"):
+                errors.append(row)
+            elif level == "warning":
+                warnings.append(row)
+
+        issues: dict[str, Any] = {"errorCount": len(errors), "warningCount": len(warnings)}
+        if errors:
+            issues["errors"] = errors[:RECOMPILE_MAX_ISSUES]
+            if len(errors) > RECOMPILE_MAX_ISSUES:
+                issues["errorsTruncated"] = True
+        if warnings:
+            issues["warnings"] = warnings[:RECOMPILE_MAX_ISSUES]
+            if len(warnings) > RECOMPILE_MAX_ISSUES:
+                issues["warningsTruncated"] = True
+        return issues
 
     def discard_timed_out_request(self, request_id: str) -> None:
         """After the MCP server gives up waiting, stop Unity from later draining

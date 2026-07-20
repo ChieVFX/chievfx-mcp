@@ -3,6 +3,37 @@
 
 from __future__ import annotations
 
+def format_recompile_text(result: dict[str, Any]) -> str:
+    """Concise default: outcome + compile summary (and issue messages). The full status snapshots and
+    busy-state flags are diagnostics — reach them with outputFormat:json."""
+    compile_info = result.get("compile") if isinstance(result.get("compile"), dict) else {}
+    error_count = compile_info.get("errorCount", 0) if isinstance(compile_info.get("errorCount"), int) else 0
+    warning_count = compile_info.get("warningCount", 0) if isinstance(compile_info.get("warningCount"), int) else 0
+    outcome = "completed" if result.get("completed") else "timed out (Unity still busy)"
+
+    def plural(count: int, noun: str) -> str:
+        return f"{count} {noun}{'' if count == 1 else 's'}"
+
+    lines = [f"recompile {outcome} — {plural(error_count, 'error')}, {plural(warning_count, 'warning')}"]
+    if result.get("warning"):
+        lines.append(f"! {result['warning']}")
+
+    errors = compile_info.get("errors") if isinstance(compile_info.get("errors"), list) else []
+    warnings = compile_info.get("warnings") if isinstance(compile_info.get("warnings"), list) else []
+    # Messages already carry their own "error CSxxxx"/"warning CSxxxx" severity, so just bullet them.
+    for issue in errors:
+        if isinstance(issue, dict):
+            lines.append(f"- {issue.get('message', '')}")
+    if compile_info.get("errorsTruncated"):
+        lines.append(f"… +{error_count - len(errors)} more errors")
+    for issue in warnings:
+        if isinstance(issue, dict):
+            lines.append(f"- {issue.get('message', '')}")
+    if compile_info.get("warningsTruncated"):
+        lines.append(f"… +{warning_count - len(warnings)} more warnings")
+    return "\n".join(lines)
+
+
 def format_reflection_method_find_text(result: dict[str, Any]) -> str:
     methods = result.get("methods")
     if not isinstance(methods, list):

@@ -111,15 +111,24 @@ namespace Chievfx.Mcp.Extensions.Particles
 
         internal static void MarkChanged(UnityEngine.Object obj)
         {
+            // The mutation already applied to the live object. Skip MarkSceneDirty in play mode: it is
+            // meaningless there and throws "This cannot be used during play mode." for prefab-instance
+            // objects, which would block particles edits during a legitimate (non-persisting) play test.
             EditorUtility.SetDirty(obj);
             if (obj is Component component)
             {
                 EditorUtility.SetDirty(component.gameObject);
-                EditorSceneManager.MarkSceneDirty(component.gameObject.scene);
+                if (!EditorApplication.isPlayingOrWillChangePlaymode && component.gameObject.scene.IsValid())
+                {
+                    EditorSceneManager.MarkSceneDirty(component.gameObject.scene);
+                }
             }
             else if (obj is GameObject gameObject)
             {
-                EditorSceneManager.MarkSceneDirty(gameObject.scene);
+                if (!EditorApplication.isPlayingOrWillChangePlaymode && gameObject.scene.IsValid())
+                {
+                    EditorSceneManager.MarkSceneDirty(gameObject.scene);
+                }
             }
         }
 

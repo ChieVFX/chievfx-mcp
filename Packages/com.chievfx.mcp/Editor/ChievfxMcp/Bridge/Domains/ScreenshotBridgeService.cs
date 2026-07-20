@@ -64,16 +64,33 @@ namespace Chievfx.Mcp.Editor
                         ["maxDimension"] = maxDimension,
                         ["warnings"] = Array.Empty<string>()
                     };
-                    if (dimensions.Width != renderTexture.width || dimensions.Height != renderTexture.height)
-                    {
-                        metadata["coordinateHint"] = "The PNG is downscaled from the Game View. Multiply PNG coordinates by gameViewWidth/pngWidth before using them as screen positions (e.g. for input injection). Pass a larger maxDimension for a full-resolution capture.";
-                    }
-
+                    AddInputSpaceMetadata(metadata, dimensions.Width, dimensions.Height);
                     return new ImageResult("image/png", Convert.ToBase64String(png), metadata);
                 }
             }
 
             return CaptureGameViewCameraFallback(args, includeScreenSpaceOverlayCanvases: true, gameViewRenderTextureAvailable: renderTextureAvailable);
+        }
+
+        // Screenshots are the Game View render (top-left origin); ui-runtime-click/probe map normalized
+        // coords against the runtime Screen (bottom-left origin). When the two differ in aspect the Game
+        // View is letterboxed and screenshot pixels no longer map linearly to click positions — the single
+        // biggest coordinate footgun. Report the input Screen size + whether it matches, plus an honest
+        // conversion/steering hint, so callers can convert (or fall back to path targeting).
+        private static void AddInputSpaceMetadata(Dictionary<string, object?> metadata, int captureWidth, int captureHeight)
+        {
+            var screenWidth = Mathf.Max(1, Screen.width);
+            var screenHeight = Mathf.Max(1, Screen.height);
+            metadata["screenWidth"] = screenWidth;
+            metadata["screenHeight"] = screenHeight;
+
+            var captureAspect = captureHeight > 0 ? captureWidth / (double)captureHeight : 0d;
+            var screenAspect = screenWidth / (double)screenHeight;
+            var aspectMatches = Math.Abs(captureAspect - screenAspect) <= 0.02 * screenAspect;
+            metadata["screenAspectMatchesCapture"] = aspectMatches;
+            metadata["coordinateHint"] = aspectMatches
+                ? "ui-runtime-click/probe map normalized (0..1) coords against the runtime Screen (screenWidth x screenHeight), origin bottom-left. Convert a PNG pixel (px,py): x = px/pngWidth, y = 1 - py/pngHeight (this PNG is top-left origin). Capture and Screen aspects match, so pixels map directly."
+                : "Capture aspect differs from the input Screen (screenWidth x screenHeight): the Game View is letterboxed, so PNG pixels do NOT map linearly to ui-runtime-click positions (a normalized edge can land in the letterbox bar). Target by path/instanceId (locate it with ui-runtime-find) instead of screenshot pixels.";
         }
 
         public ImageResult CaptureCamera(JToken args)
@@ -397,6 +414,7 @@ namespace Chievfx.Mcp.Editor
             metadata["screenSpaceOverlayCanvasCount"] = screenSpaceOverlayCanvasCount;
             metadata["screenSpaceOverlayHandling"] = screenSpaceOverlayHandling;
             metadata["screenSpaceOverlayWorkaround"] = "If Screen Space Overlay UI is missing, temporarily set the Canvas renderMode to Screen Space Camera and assign the capture camera, enter Play Mode if the UI only renders there, or use screenshot-editor-window on the visible Game View.";
+            AddInputSpaceMetadata(metadata, width, height);
             metadata["warnings"] = warnings.Distinct(StringComparer.Ordinal).ToArray();
             return metadata;
         }

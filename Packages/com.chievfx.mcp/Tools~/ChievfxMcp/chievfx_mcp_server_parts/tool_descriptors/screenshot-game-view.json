@@ -1,6 +1,6 @@
 {
   "name": "screenshot-game-view",
-  "description": "Captures a screenshot from the Unity Editor Game View. The PNG may be downscaled (default maxDimension 960); the result metadata reports pngWidth/pngHeight, gameViewWidth/gameViewHeight, and pngToGameViewScale - convert PNG coordinates to screen positions with gameViewWidth/pngWidth before using them for input injection.",
+  "description": "Captures the Unity Editor Game View. For input mapping, read the result metadata's screenWidth/screenHeight, screenAspectMatchesCapture, and coordinateHint: screenshot pixels map to ui-runtime-click only when aspects match, else the view is letterboxed — target by path/instanceId instead. Also reports pngWidth/pngHeight and gameViewWidth/gameViewHeight.",
   "inputSchema": {
     "type": "object",
     "properties": {

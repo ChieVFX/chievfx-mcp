@@ -630,16 +630,21 @@ namespace Chievfx.Mcp.Extensions.Ugui
             var includeComponents = ReadBool(args, "includeComponents", false);
             var result = CreateToolEnvelope("ugui-ui-hierarchy");
             result["maxResults"] = maxResults;
-            var canvases = roots.Length > 0
-                ? roots.SelectMany(root => GetComponentsInChildren(root, status.CanvasType, includeInactive)).Distinct().ToArray()
-                : FindCanvases(status, includeInactive);
+            // With explicit paths, root the tree at the resolved objects directly (matching how
+            // ui-runtime-click / ugui-ui-find resolve paths). Previously this filtered to Canvas
+            // components in the subtree, so a valid non-Canvas leaf path (e.g. .../Wife_1) returned
+            // count:0 even though the same path worked in the click tools. Without paths, default to
+            // the scene canvases.
+            var rootObjects = roots.Length > 0
+                ? roots
+                : FindCanvases(status, includeInactive).Select(canvas => canvas.gameObject).ToArray();
             var emitted = 0;
             var truncated = false;
             var depthLimited = false;
             var rows = new List<Dictionary<string, object?>>();
-            foreach (var canvas in canvases)
+            foreach (var rootObject in rootObjects)
             {
-                var node = BuildUguiHierarchyNode(canvas.gameObject, includeInactive, includeComponents, 0, maxDepth, maxResults, ref emitted, ref truncated, ref depthLimited);
+                var node = BuildUguiHierarchyNode(rootObject, includeInactive, includeComponents, 0, maxDepth, maxResults, ref emitted, ref truncated, ref depthLimited);
                 if (node != null)
                 {
                     rows.Add(node);
@@ -652,7 +657,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             result["count"] = emitted;
-            result["totalObjects"] = canvases.Sum(canvas => canvas.GetComponentsInChildren<RectTransform>(includeInactive).Length);
+            result["totalObjects"] = rootObjects.Sum(rootObject => rootObject.GetComponentsInChildren<RectTransform>(includeInactive).Length);
             result["maxDepth"] = maxDepth;
             result["truncated"] = truncated;
             result["depthLimited"] = depthLimited;

@@ -1,6 +1,6 @@
 {
   "name": "console-get-logs",
-  "description": "Recent Unity Console entries. Filter severity with levels; use contains for message text search. Output counts: matched=raw entries matching the filters; groups=distinct entries after dedupe; count=entries actually returned (after maxEntries and size limits); dropped=groups omitted from that cap; each entry's repeats=how many duplicates collapsed into it. For freshness: capture lastEventId (returned here or from bridge-get-status), then re-run with sinceEventId to see only logs emitted after that cursor (e.g. a recompile or reimport).",
+  "description": "Recent Unity Console entries. Filter severity with levels; use contains for message text search. Output counts: matched=raw entries matching filters; groups=distinct entries after dedupe; count=entries returned (after maxEntries + size limits); dropped=groups omitted; each entry's repeats=duplicates collapsed. See sinceEventId for freshness filtering.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -32,11 +32,11 @@
       "sinceEventId": {
         "type": "integer",
         "minimum": 0,
-        "description": "Only return logs with an event cursor greater than this. Use the lastEventId from a prior console-get-logs (or bridge-get-status) captured before a compile/reimport to distinguish fresh entries from stale ones. Matches only bridge-captured logs; Console/Editor.log rows without a cursor are excluded while this is set."
+        "description": "Only return logs with an event cursor greater than this. Capture lastEventId (here or from bridge-get-status) before a compile/reimport to separate fresh logs from stale. Matches only bridge-captured logs (Console/Editor.log rows lack a cursor)."
       },
       "sinceTimestampUtc": {
         "type": "string",
-        "description": "Only return logs at or after this UTC timestamp (ISO 8601). Prefer sinceEventId for precise freshness; timestamps on Console/Editor.log rows reflect read time, not capture time."
+        "description": "Only return logs at/after this UTC timestamp (ISO 8601). Prefer sinceEventId; Console/Editor.log timestamps reflect read time, not capture time."
       },
       "dedupe": {
         "type": "boolean",

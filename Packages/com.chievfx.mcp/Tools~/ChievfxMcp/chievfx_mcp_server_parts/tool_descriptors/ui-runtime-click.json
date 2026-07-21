@@ -1,6 +1,6 @@
 {
   "name": "ui-runtime-click",
-  "description": "Click runtime UI by explicit path/id/visualElementRef or by x,y. framework all/auto tries both stacks but returns only framework that resolves explicit path. Requires Play Mode. clicked:true if handler responded (handlerObject=which); clicked:false+resolved:true = hit but nothing handled it.",
+  "description": "Click runtime UI by path/instanceId or x,y. Requires Play Mode. framework all/auto tries uGUI + UI Toolkit. clicked:true if a handler responded; clicked:false+resolved:true = point hit but nothing handled it.",
   "inputSchema": {
     "type": "object",
     "properties": {

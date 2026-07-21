@@ -489,7 +489,8 @@ namespace Chievfx.Mcp.Editor.Tests
             Assert.AreEqual("chievfx.control", status["extensionId"]);
             Assert.AreEqual("com.unity.inputsystem", status["package"]);
             Assert.AreEqual(true, status["requiresPlayModeForMutation"]);
-            Assert.AreEqual(true, status["requiresAllowStateMutation"]);
+            // allowStateMutation is deprecated: real injection is the default (gated to Play Mode).
+            Assert.AreEqual(false, status["requiresAllowStateMutation"]);
             CollectionAssert.Contains((object[])status["tools"]!, "editor-playmode-set");
         }
 
@@ -520,7 +521,6 @@ namespace Chievfx.Mcp.Editor.Tests
             Assert.AreEqual("bottom-left", Row(result, "coordinateConvention")["origin"]);
             Assert.AreEqual("screen-pixels", Row(result, "coordinateConvention")["unit"]);
             Assert.AreEqual(true, Row(result, "mutationGate")["requiresPlayMode"]);
-            Assert.AreEqual(true, Row(result, "mutationGate")["requiresAllowStateMutation"]);
             Assert.AreEqual(1, result["queuedEventCount"]);
             Assert.AreEqual(123f, FloatAt(Row(Rows(result, "queuedEvents")[0], "position"), "x"), 0.001f);
         }
@@ -582,17 +582,43 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
-        public void ControlMouseGestureDefaultsToDryRunAndInterpolates()
+        public void ControlMouseGestureDryRunInterpolates()
         {
             RequireInputSystem();
 
-            var result = RunControlTool("input-control-mouse-gesture", "{'delta':{'x':0,'y':-120},'durationMs':32,'steps':2}");
+            var result = RunControlTool("input-control-mouse-gesture", "{'delta':{'x':0,'y':-120},'durationMs':32,'steps':2,'dryRun':true}");
 
             Assert.AreEqual(true, result["ok"]);
             Assert.AreEqual(true, result["dryRun"]);
             Assert.AreEqual("dry-run", result["status"]);
             Assert.AreEqual(4, result["queuedEventCount"]);
             Assert.AreEqual(2, result["steps"]);
+        }
+
+        [Test]
+        public void ControlMouseGestureDefaultsToRealInjectionRequiresPlayMode()
+        {
+            RequireInputSystem();
+            Chievfx.Mcp.Extensions.Control.ChievfxMcpControlExtension.SetPlayModeOverrideForTests(false);
+
+            // No allowStateMutation/dryRun: it no longer silently dry-runs. Real injection is the default,
+            // so outside Play Mode it is rejected — proving the default changed (old behavior returned a
+            // dry-run with ok:true).
+            var result = RunControlTool("input-control-mouse-gesture", "{'delta':{'x':0,'y':-120},'durationMs':32,'steps':2}");
+
+            Assert.AreEqual(false, result["ok"]);
+            Assert.IsTrue(StringArray(result, "validationErrors").Any(error => error.Contains("Play Mode")));
+        }
+
+        [Test]
+        public void ControlMouseGestureDerivesDeltaFromEndPosition()
+        {
+            RequireInputSystem();
+
+            var result = RunControlTool("input-control-mouse-gesture", "{'startPosition':{'x':100,'y':100},'endPosition':{'x':250,'y':100},'durationMs':32,'steps':2,'dryRun':true}");
+
+            Assert.AreEqual(true, result["ok"]);
+            Assert.AreEqual("dry-run", result["status"]);
         }
 
         [Test]

@@ -206,7 +206,7 @@ namespace Chievfx.Mcp.Extensions.Control
                 ["package"] = "com.unity.inputsystem",
                 ["playMode"] = IsPlaying,
                 ["requiresPlayModeForMutation"] = true,
-                ["requiresAllowStateMutation"] = true,
+                ["requiresAllowStateMutation"] = false,
                 ["keyboard"] = DeviceRow("Keyboard", api?.Keyboard),
                 ["mouse"] = DeviceRow("Mouse", api?.Mouse),
                 ["touchscreen"] = DeviceRow("Touchscreen", api?.Touchscreen),

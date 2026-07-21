@@ -1,6 +1,6 @@
 {
   "name": "events-wait",
-  "description": "Long-poll until the NEXT Unity event matches your filter, then return that event. Pick one matcher: contains (free-text log substring) or marker (exact planted-beacon name). By default it waits only for FUTURE events; set sinceEventId for retro-search or includeRecentMs to catch an event that fired just before you armed the wait. timedOut:true is a normal outcome, not an error - on timeout read result.diagnostic and optionally recover with events-check-since. Subagents must be write-capable (not read-only/Ask mode).",
+  "description": "Long-poll for the NEXT matching Unity event. Match by contains (log substring) or marker (exact beacon name). Waits for FUTURE events by default; use sinceEventId (captured before the trigger) or includeRecentMs to catch ones that already fired. timedOut:true is normal — recover with events-check-since.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -9,21 +9,21 @@
       },
       "contains": {
         "type": "string",
-        "description": "Match when an event's MESSAGE contains this text (case-insensitive substring). Use for free-text Unity/console logs you do not control. Prefer ASCII-only substrings (e.g. 'Wave 2 started') over Unicode punctuation."
+        "description": "Event MESSAGE substring (case-insensitive)."
       },
       "marker": {
         "type": "string",
-        "description": "Match an exact beacon NAME (a string like 'level-loaded') that you planted via the marker API; compared exactly against the event's marker field. Collision-free alternative to contains for orchestrated/QA waits. This is the marker value, not a boolean toggle."
+        "description": "Exact planted beacon name (a string, not a boolean)."
       },
       "sinceEventId": {
         "type": "integer",
         "minimum": 0,
-        "description": "Only match events with eventId greater than this. Capture it from bridge-get-status (lastEventId) or a trigger result BEFORE the action, so events that fire during the trigger are not missed. Omit to wait only for future events (retro-search knob)."
+        "description": "Only events after this id. Capture from bridge-get-status before the trigger so events during it aren't missed."
       },
       "includeRecentMs": {
         "type": "integer",
         "minimum": 0,
-        "description": "Also match events from the last N milliseconds (look-back window) for races where the event may land just before the wait arms. Keep small (e.g. 500-2000). Prefer capturing sinceEventId before the trigger when you can."
+        "description": "Also match events from the last N ms (race look-back); keep small."
       },
       "timeoutMs": {
         "type": "integer",
@@ -34,7 +34,7 @@
         "default": {
           "$chievfxConst": "DEFAULT_EVENTS_WAIT_TIMEOUT_MS"
         },
-        "description": "Max milliseconds to wait before returning timedOut:true (a normal branch). Client cancellation returns early. Use longer values for subscription-style waits."
+        "description": "Max ms before timedOut:true (a normal branch)."
       },
       "source": {
         "type": "string",

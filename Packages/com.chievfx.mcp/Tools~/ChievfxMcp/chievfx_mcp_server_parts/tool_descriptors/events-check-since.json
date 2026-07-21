@@ -1,6 +1,6 @@
 {
   "name": "events-check-since",
-  "description": "Retro-check whether a matching event already occurred since a prior events-wait cursor. Pass sinceEventId and sinceTimestampUtc from the wait result and the same contains/marker matcher. Use to recover after a wait timed out or was cancelled. Returns all matches in the window, not just the first.",
+  "description": "Retro-check for matching events since a prior events-wait cursor: pass its sinceEventId + sinceTimestampUtc and the same contains/marker. Returns all matches in the window, not just the first. Use to recover after a wait timed out.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -10,19 +10,19 @@
       "sinceEventId": {
         "type": "integer",
         "minimum": 0,
-        "description": "Only return events with eventId greater than this. Use the sinceEventId returned by the prior events-wait."
+        "description": "Only events after this id (from the prior events-wait)."
       },
       "sinceTimestampUtc": {
         "type": "string",
-        "description": "UTC timestamp returned by events-wait as startedAtUtc. Events must be newer than both this and sinceEventId."
+        "description": "startedAtUtc from the prior events-wait; events must be newer than both this and sinceEventId."
       },
       "contains": {
         "type": "string",
-        "description": "Match when an event's MESSAGE contains this text (case-insensitive substring). Same matcher as events-wait."
+        "description": "Event MESSAGE substring (case-insensitive)."
       },
       "marker": {
         "type": "string",
-        "description": "Match an exact beacon NAME planted via the marker API (compared exactly against the event's marker field). Same matcher as events-wait."
+        "description": "Exact planted beacon name."
       },
       "maxEntries": {
         "type": "integer",

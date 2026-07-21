@@ -1,6 +1,6 @@
 {
   "name": "asset-find",
-  "description": "Finds persisted Unity project assets by AssetDatabase name, type, label, folder, area, and optional subassets. Returns compact rows with asset-detail resource URIs.",
+  "description": "Find project assets by name, type, label, folder, area (+ optional subassets). Returns compact rows with asset-detail URIs.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -19,7 +19,7 @@
             }
           }
         ],
-        "description": "AssetDatabase name search terms. Whitespace-separated terms are ANDed by AssetDatabase."
+        "description": "Name terms (whitespace-separated terms are ANDed)."
       },
       "type": {
         "oneOf": [
@@ -33,7 +33,7 @@
             }
           }
         ],
-        "description": "Asset type or alias such as material, texture, prefab, scene, mesh, renderTexture, object, or a Unity class name."
+        "description": "Type or alias: material, texture, prefab, scene, mesh, renderTexture, object, or a Unity class name."
       },
       "label": {
         "oneOf": [
@@ -46,8 +46,7 @@
               "type": "string"
             }
           }
-        ],
-        "description": "AssetDatabase label filter."
+        ]
       },
       "area": {
         "type": "string",
@@ -55,8 +54,7 @@
           "assets",
           "packages",
           "all"
-        ],
-        "description": "AssetDatabase search area. Defaults to assets."
+        ]
       },
       "folder": {
         "oneOf": [
@@ -70,23 +68,19 @@
             }
           }
         ],
-        "description": "Project-relative folder(s) under Assets/ or Packages/ to search."
+        "description": "Project-relative folder(s) to search."
       },
       "includeSubassets": {
-        "type": "boolean",
-        "description": "Include subasset rows with asset/{guid}/id/{localId} detail URIs."
+        "type": "boolean"
       },
       "subassets": {
-        "type": "boolean",
-        "description": "Alias for includeSubassets."
+        "type": "boolean"
       },
       "maxResults": {
-        "type": "integer",
-        "description": "Maximum rows to return."
+        "type": "integer"
       },
       "limit": {
-        "type": "integer",
-        "description": "Alias for maxResults."
+        "type": "integer"
       }
     }
   }

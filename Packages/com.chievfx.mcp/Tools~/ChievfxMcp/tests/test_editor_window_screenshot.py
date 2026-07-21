@@ -395,7 +395,23 @@ class editorWindowScreenshotMetadataTests(unittest.TestCase):
         # input-control-mouse-gesture) that are absent when metadata carries only core tools.
         for name in documented_tools:
             if name in estimates:
-                self.assertLessEqual(estimates[name], 500)
+                self.assertLessEqual(estimates[name], 300)
+
+    def test_no_advertised_property_description_is_a_paragraph(self) -> None:
+        # Guard against per-property descriptions ballooning back into paragraphs: keep each to a
+        # terse line. Trust the param name; add prose only where it prevents a real mistake.
+        encoder, _ = mcp.get_token_encoder()
+        for tool in mcp.build_tool_metadata()["tools"]:
+            for prop, schema in (tool["inputSchema"].get("properties") or {}).items():
+                description = schema.get("description")
+                if not description:
+                    continue
+                tokens = mcp.estimate_descriptor_tokens(json.dumps(description, ensure_ascii=False), encoder)
+                self.assertLessEqual(
+                    tokens,
+                    45,
+                    f"{tool['name']}.{prop} description is {tokens} tokens; keep it terse (<=45).",
+                )
 
     def test_frame_debugger_control_documents_one_based_event_limit(self) -> None:
         tool = next(tool for tool in mcp.TOOLS if tool["name"] == "frame-debugger-control")

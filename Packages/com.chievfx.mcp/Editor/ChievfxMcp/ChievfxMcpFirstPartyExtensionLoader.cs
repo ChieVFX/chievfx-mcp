@@ -1114,21 +1114,21 @@ namespace Chievfx.Mcp.Extensions.Control
         private static JObject GestureSchema() => Schema(new JObject
         {
             ["button"] = Enum("Mouse button.", "left", "right", "middle", "forward", "back"),
-            ["position"] = Vector("Optional absolute start screen position."),
-            ["startPosition"] = Vector("Alias for position."),
-            ["screenPosition"] = Vector("Alias for position."),
-            ["x"] = Num("Alias for position.x (pair with y)."),
-            ["y"] = Num("Alias for position.y (pair with x)."),
-            ["delta"] = Vector("Total gesture delta. Provide this OR endPosition (with a start)."),
-            ["endPosition"] = Vector("Absolute end screen position; delta is derived as endPosition - startPosition. Alternative to delta."),
-            ["durationMs"] = Num("Gesture duration in milliseconds."),
+            ["startPosition"] = Vector("Start screen position."),
+            ["position"] = Vector("Alias for startPosition."),
+            ["screenPosition"] = Vector("Alias for startPosition."),
+            ["x"] = Num("Alias for startPosition.x."),
+            ["y"] = Num("Alias for startPosition.y."),
+            ["delta"] = Vector("Total gesture delta. Provide this OR endPosition."),
+            ["endPosition"] = Vector("End screen position; delta = end - start."),
+            ["durationMs"] = Num("Gesture duration (ms)."),
             ["steps"] = Int("Interpolation steps, 1..240."),
             ["ease"] = Enum("Interpolation curve.", "inout", "in", "out"),
-            ["includeDown"] = Bool("Queue button down at gesture start."),
-            ["includeUp"] = Bool("Queue button up at gesture end."),
-            ["capturePointer"] = Bool("Route injection through a virtual mouse and disable physical mice so the OS cursor cannot overwrite injected positions. Default true; ends on Play Mode exit or input-control-pointer-capture end."),
-            ["dryRun"] = Bool("Report intended events without input mutation. Defaults to !allowStateMutation, so allowStateMutation=true alone performs a real run."),
-            ["allowStateMutation"] = Bool("Deprecated and optional; real injection is the default in Play Mode. Set dryRun:true to preview instead."),
+            ["includeDown"] = Bool("Press at the start (default true)."),
+            ["includeUp"] = Bool("Release at the end (default true)."),
+            ["capturePointer"] = Bool("Route through a virtual mouse so the OS cursor can't overwrite positions (default true)."),
+            ["dryRun"] = Bool("Preview without injecting (default false)."),
+            ["allowStateMutation"] = Bool("Deprecated no-op; real injection is the default."),
         });
 
         private static JObject TouchSchema() => Schema(new JObject
@@ -1159,14 +1159,14 @@ namespace Chievfx.Mcp.Extensions.Control
             // the advertised surface via ADVERTISED_PROPERTY_OMISSIONS. They must stay declared here:
             // schemas use additionalProperties=false, so strict clients strip properties the full schema
             // omits. No required list - a client enforcing `required: isPlaying` would reject alias-only calls.
-            ["isPlaying"] = Bool("Required. Desired Play Mode state: true enters Play Mode, false exits Play Mode."),
+            ["isPlaying"] = Bool("Enter (true) or exit (false) Play Mode."),
             ["play"] = Bool("Alias for isPlaying."),
             ["playing"] = Bool("Alias for isPlaying."),
             // waitForReady/settleMs/timeoutMs are honored by the MCP server (it polls the heartbeat), not
             // the Unity handler, but must be declared here so additionalProperties=false clients keep them.
-            ["waitForReady"] = Bool("When true (default), the call blocks until Play Mode actually reaches the requested isPlaying state (surviving the domain reload entering Play Mode can trigger) before returning, instead of returning mid-transition."),
-            ["settleMs"] = Int("Extra milliseconds to wait after the state is reached so initial frames render. Default 250."),
-            ["timeoutMs"] = Int("Max milliseconds to wait for the Play Mode transition before returning with a warning. Default 20000."),
+            ["waitForReady"] = Bool("Block until Play Mode actually reached the requested state (default true)."),
+            ["settleMs"] = Int("Extra ms after the transition for frames to render (default 250)."),
+            ["timeoutMs"] = Int("Max ms to wait for the transition (default 20000)."),
         });
 
         private static JObject Schema(JObject properties, params string[] required)
@@ -1186,7 +1186,8 @@ namespace Chievfx.Mcp.Extensions.Control
             ["type"] = "object",
             ["description"] = description,
             ["additionalProperties"] = false,
-            ["properties"] = new JObject { ["x"] = Num("X component."), ["y"] = Num("Y component.") },
+            // x/y need no description; the names are self-evident and repeat across every vector arg.
+            ["properties"] = new JObject { ["x"] = new JObject { ["type"] = "number" }, ["y"] = new JObject { ["type"] = "number" } },
         };
 
         private sealed class InputApi

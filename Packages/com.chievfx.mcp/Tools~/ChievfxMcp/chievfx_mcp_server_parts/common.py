@@ -566,6 +566,7 @@ ADVERTISED_SCHEMA_DETAIL_KEYS = {"$defs", "default", "description", "maximum", "
 ADVERTISED_SCHEMA_DESCRIPTION_TOOLS = {"asset-find", "console-get-logs", "editor-playmode-set", "events-wait", "events-check-since", "input-control-mouse-gesture"}
 ADVERTISED_VECTOR3_SCHEMA: dict[str, str] = {"type": "object"}
 ADVERTISED_PROPERTY_OMISSIONS: dict[str, set[str]] = {
+    "asset-find": {"limit", "subassets"},
     "assets-refresh": {"options"},
     "bridge-get-status": {"maxOperations", "verbose"},
     "console-get-logs": {"lastMinutes", "stack"},
@@ -578,7 +579,7 @@ ADVERTISED_PROPERTY_OMISSIONS: dict[str, set[str]] = {
     # the canonical name, so the eventType/type aliases stay accepted but unadvertised.
     "input-control-keyboard-event": {"allowStateMutation", "eventType"},
     "input-control-mouse-event": {"allowStateMutation", "eventType"},
-    "input-control-mouse-gesture": {"allowStateMutation"},
+    "input-control-mouse-gesture": {"allowStateMutation", "position", "screenPosition", "x", "y"},
     "input-control-touch-event": {"allowStateMutation", "eventType"},
     "input-control-pointer-capture": {"allowStateMutation"},
     "gameobject-duplicate": {

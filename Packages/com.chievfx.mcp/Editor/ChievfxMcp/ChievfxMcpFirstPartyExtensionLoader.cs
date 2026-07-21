@@ -145,6 +145,7 @@ namespace Chievfx.Mcp.Extensions.Control
             if (api)
             {
                 descriptor.Tools.Add(Tool("input-control-keyboard-event", "Queue a New Input System keyboard down, up, or tap event. Tap holds the key for holdFrames player frames so wasPressedThisFrame edges are visible to game Update() code, and returns a completionMarker for events-wait.", KeyboardSchema()));
+                descriptor.Tools.Add(Tool("input-control-keyboard-sequence", "Type a string (text) or tap a key list (keys) in ONE call — each key held holdFrames and spaced gapFrames apart, dispatched across player frames. Returns a completionMarker for events-wait. Use for typing and real-time/action input without a round-trip per key.", KeyboardSequenceSchema()));
                 descriptor.Tools.Add(Tool("input-control-mouse-event", "Queue a New Input System mouse button or move event. Real injection routes through a virtual mouse (capturePointer, default true) so the OS cursor cannot overwrite injected positions; tap is frame-spaced and returns a completionMarker.", MouseSchema()));
                 descriptor.Tools.Add(Tool("input-control-mouse-gesture", "Queue a mouse down/move/up gesture whose steps dispatch one per player frame. Defaults dryRun=true; real runs return a completionMarker for events-wait.", GestureSchema()));
                 descriptor.Tools.Add(Tool("input-control-touch-event", "Queue a New Input System touchscreen down, move, up, or tap event. Tap holds the touch for holdFrames player frames and returns a completionMarker for events-wait.", TouchSchema()));
@@ -181,6 +182,7 @@ namespace Chievfx.Mcp.Extensions.Control
             return toolName switch
             {
                 "input-control-keyboard-event" => Keyboard(args, api!),
+                "input-control-keyboard-sequence" => KeyboardSequence(args, api!),
                 "input-control-mouse-event" => Mouse(args, api!),
                 "input-control-mouse-gesture" => Gesture(args, api!),
                 "input-control-touch-event" => Touch(args, api!),
@@ -214,7 +216,7 @@ namespace Chievfx.Mcp.Extensions.Control
                 ["pendingInputSequences"] = ChievfxMcpControlInputPlayback.PendingSequenceCount,
                 ["gameView"] = GameViewStateRow(),
                 ["tools"] = available
-                    ? new[] { "editor-playmode-set", "input-control-keyboard-event", "input-control-mouse-event", "input-control-mouse-gesture", "input-control-touch-event", "input-control-pointer-capture" }
+                    ? new[] { "editor-playmode-set", "input-control-keyboard-event", "input-control-keyboard-sequence", "input-control-mouse-event", "input-control-mouse-gesture", "input-control-touch-event", "input-control-pointer-capture" }
                     : new[] { "editor-playmode-set" },
                 ["warnings"] = available ? Array.Empty<string>() : new[] { reason },
             };
@@ -307,6 +309,160 @@ namespace Chievfx.Mcp.Extensions.Control
             var mutated = !dryRun && errors.Count == 0;
             var result = Result("input-control-keyboard-event", "Keyboard", action, dryRun, mutated, queued.ToArray(), warnings.ToArray(), errors.ToArray());
             return WithScheduling(result, completionMarker, mutated);
+        }
+
+        // Batch keyboard input in ONE call: type a string or tap a key list, scheduled across player
+        // frames (holdFrames per key, gapFrames between) so a real-time game sees each edge in Update().
+        private static Dictionary<string, object?> KeyboardSequence(JToken args, InputApi api)
+        {
+            var dryRun = ResolveDryRun(args);
+            var holdFrames = ReadHoldFrames(args);
+            var gapFrames = Mathf.Clamp(ReadInt(args, "gapFrames", 2), 0, 300);
+            var errors = new List<string>();
+            var warnings = new List<string>();
+            var queued = new List<object>();
+
+            // Ordered (key name, needs-shift) list from either text or an explicit key list.
+            var tokens = new List<(string name, bool shift)>();
+            var text = ReadString(args, "text");
+            var keysArray = args["keys"] as JArray;
+            if (!string.IsNullOrEmpty(text))
+            {
+                foreach (var ch in text!)
+                {
+                    if (TryMapChar(ch, out var mappedKey, out var mappedShift))
+                    {
+                        tokens.Add((mappedKey, mappedShift));
+                    }
+                    else
+                    {
+                        warnings.Add($"Skipped unmapped character '{ch}'.");
+                    }
+                }
+            }
+            else if (keysArray != null && keysArray.Count > 0)
+            {
+                foreach (var item in keysArray)
+                {
+                    var name = item?.Type == JTokenType.String ? item.Value<string>() : null;
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        tokens.Add((name!, false));
+                    }
+                }
+            }
+            else
+            {
+                errors.Add("keyboard sequence requires text (a string) or keys (an array of key names).");
+            }
+
+            if (api.Keyboard == null) errors.Add("Keyboard.current is null; no keyboard device is available.");
+
+            var resolved = new List<(object key, string name, bool shift)>();
+            foreach (var (name, shift) in tokens)
+            {
+                if (!api.TryKey(name, out var key, out var keyError))
+                {
+                    errors.Add(keyError);
+                    continue;
+                }
+
+                resolved.Add((key!, name, shift));
+            }
+
+            Gate(dryRun, errors);
+            foreach (var entry in resolved)
+            {
+                queued.Add(EventRow("Keyboard", "tap", entry.name, null, null, -1d));
+            }
+
+            string? completionMarker = null;
+            if (errors.Count == 0 && !dryRun && resolved.Count > 0)
+            {
+                ChievfxMcpControlPointerCapture.EnsureInputRoutingOverride();
+                api.TryKey("LeftShift", out var shiftKey, out _);
+                var playback = new List<ChievfxMcpControlInputPlayback.Step>();
+                var first = true;
+                foreach (var entry in resolved)
+                {
+                    var item = entry;
+                    playback.Add(new ChievfxMcpControlInputPlayback.Step
+                    {
+                        FrameGapBefore = first ? 0 : gapFrames,
+                        Dispatch = () =>
+                        {
+                            if (item.shift && shiftKey != null) api.QueueKeyboardKey(shiftKey, true, -1d);
+                            api.QueueKeyboardKey(item.key, true, -1d);
+                        },
+                    });
+                    playback.Add(new ChievfxMcpControlInputPlayback.Step
+                    {
+                        FrameGapBefore = holdFrames,
+                        Dispatch = () =>
+                        {
+                            api.QueueKeyboardKey(item.key, false, -1d);
+                            if (item.shift && shiftKey != null) api.QueueKeyboardKey(shiftKey, false, -1d);
+                        },
+                    });
+                    first = false;
+                }
+
+                completionMarker = ChievfxMcpControlInputPlayback.Schedule("keyboard-sequence", playback);
+            }
+
+            var mutated = !dryRun && errors.Count == 0;
+            var result = Result("input-control-keyboard-sequence", "Keyboard", "sequence", dryRun, mutated, queued.ToArray(), warnings.ToArray(), errors.ToArray());
+            result["keyCount"] = resolved.Count;
+            return WithScheduling(result, completionMarker, mutated);
+        }
+
+        // US-layout char -> Input System Key name (+ shift). Best-effort; unmapped chars are skipped.
+        private static bool TryMapChar(char c, out string keyName, out bool shift)
+        {
+            shift = false;
+            keyName = string.Empty;
+            if (c >= 'a' && c <= 'z') { keyName = char.ToUpperInvariant(c).ToString(); return true; }
+            if (c >= 'A' && c <= 'Z') { keyName = c.ToString(); shift = true; return true; }
+            if (c >= '0' && c <= '9') { keyName = "Digit" + c; return true; }
+            switch (c)
+            {
+                case ' ': keyName = "Space"; return true;
+                case '\n': keyName = "Enter"; return true;
+                case '\t': keyName = "Tab"; return true;
+                case '-': keyName = "Minus"; return true;
+                case '=': keyName = "Equals"; return true;
+                case '[': keyName = "LeftBracket"; return true;
+                case ']': keyName = "RightBracket"; return true;
+                case '\\': keyName = "Backslash"; return true;
+                case ';': keyName = "Semicolon"; return true;
+                case '\'': keyName = "Quote"; return true;
+                case ',': keyName = "Comma"; return true;
+                case '.': keyName = "Period"; return true;
+                case '/': keyName = "Slash"; return true;
+                case '`': keyName = "Backquote"; return true;
+                case '!': keyName = "Digit1"; shift = true; return true;
+                case '@': keyName = "Digit2"; shift = true; return true;
+                case '#': keyName = "Digit3"; shift = true; return true;
+                case '$': keyName = "Digit4"; shift = true; return true;
+                case '%': keyName = "Digit5"; shift = true; return true;
+                case '^': keyName = "Digit6"; shift = true; return true;
+                case '&': keyName = "Digit7"; shift = true; return true;
+                case '*': keyName = "Digit8"; shift = true; return true;
+                case '(': keyName = "Digit9"; shift = true; return true;
+                case ')': keyName = "Digit0"; shift = true; return true;
+                case '_': keyName = "Minus"; shift = true; return true;
+                case '+': keyName = "Equals"; shift = true; return true;
+                case '{': keyName = "LeftBracket"; shift = true; return true;
+                case '}': keyName = "RightBracket"; shift = true; return true;
+                case '|': keyName = "Backslash"; shift = true; return true;
+                case ':': keyName = "Semicolon"; shift = true; return true;
+                case '"': keyName = "Quote"; shift = true; return true;
+                case '<': keyName = "Comma"; shift = true; return true;
+                case '>': keyName = "Period"; shift = true; return true;
+                case '?': keyName = "Slash"; shift = true; return true;
+                case '~': keyName = "Backquote"; shift = true; return true;
+                default: return false;
+            }
         }
 
         private static Dictionary<string, object?> Mouse(JToken args, InputApi api)
@@ -1094,6 +1250,21 @@ namespace Chievfx.Mcp.Extensions.Control
             ["dryRun"] = Bool("Report intended events without input mutation. Defaults to !allowStateMutation, so allowStateMutation=true alone performs a real run."),
             ["allowStateMutation"] = Bool("Deprecated and optional; real injection is the default in Play Mode. Set dryRun:true to preview instead."),
         }, "key");
+
+        private static JObject KeyboardSequenceSchema() => Schema(new JObject
+        {
+            ["text"] = Str("Text to type; each character becomes a key tap (US layout, shift auto-applied)."),
+            ["keys"] = new JObject
+            {
+                ["type"] = "array",
+                ["items"] = new JObject { ["type"] = "string" },
+                ["description"] = "Key names to tap in order, e.g. [\"W\",\"W\",\"Space\"]. Digit/arrow aliases accepted.",
+            },
+            ["holdFrames"] = Int("Player frames to hold each key. Default 2."),
+            ["gapFrames"] = Int("Player frames between keys. Default 2."),
+            ["dryRun"] = Bool("Preview without injecting (default false)."),
+            ["allowStateMutation"] = Bool("Deprecated no-op; real injection is the default."),
+        });
 
         private static JObject MouseSchema() => Schema(new JObject
         {

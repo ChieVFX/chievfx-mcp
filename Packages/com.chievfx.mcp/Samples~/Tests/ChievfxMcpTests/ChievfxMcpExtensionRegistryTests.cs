@@ -541,6 +541,33 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
+        public void ControlKeyboardSequenceMapsTextToKeys()
+        {
+            RequireInputSystem();
+
+            var result = RunControlTool("input-control-keyboard-sequence", "{'text':'Hi!','dryRun':true}");
+
+            Assert.AreEqual(true, result["ok"]);
+            Assert.AreEqual("dry-run", result["status"]);
+            Assert.AreEqual(3, result["keyCount"]);
+            var events = Rows(result, "queuedEvents");
+            Assert.AreEqual("H", events[0]["target"]);
+            Assert.AreEqual("I", events[1]["target"]);
+            Assert.AreEqual("Digit1", events[2]["target"]);
+        }
+
+        [Test]
+        public void ControlKeyboardSequenceRequiresTextOrKeys()
+        {
+            RequireInputSystem();
+
+            var result = RunControlTool("input-control-keyboard-sequence", "{'dryRun':true}");
+
+            Assert.AreEqual(false, result["ok"]);
+            Assert.IsTrue(StringArray(result, "validationErrors").Any(error => error.Contains("text") && error.Contains("keys")));
+        }
+
+        [Test]
         public void ControlKeyboardMutationOutsidePlayModeIsRejected()
         {
             RequireInputSystem();

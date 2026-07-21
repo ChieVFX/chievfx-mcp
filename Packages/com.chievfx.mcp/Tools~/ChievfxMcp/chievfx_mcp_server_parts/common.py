@@ -578,6 +578,7 @@ ADVERTISED_PROPERTY_OMISSIONS: dict[str, set[str]] = {
     # allowStateMutation is deprecated (real injection is the default, gated to Play Mode); action is
     # the canonical name, so the eventType/type aliases stay accepted but unadvertised.
     "input-control-keyboard-event": {"allowStateMutation", "eventType"},
+    "input-control-keyboard-sequence": {"allowStateMutation"},
     "input-control-mouse-event": {"allowStateMutation", "eventType"},
     "input-control-mouse-gesture": {"allowStateMutation", "position", "screenPosition", "x", "y"},
     "input-control-touch-event": {"allowStateMutation", "eventType"},

@@ -88,6 +88,31 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
         }
 
         [UnityTest]
+        public IEnumerator KeyboardSequenceProducesFrameVisibleEdgesPerKey()
+        {
+            RequireInputSystem();
+            EnsureInputDevice("Keyboard");
+            var probe = Track(new GameObject("InputMcpKeyboardSequenceProbe")).AddComponent<KeyboardEdgeProbe>();
+            probe.KeyName = "F8";
+            yield return null;
+
+            // One call taps F8 three times; each tap must be a distinct frame-visible edge so a
+            // real-time game reacts to every press (the batch-input capability).
+            var result = RunControlTool("input-control-keyboard-sequence", "{'keys':['F8','F8','F8']}");
+            Assert.AreEqual(true, result["ok"], DescribeRow(result));
+            Assert.AreEqual("scheduled", result["status"], DescribeRow(result));
+            Assert.AreEqual(3, Convert.ToInt32(result["keyCount"], CultureInfo.InvariantCulture), DescribeRow(result));
+
+            for (var i = 0; i < 120 && probe.ReleaseEdges < 3; i++)
+            {
+                yield return null;
+            }
+
+            Assert.AreEqual(3, probe.PressEdges, "Each key in the sequence should produce its own wasPressedThisFrame edge.");
+            Assert.AreEqual(3, probe.ReleaseEdges, "Each key in the sequence should produce its own wasReleasedThisFrame edge.");
+        }
+
+        [UnityTest]
         public IEnumerator PointerCaptureRoutesMouseInjectionToVirtualDevice()
         {
             RequireInputSystem();

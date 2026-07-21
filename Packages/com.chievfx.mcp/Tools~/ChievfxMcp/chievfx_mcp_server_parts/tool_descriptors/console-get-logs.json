@@ -1,6 +1,6 @@
 {
   "name": "console-get-logs",
-  "description": "Recent Unity Console entries. Filter severity with levels; use contains for message text search. Output counts: matched=raw entries matching filters; groups=distinct entries after dedupe; count=entries returned (after maxEntries + size limits); dropped=groups omitted; each entry's repeats=duplicates collapsed. See sinceEventId for freshness filtering.",
+  "description": "Recent Unity Console entries. levels filters severity; contains searches message text. Counts: matched=pre-dedupe hits, groups=after dedupe, count=returned, dropped=omitted, repeats=duplicates per row.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -27,26 +27,25 @@
       },
       "contains": {
         "type": "string",
-        "description": "Case-insensitive substring match against the message text. Caveat: an exact single word error/exception/warning/issue (or their plurals) is instead treated as a severity filter, not text search — use levels for severity, and add another word if you truly need to grep for that text."
+        "description": "Message substring (case-insensitive). A bare error/warning/exception/issue token filters severity instead — use levels for that."
       },
       "sinceEventId": {
         "type": "integer",
         "minimum": 0,
-        "description": "Only return logs with an event cursor greater than this. Capture lastEventId (here or from bridge-get-status) before a compile/reimport to separate fresh logs from stale. Matches only bridge-captured logs (Console/Editor.log rows lack a cursor)."
+        "description": "Only logs after this event cursor; capture lastEventId before a compile/reimport. Bridge-captured logs only."
       },
       "sinceTimestampUtc": {
         "type": "string",
-        "description": "Only return logs at/after this UTC timestamp (ISO 8601). Prefer sinceEventId; Console/Editor.log timestamps reflect read time, not capture time."
+        "description": "Only logs at/after this UTC ISO time. Prefer sinceEventId."
       },
       "dedupe": {
         "type": "boolean",
         "default": true,
-        "description": "Collapse identical entries into one row with a repeats count. Default on. Set false to see every raw occurrence."
+        "description": "Collapse duplicates into one row with repeats. Default on."
       },
       "includeStack": {
         "type": "boolean",
-        "default": false,
-        "description": "Include each entry's full stack trace inline. Use this instead of console-get-logs-single when a per-frame exception is churning the buffer (an id can be evicted before the follow-up call lands)."
+        "default": false
       },
       "stack": {
         "type": "boolean",

@@ -50,7 +50,7 @@ from PyQt6.QtWidgets import (
 
 
 APP_TITLE = "ChievFX Unity MCP Installer"
-APP_VERSION = "0.4.2"
+APP_VERSION = "0.4.3"
 SETTINGS_ROOT = Path.home() / ".chievfx_mcp_installer"
 LEGACY_SETTINGS_PATH = Path.home() / ".chievfx_mcp_installer.json"
 DEFAULT_PROFILE_CONTEXT = Path("__default__")
@@ -519,6 +519,62 @@ def _iter_cleanup_paths() -> Iterable[str]:
     yield from MCP_TEST_PATHS
 
 
+def _remove_manifest_dependency(to_root: Path, log: Callable[[str], None]) -> None:
+    """Drop dependencies[com.chievfx.mcp] from Packages/manifest.json — whether it is a git url, a
+    file: tarball, or a registry version — so the chosen install mode is the only definition left."""
+    manifest_path = to_root / "Packages" / "manifest.json"
+    if not manifest_path.is_file():
+        log(f"  skipped (no manifest) {manifest_path}")
+        return
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        log(f"  WARN: could not parse {manifest_path}: {exc}")
+        return
+    dependencies = manifest.get("dependencies") if isinstance(manifest, dict) else None
+    if not isinstance(dependencies, dict) or PACKAGE_NAME not in dependencies:
+        log(f"  skipped (no {PACKAGE_NAME} dependency)")
+        return
+    removed = dependencies.pop(PACKAGE_NAME)
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    log(f"  removed manifest dependency {PACKAGE_NAME} -> {removed}")
+
+
+def _remove_all_tarballs(to_root: Path, log: Callable[[str], None]) -> None:
+    """Remove every com.chievfx.mcp-*.tgz (and its .meta) under Assets/ or Packages/, wherever a prior
+    tarball install dropped it (the dest folder is user-configurable and may have changed)."""
+    found = False
+    for base in ("Assets", "Packages"):
+        base_dir = to_root / base
+        if not base_dir.is_dir():
+            continue
+        for tgz in sorted(base_dir.rglob(f"{PACKAGE_NAME}-*.tgz")):
+            _remove_path(tgz, log)
+            meta = tgz.with_name(tgz.name + ".meta")
+            if meta.exists():
+                _remove_path(meta, log)
+            found = True
+    if not found:
+        log(f"  skipped (no {PACKAGE_NAME}-*.tgz found)")
+
+
+def clean_all_installations(to_root: Path, log: Callable[[str], None]) -> None:
+    """Remove EVERY form of a prior com.chievfx.mcp install from TO so only the mode being installed
+    remains: embedded/copied sources (+ tests), .tgz tarballs, and the manifest dependency (git url,
+    file: tarball, or registry version)."""
+    log("  embedded/copied sources:")
+    for rel in _iter_cleanup_paths():
+        target = to_root / rel
+        if target.exists() or target.is_symlink():
+            _remove_path(target, log)
+        else:
+            log(f"  skipped (absent) {target}")
+    log("  tarball files:")
+    _remove_all_tarballs(to_root, log)
+    log("  manifest dependency:")
+    _remove_manifest_dependency(to_root, log)
+
+
 def perform_install(
     from_root: Path,
     to_root: Path,
@@ -527,13 +583,8 @@ def perform_install(
     log(f"FROM: {from_root}")
     log(f"TO:   {to_root}")
     log("")
-    log("[1/2] Removing existing MCP sources and tests in TO ...")
-    for rel in _iter_cleanup_paths():
-        target = to_root / rel
-        if target.exists() or target.is_symlink():
-            _remove_path(target, log)
-        else:
-            log(f"  skipped (absent) {target}")
+    log("[1/2] Removing every existing MCP install in TO (sources, tarballs, manifest dependency) ...")
+    clean_all_installations(to_root, log)
 
     log("")
     log("[2/2] Copying fresh MCP sources from FROM ...")
@@ -668,29 +719,15 @@ def perform_install_tgz(
     dest_dir = to_root / Path(dest_rel)
     tgz_path = dest_dir / _tgz_filename(version, f_index)
 
-    log("[1/4] Removing any embedded package copy in TO (avoids a duplicate definition) ...")
-    embedded = to_root / "Packages" / PACKAGE_NAME
-    for target in (embedded, embedded.with_name(embedded.name + ".meta")):
-        if target.exists() or target.is_symlink():
-            _remove_path(target, log)
-        else:
-            log(f"  skipped (absent) {target}")
+    log("[1/3] Removing every existing MCP install in TO (sources, tarballs, manifest dependency) ...")
+    clean_all_installations(to_root, log)
 
     log("")
-    log(f"[2/4] Removing previous {PACKAGE_NAME} tarballs in {dest_rel} ...")
-    if dest_dir.exists():
-        for old in sorted(dest_dir.glob(f"{PACKAGE_NAME}-*.tgz")):
-            _remove_path(old, log)
-            old_meta = old.with_name(old.name + ".meta")
-            if old_meta.exists():
-                _remove_path(old_meta, log)
-
-    log("")
-    log(f"[3/4] Building {tgz_path.name} in {dest_rel} ...")
+    log(f"[2/3] Building {tgz_path.name} in {dest_rel} ...")
     build_package_tarball(from_root, tgz_path, log)
 
     log("")
-    log("[4/4] Writing the file: dependency into Packages/manifest.json ...")
+    log("[3/3] Writing the file: dependency into Packages/manifest.json ...")
     manifest_path = to_root / "Packages" / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(manifest, dict):
@@ -1441,8 +1478,11 @@ class InstallerWindow(QMainWindow):
             informative = (
                 "This will install to these TO folders:\n"
                 f"{target_lines}\n\n"
-                "In each TO folder, this will:\n"
-                "  - DELETE any embedded Packages/com.chievfx.mcp (and its .meta)\n"
+                "In each TO folder, this will first REMOVE every existing MCP install:\n"
+                "  - embedded Packages/com.chievfx.mcp (and its .meta)\n"
+                "  - any com.chievfx.mcp-*.tgz under Assets/ or Packages/\n"
+                "  - the com.chievfx.mcp dependency in Packages/manifest.json (git url, file:, or version)\n\n"
+                "Then it will:\n"
                 f"  - write the tarball into {tgz_dest_folder}/ (no suffix on a new version, then .f1/.f2/... per rebuild)\n"
                 "  - add a file: dependency to Packages/manifest.json"
             )
@@ -1450,8 +1490,10 @@ class InstallerWindow(QMainWindow):
             informative = (
                 "This will install to these TO folders:\n"
                 f"{target_lines}\n\n"
-                "In each TO folder, this will DELETE:\n"
-                "  - Packages/com.chievfx.mcp (and its .meta)\n\n"
+                "In each TO folder, this will first REMOVE every existing MCP install:\n"
+                "  - embedded Packages/com.chievfx.mcp (and its .meta)\n"
+                "  - any com.chievfx.mcp-*.tgz under Assets/ or Packages/\n"
+                "  - the com.chievfx.mcp dependency in Packages/manifest.json (git url, file:, or version)\n\n"
                 "Then copy a fresh MCP package from FROM."
             )
         box.setInformativeText(informative)

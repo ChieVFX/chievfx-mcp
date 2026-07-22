@@ -13,16 +13,22 @@ Packages/com.chievfx.mcp/         (entire package folder)
 Packages/com.chievfx.mcp.meta     (when present in FROM)
 ```
 
-Existing copies in `TO` are deleted first. `__pycache__/`, `tests/`, `*.pyc`, and
-`*.pyo` are skipped during copy.
+Before installing (in **either** mode), the installer removes **every** existing
+form of the package from `TO` so only the mode being installed remains:
+
+- embedded/copied sources — `Packages/com.chievfx.mcp/` (and its `.meta`),
+- any `com.chievfx.mcp-*.tgz` (and `.meta`) under `Assets/` or `Packages/`,
+- the `com.chievfx.mcp` entry in `Packages/manifest.json` — a git url, a
+  `file:` tarball, or a registry version.
+
+`__pycache__/`, `tests/`, `*.pyc`, and `*.pyo` are skipped during copy.
 
 ### Install as tarball (.tgz)
 
 Tick **Install as tarball (.tgz)** to install as a Unity tarball dependency instead
 of copying sources. For each `TO` project the installer:
 
-- removes any embedded `Packages/com.chievfx.mcp/` (so there is no duplicate
-  definition),
+- removes every existing install of the package (see above),
 - builds the tarball into the **Destination folder** (default `Assets/Editor`,
   editable in the UI), and
 - adds `"com.chievfx.mcp": "file:<relative-path>.tgz"` to
@@ -40,8 +46,8 @@ without a manual `package.json` bump:
 
 Because the filename — and therefore the manifest `file:` reference — changes on
 every install, a project copy that pulls the new `.tgz` re-resolves the package
-automatically. The previous `.tgz` (any version/index) in the destination folder
-root is removed so they don't accumulate.
+automatically. Prior tarballs are removed by the pre-install cleanup, so they
+don't accumulate.
 
 The `.tgz` includes every package file **and its `.meta`** (an immutable tarball
 package drops any `.cs` missing its `.meta`), excluding `__pycache__/`, `tests/`,

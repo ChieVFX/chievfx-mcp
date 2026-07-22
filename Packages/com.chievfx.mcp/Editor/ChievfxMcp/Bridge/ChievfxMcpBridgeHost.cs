@@ -124,6 +124,9 @@ namespace Chievfx.Mcp.Editor
             RuntimeState.EnsureInitializedPaths();
             EventJournal.RestoreCursorFromStream();
             EventJournal.EnsureStreamFile();
+            // Keep the stable MCP launcher present/current so client configs referencing it never break
+            // when the package's PackageCache hash changes on re-resolution.
+            ChievfxMcpServerLauncher.EnsureLauncherWritten();
             RuntimeState.Start();
         }
 

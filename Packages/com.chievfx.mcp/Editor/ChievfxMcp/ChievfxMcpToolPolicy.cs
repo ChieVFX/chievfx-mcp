@@ -267,6 +267,12 @@ namespace Chievfx.Mcp.Editor
 
         public static string ServerScriptPath => Path.Combine(PackageToolsDirectory, "chievfx_mcp_server.py");
 
+        // Stable, hash-independent entry point that MCP client configs point at. The real server lives
+        // under Library/PackageCache/com.chievfx.mcp@<hash>/ whose hash changes on every package
+        // re-resolution; baking that path into a config breaks the client. This launcher (written to the
+        // bridge dir, a fixed project path) resolves the current server at launch time instead.
+        public static string LauncherScriptPath => Path.Combine(BridgeDirectory, "launch_server.py");
+
         // "Install~" is hidden from Unity's importer for the same reason as Tools~ above.
         public static string InstallerDirectory => Path.Combine(PackageRoot, "Install~");
 

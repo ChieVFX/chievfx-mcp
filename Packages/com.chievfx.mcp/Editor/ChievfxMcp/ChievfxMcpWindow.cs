@@ -1191,6 +1191,8 @@ namespace Chievfx.Mcp.Editor
 
         private static void WriteClientConfig(McpClientInfo clientInfo, string transport, int port, int timeout)
         {
+            // The config points at the stable launcher; make sure it exists before we reference it.
+            ChievfxMcpServerLauncher.EnsureLauncherWritten();
             Directory.CreateDirectory(Path.GetDirectoryName(clientInfo.ConfigPath)!);
             File.WriteAllText(
                 clientInfo.ConfigPath,
@@ -1240,7 +1242,7 @@ namespace Chievfx.Mcp.Editor
             {
                 var args = TomlArray(new[]
                 {
-                    ServerScriptPath,
+                    ChievfxMcpToolPolicy.LauncherScriptPath,
                     "--transport",
                     TransportStdio,
                     "--project-root",
@@ -1382,7 +1384,7 @@ namespace Chievfx.Mcp.Editor
 
             server["command"] = ChievfxMcpPythonLauncher.ExecutablePath;
             server["args"] = new JArray(
-                ServerScriptPath,
+                ChievfxMcpToolPolicy.LauncherScriptPath,
                 "--transport",
                 TransportStdio,
                 "--project-root",

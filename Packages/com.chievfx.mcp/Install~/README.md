@@ -16,6 +16,22 @@ Packages/com.chievfx.mcp.meta     (when present in FROM)
 Existing copies in `TO` are deleted first. `__pycache__/`, `tests/`, `*.pyc`, and
 `*.pyo` are skipped during copy.
 
+### Install as tarball (.tgz)
+
+Tick **Install as tarball (.tgz)** to install as a Unity tarball dependency instead
+of copying sources. For each `TO` project the installer:
+
+- removes any embedded `Packages/com.chievfx.mcp/` (so there is no duplicate
+  definition),
+- builds `com.chievfx.mcp-<version>.tgz` into the **Destination folder** (default
+  `Assets/Editor`, editable in the UI), and
+- adds `"com.chievfx.mcp": "file:<relative-path>.tgz"` to
+  `Packages/manifest.json`.
+
+The `.tgz` includes every package file **and its `.meta`** (an immutable tarball
+package drops any `.cs` missing its `.meta`), excluding `__pycache__/`, `tests/`,
+and `*.pyc`/`*.pyo`. The choice and folder are remembered per launcher project.
+
 ## Requirements
 
 - Python 3.9+ on the host machine.

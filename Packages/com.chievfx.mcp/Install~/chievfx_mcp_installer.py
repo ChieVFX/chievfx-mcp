@@ -19,6 +19,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tarfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
@@ -28,10 +29,12 @@ from PyQt6.QtGui import QDragEnterEvent, QDropEvent, QFont, QPalette, QColor
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QCheckBox,
     QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListView,
     QListWidget,
     QListWidgetItem,
@@ -46,7 +49,7 @@ from PyQt6.QtWidgets import (
 
 
 APP_TITLE = "ChievFX Unity MCP Installer"
-APP_VERSION = "0.3.5"
+APP_VERSION = "0.4.0"
 SETTINGS_ROOT = Path.home() / ".chievfx_mcp_installer"
 LEGACY_SETTINGS_PATH = Path.home() / ".chievfx_mcp_installer.json"
 DEFAULT_PROFILE_CONTEXT = Path("__default__")
@@ -74,6 +77,9 @@ QPushButton#InstallButton:disabled {
   border: 1px solid #3a404a;
 }
 """
+
+PACKAGE_NAME = "com.chievfx.mcp"
+DEFAULT_TGZ_DEST_FOLDER = "Assets/Editor"
 
 MCP_PATHS: tuple[str, ...] = (
     # New MCP lives as a Unity package inside `Packages/com.chievfx.mcp/`.
@@ -158,6 +164,8 @@ class InstallerProfile:
     context_path: Path
     last_from_path: Path | None
     to_paths: list[Path]
+    install_as_tgz: bool = False
+    tgz_dest_folder: str = DEFAULT_TGZ_DEST_FOLDER
 
 
 def detect_from_root(
@@ -270,6 +278,8 @@ def load_profile(context_path: Path) -> InstallerProfile:
     except Exception:
         data = None
 
+    install_as_tgz = False
+    tgz_dest_folder = DEFAULT_TGZ_DEST_FOLDER
     if isinstance(data, dict):
         raw_from = data.get("lastFromPath")
         if isinstance(raw_from, str) and raw_from.strip():
@@ -277,6 +287,10 @@ def load_profile(context_path: Path) -> InstallerProfile:
             if validate_from(candidate).ok:
                 last_from_path = candidate.resolve()
         to_paths = _normalize_to_paths(data.get("toPaths", []))
+        install_as_tgz = bool(data.get("installAsTgz", False))
+        raw_dest = data.get("tgzDestFolder")
+        if isinstance(raw_dest, str) and raw_dest.strip():
+            tgz_dest_folder = raw_dest.strip()
     elif context_path == DEFAULT_PROFILE_CONTEXT:
         to_paths = _load_legacy_to_paths()
 
@@ -284,6 +298,8 @@ def load_profile(context_path: Path) -> InstallerProfile:
         context_path=context_path,
         last_from_path=last_from_path,
         to_paths=to_paths,
+        install_as_tgz=install_as_tgz,
+        tgz_dest_folder=tgz_dest_folder,
     )
 
 
@@ -297,6 +313,8 @@ def save_profile(profile: InstallerProfile) -> None:
                 str(profile.last_from_path.resolve()) if profile.last_from_path is not None else None
             ),
             "toPaths": [str(path.resolve()) for path in profile.to_paths],
+            "installAsTgz": profile.install_as_tgz,
+            "tgzDestFolder": profile.tgz_dest_folder,
         }
         settings_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     except Exception:
@@ -539,6 +557,113 @@ def perform_install(
     log("  3. Reload Cursor MCP tools or restart Cursor.")
 
 
+def _read_package_version(from_root: Path) -> str:
+    package_json = from_root / "Packages" / PACKAGE_NAME / "package.json"
+    try:
+        data = json.loads(package_json.read_text(encoding="utf-8"))
+        version = data.get("version")
+        if isinstance(version, str) and version.strip():
+            return version.strip()
+    except Exception:
+        pass
+    return "0.0.0"
+
+
+def _tarball_members(package_dir: Path) -> Iterable[tuple[Path, str]]:
+    """(absolute file, arcname) pairs under a top-level ``package/`` root (npm/Unity tarball layout),
+    applying the same ignores as the copy install. .meta files are kept — an immutable tarball package
+    drops any .cs that lacks its .meta."""
+    ignored_dir_metas = {d + ".meta" for d in COPY_IGNORE_DIRS}
+    for current, dirnames, filenames in os.walk(package_dir):
+        dirnames[:] = sorted(d for d in dirnames if d not in COPY_IGNORE_DIRS)
+        for filename in sorted(filenames):
+            if filename.endswith(COPY_IGNORE_SUFFIXES) or filename in ignored_dir_metas:
+                continue
+            abs_path = Path(current) / filename
+            arcname = "package/" + abs_path.relative_to(package_dir).as_posix()
+            yield abs_path, arcname
+
+
+def build_package_tarball(from_root: Path, tgz_path: Path, log: Callable[[str], None]) -> None:
+    package_dir = from_root / "Packages" / PACKAGE_NAME
+    if not (package_dir / "package.json").is_file():
+        raise FileNotFoundError(f"Missing {package_dir / 'package.json'}; cannot build a Unity tarball.")
+    tgz_path.parent.mkdir(parents=True, exist_ok=True)
+    if tgz_path.exists():
+        tgz_path.unlink()
+    count = 0
+    with tarfile.open(tgz_path, "w:gz") as tar:
+        for abs_path, arcname in _tarball_members(package_dir):
+            tar.add(abs_path, arcname=arcname, recursive=False)
+            count += 1
+    log(f"  packed {count} files into {tgz_path.name}")
+
+
+def _relative_file_dependency(tgz_path: Path, packages_dir: Path) -> str:
+    # Unity resolves file: tarball paths relative to the project's Packages folder; use posix separators.
+    return "file:" + os.path.relpath(tgz_path, packages_dir).replace(os.sep, "/")
+
+
+def perform_install_tgz(
+    from_root: Path,
+    to_root: Path,
+    dest_folder: str,
+    log: Callable[[str], None],
+) -> None:
+    log(f"FROM: {from_root}")
+    log(f"TO:   {to_root}")
+    log("MODE: tarball (.tgz) dependency")
+    log("")
+
+    version = _read_package_version(from_root)
+    dest_rel = (dest_folder or "").strip().strip("/\\") or DEFAULT_TGZ_DEST_FOLDER
+    dest_dir = to_root / Path(dest_rel)
+    tgz_path = dest_dir / f"{PACKAGE_NAME}-{version}.tgz"
+
+    log("[1/4] Removing any embedded package copy in TO (avoids a duplicate definition) ...")
+    embedded = to_root / "Packages" / PACKAGE_NAME
+    for target in (embedded, embedded.with_name(embedded.name + ".meta")):
+        if target.exists() or target.is_symlink():
+            _remove_path(target, log)
+        else:
+            log(f"  skipped (absent) {target}")
+
+    log("")
+    log(f"[2/4] Removing previous {PACKAGE_NAME} tarballs in {dest_rel} ...")
+    if dest_dir.exists():
+        for old in sorted(dest_dir.glob(f"{PACKAGE_NAME}-*.tgz")):
+            _remove_path(old, log)
+            old_meta = old.with_name(old.name + ".meta")
+            if old_meta.exists():
+                _remove_path(old_meta, log)
+
+    log("")
+    log(f"[3/4] Building {tgz_path.name} in {dest_rel} ...")
+    build_package_tarball(from_root, tgz_path, log)
+
+    log("")
+    log("[4/4] Writing the file: dependency into Packages/manifest.json ...")
+    manifest_path = to_root / "Packages" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise ValueError(f"{manifest_path} is not a JSON object.")
+    dependencies = manifest.get("dependencies")
+    if not isinstance(dependencies, dict):
+        dependencies = {}
+        manifest["dependencies"] = dependencies
+    dependency = _relative_file_dependency(tgz_path, to_root / "Packages")
+    dependencies[PACKAGE_NAME] = dependency
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    log(f"  {PACKAGE_NAME} -> {dependency}")
+
+    log("")
+    log("Done (tarball install).")
+    log("Next steps in target Unity project:")
+    log("  1. Open the project; Unity imports the tarball as an immutable package.")
+    log("  2. Window > ChievFX > MCP -> Start Bridge -> Write client config.")
+    log("  3. Reload the MCP client tools or restart it.")
+
+
 class _InstallWorker(QObject):
     log_line = pyqtSignal(str)
     finished_ok = pyqtSignal()
@@ -548,21 +673,33 @@ class _InstallWorker(QObject):
         self,
         from_root: Path,
         to_roots: Iterable[Path],
+        install_as_tgz: bool = False,
+        tgz_dest_folder: str = DEFAULT_TGZ_DEST_FOLDER,
     ) -> None:
         super().__init__()
         self._from_root = from_root
         self._to_roots = tuple(to_roots)
+        self._install_as_tgz = install_as_tgz
+        self._tgz_dest_folder = tgz_dest_folder
 
     def run(self) -> None:
         try:
             total = len(self._to_roots)
             for index, to_root in enumerate(self._to_roots, start=1):
                 self.log_line.emit(f"=== Target {index}/{total}: {to_root} ===")
-                perform_install(
-                    self._from_root,
-                    to_root,
-                    self.log_line.emit,
-                )
+                if self._install_as_tgz:
+                    perform_install_tgz(
+                        self._from_root,
+                        to_root,
+                        self._tgz_dest_folder,
+                        self.log_line.emit,
+                    )
+                else:
+                    perform_install(
+                        self._from_root,
+                        to_root,
+                        self.log_line.emit,
+                    )
                 if index < total:
                     self.log_line.emit("")
             self.finished_ok.emit()
@@ -985,6 +1122,29 @@ class InstallerWindow(QMainWindow):
         zones.addWidget(self._to_zone, 1)
         root_layout.addLayout(zones)
 
+        options = QHBoxLayout()
+        self._tgz_checkbox = QCheckBox("Install as tarball (.tgz)")
+        self._tgz_checkbox.setToolTip(
+            "Instead of copying sources into Packages/, build a .tgz and reference it from "
+            "Packages/manifest.json via a file: dependency. The .tgz is written into the TO project."
+        )
+        self._tgz_checkbox.toggled.connect(self._on_tgz_toggled)
+        options.addWidget(self._tgz_checkbox)
+
+        self._tgz_folder_label = QLabel("Destination folder:")
+        options.addWidget(self._tgz_folder_label)
+        self._tgz_folder_edit = QLineEdit(DEFAULT_TGZ_DEST_FOLDER)
+        self._tgz_folder_edit.setPlaceholderText(DEFAULT_TGZ_DEST_FOLDER)
+        self._tgz_folder_edit.setToolTip(
+            "Project-relative folder in each TO project where the .tgz is written (default Assets/Editor)."
+        )
+        self._tgz_folder_edit.textChanged.connect(self._on_tgz_folder_changed)
+        options.addWidget(self._tgz_folder_edit, 1)
+        root_layout.addLayout(options)
+
+        self._tgz_folder_label.setEnabled(False)
+        self._tgz_folder_edit.setEnabled(False)
+
         controls = QHBoxLayout()
         self._autodetect_button = QPushButton("Auto-detect FROM (walk up from installer)")
         self._autodetect_button.clicked.connect(self._on_autodetect_from)
@@ -1132,6 +1292,20 @@ class InstallerWindow(QMainWindow):
             self._from_zone.set_path(profile.last_from_path)
         if profile.to_paths:
             self._to_zone.set_paths(profile.to_paths)
+        self._tgz_folder_edit.blockSignals(True)
+        self._tgz_folder_edit.setText(profile.tgz_dest_folder or DEFAULT_TGZ_DEST_FOLDER)
+        self._tgz_folder_edit.blockSignals(False)
+        self._tgz_checkbox.setChecked(profile.install_as_tgz)
+        self._on_tgz_toggled(profile.install_as_tgz)
+
+    def _on_tgz_toggled(self, checked: bool) -> None:
+        self._tgz_folder_label.setEnabled(checked)
+        self._tgz_folder_edit.setEnabled(checked)
+        self._remember_profile()
+        self._refresh_install_button()
+
+    def _on_tgz_folder_changed(self, _text: str) -> None:
+        self._remember_profile()
 
     def _remember_profile(self) -> None:
         save_profile(
@@ -1139,6 +1313,8 @@ class InstallerWindow(QMainWindow):
                 context_path=self._context_path,
                 last_from_path=self._from_zone.path(),
                 to_paths=self._to_zone.paths(),
+                install_as_tgz=self._tgz_checkbox.isChecked(),
+                tgz_dest_folder=self._tgz_folder_edit.text().strip() or DEFAULT_TGZ_DEST_FOLDER,
             )
         )
 
@@ -1194,19 +1370,32 @@ class InstallerWindow(QMainWindow):
             )
             return
 
+        install_as_tgz = self._tgz_checkbox.isChecked()
+        tgz_dest_folder = self._tgz_folder_edit.text().strip() or DEFAULT_TGZ_DEST_FOLDER
         target_lines = "\n".join(f"  - {path}" for path in to_roots)
         _bring_window_forward(self)
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Question)
         box.setWindowTitle(APP_TITLE)
         box.setText("Install ChievFX MCP into the selected TO folders?")
-        box.setInformativeText(
-            "This will install to these TO folders:\n"
-            f"{target_lines}\n\n"
-            "In each TO folder, this will DELETE:\n"
-            "  - Packages/com.chievfx.mcp (and its .meta)\n\n"
-            "Then copy a fresh MCP package from FROM."
-        )
+        if install_as_tgz:
+            informative = (
+                "This will install to these TO folders:\n"
+                f"{target_lines}\n\n"
+                "In each TO folder, this will:\n"
+                "  - DELETE any embedded Packages/com.chievfx.mcp (and its .meta)\n"
+                f"  - write com.chievfx.mcp-<version>.tgz into {tgz_dest_folder}/\n"
+                "  - add a file: dependency to Packages/manifest.json"
+            )
+        else:
+            informative = (
+                "This will install to these TO folders:\n"
+                f"{target_lines}\n\n"
+                "In each TO folder, this will DELETE:\n"
+                "  - Packages/com.chievfx.mcp (and its .meta)\n\n"
+                "Then copy a fresh MCP package from FROM."
+            )
+        box.setInformativeText(informative)
         install_button = box.addButton("Install", QMessageBox.ButtonRole.AcceptRole)
         box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(install_button)
@@ -1220,6 +1409,8 @@ class InstallerWindow(QMainWindow):
                 context_path=self._context_path,
                 last_from_path=from_root,
                 to_paths=to_roots,
+                install_as_tgz=install_as_tgz,
+                tgz_dest_folder=tgz_dest_folder,
             )
         )
         self._install_button.setEnabled(False)
@@ -1228,7 +1419,7 @@ class InstallerWindow(QMainWindow):
         self._append_log(f"Starting install ({len(to_roots)} target{'s' if len(to_roots) != 1 else ''})...")
 
         self._worker_thread = QThread(self)
-        self._worker = _InstallWorker(from_root, to_roots)
+        self._worker = _InstallWorker(from_root, to_roots, install_as_tgz, tgz_dest_folder)
         self._worker.moveToThread(self._worker_thread)
 
         self._worker_thread.started.connect(self._worker.run)

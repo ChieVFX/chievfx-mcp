@@ -23,10 +23,17 @@ of copying sources. For each `TO` project the installer:
 
 - removes any embedded `Packages/com.chievfx.mcp/` (so there is no duplicate
   definition),
-- builds `com.chievfx.mcp-<version>.tgz` into the **Destination folder** (default
-  `Assets/Editor`, editable in the UI), and
+- builds `com.chievfx.mcp-<version>.f<n>.tgz` into the **Destination folder**
+  (default `Assets/Editor`, editable in the UI), and
 - adds `"com.chievfx.mcp": "file:<relative-path>.tgz"` to
   `Packages/manifest.json`.
+
+The `.f<n>` build suffix auto-increments each install (`n` = the biggest existing
+`.f` in the target folder(s) + 1, shared across all targets in one run). Because
+the filename changes every time, the manifest `file:` reference changes too, so a
+project copy that pulls the new `.tgz` re-resolves the package automatically —
+no manual `package.json` version bump required. The previous `.tgz` (any version
+or index) in the destination folder root is removed so they don't accumulate.
 
 The `.tgz` includes every package file **and its `.meta`** (an immutable tarball
 package drops any `.cs` missing its `.meta`), excluding `__pycache__/`, `tests/`,

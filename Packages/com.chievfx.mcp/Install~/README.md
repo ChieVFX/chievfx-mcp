@@ -23,17 +23,25 @@ of copying sources. For each `TO` project the installer:
 
 - removes any embedded `Packages/com.chievfx.mcp/` (so there is no duplicate
   definition),
-- builds `com.chievfx.mcp-<version>.f<n>.tgz` into the **Destination folder**
-  (default `Assets/Editor`, editable in the UI), and
+- builds the tarball into the **Destination folder** (default `Assets/Editor`,
+  editable in the UI), and
 - adds `"com.chievfx.mcp": "file:<relative-path>.tgz"` to
   `Packages/manifest.json`.
 
-The `.f<n>` build suffix auto-increments each install (`n` = the biggest existing
-`.f` in the target folder(s) + 1, shared across all targets in one run). Because
-the filename changes every time, the manifest `file:` reference changes too, so a
-project copy that pulls the new `.tgz` re-resolves the package automatically —
-no manual `package.json` version bump required. The previous `.tgz` (any version
-or index) in the destination folder root is removed so they don't accumulate.
+The tarball filename carries a per-version build suffix so updates propagate
+without a manual `package.json` bump:
+
+- the **first** tarball of a version has **no suffix**
+  (`com.chievfx.mcp-<version>.tgz`),
+- each subsequent rebuild of the **same** version increments `.f1`, `.f2`, … (the
+  suffix = biggest existing index for that version in the target folder(s) + 1,
+  shared across all targets in one run so it matches between projects),
+- bumping the version in `package.json` starts fresh (no suffix again).
+
+Because the filename — and therefore the manifest `file:` reference — changes on
+every install, a project copy that pulls the new `.tgz` re-resolves the package
+automatically. The previous `.tgz` (any version/index) in the destination folder
+root is removed so they don't accumulate.
 
 The `.tgz` includes every package file **and its `.meta`** (an immutable tarball
 package drops any `.cs` missing its `.meta`), excluding `__pycache__/`, `tests/`,

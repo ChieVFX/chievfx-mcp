@@ -50,7 +50,7 @@ from PyQt6.QtWidgets import (
 
 
 APP_TITLE = "ChievFX Unity MCP Installer"
-APP_VERSION = "0.4.1"
+APP_VERSION = "0.4.2"
 SETTINGS_ROOT = Path.home() / ".chievfx_mcp_installer"
 LEGACY_SETTINGS_PATH = Path.home() / ".chievfx_mcp_installer.json"
 DEFAULT_PROFILE_CONTEXT = Path("__default__")
@@ -609,27 +609,46 @@ def _normalize_dest_folder(dest_folder: str) -> str:
     return (dest_folder or "").strip().strip("/\\") or DEFAULT_TGZ_DEST_FOLDER
 
 
-# The .f<index> build suffix makes every install produce a new tarball filename, so the manifest
-# file: reference changes and pulling copies re-resolve without a manual package.json version bump.
-_F_INDEX_RE = re.compile(r"\.f(\d+)\.tgz$")
+# The build suffix makes every install produce a new tarball filename, so the manifest file:
+# reference changes and pulling copies re-resolve without a manual package.json version bump. It is
+# per-version: the FIRST tarball of a version has no suffix, then .f1, .f2, ... on same-version
+# rebuilds; a version bump starts fresh (no suffix again).
+#   index -1 -> no tarball for this version yet   (next filename: no suffix)
+#   index  0 -> com.chievfx.mcp-<version>.tgz      (next filename: .f1)
+#   index  N -> com.chievfx.mcp-<version>.fN.tgz   (next filename: .f(N+1))
 
 
-def _max_f_index_in_folder(dest_dir: Path) -> int:
-    highest = 0
-    if dest_dir.is_dir():
-        for tgz in dest_dir.glob(f"{PACKAGE_NAME}-*.tgz"):
-            match = _F_INDEX_RE.search(tgz.name)
-            if match:
-                highest = max(highest, int(match.group(1)))
-    return highest
+def _tgz_filename(version: str, index: int) -> str:
+    suffix = f".f{index}" if index >= 1 else ""
+    return f"{PACKAGE_NAME}-{version}{suffix}.tgz"
 
 
-def compute_next_f_index(to_roots: Iterable[Path], dest_folder: str) -> int:
-    # Shared across all TO folders in one run (take the biggest existing + 1) so the suffix stays
-    # identical between projects installed together.
+def _tarball_index_for_version(dest_dir: Path, version: str) -> int:
+    if not dest_dir.is_dir():
+        return -1
+    prefix = f"{PACKAGE_NAME}-{version}"
+    suffix_re = re.compile(r"^" + re.escape(prefix) + r"\.f(\d+)\.tgz$")
+    plain_name = f"{prefix}.tgz"
+    best = -1
+    for tgz in dest_dir.glob(f"{PACKAGE_NAME}-*.tgz"):
+        match = suffix_re.match(tgz.name)
+        if match:
+            best = max(best, int(match.group(1)))
+        elif tgz.name == plain_name:
+            best = max(best, 0)
+    return best
+
+
+def compute_next_f_index(to_roots: Iterable[Path], dest_folder: str, version: str) -> int:
+    # Shared across all TO folders in one run (take the biggest current index for this version + 1) so
+    # the suffix stays identical between projects installed together. -1 (version not present anywhere)
+    # -> 0, which _tgz_filename renders suffix-less: a version bump drops the suffix.
     dest_rel = _normalize_dest_folder(dest_folder)
-    highest = max((_max_f_index_in_folder(to_root / Path(dest_rel)) for to_root in to_roots), default=0)
-    return highest + 1
+    current = max(
+        (_tarball_index_for_version(to_root / Path(dest_rel), version) for to_root in to_roots),
+        default=-1,
+    )
+    return current + 1
 
 
 def perform_install_tgz(
@@ -647,7 +666,7 @@ def perform_install_tgz(
     version = _read_package_version(from_root)
     dest_rel = _normalize_dest_folder(dest_folder)
     dest_dir = to_root / Path(dest_rel)
-    tgz_path = dest_dir / f"{PACKAGE_NAME}-{version}.f{f_index}.tgz"
+    tgz_path = dest_dir / _tgz_filename(version, f_index)
 
     log("[1/4] Removing any embedded package copy in TO (avoids a duplicate definition) ...")
     embedded = to_root / "Packages" / PACKAGE_NAME
@@ -714,9 +733,13 @@ class _InstallWorker(QObject):
     def run(self) -> None:
         try:
             total = len(self._to_roots)
-            # One shared .f<index> for the whole run so all targets get the same suffix.
+            # One shared build index for the whole run so all targets get the same suffix.
             f_index = (
-                compute_next_f_index(self._to_roots, self._tgz_dest_folder)
+                compute_next_f_index(
+                    self._to_roots,
+                    self._tgz_dest_folder,
+                    _read_package_version(self._from_root),
+                )
                 if self._install_as_tgz
                 else 0
             )
@@ -1420,7 +1443,7 @@ class InstallerWindow(QMainWindow):
                 f"{target_lines}\n\n"
                 "In each TO folder, this will:\n"
                 "  - DELETE any embedded Packages/com.chievfx.mcp (and its .meta)\n"
-                f"  - write com.chievfx.mcp-<version>.f<n>.tgz into {tgz_dest_folder}/ (n auto-increments)\n"
+                f"  - write the tarball into {tgz_dest_folder}/ (no suffix on a new version, then .f1/.f2/... per rebuild)\n"
                 "  - add a file: dependency to Packages/manifest.json"
             )
         else:

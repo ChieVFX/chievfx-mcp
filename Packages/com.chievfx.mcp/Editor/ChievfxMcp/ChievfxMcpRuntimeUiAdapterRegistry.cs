@@ -642,9 +642,10 @@ namespace Chievfx.Mcp.Editor
         internal static RuntimeDragScreenGeometry ReadRuntimeDragGeometry(JToken args, List<string> warnings)
         {
             var isNormalized = ReadBool(args, "isNormalized", false);
+            var screenshotSpace = IsScreenshotSpace(args);
             var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
             RuntimeScreenPosition start;
-            if (TryReadDragScreenPoint(args, "x", "y", "startScreenPosition", "startNormalized", isNormalized, screenSize, out var startScreen))
+            if (TryReadDragScreenPoint(args, "x", "y", "startScreenPosition", "startNormalized", isNormalized, screenshotSpace, screenSize, out var startScreen))
             {
                 start = ToRuntimeScreenPosition(startScreen, screenSize);
             }
@@ -655,7 +656,7 @@ namespace Chievfx.Mcp.Editor
             }
 
             RuntimeScreenPosition end;
-            if (TryReadDragScreenPoint(args, "toX", "toY", "endScreenPosition", "endNormalized", isNormalized, screenSize, out var endScreen))
+            if (TryReadDragScreenPoint(args, "toX", "toY", "endScreenPosition", "endNormalized", isNormalized, screenshotSpace, screenSize, out var endScreen))
             {
                 end = ToRuntimeScreenPosition(endScreen, screenSize);
             }
@@ -774,9 +775,25 @@ namespace Chievfx.Mcp.Editor
             string legacyScreenKey,
             string legacyNormalizedKey,
             bool isNormalized,
+            bool screenshotSpace,
             Vector2 screenSize,
             out Vector2 screenPoint)
         {
+            if (screenshotSpace)
+            {
+                if (args[xKey] != null && args[yKey] != null)
+                {
+                    // Normalized 0..1 from the screenshot PNG (top-left origin); flip Y to bottom-left Screen space.
+                    var nx = Mathf.Clamp01(ReadFloat(args, xKey, 0f));
+                    var ny = Mathf.Clamp01(ReadFloat(args, yKey, 0f));
+                    screenPoint = new Vector2(nx * screenSize.x, (1f - ny) * screenSize.y);
+                    return true;
+                }
+
+                screenPoint = default;
+                return false;
+            }
+
             if (args[xKey] != null || args[yKey] != null)
             {
                 var x = ReadFloat(args, xKey, 0f);
@@ -1611,6 +1628,11 @@ namespace Chievfx.Mcp.Editor
         private static RuntimeScreenPosition ReadProbeScreenPosition(JToken args, List<string> warnings)
         {
             var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
+            if (IsScreenshotSpace(args))
+            {
+                return ReadScreenshotSpacePosition(args, screenSize);
+            }
+
             var isNormalized = ReadBool(args, "isNormalized", false);
             float x;
             float y;
@@ -1648,9 +1670,38 @@ namespace Chievfx.Mcp.Editor
             return RuntimeScreenPosition.FromScreenPosition(new Vector2(x, y));
         }
 
+        // Screenshot space: x/y are normalized 0..1 against the screenshot-game-view PNG (TOP-LEFT origin).
+        // Flip Y to reach the bottom-left Screen space the runtime uses. Only valid when that screenshot
+        // did not report pixelMappingReliable:false (aspects match); the caller is trusted on that.
+        private static bool IsScreenshotSpace(JToken args) =>
+            string.Equals((args["space"]?.Value<string>() ?? string.Empty).Trim(), "screenshot", StringComparison.OrdinalIgnoreCase);
+
+        private static RuntimeScreenPosition ReadScreenshotSpacePosition(JToken args, Vector2 screenSize)
+        {
+            if (args["x"] == null || args["y"] == null)
+            {
+                throw new ArgumentException("space:\"screenshot\" requires normalized x and y (px/pngWidth, py/pngHeight) read off the screenshot PNG.");
+            }
+
+            var x = ReadFloat(args, "x", 0f);
+            var y = ReadFloat(args, "y", 0f);
+            if (x < -0.001f || x > 1.001f || y < -0.001f || y > 1.001f)
+            {
+                throw new ArgumentException("space:\"screenshot\" x/y must be normalized 0..1 — divide the pixel you read by pngWidth/pngHeight.");
+            }
+
+            var normalized = new Vector2(Mathf.Clamp01(x), 1f - Mathf.Clamp01(y));
+            return new RuntimeScreenPosition(new Vector2(normalized.x * screenSize.x, normalized.y * screenSize.y), screenSize, normalized);
+        }
+
         private static RuntimeScreenPosition ReadScreenPosition(JToken args, List<string> warnings)
         {
             var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
+            if (IsScreenshotSpace(args))
+            {
+                return ReadScreenshotSpacePosition(args, screenSize);
+            }
+
             if (TryReadVector2(args["normalized"], out var normalized))
             {
                 return new RuntimeScreenPosition(new Vector2(normalized.x * screenSize.x, normalized.y * screenSize.y), screenSize, normalized);
@@ -1697,6 +1748,13 @@ namespace Chievfx.Mcp.Editor
                         ["type"] = "boolean",
                         ["default"] = false,
                         ["description"] = "When true, x/y are normalized 0..1 from bottom-left (0,0) to top-right (1,1). When false (default), x/y are pixels.",
+                    },
+                    ["space"] = new JObject
+                    {
+                        ["type"] = "string",
+                        ["enum"] = new JArray("screen", "screenshot"),
+                        ["default"] = "screen",
+                        ["description"] = "screen (default): x/y in Screen space (see isNormalized). screenshot: x/y are 0..1 from the screenshot-game-view PNG (top-left origin), auto Y-flipped; use only if that screenshot did not report pixelMappingReliable:false.",
                     },
                     ["page"] = new JObject
                     {

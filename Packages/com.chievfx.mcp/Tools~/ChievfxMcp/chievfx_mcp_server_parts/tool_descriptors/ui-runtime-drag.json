@@ -42,6 +42,12 @@
         "default": false,
         "description": "When true, x/y/toX/toY/deltaX/deltaY use normalized bottom-left coordinates."
       },
+      "space": {
+        "type": "string",
+        "enum": ["screen", "screenshot"],
+        "default": "screen",
+        "description": "screen (default): coords in Screen space (see isNormalized). screenshot: x/y and toX/toY are 0..1 from the screenshot-game-view PNG (top-left origin), auto Y-flipped; use only if that screenshot did not report pixelMappingReliable:false."
+      },
       "path": {
         "type": "string",
         "description": "uGUI GameObject transform path, UI Toolkit VisualElement path, or visualElementRef (ve:...) from runtime reads/probes."

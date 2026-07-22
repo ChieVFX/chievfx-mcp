@@ -26,6 +26,12 @@
         "default": false,
         "description": "When true, x/y are normalized bottom-left coordinates where 1 is screen width/height."
       },
+      "space": {
+        "type": "string",
+        "enum": ["screen", "screenshot"],
+        "default": "screen",
+        "description": "screen (default): x/y in Screen space (see isNormalized). screenshot: x/y are 0..1 from the screenshot-game-view PNG (top-left origin), auto Y-flipped; use only if that screenshot did not report pixelMappingReliable:false."
+      },
       "path": {
         "type": "string",
         "description": "uGUI GameObject transform path, UI Toolkit VisualElement path, or visualElementRef (ve:...) from runtime reads/probes."

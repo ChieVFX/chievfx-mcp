@@ -286,9 +286,10 @@ namespace Chievfx.Mcp.Editor
         private static void RecordManagedPythonSetupAction()
         {
             lastSetupActions ??= new List<string>();
+            lastSetupActions.RemoveAll(a => a.StartsWith("Managed Python — ", System.StringComparison.Ordinal));
             lastSetupActions.Insert(
                 0,
-                $"Managed Python — {ChievfxMcpManagedPython.RootDirectory}/ ({ChievfxMcpManagedPython.PythonVersion})");
+                $"Managed Python — {ChievfxMcpManagedPython.RootDirectory} ({ChievfxMcpManagedPython.PythonVersion})");
         }
 
         private static void TryAutoInstallManagedPythonOnce()

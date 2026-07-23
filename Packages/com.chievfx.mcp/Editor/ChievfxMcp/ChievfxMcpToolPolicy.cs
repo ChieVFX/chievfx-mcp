@@ -33,6 +33,16 @@ namespace Chievfx.Mcp.Editor
                     return;
                 }
 
+                // Never (re)write client configs while entering or in Play Mode. This runs from the
+                // InitializeOnLoad bootstrap after EVERY domain reload — including the one that entering
+                // Play Mode triggers — and touching a config file makes clients like Cursor reconnect
+                // their MCP server, dropping a live tool call mid-play (the "server vanishes on Play"
+                // report). Config setup belongs to edit mode / project open, so defer while playing.
+                if (EditorApplication.isPlaying || EditorApplication.isPlayingOrWillChangePlaymode)
+                {
+                    return;
+                }
+
                 var writtenConfigs = ChievfxMcpToolPolicy.AutoWriteClientConfigs
                     ? ChievfxMcpWindow.EnsureAllClientConfigs()
                     : new System.Collections.Generic.List<string>();

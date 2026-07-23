@@ -28,6 +28,19 @@ namespace Chievfx.Mcp.Editor
 
         public static string ResolveExecutablePath()
         {
+            if (!ChievfxMcpToolPolicy.UseSystemPython)
+            {
+                if (ChievfxMcpManagedPython.IsInstalledAndCurrent()
+                    && ChievfxMcpManagedPython.TryGetExecutablePath(out var managed))
+                {
+                    var resolvedManaged = TryResolveRealExecutablePath(managed);
+                    return resolvedManaged ?? managed;
+                }
+
+                // Managed mode ignores system interpreters entirely.
+                return ChievfxMcpManagedPython.ExpectedExecutablePath();
+            }
+
             foreach (var candidate in EnumerateCandidates())
             {
                 if (!IsRunnablePython(candidate))

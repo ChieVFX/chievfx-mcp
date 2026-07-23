@@ -212,6 +212,12 @@ namespace Chievfx.Mcp.Editor
         // markup. Only tags with both opening and closing present are removed.
         public static bool StripStyleTagsFromConsoleLogs => EditorPrefs.GetBool(StripStyleTagsFromConsoleLogsKey, true);
 
+        public const string UseSystemPythonKey = ServerName + ".useSystemPython";
+
+        // Default OFF: use the managed portable CPython under ~/.chievfx-mcp/env/.
+        // Dev-only escape hatch to prefer a system interpreter instead.
+        public static bool UseSystemPython => EditorPrefs.GetBool(UseSystemPythonKey, false);
+
         public static string BridgeUrl => $"http://127.0.0.1:{DefaultBridgePort}";
 
         public static string ProjectRoot => Path.GetFullPath(Path.Combine(Application.dataPath, ".."));

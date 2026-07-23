@@ -14,11 +14,14 @@ namespace Chievfx.Mcp.Editor
     internal sealed class ChievfxMcpWelcomeWindow : EditorWindow
     {
         private const string CheckedThisSessionKey = ChievfxMcpToolPolicy.ServerName + ".welcomeCheckedThisSession";
+        private const string ManagedPythonAutoInstallAttemptedKey =
+            ChievfxMcpToolPolicy.ServerName + ".managedPythonAutoInstallAttempted";
 
-        // What the auto-setup just did (one line per written config file), shown in the window
-        // so the user sees which files were created/updated. Static on purpose: transient
+        // What the auto-setup just did (managed Python install and/or written config files),
+        // shown in the window so the user sees what changed. Static on purpose: transient
         // session memory, cleared by the next domain reload once the info has served its point.
         private static List<string>? lastSetupActions;
+        private static string? lastManagedPythonError;
 
         [MenuItem("Window/ChievFX MCP Welcome")]
         public static void Open()
@@ -97,6 +100,8 @@ namespace Chievfx.Mcp.Editor
 
         private void BuildContent()
         {
+            TryAutoInstallManagedPythonOnce();
+
             rootVisualElement.Clear();
             var content = new ScrollView(ScrollViewMode.Vertical);
             content.style.flexGrow = 1;
@@ -202,10 +207,16 @@ namespace Chievfx.Mcp.Editor
             content.Add(showOnStartupToggle);
         }
 
-        private static VisualElement BuildPythonFixCard(ChievfxMcpPythonEnvironmentStatus pythonStatus)
+        private VisualElement BuildPythonFixCard(ChievfxMcpPythonEnvironmentStatus pythonStatus)
         {
             var card = CreateSectionCard("Fix: Python");
-            card.Add(new HelpBox(pythonStatus.Guidance, HelpBoxMessageType.Warning));
+            var guidance = pythonStatus.Guidance;
+            if (!string.IsNullOrWhiteSpace(lastManagedPythonError))
+            {
+                guidance = lastManagedPythonError + "\n\n" + guidance;
+            }
+
+            card.Add(new HelpBox(guidance, HelpBoxMessageType.Warning));
 
             var actions = new VisualElement
             {
@@ -230,6 +241,37 @@ namespace Chievfx.Mcp.Editor
                         "OK");
                 }));
             }
+            else if (!ChievfxMcpToolPolicy.UseSystemPython)
+            {
+                actions.Add(CreateButton("Reinstall Python", () =>
+                {
+                    if (ChievfxMcpManagedPython.TryReinstall(out var error))
+                    {
+                        lastManagedPythonError = null;
+                        ChievfxMcpPythonLauncher.InvalidateCache();
+                        ChievfxMcpPythonEnvironment.GetStatus(forceRefresh: true);
+                        var written = ChievfxMcpWindow.EnsureAllClientConfigs();
+                        if (written.Count > 0)
+                        {
+                            lastSetupActions = written;
+                        }
+
+                        RecordManagedPythonSetupAction();
+
+                        EditorUtility.DisplayDialog(
+                            "ChievFX MCP",
+                            $"Managed Python installed at {ChievfxMcpManagedPython.RootDirectory}.",
+                            "OK");
+                    }
+                    else
+                    {
+                        lastManagedPythonError = error;
+                        EditorUtility.DisplayDialog("ChievFX MCP", error, "OK");
+                    }
+
+                    BuildContent();
+                }));
+            }
             else
             {
                 actions.Add(CreateButton("Open python.org Downloads", () =>
@@ -238,6 +280,53 @@ namespace Chievfx.Mcp.Editor
 
             card.Add(actions);
             return card;
+        }
+
+
+        private static void RecordManagedPythonSetupAction()
+        {
+            lastSetupActions ??= new List<string>();
+            lastSetupActions.Insert(
+                0,
+                $"Managed Python — {ChievfxMcpManagedPython.RootDirectory}/ ({ChievfxMcpManagedPython.PythonVersion})");
+        }
+
+        private static void TryAutoInstallManagedPythonOnce()
+        {
+            if (ChievfxMcpToolPolicy.UseSystemPython)
+            {
+                return;
+            }
+
+            if (ChievfxMcpManagedPython.IsInstalledAndCurrent())
+            {
+                lastManagedPythonError = null;
+                return;
+            }
+
+            if (SessionState.GetBool(ManagedPythonAutoInstallAttemptedKey, false))
+            {
+                return;
+            }
+
+            SessionState.SetBool(ManagedPythonAutoInstallAttemptedKey, true);
+            if (ChievfxMcpManagedPython.TryEnsureInstalled(forceReinstall: false, out var error))
+            {
+                lastManagedPythonError = null;
+                ChievfxMcpPythonLauncher.InvalidateCache();
+                ChievfxMcpPythonEnvironment.GetStatus(forceRefresh: true);
+                var written = ChievfxMcpWindow.EnsureAllClientConfigs();
+                if (written.Count > 0)
+                {
+                    lastSetupActions = written;
+                }
+
+                RecordManagedPythonSetupAction();
+            }
+            else
+            {
+                lastManagedPythonError = error;
+            }
         }
     }
 }

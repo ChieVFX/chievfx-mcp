@@ -246,7 +246,7 @@ namespace Chievfx.Mcp.Editor
             builder.AppendLine();
             builder.AppendLine(BuildInstallPythonGuidance());
 
-            if (IsWindows())
+            if (ChievfxMcpToolPolicy.UseSystemPython && IsWindows())
             {
                 builder.AppendLine();
                 builder.Append(
@@ -264,6 +264,13 @@ namespace Chievfx.Mcp.Editor
 
         private static string BuildInstallPythonGuidance()
         {
+            if (!ChievfxMcpToolPolicy.UseSystemPython)
+            {
+                return
+                    ChievfxMcpManagedPython.DescribeStatus()
+                    + " Use Reinstall Python in the Welcome or Connection panel to download a portable CPython into ~/.chievfx-mcp/env/.";
+            }
+
             if (IsWindows())
             {
                 return

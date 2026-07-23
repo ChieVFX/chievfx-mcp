@@ -52,6 +52,7 @@ namespace Chievfx.Mcp.Editor
         private Label? pythonPackagesChip;
         private Label? pythonDetailLabel;
         private Button? installPythonPackagesButton;
+        private Button? reinstallPythonButton;
         private Label? bridgeChip;
         private Label? httpChip;
         private Label? cursorConfigChip;
@@ -366,7 +367,23 @@ namespace Chievfx.Mcp.Editor
             pythonDetailLabel = CreateMutedLabel(string.Empty);
             settings.Add(pythonDetailLabel);
             installPythonPackagesButton = CreateButton("Install Python Packages", InstallPythonPackages);
-            settings.Add(CreateActionRow(installPythonPackagesButton));
+            reinstallPythonButton = CreateButton("Reinstall Python", ReinstallManagedPython);
+            settings.Add(CreateActionRow(installPythonPackagesButton, reinstallPythonButton));
+
+            var useSystemPythonToggle = new Toggle("Use system Python (dev)")
+            {
+                value = ChievfxMcpToolPolicy.UseSystemPython,
+                tooltip =
+                    "When off (default), MCP uses a managed portable CPython under ~/.chievfx-mcp/env/ and ignores system interpreters. When on, resolve Python from PATH / known install locations instead."
+            };
+            useSystemPythonToggle.RegisterValueChangedCallback(evt =>
+            {
+                EditorPrefs.SetBool(ChievfxMcpToolPolicy.UseSystemPythonKey, evt.newValue);
+                RefreshUi(forcePythonRefresh: true);
+            });
+            settings.Add(useSystemPythonToggle);
+            settings.Add(CreateMutedLabel(
+                "Default uses managed Python downloaded into ~/.chievfx-mcp/env/. Enable system Python only for local debugging."));
 
             transportField = new PopupField<string>(new List<string>(TransportChoices), LoadTransportIndex())
             {
@@ -889,6 +906,13 @@ namespace Chievfx.Mcp.Editor
                         ? DisplayStyle.Flex
                         : DisplayStyle.None;
             }
+
+            if (reinstallPythonButton != null)
+            {
+                reinstallPythonButton.style.display = ChievfxMcpToolPolicy.UseSystemPython
+                    ? DisplayStyle.None
+                    : DisplayStyle.Flex;
+            }
         }
 
         private static string BuildSetupGuidance(
@@ -948,6 +972,28 @@ namespace Chievfx.Mcp.Editor
             if (ChievfxMcpPythonEnvironment.TryInstallRequirements(out var error, out var output))
             {
                 EditorUtility.DisplayDialog("ChievFX MCP", output, "OK");
+            }
+            else
+            {
+                EditorUtility.DisplayDialog("ChievFX MCP", error, "OK");
+            }
+
+            RefreshUi(forcePythonRefresh: true);
+        }
+
+        private void ReinstallManagedPython()
+        {
+            if (ChievfxMcpManagedPython.TryReinstall(out var error))
+            {
+                var written = EnsureAllClientConfigs();
+                var message =
+                    $"Managed Python reinstalled at {ChievfxMcpManagedPython.RootDirectory}.";
+                if (written.Count > 0)
+                {
+                    message += $"\n\nRewrote MCP client configs:\n• {string.Join("\n• ", written)}";
+                }
+
+                EditorUtility.DisplayDialog("ChievFX MCP", message, "OK");
             }
             else
             {

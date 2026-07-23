@@ -82,6 +82,18 @@ def _server_from_tarball(tgz):
     return server if os.path.isfile(server) else None
 
 
+def _run(server):
+    argv = [sys.executable, server] + sys.argv[1:]
+    # Windows has no true exec: os.execv spawns a NEW pid and exits this process, so the MCP client
+    # (which tracks the process it spawned) sees the server die and the stdio pipe break. Stay resident
+    # as a thin parent and let the child inherit our stdin/stdout/stderr instead. On macOS/Linux execv
+    # is a real image replacement (same pid, same handles), which the client wants — so keep it there.
+    if os.name == 'nt':
+        import subprocess
+        raise SystemExit(subprocess.run(argv).returncode)
+    os.execv(sys.executable, argv)
+
+
 def main():
     root = _project_root()
     server = _installed_server(root)
@@ -92,7 +104,7 @@ def main():
     if server is None:
         sys.stderr.write('ChievFX MCP launcher: could not find chievfx_mcp_server.py under Packages/, Library/PackageCache/, or a committed com.chievfx.mcp-*.tgz. Open the project in Unity so the package imports.\n')
         sys.exit(1)
-    os.execv(sys.executable, [sys.executable, server] + sys.argv[1:])
+    _run(server)
 
 
 if __name__ == '__main__':

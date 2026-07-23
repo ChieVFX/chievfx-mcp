@@ -1355,6 +1355,68 @@ namespace Chievfx.Mcp.Editor
                 || block.Contains("chievfx_mcp_server.py", StringComparison.Ordinal);
         }
 
+        // Pulls this project's own [mcp_servers.<name>] section out of a Codex config, quoted
+        // ([mcp_servers."unity-<hash>"]) or bare, ignoring everything else in the file.
+        private static bool TryExtractCodexSection(string text, string serverName, out string section)
+        {
+            section = string.Empty;
+            var lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            var quotedHeader = $"[mcp_servers.{TomlString(serverName)}]";
+            var bareHeader = $"[mcp_servers.{serverName}]";
+            var index = 0;
+            while (index < lines.Length)
+            {
+                var trimmed = lines[index].Trim();
+                if (IsTomlSectionHeader(lines[index])
+                    && (string.Equals(trimmed, quotedHeader, StringComparison.Ordinal)
+                        || string.Equals(trimmed, bareHeader, StringComparison.Ordinal)))
+                {
+                    var start = index;
+                    index++;
+                    while (index < lines.Length && !IsTomlSectionHeader(lines[index]))
+                    {
+                        index++;
+                    }
+
+                    section = string.Join("\n", lines, start, index - start);
+                    return true;
+                }
+
+                index++;
+            }
+
+            return false;
+        }
+
+        // Order-independent equality of two Codex sections by their BODY lines (the header is excluded —
+        // extraction already matched it, and Codex may rewrite our quoted [mcp_servers."unity-<hash>"]
+        // to the equivalent bare [mcp_servers.unity-<hash>] since the hash is a valid bare key). Tolerates
+        // key reordering and blank-line/whitespace differences so we only rewrite when content truly differs.
+        private static bool CodexSectionMatches(string actual, string expected)
+        {
+            return CodexSectionBodyLineSet(actual).SetEquals(CodexSectionBodyLineSet(expected));
+        }
+
+        private static HashSet<string> CodexSectionBodyLineSet(string block)
+        {
+            var set = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var line in block.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
+            {
+                if (IsTomlSectionHeader(line))
+                {
+                    continue;
+                }
+
+                var trimmed = line.Trim();
+                if (trimmed.Length > 0)
+                {
+                    set.Add(trimmed);
+                }
+            }
+
+            return set;
+        }
+
         // Matches [mcp_servers."unity-<hash>"] / [mcp_servers.unity-<hash>] for any project copy
         // (any SHA) and the legacy unity-mcp-chievfx-<hash> form, so a stale copy's Codex section
         // is removed when writing config.
@@ -1820,10 +1882,11 @@ namespace Chievfx.Mcp.Editor
 
             if (clientInfo.Format == McpClientConfigFormat.CodexToml)
             {
-                return string.Equals(
-                    NormalizeConfigText(File.ReadAllText(clientInfo.ConfigPath)),
-                    NormalizeConfigText(BuildCodexConfigPreview(transport, port, timeout)),
-                    StringComparison.Ordinal);
+                // Compare ONLY our own [mcp_servers.<name>] section, order-independently. A full-file
+                // compare treated any change elsewhere (other MCP servers, section ordering, Codex
+                // reformatting them) as stale and rewrote on every check — an endless rewrite loop.
+                return TryExtractCodexSection(File.ReadAllText(clientInfo.ConfigPath), ChievfxMcpToolPolicy.CursorServerName, out var actualSection)
+                    && CodexSectionMatches(actualSection, BuildExpectedCodexServerBlock(transport, port, timeout));
             }
 
             try

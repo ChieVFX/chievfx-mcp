@@ -1337,7 +1337,7 @@ namespace Chievfx.Mcp.Extensions.Control
             // the Unity handler, but must be declared here so additionalProperties=false clients keep them.
             ["waitForReady"] = Bool("Block until Play Mode actually reached the requested state (default true)."),
             ["settleMs"] = Int("Extra ms after the transition for frames to render (default 250)."),
-            ["timeoutMs"] = Int("Max ms to wait for the transition (default 20000)."),
+            ["timeoutMs"] = Int("Max ms to wait for the transition (default 120000 entering, 30000 exiting — entering domain-reloads and can be slow on large projects)."),
         });
 
         private static JObject Schema(JObject properties, params string[] required)

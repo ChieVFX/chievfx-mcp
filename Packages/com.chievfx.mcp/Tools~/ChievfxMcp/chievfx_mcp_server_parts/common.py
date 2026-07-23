@@ -102,8 +102,11 @@ RECOMPILE_START_GRACE_SECONDS = 1.5
 # Max compile errors/warnings echoed inline in the recompile result (each list capped independently).
 RECOMPILE_MAX_ISSUES = 50
 # editor-playmode-set waitForReady defaults: how long to wait for the play-mode transition, and how
-# long to settle afterwards so initial frames render before returning.
-PLAYMODE_WAIT_TIMEOUT_SECONDS = 20.0
+# long to settle afterwards so initial frames render before returning. Entering is far heavier than
+# exiting — a domain reload + scene load + first frames — and on a large project / slow machine that
+# routinely runs tens of seconds, so it gets a much larger default. Both are overridable via timeoutMs.
+PLAYMODE_ENTER_WAIT_TIMEOUT_SECONDS = 120.0
+PLAYMODE_EXIT_WAIT_TIMEOUT_SECONDS = 30.0
 PLAYMODE_SETTLE_MS_DEFAULT = 250
 BRIDGE_RECOVERY_WAIT_SECONDS = 300.0
 BRIDGE_STALE_RECOVERY_WAIT_SECONDS = 60.0

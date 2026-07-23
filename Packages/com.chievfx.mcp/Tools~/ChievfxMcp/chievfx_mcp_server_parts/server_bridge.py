@@ -234,8 +234,11 @@ class BridgeTransportMixin:
         if not parse_bool(arguments.get("waitForReady"), True):
             return result
 
+        default_wait_seconds = (
+            PLAYMODE_ENTER_WAIT_TIMEOUT_SECONDS if requested else PLAYMODE_EXIT_WAIT_TIMEOUT_SECONDS
+        )
         timeout_ms = clamp_int(
-            arguments.get("timeoutMs"), int(PLAYMODE_WAIT_TIMEOUT_SECONDS * 1000), 100, 5 * 60 * 1000
+            arguments.get("timeoutMs"), int(default_wait_seconds * 1000), 100, 5 * 60 * 1000
         )
         settle_ms = clamp_int(arguments.get("settleMs"), PLAYMODE_SETTLE_MS_DEFAULT, 0, 60 * 1000)
         self.emit_progress(progress_token, notify, 0.3, f"Waiting for Play Mode to reach isPlaying={requested}.")

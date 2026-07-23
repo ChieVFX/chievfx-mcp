@@ -24,6 +24,10 @@ namespace Chievfx.Mcp.Editor
             EditorApplication.delayCall += EnsureClientConfigsSafely;
         }
 
+        // Set once per Unity session after the first config check, so we don't re-check/re-write on every
+        // domain reload.
+        private const string ClientConfigsEnsuredSessionKey = "ChievfxMcp.ClientConfigsEnsured";
+
         private static void EnsureClientConfigsSafely()
         {
             try
@@ -32,6 +36,18 @@ namespace Chievfx.Mcp.Editor
                 {
                     return;
                 }
+
+                // Auto-write is an "on Unity open" convenience, but InitializeOnLoad re-runs on EVERY
+                // domain reload — every recompile and every Play Mode enter/exit. Writing a client config
+                // makes clients like Cursor re-register their MCP servers, which drops a live connection
+                // mid-call (exactly the "server vanishes when I press Play" symptom). So do this at most
+                // once per session; the MCP window's "Write Config" button covers mid-session needs.
+                if (SessionState.GetBool(ClientConfigsEnsuredSessionKey, false))
+                {
+                    return;
+                }
+
+                SessionState.SetBool(ClientConfigsEnsuredSessionKey, true);
 
                 var writtenConfigs = ChievfxMcpToolPolicy.AutoWriteClientConfigs
                     ? ChievfxMcpWindow.EnsureAllClientConfigs()

@@ -185,6 +185,16 @@ class BridgeTransportMixin:
         self.emit_progress(progress_token, notify, 1.0, "recompile completed.")
         return result
 
+    @staticmethod
+    def _requested_playmode(arguments: dict[str, Any]) -> bool | None:
+        # Mirror the C# handler's accepted keys so we still know the target state if the bridge response
+        # is lost to a domain reload. Boolean only (matches what the editor validates).
+        for key in ("isPlaying", "play", "playing", "enabled"):
+            value = arguments.get(key)
+            if isinstance(value, bool):
+                return value
+        return None
+
     def editor_playmode_set(
         self,
         arguments: dict[str, Any],
@@ -192,15 +202,33 @@ class BridgeTransportMixin:
         progress_token: Any = None,
         notify: Any | None = None,
     ) -> dict[str, Any]:
-        bridge_result = self.call_unity_bridge("editor-playmode-set", arguments, request_id, progress_token, notify)
-        result = bridge_result.get("result")
-        if not isinstance(result, dict):
-            result = {}
+        requested_arg = self._requested_playmode(arguments)
+        try:
+            bridge_result = self.call_unity_bridge("editor-playmode-set", arguments, request_id, progress_token, notify)
+            result = bridge_result.get("result")
+            if not isinstance(result, dict):
+                result = {}
+        except RuntimeError:
+            # Toggling Play Mode domain-reloads Unity, which can interrupt the bridge round-trip: the
+            # response is lost across the reload, or the heartbeat goes briefly stale and call_unity_bridge
+            # times out. That is NOT a failure — the editor still applied the toggle. Recover by confirming
+            # the real state from the heartbeat below instead of surfacing a scary "bridge unavailable".
+            # (Requires waitForReady so we actually go on to confirm; and a known requested state.)
+            if requested_arg is None or not self.bridge_dir or not parse_bool(arguments.get("waitForReady"), True):
+                raise
+            result = {
+                "ok": True,
+                "status": "requested",
+                "requestedIsPlaying": requested_arg,
+                "bridgeRoundTripInterrupted": True,
+            }
 
         # Entering/exiting Play Mode is async (and may domain-reload), so the bridge returns mid-transition.
         # When waitForReady is set, poll the heartbeat until isPlaying actually matches the request, then
         # settle briefly so initial frames render — removing the caller's guess-and-sleep.
         requested = result.get("requestedIsPlaying")
+        if not isinstance(requested, bool):
+            requested = requested_arg
         if result.get("ok") is False or not isinstance(requested, bool) or not self.bridge_dir:
             return result
         if not parse_bool(arguments.get("waitForReady"), True):

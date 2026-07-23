@@ -1239,11 +1239,42 @@ namespace Chievfx.Mcp.Editor
         {
             // The config points at the stable launcher; make sure it exists before we reference it.
             ChievfxMcpServerLauncher.EnsureLauncherWritten();
+            var content = BuildClientConfigPreview(clientInfo, transport, port, timeout);
+
+            // Never rewrite a file whose content is already equivalent. Touching a config file makes
+            // clients like Cursor re-register their MCP servers and drop a live connection (e.g. right as
+            // a Play Mode domain reload runs). JSON is compared semantically so a formatting- or
+            // key-order-only difference never triggers a write.
+            if (WrittenContentMatchesExisting(clientInfo, content))
+            {
+                return;
+            }
+
             Directory.CreateDirectory(Path.GetDirectoryName(clientInfo.ConfigPath)!);
-            File.WriteAllText(
-                clientInfo.ConfigPath,
-                BuildClientConfigPreview(clientInfo, transport, port, timeout),
-                new UTF8Encoding(false));
+            File.WriteAllText(clientInfo.ConfigPath, content, new UTF8Encoding(false));
+        }
+
+        private static bool WrittenContentMatchesExisting(McpClientInfo clientInfo, string newContent)
+        {
+            try
+            {
+                if (!File.Exists(clientInfo.ConfigPath))
+                {
+                    return false;
+                }
+
+                var existing = File.ReadAllText(clientInfo.ConfigPath);
+                if (clientInfo.Format == McpClientConfigFormat.CodexToml)
+                {
+                    return string.Equals(NormalizeConfigText(existing), NormalizeConfigText(newContent), StringComparison.Ordinal);
+                }
+
+                return JToken.DeepEquals(JToken.Parse(existing), JToken.Parse(newContent));
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static string BuildClientConfigPreview(McpClientInfo clientInfo, string transport, int port, int timeout)

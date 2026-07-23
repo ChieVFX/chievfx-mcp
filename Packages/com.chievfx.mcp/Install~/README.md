@@ -13,13 +13,16 @@ Packages/com.chievfx.mcp/         (entire package folder)
 Packages/com.chievfx.mcp.meta     (when present in FROM)
 ```
 
-Before installing (in **either** mode), the installer removes **every** existing
-form of the package from `TO` so only the mode being installed remains:
+Before installing (in **either** mode), the installer removes other existing
+forms of the package from `TO` so only the mode being installed remains:
 
 - embedded/copied sources — `Packages/com.chievfx.mcp/` (and its `.meta`),
-- any `com.chievfx.mcp-*.tgz` (and `.meta`) under `Assets/` or `Packages/`,
-- the `com.chievfx.mcp` entry in `Packages/manifest.json` — a git url, a
-  `file:` tarball, or a registry version.
+- any `com.chievfx.mcp-*.tgz` (and `.meta`) under `Assets/` or `Packages/`.
+
+The `com.chievfx.mcp` entry in `Packages/manifest.json` is then handled by the
+chosen mode: **copy** mode removes it (an embedded package needs no manifest
+entry), while **tarball** mode rewrites it (see below). Either way any prior git
+url, `file:`, or registry version is superseded.
 
 `__pycache__/`, `tests/`, `*.pyc`, and `*.pyo` are skipped during copy.
 
@@ -28,11 +31,13 @@ form of the package from `TO` so only the mode being installed remains:
 Tick **Install as tarball (.tgz)** to install as a Unity tarball dependency instead
 of copying sources. For each `TO` project the installer:
 
-- removes every existing install of the package (see above),
+- removes the other existing installs of the package (see above),
 - builds the tarball into the **Destination folder** (default `Assets/Editor`,
   editable in the UI), and
-- adds `"com.chievfx.mcp": "file:<relative-path>.tgz"` to
-  `Packages/manifest.json`.
+- sets `"com.chievfx.mcp": "file:<relative-path>.tgz"` in `Packages/manifest.json`
+  — if a `com.chievfx.mcp` line already exists it is **substituted in place**
+  (keeping its position), otherwise it is **inserted alphabetically** among the
+  dependencies.
 
 The tarball filename carries a per-version build suffix so updates propagate
 without a manual `package.json` bump:

@@ -50,7 +50,7 @@ from PyQt6.QtWidgets import (
 
 
 APP_TITLE = "ChievFX Unity MCP Installer"
-APP_VERSION = "0.4.3"
+APP_VERSION = "0.4.4"
 SETTINGS_ROOT = Path.home() / ".chievfx_mcp_installer"
 LEGACY_SETTINGS_PATH = Path.home() / ".chievfx_mcp_installer.json"
 DEFAULT_PROFILE_CONTEXT = Path("__default__")
@@ -540,6 +540,45 @@ def _remove_manifest_dependency(to_root: Path, log: Callable[[str], None]) -> No
     log(f"  removed manifest dependency {PACKAGE_NAME} -> {removed}")
 
 
+def _insert_dependency_alphabetically(dependencies: dict, name: str, value: str) -> dict:
+    """A new dependencies dict with name:value placed before the first existing key that sorts after it,
+    leaving the existing key order otherwise intact."""
+    result: dict = {}
+    inserted = False
+    for key, existing in dependencies.items():
+        if not inserted and key > name:
+            result[name] = value
+            inserted = True
+        result[key] = existing
+    if not inserted:
+        result[name] = value
+    return result
+
+
+def _set_manifest_dependency(to_root: Path, dependency: str, log: Callable[[str], None]) -> None:
+    """Write dependencies[com.chievfx.mcp] in Packages/manifest.json. If the key already exists (any
+    prior form — git url, file:, registry version), substitute the value IN PLACE, keeping its position;
+    otherwise insert it alphabetically among the existing dependencies."""
+    manifest_path = to_root / "Packages" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise ValueError(f"{manifest_path} is not a JSON object.")
+    dependencies = manifest.get("dependencies")
+    if not isinstance(dependencies, dict):
+        dependencies = {}
+        manifest["dependencies"] = dependencies
+
+    if PACKAGE_NAME in dependencies:
+        previous = dependencies[PACKAGE_NAME]
+        dependencies[PACKAGE_NAME] = dependency  # dict keeps the existing key position
+        log(f"  substituted {PACKAGE_NAME}: {previous} -> {dependency}")
+    else:
+        manifest["dependencies"] = _insert_dependency_alphabetically(dependencies, PACKAGE_NAME, dependency)
+        log(f"  inserted {PACKAGE_NAME} -> {dependency} (alphabetical)")
+
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+
 def _remove_all_tarballs(to_root: Path, log: Callable[[str], None]) -> None:
     """Remove every com.chievfx.mcp-*.tgz (and its .meta) under Assets/ or Packages/, wherever a prior
     tarball install dropped it (the dest folder is user-configurable and may have changed)."""
@@ -558,10 +597,11 @@ def _remove_all_tarballs(to_root: Path, log: Callable[[str], None]) -> None:
         log(f"  skipped (no {PACKAGE_NAME}-*.tgz found)")
 
 
-def clean_all_installations(to_root: Path, log: Callable[[str], None]) -> None:
+def clean_all_installations(to_root: Path, log: Callable[[str], None], drop_manifest_dependency: bool = True) -> None:
     """Remove EVERY form of a prior com.chievfx.mcp install from TO so only the mode being installed
-    remains: embedded/copied sources (+ tests), .tgz tarballs, and the manifest dependency (git url,
-    file: tarball, or registry version)."""
+    remains: embedded/copied sources (+ tests) and .tgz tarballs, plus the manifest dependency (git url,
+    file: tarball, or registry version) when drop_manifest_dependency is True. The tarball install keeps
+    the manifest key so it can substitute the new file: dependency in place (see _set_manifest_dependency)."""
     log("  embedded/copied sources:")
     for rel in _iter_cleanup_paths():
         target = to_root / rel
@@ -571,8 +611,9 @@ def clean_all_installations(to_root: Path, log: Callable[[str], None]) -> None:
             log(f"  skipped (absent) {target}")
     log("  tarball files:")
     _remove_all_tarballs(to_root, log)
-    log("  manifest dependency:")
-    _remove_manifest_dependency(to_root, log)
+    if drop_manifest_dependency:
+        log("  manifest dependency:")
+        _remove_manifest_dependency(to_root, log)
 
 
 def perform_install(
@@ -719,27 +760,17 @@ def perform_install_tgz(
     dest_dir = to_root / Path(dest_rel)
     tgz_path = dest_dir / _tgz_filename(version, f_index)
 
-    log("[1/3] Removing every existing MCP install in TO (sources, tarballs, manifest dependency) ...")
-    clean_all_installations(to_root, log)
+    log("[1/3] Removing other existing MCP installs in TO (embedded sources, tarballs) ...")
+    clean_all_installations(to_root, log, drop_manifest_dependency=False)
 
     log("")
     log(f"[2/3] Building {tgz_path.name} in {dest_rel} ...")
     build_package_tarball(from_root, tgz_path, log)
 
     log("")
-    log("[3/3] Writing the file: dependency into Packages/manifest.json ...")
-    manifest_path = to_root / "Packages" / "manifest.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if not isinstance(manifest, dict):
-        raise ValueError(f"{manifest_path} is not a JSON object.")
-    dependencies = manifest.get("dependencies")
-    if not isinstance(dependencies, dict):
-        dependencies = {}
-        manifest["dependencies"] = dependencies
+    log("[3/3] Setting the file: dependency in Packages/manifest.json (substitute in place, else insert alphabetically) ...")
     dependency = _relative_file_dependency(tgz_path, to_root / "Packages")
-    dependencies[PACKAGE_NAME] = dependency
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    log(f"  {PACKAGE_NAME} -> {dependency}")
+    _set_manifest_dependency(to_root, dependency, log)
 
     log("")
     log("Done (tarball install).")
@@ -1478,13 +1509,12 @@ class InstallerWindow(QMainWindow):
             informative = (
                 "This will install to these TO folders:\n"
                 f"{target_lines}\n\n"
-                "In each TO folder, this will first REMOVE every existing MCP install:\n"
+                "In each TO folder, this will first REMOVE other existing MCP installs:\n"
                 "  - embedded Packages/com.chievfx.mcp (and its .meta)\n"
-                "  - any com.chievfx.mcp-*.tgz under Assets/ or Packages/\n"
-                "  - the com.chievfx.mcp dependency in Packages/manifest.json (git url, file:, or version)\n\n"
+                "  - any com.chievfx.mcp-*.tgz under Assets/ or Packages/\n\n"
                 "Then it will:\n"
                 f"  - write the tarball into {tgz_dest_folder}/ (no suffix on a new version, then .f1/.f2/... per rebuild)\n"
-                "  - add a file: dependency to Packages/manifest.json"
+                "  - set the com.chievfx.mcp file: dependency in Packages/manifest.json (replace the existing line in place, or insert alphabetically)"
             )
         else:
             informative = (

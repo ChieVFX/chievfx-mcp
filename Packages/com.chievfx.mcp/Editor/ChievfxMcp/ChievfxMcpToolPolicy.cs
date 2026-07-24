@@ -21,6 +21,7 @@ namespace Chievfx.Mcp.Editor
             ChievfxMcpFirstPartyExtensionLoader.EnsureLoaded();
             EditorApplication.delayCall += StartBridgeSafely;
             EditorApplication.delayCall += EnforceExperimentalVisibilitySafely;
+            EditorApplication.delayCall += ChievfxMcpToolPolicy.WriteAvailabilitySettings;
             EditorApplication.delayCall += EnsureClientConfigsSafely;
         }
 
@@ -175,6 +176,14 @@ namespace Chievfx.Mcp.Editor
         // "Write Config".
         public static bool AutoWriteClientConfigs => EditorPrefs.GetBool(AutoWriteClientConfigsKey, true);
 
+        public const string ManualToolResourceSelectionKey = ServerName + ".manualToolResourceSelection";
+
+        // Default OFF: expose every non-hidden tool and resource; the Tools/Resources tabs are read-only
+        // and the Presets tab is hidden. ON: the user hand-picks tools, resources, and categories (Presets
+        // tab + per-item toggles), and the saved selection is honored. Mirrored to
+        // UserSettings/ChievfxMcpAvailability.json for the Python server, which can't read EditorPrefs.
+        public static bool ManualToolResourceSelection => EditorPrefs.GetBool(ManualToolResourceSelectionKey, false);
+
         public const string PackageName = "com.chievfx.mcp";
 
         public static readonly string[] RequiredToolIds = LoadRequiredToolIds();
@@ -268,6 +277,30 @@ namespace Chievfx.Mcp.Editor
         public static string BridgeEventPath => Path.Combine(BridgeDirectory, "events.json");
 
         public static string ExtensionCapabilitySnapshotPath => Path.Combine(BridgeDirectory, "extension-capabilities.snapshot.json");
+
+        // Mirror of the ManualToolResourceSelection toggle for the Python server (it can't read
+        // EditorPrefs). Written idempotently on load and whenever the toggle changes.
+        public static string AvailabilitySettingsPath => Path.Combine(ProjectRoot, "UserSettings", "ChievfxMcpAvailability.json");
+
+        public static void WriteAvailabilitySettings()
+        {
+            try
+            {
+                var path = AvailabilitySettingsPath;
+                var content = "{\n  \"manualSelection\": " + (ManualToolResourceSelection ? "true" : "false") + "\n}\n";
+                if (File.Exists(path) && string.Equals(File.ReadAllText(path), content, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllText(path, content, new UTF8Encoding(false));
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"ChievFX MCP could not write availability settings. {ex.Message}");
+            }
+        }
 
         public static string CursorConfigPath => Path.Combine(ProjectRoot, ".cursor", "mcp.json");
 

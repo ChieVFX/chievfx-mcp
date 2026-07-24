@@ -54,6 +54,10 @@ namespace Chievfx.Mcp.Editor
         private DateTime? lastSavedAtLocal;
         private bool suppressSave;
 
+        // Default expose-all mode: the Tools tab is a read-only listing (no per-tool/category toggles,
+        // no bulk/role controls). Interactive selection only when the user opts into manual mode.
+        private static bool ReadOnly => !ChievfxMcpToolPolicy.ManualToolResourceSelection;
+
         public void CreateGUI(VisualElement root, bool showTitle = true)
         {
             guiRoot = root;
@@ -87,6 +91,25 @@ namespace Chievfx.Mcp.Editor
             summaryLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
             summaryLabel.style.whiteSpace = WhiteSpace.Normal;
             content.Add(summaryLabel);
+
+            if (ReadOnly)
+            {
+                content.Add(new HelpBox(
+                    "All non-hidden tools are available. This list is read-only. To choose tools and categories yourself, turn on \"Customize which tools & resources are exposed\" in Connection.",
+                    HelpBoxMessageType.Info));
+                content.Add(CreateButton("Connection", ChievfxMcpWindow.OpenStatus));
+                content.Add(CreateQuickFilterField(quickFilterText, value =>
+                {
+                    quickFilterText = value;
+                    RenderTools();
+                    RefreshSummary();
+                }));
+                toolsList = new VisualElement();
+                toolsList.style.flexGrow = 1;
+                content.Add(toolsList);
+                ReloadMetadata();
+                return;
+            }
 
             if (allInfo)
             {
@@ -1030,19 +1053,22 @@ namespace Chievfx.Mcp.Editor
                 }
             };
 
-            var optionalRows = rows.Where(row => !row.Required).ToList();
-            var stateButton = CreateCategoryStateButton(rows, () =>
+            if (!ReadOnly)
             {
-                SetCategoryOptional(category, !AreAllOptionalEnabled(rows));
-            });
-            stateButton.SetEnabled(optionalRows.Count > 0);
-            stateButton.tooltip = GetCategoryDescription(category);
-            stateButton.RegisterCallback<MouseUpEvent>(evt => evt.StopPropagation());
-            categoryStateButtons[category] = stateButton;
-            header.Add(stateButton);
+                var optionalRows = rows.Where(row => !row.Required).ToList();
+                var stateButton = CreateCategoryStateButton(rows, () =>
+                {
+                    SetCategoryOptional(category, !AreAllOptionalEnabled(rows));
+                });
+                stateButton.SetEnabled(optionalRows.Count > 0);
+                stateButton.tooltip = GetCategoryDescription(category);
+                stateButton.RegisterCallback<MouseUpEvent>(evt => evt.StopPropagation());
+                categoryStateButtons[category] = stateButton;
+                header.Add(stateButton);
+            }
 
             var enabledCount = rows.Count(row => row.Required || row.Enabled);
-            var title = new Label(allInfo
+            var title = new Label(allInfo || ReadOnly
                 ? $"{category} ({rows.Count} tools)"
                 : $"{category} ({enabledCount}/{rows.Count})");
             title.style.unityFontStyleAndWeight = FontStyle.Bold;
@@ -1053,7 +1079,7 @@ namespace Chievfx.Mcp.Editor
             title.style.whiteSpace = WhiteSpace.Normal;
             header.Add(title);
 
-            if (allInfo)
+            if (allInfo && !ReadOnly)
             {
                 header.Add(CreateAlwaysSupplyToggle(category));
             }
@@ -1137,26 +1163,29 @@ namespace Chievfx.Mcp.Editor
                 }
             };
 
-            var toggle = new Toggle
+            if (!ReadOnly)
             {
-                value = row.Enabled
-            };
-            toggle.SetEnabled(!row.Required);
-            toggle.style.width = 24;
-            toggle.RegisterValueChangedCallback(evt =>
-            {
-                row.Enabled = row.Required || evt.newValue;
-                if (!suppressSave)
+                var toggle = new Toggle
                 {
-                    MarkManualOverride();
-                    SaveSelection();
-                    RenderRoleControls();
-                    RenderTools();
-                    RefreshSummary();
-                }
-            });
-            toggles[row.Id] = toggle;
-            header.Add(toggle);
+                    value = row.Enabled
+                };
+                toggle.SetEnabled(!row.Required);
+                toggle.style.width = 24;
+                toggle.RegisterValueChangedCallback(evt =>
+                {
+                    row.Enabled = row.Required || evt.newValue;
+                    if (!suppressSave)
+                    {
+                        MarkManualOverride();
+                        SaveSelection();
+                        RenderRoleControls();
+                        RenderTools();
+                        RefreshSummary();
+                    }
+                });
+                toggles[row.Id] = toggle;
+                header.Add(toggle);
+            }
 
             var nameLabel = new Label(row.Id);
             nameLabel.style.unityFontStyleAndWeight = FontStyle.Bold;

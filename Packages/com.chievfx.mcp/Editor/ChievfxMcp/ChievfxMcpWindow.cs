@@ -304,7 +304,13 @@ namespace Chievfx.Mcp.Editor
             };
 
             tabs.Add(CreateTabButton("Connection", ChievfxMcpTab.Status));
-            tabs.Add(CreateTabButton("Presets", ChievfxMcpTab.Presets));
+            // Presets only make sense when the user is customizing the selection; hidden in the default
+            // expose-all mode.
+            if (ChievfxMcpToolPolicy.ManualToolResourceSelection)
+            {
+                tabs.Add(CreateTabButton("Presets", ChievfxMcpTab.Presets));
+            }
+
             tabs.Add(CreateTabButton("Tools", ChievfxMcpTab.Tools));
             tabs.Add(CreateTabButton("Resources", ChievfxMcpTab.Resources));
             if (ShowExperimentalPromptsTab)
@@ -435,6 +441,29 @@ namespace Chievfx.Mcp.Editor
             writeConfigButton = CreateButton("Write Config", WriteSelectedClientConfig);
             cursorConfig.Add(CreateActionRow(writeConfigButton, CreateButton("Copy Preview", CopyPreview)));
             content.Add(cursorConfig);
+
+            var exposure = CreateSectionCard("Tool & Resource Exposure");
+            var manualSelectionToggle = new Toggle("Customize which tools & resources are exposed")
+            {
+                value = ChievfxMcpToolPolicy.ManualToolResourceSelection,
+                tooltip = "Off (default): every non-hidden tool and resource is available; the Tools and Resources tabs are read-only and the Presets tab is hidden. On: hand-pick tools, resources, and categories (Presets tab + per-item toggles); your saved selection is honored."
+            };
+            manualSelectionToggle.RegisterValueChangedCallback(evt =>
+            {
+                EditorPrefs.SetBool(ChievfxMcpToolPolicy.ManualToolResourceSelectionKey, evt.newValue);
+                ChievfxMcpToolPolicy.WriteAvailabilitySettings();
+                ChievfxMcpReloadSignal.RequestReload("unity-manual-selection-toggle");
+                if (!evt.newValue && activeTab == ChievfxMcpTab.Presets)
+                {
+                    activeTab = ChievfxMcpTab.Status;
+                    SaveActiveTab(activeTab);
+                }
+
+                BuildWindow();
+            });
+            exposure.Add(manualSelectionToggle);
+            exposure.Add(CreateMutedLabel("Off exposes all non-hidden tools & resources and keeps the Tools/Resources tabs read-only. Turn on to choose per tool, resource, and category, and to use Presets."));
+            content.Add(exposure);
 
             var automation = CreateSectionCard("Automation");
             var autoWriteClientConfigsToggle = new Toggle("Auto-write MCP client configs on Unity open")

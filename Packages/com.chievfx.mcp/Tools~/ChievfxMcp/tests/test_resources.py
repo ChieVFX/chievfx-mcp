@@ -46,10 +46,16 @@ class ResourceTests(unittest.TestCase):
         self.bridge_dir = Path(self.temp_dir.name) / "bridge"
         self.selection_path = Path(self.temp_dir.name) / "UserSettings" / "ChievfxMcpResourceSelection.json"
         self.extension_manifest_path = Path(self.temp_dir.name) / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
+        self.availability_path = Path(self.temp_dir.name) / "UserSettings" / "ChievfxMcpAvailability.json"
         self.original_selection_path = mcp.RESOURCE_SELECTION_PATH
         self.original_extension_manifest_path = mcp.EXTENSION_CAPABILITY_MANIFEST_PATH
+        self.original_availability_path = mcp.AVAILABILITY_SETTINGS_PATH
         mcp.RESOURCE_SELECTION_PATH = self.selection_path
         mcp.EXTENSION_CAPABILITY_MANIFEST_PATH = self.extension_manifest_path
+        mcp.AVAILABILITY_SETTINGS_PATH = self.availability_path
+        # Resource enable/disable is opt-in now that the default is expose-all-non-hidden.
+        self.availability_path.parent.mkdir(parents=True, exist_ok=True)
+        self.availability_path.write_text(json.dumps({"manualSelection": True}), encoding="utf-8")
         self.addCleanup(self.restore_selection_path)
         self.server = ResourceServer(self.bridge_dir)
         mcp.configure_extension_manifest_bridge_fetcher(None)
@@ -57,6 +63,7 @@ class ResourceTests(unittest.TestCase):
     def restore_selection_path(self) -> None:
         mcp.RESOURCE_SELECTION_PATH = self.original_selection_path
         mcp.EXTENSION_CAPABILITY_MANIFEST_PATH = self.original_extension_manifest_path
+        mcp.AVAILABILITY_SETTINGS_PATH = self.original_availability_path
 
     def write_extension_manifest(self, extensions: list[dict[str, object]]) -> None:
         self.extension_manifest_path.parent.mkdir(parents=True, exist_ok=True)

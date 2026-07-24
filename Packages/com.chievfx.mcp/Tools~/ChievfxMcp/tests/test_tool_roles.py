@@ -27,12 +27,19 @@ class ToolRoleTests(unittest.TestCase):
         self.root = Path(self.temp_dir.name)
         self.selection_path = self.root / "UserSettings" / "ChievfxMcpToolSelection.json"
         self.extension_manifest_path = self.root / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
+        self.availability_path = self.root / "UserSettings" / "ChievfxMcpAvailability.json"
         self.original_selection_path = mcp.TOOL_SELECTION_PATH
         self.original_extension_manifest_path = mcp.EXTENSION_CAPABILITY_MANIFEST_PATH
+        self.original_availability_path = mcp.AVAILABILITY_SETTINGS_PATH
         self.original_project_root = mcp.PROJECT_ROOT
         mcp.TOOL_SELECTION_PATH = self.selection_path
         mcp.EXTENSION_CAPABILITY_MANIFEST_PATH = self.extension_manifest_path
+        mcp.AVAILABILITY_SETTINGS_PATH = self.availability_path
         mcp.PROJECT_ROOT = self.root
+        # These tests exercise the manual selection / role surface, which is opt-in now that the default
+        # is expose-all-non-hidden.
+        self.availability_path.parent.mkdir(parents=True, exist_ok=True)
+        self.availability_path.write_text(json.dumps({"manualSelection": True}), encoding="utf-8")
         self.addCleanup(self.restore_paths)
         self.server = mcp.McpServer("http://127.0.0.1:1", str(self.root / "bridge"), timeout_ms=1000)
         mcp.configure_extension_manifest_bridge_fetcher(None)
@@ -40,6 +47,7 @@ class ToolRoleTests(unittest.TestCase):
     def restore_paths(self) -> None:
         mcp.TOOL_SELECTION_PATH = self.original_selection_path
         mcp.EXTENSION_CAPABILITY_MANIFEST_PATH = self.original_extension_manifest_path
+        mcp.AVAILABILITY_SETTINGS_PATH = self.original_availability_path
         mcp.PROJECT_ROOT = self.original_project_root
 
     def request(self, method: str, params: dict[str, object] | None = None) -> dict[str, object]:

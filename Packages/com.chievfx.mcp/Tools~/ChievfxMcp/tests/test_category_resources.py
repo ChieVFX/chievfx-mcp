@@ -29,20 +29,26 @@ class CategoryResourceTests(unittest.TestCase):
         self.tool_selection_path = root / "UserSettings" / "ChievfxMcpToolSelection.json"
         self.resource_selection_path = root / "UserSettings" / "ChievfxMcpResourceSelection.json"
         self.category_selection_path = root / "UserSettings" / "ChievfxMcpCategorySelection.json"
+        self.availability_path = root / "UserSettings" / "ChievfxMcpAvailability.json"
         self.extension_manifest_path = root / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
 
         self._originals = {
             "TOOL_SELECTION_PATH": mcp.TOOL_SELECTION_PATH,
             "RESOURCE_SELECTION_PATH": mcp.RESOURCE_SELECTION_PATH,
             "CATEGORY_SELECTION_PATH": mcp.CATEGORY_SELECTION_PATH,
+            "AVAILABILITY_SETTINGS_PATH": mcp.AVAILABILITY_SETTINGS_PATH,
             "EXTENSION_CAPABILITY_MANIFEST_PATH": mcp.EXTENSION_CAPABILITY_MANIFEST_PATH,
             "PROJECT_ROOT": mcp.PROJECT_ROOT,
         }
         mcp.TOOL_SELECTION_PATH = self.tool_selection_path
         mcp.RESOURCE_SELECTION_PATH = self.resource_selection_path
         mcp.CATEGORY_SELECTION_PATH = self.category_selection_path
+        mcp.AVAILABILITY_SETTINGS_PATH = self.availability_path
         mcp.EXTENSION_CAPABILITY_MANIFEST_PATH = self.extension_manifest_path
         mcp.PROJECT_ROOT = root
+        # Tool/resource selection is opt-in now that the default is expose-all-non-hidden.
+        self.availability_path.parent.mkdir(parents=True, exist_ok=True)
+        self.availability_path.write_text(json.dumps({"manualSelection": True}), encoding="utf-8")
         mcp.configure_extension_manifest_bridge_fetcher(None)
         mcp.invalidate_extension_manifest_cache()
         self.addCleanup(self.restore_paths)

@@ -167,6 +167,10 @@ def load_enabled_resource_ids() -> tuple[set[str], set[str]]:
         template["id"] for template in templates if template.get("required")
     }
 
+    if not manual_tool_resource_selection_enabled():
+        # Expose-all mode (default): every resource and template, regardless of saved selection.
+        return set(resource_ids), set(template_ids)
+
     try:
         payload = json.loads(RESOURCE_SELECTION_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):

@@ -47,10 +47,16 @@ class PromptTests(unittest.TestCase):
         self.bridge_dir = Path(self.temp_dir.name) / "bridge"
         self.selection_path = Path(self.temp_dir.name) / "UserSettings" / "ChievfxMcpPromptSelection.json"
         self.extension_manifest_path = Path(self.temp_dir.name) / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
+        self.availability_path = Path(self.temp_dir.name) / "UserSettings" / "ChievfxMcpAvailability.json"
         self.original_selection_path = mcp.PROMPT_SELECTION_PATH
         self.original_extension_manifest_path = mcp.EXTENSION_CAPABILITY_MANIFEST_PATH
+        self.original_availability_path = mcp.AVAILABILITY_SETTINGS_PATH
         mcp.PROMPT_SELECTION_PATH = self.selection_path
         mcp.EXTENSION_CAPABILITY_MANIFEST_PATH = self.extension_manifest_path
+        mcp.AVAILABILITY_SETTINGS_PATH = self.availability_path
+        # Prompts are a hidden surface, exposed only in manual selection mode.
+        self.availability_path.parent.mkdir(parents=True, exist_ok=True)
+        self.availability_path.write_text(json.dumps({"manualSelection": True}), encoding="utf-8")
         self.addCleanup(self.restore_paths)
         self.server = PromptServer(self.bridge_dir)
         mcp.configure_extension_manifest_bridge_fetcher(None)
@@ -58,6 +64,7 @@ class PromptTests(unittest.TestCase):
     def restore_paths(self) -> None:
         mcp.PROMPT_SELECTION_PATH = self.original_selection_path
         mcp.EXTENSION_CAPABILITY_MANIFEST_PATH = self.original_extension_manifest_path
+        mcp.AVAILABILITY_SETTINGS_PATH = self.original_availability_path
 
     def write_selection(self, enabled_prompt_names: list[str]) -> None:
         self.selection_path.parent.mkdir(parents=True, exist_ok=True)

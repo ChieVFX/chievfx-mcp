@@ -15,12 +15,34 @@ def load_tool_selection_payload() -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+# Categories that "expose all non-hidden" never auto-enables: autonomy/discovery helpers and
+# deprecated tools. Mirrors the C# panel's hidden set and the Tools tab's "Enable All" skip list.
+HIDDEN_TOOL_CATEGORIES = ("autonomous", "obsolete")
+
+
+def manual_tool_resource_selection_enabled() -> bool:
+    """Master toggle (Connection tab). False (default, file missing) = expose every non-hidden tool and
+    resource and ignore any saved per-tool/category selection. True = honor the saved manual selection.
+    Mirrored from EditorPrefs into UserSettings/ChievfxMcpAvailability.json since Python can't read
+    EditorPrefs."""
+    try:
+        payload = json.loads(AVAILABILITY_SETTINGS_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return isinstance(payload, dict) and payload.get("manualSelection") is True
+
+
 def load_enabled_tool_ids() -> set[str]:
     tools = all_tools()
     tool_names = {tool["name"] for tool in tools}
     required_tool_ids = required_tool_ids_for_tools(tools) & tool_names
-    payload = load_tool_selection_payload()
 
+    if not manual_tool_resource_selection_enabled():
+        # Expose-all mode (default): every non-hidden tool, regardless of any saved selection.
+        exposed = {tool["name"] for tool in tools if _tool_category(tool) not in HIDDEN_TOOL_CATEGORIES}
+        return (exposed | required_tool_ids) & tool_names
+
+    payload = load_tool_selection_payload()
     enabled_ids = payload.get("enabledToolIds")
     if not isinstance(enabled_ids, list):
         # First install: enable every tool except the autonomy/discovery helpers

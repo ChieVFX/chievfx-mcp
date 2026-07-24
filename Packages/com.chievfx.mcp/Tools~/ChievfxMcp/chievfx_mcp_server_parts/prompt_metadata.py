@@ -126,6 +126,10 @@ def build_prompt_metadata() -> dict[str, Any]:
 
 
 def load_enabled_prompt_names() -> set[str]:
+    # Prompts are a hidden surface, so expose-all mode (the default) advertises none of them; only the
+    # manual selection can turn prompts on (with the experimental Prompts tab).
+    if not manual_tool_resource_selection_enabled():
+        return set()
     prompts = all_prompts()
     prompt_names = {prompt["name"] for prompt in prompts}
     extension_prompt_names = {prompt["name"] for prompt in prompts if prompt.get("source") == "extension"}

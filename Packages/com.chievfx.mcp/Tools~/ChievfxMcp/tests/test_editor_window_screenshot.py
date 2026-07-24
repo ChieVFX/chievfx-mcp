@@ -122,17 +122,23 @@ class editorWindowScreenshotMetadataTests(unittest.TestCase):
         self.original_extension_manifest_path = mcp.EXTENSION_CAPABILITY_MANIFEST_PATH
         self.original_prompt_selection_path = mcp.PROMPT_SELECTION_PATH
         self.original_tool_selection_path = mcp.TOOL_SELECTION_PATH
+        self.original_availability_path = mcp.AVAILABILITY_SETTINGS_PATH
         mcp.EXTENSION_CAPABILITY_MANIFEST_PATH = (
             Path(self.temp_dir.name) / "Library" / "ChievfxMcpBridge" / "extension-capabilities.snapshot.json"
         )
         mcp.PROMPT_SELECTION_PATH = Path(self.temp_dir.name) / "UserSettings" / "ChievfxMcpPromptSelection.json"
         mcp.TOOL_SELECTION_PATH = Path(self.temp_dir.name) / "UserSettings" / "ChievfxMcpToolSelection.json"
+        mcp.AVAILABILITY_SETTINGS_PATH = Path(self.temp_dir.name) / "UserSettings" / "ChievfxMcpAvailability.json"
+        # This suite asserts prompts/tools are advertised via manual selection.
+        mcp.AVAILABILITY_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        mcp.AVAILABILITY_SETTINGS_PATH.write_text(json.dumps({"manualSelection": True}), encoding="utf-8")
         self.addCleanup(self.restore_paths)
 
     def restore_paths(self) -> None:
         mcp.EXTENSION_CAPABILITY_MANIFEST_PATH = self.original_extension_manifest_path
         mcp.PROMPT_SELECTION_PATH = self.original_prompt_selection_path
         mcp.TOOL_SELECTION_PATH = self.original_tool_selection_path
+        mcp.AVAILABILITY_SETTINGS_PATH = self.original_availability_path
 
     def write_extension_manifest(self, extensions: list[dict[str, object]]) -> None:
         mcp.EXTENSION_CAPABILITY_MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)

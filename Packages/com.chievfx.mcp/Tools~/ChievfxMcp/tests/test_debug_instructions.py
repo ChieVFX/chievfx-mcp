@@ -19,6 +19,9 @@ class DebugInstructionsTests(unittest.TestCase):
         self.original_debug_descriptors_dir = mcp.DEBUG_DESCRIPTORS_DIR
         self.original_resource_selection_path = mcp.RESOURCE_SELECTION_PATH
         mcp.configure_project_root(str(self.root))
+        # This suite disables tools/resources, which is opt-in now that the default is expose-all.
+        mcp.AVAILABILITY_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        mcp.AVAILABILITY_SETTINGS_PATH.write_text(mcp.json.dumps({"manualSelection": True}), encoding="utf-8")
         self.addCleanup(self.restore_paths)
 
     def restore_paths(self) -> None:

@@ -175,7 +175,19 @@ namespace Chievfx.Mcp.Editor
             {
                 LoadMetadataFromPython();
                 ApplySavedSelection();
-                SaveSelection();
+                if (ReadOnly)
+                {
+                    // Expose-all mode advertises every resource/template; reflect that for display and
+                    // never persist, so the saved manual selection survives for when it is turned on.
+                    foreach (var row in resourceRows)
+                    {
+                        row.Enabled = true;
+                    }
+                }
+                else
+                {
+                    SaveSelection();
+                }
             }
             catch (Exception ex)
             {
@@ -436,7 +448,9 @@ namespace Chievfx.Mcp.Editor
             resourcesList.Add(new HelpBox(
                 hasQuickFilter
                     ? "Quick filter is active. All visible categories are expanded."
-                    : "Choose a category first. Toggle category availability here, then select a category to inspect and tune individual resources or templates.",
+                    : ReadOnly
+                        ? "Select a category to inspect the resources and templates it exposes."
+                        : "Choose a category first. Toggle category availability here, then select a category to inspect and tune individual resources or templates.",
                 HelpBoxMessageType.None));
 
             var detailAdded = false;

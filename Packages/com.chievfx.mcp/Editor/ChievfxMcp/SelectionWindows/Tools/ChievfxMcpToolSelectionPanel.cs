@@ -259,7 +259,20 @@ namespace Chievfx.Mcp.Editor
                 responseEstimateNote = metadata.ResponseEstimateNote;
                 LoadRoleDefinitions();
                 ApplySavedSelection();
-                SaveSelection(dumpDebugInstructions: false);
+                if (ReadOnly)
+                {
+                    // Reflect the expose-all advertised set (every non-hidden tool) so summaries/counts
+                    // match what the server serves. Never persist — the saved manual selection stays
+                    // intact for when the user turns customization back on.
+                    foreach (var row in toolRows)
+                    {
+                        row.Enabled = row.Required || (!IsAutonomyTool(row) && !IsObsoleteTool(row));
+                    }
+                }
+                else
+                {
+                    SaveSelection(dumpDebugInstructions: false);
+                }
             }
             catch (Exception ex)
             {
@@ -934,7 +947,9 @@ namespace Chievfx.Mcp.Editor
             toolsList.Add(new HelpBox(
                 hasQuickFilter
                     ? "Quick filter is active. All visible categories are expanded."
-                    : "Choose a category first. Toggle category availability here, then select a category to inspect and tune individual tools.",
+                    : ReadOnly
+                        ? "Select a category to inspect the tools it exposes."
+                        : "Choose a category first. Toggle category availability here, then select a category to inspect and tune individual tools.",
                 HelpBoxMessageType.None));
 
             var detailAdded = false;

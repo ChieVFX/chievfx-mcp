@@ -1978,9 +1978,14 @@ namespace Chievfx.Mcp.Editor
 
                 return JToken.DeepEquals(server, BuildExpectedServerEntry(transport, port, timeout, clientInfo.IncludeTypeField));
             }
-            catch (JsonException)
+            catch (Exception)
             {
-                return false;
+                // The file exists but couldn't be read/parsed right now — almost always a concurrent
+                // writer (another MCP-config tool, or a reload extension) caught mid-write, not a
+                // genuinely stale entry. Report "current" so we do NOT clobber it: overwriting here
+                // would change the file and make clients like Cursor drop their live MCP connection.
+                // A genuinely broken file is still fixable via the window's "Write Config" button.
+                return true;
             }
         }
 

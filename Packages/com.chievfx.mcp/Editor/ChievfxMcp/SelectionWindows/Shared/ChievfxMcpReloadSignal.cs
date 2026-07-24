@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using UnityEditor;
 using Debug = UnityEngine.Debug;
 
 namespace Chievfx.Mcp.Editor
@@ -18,6 +19,14 @@ namespace Chievfx.Mcp.Editor
         public static void RequestReload(string trigger)
         {
             if (!ChievfxMcpToolPolicy.AutoReloadCursorOnAvailabilityChange)
+            {
+                return;
+            }
+
+            // A reload signal makes the extension reconnect Cursor's MCP client. Doing that during a
+            // Play Mode transition would drop a live tool call mid-play, so defer — the config/instructions
+            // are re-read on the next reconnect anyway.
+            if (EditorApplication.isPlaying || EditorApplication.isPlayingOrWillChangePlaymode)
             {
                 return;
             }

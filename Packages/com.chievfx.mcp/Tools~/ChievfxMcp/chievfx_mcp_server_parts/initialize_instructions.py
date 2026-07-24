@@ -6,7 +6,13 @@ from __future__ import annotations
 from typing import Any
 
 def core_descriptor_instructions_header() -> str:
-    return f"Core descriptors (if list cut, read {CORE_DESCRIPTOR_INSTRUCTIONS_URI}):"
+    # Tool names only: descriptions and argument schemas already arrive via tools/list,
+    # so repeating them here would burn the tight initialize.instructions budget
+    # (Claude Desktop truncates around 5KB).
+    return (
+        "Core tools by category (names only; descriptions+schemas come via tools/list; "
+        f"per-category details: chievfx://categories/<category>; full compact list: {CORE_DESCRIPTOR_INSTRUCTIONS_URI}):"
+    )
 
 
 def build_initialize_instructions() -> str:
@@ -93,19 +99,40 @@ def build_initialize_server_info(instructions: str | None = None) -> dict[str, s
     return {"name": CURSOR_SERVER_NAME, "version": f"{major}.{minor}.{patch}+instructions.{fingerprint}"}
 
 
-def _build_descriptor_section_lines(plan: dict[str, Any]) -> list[str]:
+def build_core_tool_name_lines(plan: dict[str, Any]) -> list[str]:
+    """Names-only listing of enabled tools in non-collapsed categories, one line
+    per category, essentials first. Full descriptors stay in tools/list and the
+    core-descriptors resource."""
+    categories = plan.get("categories", {})
+    enabled_tool_ids = load_enabled_tool_ids()
+    grouped: dict[str, list[str]] = {}
+    for tool in all_tools():
+        name = tool.get("name", "")
+        if name not in enabled_tool_ids:
+            continue
+        category = _tool_category(tool)
+        entry = categories.get(category.casefold())
+        if entry is not None and entry.get("collapsed"):
+            continue
+        grouped.setdefault(category, []).append(name)
+    ordered = sorted(grouped.items(), key=lambda item: (item[0] != "essentials", item[0].casefold()))
+    return [f"- {category}: {', '.join(sorted(names))}" for category, names in ordered]
+
+
+def _build_descriptor_section_lines(plan: dict[str, Any], include_tools: bool = True) -> list[str]:
     collapsed_lines = collapsed_item_lines(plan)
     sections: list[str] = []
 
-    tool_descriptors = sorted(enabled_tools(), key=lambda item: item.get("name", ""))
-    tool_lines = [
-        line
-        for descriptor in tool_descriptors
-        if (line := format_tool_for_initialize_instructions(descriptor)) not in collapsed_lines["tools"]
-    ]
-    if tool_lines:
-        sections.append("Tools:")
-        sections.extend(tool_lines)
+    if include_tools:
+        tool_descriptors = sorted(enabled_tools(), key=lambda item: item.get("name", ""))
+        tool_lines = [
+            line
+            for descriptor in tool_descriptors
+            if (line := format_tool_for_initialize_instructions(descriptor)) not in collapsed_lines["tools"]
+        ]
+        if tool_lines:
+            sections.append("Tools:")
+            sections.extend(tool_lines)
 
     resource_descriptors = sorted(enabled_resources(), key=lambda item: item.get("uri", ""))
     resource_lines = [
@@ -138,10 +165,18 @@ def _build_descriptor_section_lines(plan: dict[str, Any]) -> list[str]:
 def build_enabled_descriptor_instructions(plan: dict[str, Any] | None = None) -> str:
     if plan is None:
         plan = build_category_plan()
-    lines = _build_descriptor_section_lines(plan)
+    lines: list[str] = []
+    name_lines = build_core_tool_name_lines(plan)
+    if name_lines:
+        lines.append(core_descriptor_instructions_header())
+        lines.extend(name_lines)
+    # Resource/template/prompt descriptors keep their one-line descriptions: unlike
+    # tools, most MCP clients do not surface resource lists to the model, so these
+    # lines are the only startup advertisement they get.
+    lines.extend(_build_descriptor_section_lines(plan, include_tools=False))
     if not lines:
         return ""
-    return "\n".join([core_descriptor_instructions_header(), *lines])
+    return "\n".join(lines)
 
 
 def build_core_descriptor_instructions_resource_body(plan: dict[str, Any] | None = None) -> str:

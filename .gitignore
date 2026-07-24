@@ -126,5 +126,9 @@ packages/com.singularity*
 .cursor/rules/caveman*
 .cursor/skills/caveman*
 .generated/
-.vkb/
+.vkb/*
 .vscode/
+.codex/config.toml
+.cursor/mcp.json
+.kimi-code/mcp.json
+.mcp.json

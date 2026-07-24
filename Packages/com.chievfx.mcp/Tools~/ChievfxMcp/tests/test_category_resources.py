@@ -103,11 +103,11 @@ class CategoryResourceTests(unittest.TestCase):
 
         self.assertIn("Extra API capabilities", instructions)
         self.assertIn("chievfx://categories/frame-debugger", instructions)
-        self.assertNotIn("frame-debugger-control:", instructions)
-        # The batched section must sit below the Tools/Resources descriptor block.
+        self.assertNotIn("frame-debugger-control", instructions)
+        # The batched section must sit below the core names/Resources descriptor block.
         self.assertGreater(
             instructions.index("Extra API capabilities"),
-            instructions.index("Core descriptors (if list cut, read"),
+            instructions.index("Core tools by category"),
         )
 
     def test_collapsed_category_advertised_and_readable(self) -> None:
@@ -129,7 +129,10 @@ class CategoryResourceTests(unittest.TestCase):
 
         instructions = mcp.build_initialize_instructions()
 
-        self.assertIn("frame-debugger-control:", instructions)
+        # Inline core categories list tool names only; descriptions stay in tools/list.
+        self.assertIn("- frame-debugger: ", instructions)
+        self.assertIn("frame-debugger-control", instructions)
+        self.assertNotIn("frame-debugger-control:", instructions)
         self.assertNotIn("chievfx://categories/frame-debugger", instructions)
 
     def test_always_supplied_category_not_collapsed(self) -> None:
@@ -139,7 +142,8 @@ class CategoryResourceTests(unittest.TestCase):
 
         instructions = mcp.build_initialize_instructions()
 
-        self.assertIn("frame-debugger-control:", instructions)
+        self.assertIn("- frame-debugger: ", instructions)
+        self.assertIn("frame-debugger-control", instructions)
         self.assertNotIn("chievfx://categories/frame-debugger", instructions)
 
     def test_force_all_collapses_nothing(self) -> None:
@@ -150,7 +154,8 @@ class CategoryResourceTests(unittest.TestCase):
         instructions = mcp.build_initialize_instructions()
 
         self.assertNotIn(mcp.EXTRA_CAPABILITIES_HEADER, instructions)
-        self.assertIn("frame-debugger-control:", instructions)
+        self.assertIn("- frame-debugger: ", instructions)
+        self.assertIn("frame-debugger-control", instructions)
         self.assertEqual(mcp.dynamic_category_resources(), [])
 
     def test_server_lists_and_reads_category_resource(self) -> None:
@@ -185,7 +190,7 @@ class CategoryResourceTests(unittest.TestCase):
 
         body = mcp.build_core_descriptor_instructions_resource_body()
         self.assertIn("Tools:", body)
-        self.assertNotIn("Core descriptors (if list cut, read", body)
+        self.assertNotIn("Core tools by category", body)
         self.assertIn("Extra API capabilities", body)
         self.assertIn("chievfx://categories/frame-debugger", body)
         self.assertNotIn("frame-debugger-control:", body)

@@ -1,6 +1,6 @@
 {
   "name": "console-get-logs",
-  "description": "Recent Unity Console entries. levels filters severity; contains searches message text. Counts: matched=pre-dedupe hits, groups=after dedupe, count=returned, dropped=omitted, repeats=duplicates per row.",
+  "description": "Recent Unity Console entries. levels filters severity (default Error, Exception, Assert, Warning); contains searches message text. Counts: matched=pre-dedupe hits, groups=after dedupe, count=returned, dropped=omitted, repeats=duplicates per row.",
   "inputSchema": {
     "type": "object",
     "properties": {

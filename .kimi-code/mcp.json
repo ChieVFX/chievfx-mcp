@@ -1,9 +1,9 @@
 {
   "mcpServers": {
     "unity-369f57df": {
-      "command": "/usr/local/bin/python3",
+      "command": "/Users/evgeniy_skvortsov/.chievfx-mcp/env/bin/python3",
       "args": [
-        "/Users/evgeniy_skvortsov/_code_/chievfx-mcp/Packages/com.chievfx.mcp/Tools~/ChievfxMcp/chievfx_mcp_server.py",
+        "/Users/evgeniy_skvortsov/_code_/chievfx-mcp/Library/ChievfxMcpBridge/launch_server.py",
         "--transport",
         "stdio",
         "--project-root",

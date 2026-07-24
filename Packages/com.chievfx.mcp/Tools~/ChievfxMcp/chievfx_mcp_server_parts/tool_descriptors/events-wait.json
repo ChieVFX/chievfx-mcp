@@ -1,6 +1,6 @@
 {
   "name": "events-wait",
-  "description": "Long-poll for the NEXT matching Unity event. Match by contains (log substring) or marker (exact beacon name). Waits for FUTURE events by default; use sinceEventId (captured before the trigger) or includeRecentMs to catch ones that already fired. timedOut:true is normal — recover with events-check-since.",
+  "description": "Long-poll for the NEXT matching Unity event. Match by contains (case-insensitive log substring) or marker (exact planted-beacon name). Waits for FUTURE events by default; events that fire DURING a trigger (Play-mode enter, recompile, script-execute) are skipped unless you capture sinceEventId before the trigger (e.g. bridge-get-status lastEventId) or pass includeRecentMs. timedOut:true is a normal branch, not a failure: read result.diagnostic and recover with events-check-since.",
   "inputSchema": {
     "type": "object",
     "properties": {

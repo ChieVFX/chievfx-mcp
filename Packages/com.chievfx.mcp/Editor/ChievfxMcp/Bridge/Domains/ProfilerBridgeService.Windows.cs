@@ -104,14 +104,33 @@ namespace Chievfx.Mcp.Editor
             var enabledSpecified = HasProperty(args, "enabled");
             var eventIndex = ReadNullableInt(args, "eventIndex");
             var eventLimit = ReadNullableInt(args, "eventLimit");
+            bool? requestedEnabled = null;
             if (enabledSpecified)
             {
-                SetFrameDebuggerEnabled(window, ReadBool(args, "enabled", false), diagnostics);
+                // ReadBool falls back to false for a non-boolean value (e.g. enabled:1), which would
+                // silently *disable* the debugger while reporting success. Reject instead of guessing.
+                if (!TryReadStrictBool(args, "enabled", out var requested))
+                {
+                    throw new ArgumentException("frame-debugger-control 'enabled' must be true or false.", nameof(args));
+                }
+
+                requestedEnabled = requested;
+                SetFrameDebuggerEnabled(window, requested, diagnostics);
             }
             else if (eventIndex.HasValue || eventLimit.HasValue)
             {
+                requestedEnabled = true;
                 SetFrameDebuggerEnabled(window, true, diagnostics);
                 diagnostics.Add("Frame Debugger enabled automatically because event selection was requested.");
+            }
+            else if (!HasProperty(args, "open") && !HasProperty(args, "focus"))
+            {
+                // Nothing to do: without enabled/eventIndex/eventLimit this only opened a window, yet
+                // used to answer success:true — indistinguishable from an actual capture.
+                throw new ArgumentException(
+                    "frame-debugger-control had nothing to do: pass enabled (true/false), eventIndex, or eventLimit. "
+                    + "Use open/focus alone only to surface the window.",
+                    nameof(args));
             }
 
             var eventCount = GetFrameDebuggerEventCount(diagnostics);
@@ -168,13 +187,66 @@ namespace Chievfx.Mcp.Editor
             EditorApplication.QueuePlayerLoopUpdate();
             UnityEditorInternal.InternalEditorUtility.RepaintAllViews();
 
+            var frameDebuggerState = CreateFrameDebuggerState(window, diagnostics);
+
+            // success must reflect what actually happened. It used to be a literal true, so a request that
+            // changed nothing still answered success:true enabled:false eventCount:0.
+            var success = true;
+            if (requestedEnabled.HasValue)
+            {
+                var actualEnabled = frameDebuggerState.TryGetValue("enabled", out var enabledValue) ? enabledValue as bool? : null;
+                if (actualEnabled.HasValue && actualEnabled.Value != requestedEnabled.Value)
+                {
+                    success = false;
+                    diagnostics.Add(requestedEnabled.Value
+                        ? "Frame Debugger did not turn on. Unity toggles it asynchronously and needs a renderable Game view — make sure the Game view is visible and not docked in the same tab group as the Frame Debugger, then call again."
+                        : "Frame Debugger did not turn off.");
+                }
+                else if (!actualEnabled.HasValue)
+                {
+                    success = false;
+                    diagnostics.Add("Could not read Frame Debugger enabled state, so the requested change is unverified.");
+                }
+                else if (requestedEnabled.Value)
+                {
+                    var eventCountValue = frameDebuggerState.TryGetValue("eventCount", out var countValue) ? countValue as int? : null;
+                    if (!eventCountValue.HasValue || eventCountValue.Value <= 0)
+                    {
+                        // Enabled, but nothing captured yet: the count only fills once a frame renders
+                        // with the debugger on. Say so rather than letting eventCount:0 look like a bug.
+                        diagnostics.Add("Frame Debugger is on but has captured no events yet — events appear after the next rendered frame. Call frame-debugger-events-list once the Game view has repainted.");
+                    }
+                }
+            }
+
             return new
             {
-                success = true,
+                success,
                 window = EditorWindowBridgeService.CreateEditorWindowSummary(window, diagnostics, includeTabs: true),
-                frameDebugger = CreateFrameDebuggerState(window, diagnostics),
+                frameDebugger = frameDebuggerState,
                 diagnostics = diagnostics.Distinct(StringComparer.Ordinal).ToArray()
             };
+        }
+
+        // Strict boolean read: only real booleans and "true"/"false" strings count. Prevents a wrong-typed
+        // value from silently meaning false.
+        private static bool TryReadStrictBool(JToken args, string name, out bool value)
+        {
+            value = false;
+            var token = args?[name];
+            if (token is null)
+            {
+                return false;
+            }
+
+            if (token.Type == JTokenType.Boolean)
+            {
+                value = token.Value<bool>();
+                return true;
+            }
+
+            return token.Type == JTokenType.String
+                && bool.TryParse(token.Value<string>(), out value);
         }
 
         public object ListFrameDebuggerEvents(JToken args)
@@ -1080,8 +1152,12 @@ namespace Chievfx.Mcp.Editor
 
         private static bool IsFrameDebuggerWindowReadyForEventSelection(EditorWindow window)
         {
+            // Unity renamed the tree field: 6.x has m_Tree, older versions m_TreeView. Requiring only the
+            // old name made this permanently false on Unity 6, so every eventIndex/eventLimit call failed
+            // with "event tree is still initializing".
             return EditorWindowBridgeService.GetReflectedValue(window, "m_EventDetailsView") != null
-                && EditorWindowBridgeService.GetReflectedValue(window, "m_TreeView") != null;
+                && (EditorWindowBridgeService.GetReflectedValue(window, "m_Tree") != null
+                    || EditorWindowBridgeService.GetReflectedValue(window, "m_TreeView") != null);
         }
 
         private static int? GetFrameDebuggerEventCount(List<string> diagnostics)

@@ -20,6 +20,31 @@ so curated records here should not repeat them.
 ---
 type: global
 text: |
+  These instructions are truncated by most clients. Before hand-writing a script-execute for
+  anything Unity already exposes, read chievfx://instructions/core-descriptors — it lists every
+  tool with argument signatures. Reimplementing an existing tool is the most common failure here.
+---
+
+---
+type: global
+text: |
+  Start from the task, not from script-execute:
+  - Wrong colours, magenta or cyan -> shader-status (compile errors + whether variants still compile).
+  - Any wrong-looking pixel -> frame-debugger-pick-pixel (which draw call wrote it), then
+    frame-debugger-event-get. Ask this BEFORE toggling effects to bisect by elimination.
+  - Capture the view -> screenshot-game-view / screenshot-camera. Never hand-roll
+    RenderTexture + ReadPixels; the hand-rolled path returns stale frames.
+  - Find objects, including inactive ones -> gameobject-find (GameObject.Find misses inactive).
+  - Call one existing C# method -> reflection-method-call, not hand-written reflection.
+  - Same tool over many inputs -> tool-batch, not one round trip each.
+  - Nothing seems to apply -> bridge-get-status first; a compile or import may still be running.
+  If three hypotheses about one symptom have failed, stop hypothesising and inventory the
+  instruments for that domain (chievfx://categories/<category>).
+---
+
+---
+type: global
+text: |
   Prefer enabled ChievFX MCP tools/resources when they provide live Unity evidence.
 ---
 

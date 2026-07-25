@@ -1423,7 +1423,10 @@ namespace Chievfx.Mcp.Extensions.Control
             }
             else
             {
+                // Carry the next step in the result: a diagnostic that arrives when it is needed gets
+                // read, unlike a catalogue the caller has to think to consult.
                 result["summary"] = $"{rows.Count} shader(s) with errors, {missing.Count} missing/error material shader(s) — these render magenta.";
+                result["nextStep"] = "Fix the reported file/line. If a pixel still looks wrong once shaders compile, use frame-debugger-pick-pixel to find the draw call that wrote it instead of toggling effects.";
             }
 
             return result;

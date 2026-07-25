@@ -104,8 +104,10 @@ class CategoryResourceTests(unittest.TestCase):
         self.assertIn("Extra API capabilities", instructions)
         self.assertIn("chievfx://categories/frame-debugger", instructions)
         self.assertNotIn("frame-debugger-control", instructions)
-        # The batched section must sit below the core names/Resources descriptor block.
-        self.assertGreater(
+        # Inverted pyramid: the batched capability map is what changes which tool gets reached for, so
+        # it must sit ABOVE the per-tool descriptor block. Clients truncate these instructions, and with
+        # the map last, truncation removed the map and kept the alphabetical reference.
+        self.assertLess(
             instructions.index("Extra API capabilities"),
             instructions.index("Core tools by category"),
         )

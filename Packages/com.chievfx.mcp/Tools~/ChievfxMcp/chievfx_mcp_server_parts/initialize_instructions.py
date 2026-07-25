@@ -61,13 +61,16 @@ def build_initialize_instructions() -> str:
             if isinstance(text, str) and text.strip():
                 lines.append(text.strip())
 
-    descriptor_blob = build_enabled_descriptor_instructions(plan)
-    if descriptor_blob:
-        lines.append(descriptor_blob)
-
+    # Inverted pyramid: the capability map by domain is the part that changes which tool gets reached
+    # for, so it goes ABOVE the alphabetical per-tool reference. Clients truncate these instructions
+    # (~5KB), and truncation used to eat the map while keeping the alphabetical list.
     extra_capabilities_blob = build_extra_capabilities_section(plan)
     if extra_capabilities_blob:
         lines.append(extra_capabilities_blob)
+
+    descriptor_blob = build_enabled_descriptor_instructions(plan)
+    if descriptor_blob:
+        lines.append(descriptor_blob)
 
     return "\n".join(lines).strip()
 

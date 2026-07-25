@@ -60,6 +60,7 @@ namespace Chievfx.Mcp.Editor
                         ["pngHeight"] = dimensions.Height,
                     };
                     AddInputSpaceMetadata(metadata, dimensions.Width, dimensions.Height);
+                    AddShaderCompileMetadata(metadata);
                     return new ImageResult("image/png", Convert.ToBase64String(png), metadata);
                 }
             }
@@ -86,6 +87,28 @@ namespace Chievfx.Mcp.Editor
             {
                 metadata["pixelMappingReliable"] = false;
             }
+        }
+
+        // A frame captured while shader variants are still compiling shows placeholder colors (the classic
+        // cyan/magenta), which reads as a real rendering result and sends callers chasing a bug that is
+        // just a mid-compile frame. Flag it on the capture itself.
+        private static void AddShaderCompileMetadata(Dictionary<string, object?> metadata)
+        {
+            try
+            {
+                if (!UnityEditor.ShaderUtil.anythingCompiling)
+                {
+                    return;
+                }
+            }
+            catch (Exception)
+            {
+                return;
+            }
+
+            metadata["shadersCompiling"] = true;
+            metadata["shadersCompilingNote"] =
+                "Shader variants were still compiling when this frame was captured; placeholder (cyan/magenta) colors may not be real. Recapture once shader-status reports compiling:false.";
         }
 
         public ImageResult CaptureCamera(JToken args)
@@ -408,6 +431,7 @@ namespace Chievfx.Mcp.Editor
             metadata["screenSpaceOverlayCanvasCount"] = screenSpaceOverlayCanvasCount;
             metadata["screenSpaceOverlayHandling"] = screenSpaceOverlayHandling;
             AddInputSpaceMetadata(metadata, width, height);
+            AddShaderCompileMetadata(metadata);
             var distinctWarnings = warnings.Distinct(StringComparer.Ordinal).ToArray();
             if (distinctWarnings.Length > 0)
             {

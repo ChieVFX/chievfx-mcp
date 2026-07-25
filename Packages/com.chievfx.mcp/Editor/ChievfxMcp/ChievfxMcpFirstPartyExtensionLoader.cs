@@ -979,6 +979,16 @@ namespace Chievfx.Mcp.Extensions.Control
 
             if (!dryRun)
             {
+                // Injected input is only consumed on player-loop frames. Paused Play Mode produces none,
+                // so the events would sit unconsumed until the watchdog drops them — say so now rather
+                // than after a wait that looks like a hang.
+                if (mutated && EditorApplication.isPaused)
+                {
+                    warnings = warnings
+                        .Append("Play Mode is paused, so no player frames advance and injected input cannot be consumed. Resume Play Mode (editor-playmode-set), then retry; the queued input is dropped shortly with an 'input-stalled'/'sequence-stalled' event.")
+                        .ToArray();
+                }
+
                 // Only surface the game-view state when it is actually a problem; on the happy path it is
                 // pure noise. When injected input may be muted, warn AND include the state for context.
                 var gameView = GameViewStateRow();

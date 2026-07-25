@@ -38,7 +38,18 @@ namespace Chievfx.Mcp.Extensions.Control
         private static Sequence? active;
         private static bool playModeHooked;
         private static bool beforeUpdateHooked;
+        private static bool watchdogHooked;
         private static bool draining;
+
+        // Queued input is only consumed inside player-loop input updates. If those stop (Play Mode
+        // paused, Game view not rendering), queued work used to sit forever: nothing was applied, no
+        // completion marker was ever journaled, and the caller's events-wait just timed out while the
+        // scene kept moving on its own — easy to misread as "the gesture applied a little". The
+        // watchdog nudges the player loop, then gives up loudly with the marker attached so the wait
+        // resolves with a real reason instead of a timeout.
+        private const double StallNudgeSeconds = 1.0;
+        private const double StallTimeoutSeconds = 5.0;
+        private static double lastProgressTime;
         private static long sequenceCounter;
         private static long updateCounter;
         private static long lastDispatchUpdate = -1_000_000L;
@@ -122,6 +133,80 @@ namespace Chievfx.Mcp.Extensions.Control
                     Journal("hook-failed", "error", "Could not subscribe to InputSystem.onBeforeUpdate; injected input will not apply.");
                 }
             }
+
+            if (!watchdogHooked)
+            {
+                watchdogHooked = true;
+                // EditorApplication.update keeps ticking even when the player loop does not, so it can
+                // observe the stall that onBeforeUpdate by definition cannot.
+                EditorApplication.update += StallWatchdog;
+            }
+
+            lastProgressTime = EditorApplication.timeSinceStartup;
+        }
+
+        private static void StallWatchdog()
+        {
+            if (PendingApplies.Count == 0 && active == null && PendingSequences.Count == 0)
+            {
+                return;
+            }
+
+            var stalledFor = EditorApplication.timeSinceStartup - lastProgressTime;
+            if (stalledFor < StallNudgeSeconds)
+            {
+                return;
+            }
+
+            if (stalledFor < StallTimeoutSeconds)
+            {
+                // Ask for a player-loop tick; harmless when frames are already flowing.
+                EditorApplication.QueuePlayerLoopUpdate();
+                return;
+            }
+
+            DropStalledWork(DescribeStallReason());
+        }
+
+        private static string DescribeStallReason()
+        {
+            if (!EditorApplication.isPlaying)
+            {
+                return "Play Mode is not running";
+            }
+
+            return EditorApplication.isPaused
+                ? "Play Mode is paused"
+                : "no player-loop frames advanced (the Game view may not be rendering)";
+        }
+
+        private static void DropStalledWork(string reason)
+        {
+            var droppedApplies = PendingApplies.Count;
+            PendingApplies.Clear();
+            if (droppedApplies > 0)
+            {
+                Journal(
+                    "input-stalled",
+                    "error",
+                    $"Dropped {droppedApplies} injected input event(s): no player frames advanced within {StallTimeoutSeconds:0}s ({reason}). Nothing was applied.");
+            }
+
+            while (active != null || PendingSequences.Count > 0)
+            {
+                var sequence = active ?? PendingSequences.Dequeue();
+                active = null;
+                Journal(
+                    "sequence-stalled",
+                    "error",
+                    $"Input sequence '{sequence.Kind}' dropped at step {sequence.NextStep}/{sequence.Steps.Count}: "
+                    + $"no player frames advanced within {StallTimeoutSeconds:0}s ({reason}), so the injected input was never consumed. "
+                    + "Resume Play Mode and make sure the Game view renders, then retry.",
+                    sequence.Marker,
+                    sequence.Kind);
+            }
+
+            lastProgressTime = EditorApplication.timeSinceStartup;
         }
 
         private static bool TryHookBeforeUpdate()
@@ -180,6 +265,7 @@ namespace Chievfx.Mcp.Extensions.Control
             }
 
             updateCounter++;
+            lastProgressTime = EditorApplication.timeSinceStartup;
             draining = true;
             try
             {

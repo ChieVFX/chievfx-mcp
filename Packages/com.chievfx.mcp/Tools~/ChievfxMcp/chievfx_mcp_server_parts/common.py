@@ -275,6 +275,7 @@ TOOL_CATEGORIES = {
     "frame-debugger-group-events-list": "frame-debugger",
     "frame-debugger-drawcall-get": "frame-debugger",
     "frame-debugger-drawcall-screenshot": "frame-debugger",
+    "frame-debugger-pick-pixel": "frame-debugger",
     "frame-debugger-events-list": "frame-debugger",
     "frame-debugger-event-get": "frame-debugger",
 }
@@ -498,6 +499,7 @@ RESPONSE_PROFILE_BY_TOOL = {
     "frame-debugger-group-events-list": "row-list",
     "frame-debugger-drawcall-get": "status",
     "frame-debugger-drawcall-screenshot": "image",
+    "frame-debugger-pick-pixel": "small",
     "frame-debugger-events-list": "row-list",
     "frame-debugger-event-get": "status",
 }

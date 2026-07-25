@@ -18,6 +18,7 @@ namespace Chievfx.Mcp.Editor
         private readonly Func<JToken, object> listFrameDebuggerGroupEvents;
         private readonly Func<JToken, object> getFrameDebuggerDrawCall;
         private readonly Func<JToken, object> captureFrameDebuggerDrawCall;
+        private readonly Func<JToken, object> pickFrameDebuggerPixel;
 
         public ProfilerToolService(
             Func<object> getState,
@@ -31,7 +32,8 @@ namespace Chievfx.Mcp.Editor
             Func<JToken, object> listFrameDebuggerGroups,
             Func<JToken, object> listFrameDebuggerGroupEvents,
             Func<JToken, object> getFrameDebuggerDrawCall,
-            Func<JToken, object> captureFrameDebuggerDrawCall)
+            Func<JToken, object> captureFrameDebuggerDrawCall,
+            Func<JToken, object> pickFrameDebuggerPixel)
         {
             this.getState = getState;
             this.startRecording = startRecording;
@@ -45,6 +47,7 @@ namespace Chievfx.Mcp.Editor
             this.listFrameDebuggerGroupEvents = listFrameDebuggerGroupEvents;
             this.getFrameDebuggerDrawCall = getFrameDebuggerDrawCall;
             this.captureFrameDebuggerDrawCall = captureFrameDebuggerDrawCall;
+            this.pickFrameDebuggerPixel = pickFrameDebuggerPixel;
         }
 
         public bool TryRunTool(string toolName, JToken args, out object? result)
@@ -63,6 +66,7 @@ namespace Chievfx.Mcp.Editor
                 "frame-debugger-group-events-list" => listFrameDebuggerGroupEvents(args),
                 "frame-debugger-drawcall-get" => getFrameDebuggerDrawCall(args),
                 "frame-debugger-drawcall-screenshot" => captureFrameDebuggerDrawCall(args),
+                "frame-debugger-pick-pixel" => pickFrameDebuggerPixel(args),
                 _ => null
             };
             return result != null;

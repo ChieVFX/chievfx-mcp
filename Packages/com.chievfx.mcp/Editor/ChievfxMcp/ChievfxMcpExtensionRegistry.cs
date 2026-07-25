@@ -130,6 +130,7 @@ namespace Chievfx.Mcp.Editor
             "frame-debugger-control",
             "frame-debugger-drawcall-get",
             "frame-debugger-drawcall-screenshot",
+            "frame-debugger-pick-pixel",
             "frame-debugger-event-get",
             "frame-debugger-events-list",
             "frame-debugger-group-events-list",

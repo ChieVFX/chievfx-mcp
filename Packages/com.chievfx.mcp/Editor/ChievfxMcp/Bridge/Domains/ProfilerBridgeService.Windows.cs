@@ -402,6 +402,175 @@ namespace Chievfx.Mcp.Editor
             };
         }
 
+        /// <summary>
+        /// "Which draw call wrote this pixel?" — the right first question for a wrong-looking pixel, and
+        /// previously answerable only by eyeballing draw calls one at a time. Binary-searches the frame
+        /// debugger event limit for the first event whose output at (x,y) matches the finished frame, so
+        /// it costs ~log2(eventCount) captures instead of a linear sweep.
+        /// </summary>
+        public object PickFrameDebuggerPixel(JToken args)
+        {
+            var diagnostics = new List<string>();
+            var window = PrepareFrameDebuggerForInspection(args, diagnostics, selectEventIndex: null);
+            var state = CreateFrameDebuggerState(window, diagnostics);
+            var eventCount = state.TryGetValue("eventCount", out var countValue) ? countValue as int? : null;
+            if (!eventCount.HasValue || eventCount.Value <= 0)
+            {
+                throw new InvalidOperationException("Frame Debugger has no captured events. Enable it on a rendered frame first (frame-debugger-control enabled:true).");
+            }
+
+            var maxDimension = Math.Max(128, Math.Min(ReadInt(args, "maxDimension", 4096), 8192));
+            var screenshotArgs = new JObject { ["maxDimension"] = maxDimension };
+            var screenshots = new ScreenshotBridgeService();
+            var tolerance = Math.Max(0, Math.Min(ReadInt(args, "tolerance", 2), 255)) / 255f;
+
+            // Sample the finished frame first: it fixes both the target colour and the capture size the
+            // caller's normalized coordinates resolve against.
+            SelectFrameDebuggerEventForCapture(window, eventCount.Value - 1, diagnostics);
+            var finalTexture = DecodeCapture(screenshots.CaptureGameView(screenshotArgs));
+            int pixelX, pixelY, captureWidth, captureHeight;
+            Color finalColor;
+            try
+            {
+                captureWidth = finalTexture.width;
+                captureHeight = finalTexture.height;
+                ResolvePickPixel(args, captureWidth, captureHeight, out pixelX, out pixelY);
+                finalColor = finalTexture.GetPixel(pixelX, pixelY);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(finalTexture);
+            }
+
+            Color SampleAtLimit(int eventIndex)
+            {
+                SelectFrameDebuggerEventForCapture(window, eventIndex, diagnostics);
+                var texture = DecodeCapture(screenshots.CaptureGameView(screenshotArgs));
+                try
+                {
+                    return texture.GetPixel(pixelX, pixelY);
+                }
+                finally
+                {
+                    UnityEngine.Object.DestroyImmediate(texture);
+                }
+            }
+
+            // Smallest event index whose output already matches the final colour. Monotonic in the common
+            // case; a pixel that changes away and back is reported with a caveat below.
+            var low = 0;
+            var high = eventCount.Value - 1;
+            var captures = 1;
+            while (low < high)
+            {
+                var mid = low + ((high - low) / 2);
+                if (ColorsMatch(SampleAtLimit(mid), finalColor, tolerance))
+                {
+                    high = mid;
+                }
+                else
+                {
+                    low = mid + 1;
+                }
+
+                captures++;
+            }
+
+            var writerIndex = low;
+            var beforeColor = writerIndex > 0 ? SampleAtLimit(writerIndex - 1) : (Color?)null;
+            if (writerIndex > 0)
+            {
+                captures++;
+            }
+
+            // Leave the frame debugger showing the culprit so the Unity window matches the answer.
+            SelectFrameDebuggerEventForCapture(window, writerIndex, diagnostics);
+
+            var frameEvent = CreateFrameDebuggerEventSummary(writerIndex, includeDetails: true, diagnostics);
+            if (beforeColor.HasValue && ColorsMatch(beforeColor.Value, finalColor, tolerance))
+            {
+                diagnostics.Add("The pixel already had its final colour before this event, so an earlier event may be the real writer (the colour likely changed away and back). Re-run with a nearby maxDimension or inspect neighbouring events.");
+            }
+
+            return new
+            {
+                success = true,
+                pixel = new Dictionary<string, object?>
+                {
+                    ["x"] = pixelX,
+                    ["y"] = pixelY,
+                    ["captureWidth"] = captureWidth,
+                    ["captureHeight"] = captureHeight,
+                },
+                writerEventIndex = writerIndex,
+                capturesTaken = captures,
+                eventCount = eventCount.Value,
+                finalColor = DescribeColor(finalColor),
+                colorBefore = beforeColor.HasValue ? DescribeColor(beforeColor.Value) : null,
+                frameEvent,
+                diagnostics = diagnostics.Distinct(StringComparer.Ordinal).ToArray()
+            };
+        }
+
+        private static void ResolvePickPixel(JToken args, int width, int height, out int pixelX, out int pixelY)
+        {
+            // Normalized 0..1 with a top-left origin, matching screenshot PNG space (what the caller is
+            // looking at). Texture2D sampling is bottom-left, so flip Y here.
+            var normalizedX = ReadNormalized(args, "x") ?? throw new ArgumentException("frame-debugger-pick-pixel requires x (0..1, from the left edge of the capture).", nameof(args));
+            var normalizedY = ReadNormalized(args, "y") ?? throw new ArgumentException("frame-debugger-pick-pixel requires y (0..1, from the TOP edge of the capture).", nameof(args));
+            if (normalizedX < 0f || normalizedX > 1f || normalizedY < 0f || normalizedY > 1f)
+            {
+                throw new ArgumentOutOfRangeException(nameof(args), "x and y must be normalized 0..1 of the capture (top-left origin).");
+            }
+
+            pixelX = Mathf.Clamp(Mathf.RoundToInt(normalizedX * (width - 1)), 0, width - 1);
+            pixelY = Mathf.Clamp(Mathf.RoundToInt((1f - normalizedY) * (height - 1)), 0, height - 1);
+        }
+
+        private static float? ReadNormalized(JToken args, string name)
+        {
+            var token = args?[name];
+            if (token == null || token.Type == JTokenType.Null)
+            {
+                return null;
+            }
+
+            if (token.Type == JTokenType.Float || token.Type == JTokenType.Integer)
+            {
+                return token.Value<float>();
+            }
+
+            return token.Type == JTokenType.String
+                && float.TryParse(token.Value<string>(), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+                ? parsed
+                : null;
+        }
+
+        private static Texture2D DecodeCapture(ImageResult capture)
+        {
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            if (!texture.LoadImage(Convert.FromBase64String(capture.Base64)))
+            {
+                UnityEngine.Object.DestroyImmediate(texture);
+                throw new InvalidOperationException("Could not decode the Frame Debugger capture for pixel sampling.");
+            }
+
+            return texture;
+        }
+
+        private static bool ColorsMatch(Color left, Color right, float tolerance)
+        {
+            return Mathf.Abs(left.r - right.r) <= tolerance
+                && Mathf.Abs(left.g - right.g) <= tolerance
+                && Mathf.Abs(left.b - right.b) <= tolerance
+                && Mathf.Abs(left.a - right.a) <= tolerance;
+        }
+
+        private static string DescribeColor(Color color)
+        {
+            return $"#{Mathf.RoundToInt(color.r * 255):X2}{Mathf.RoundToInt(color.g * 255):X2}{Mathf.RoundToInt(color.b * 255):X2}{Mathf.RoundToInt(color.a * 255):X2}";
+        }
+
         public ImageResult CaptureFrameDebuggerDrawCall(JToken args)
         {
             var diagnostics = new List<string>();

@@ -1,6 +1,6 @@
 {
   "name": "frame-debugger-events-list",
-  "description": "Lists captured Unity Frame Debugger events/draw calls in compact overview rows. Use frame-debugger-event-get for shader/batch details.",
+  "description": "Lists captured Unity Frame Debugger events/draw calls in compact overview rows. Use frame-debugger-event-get for shader/batch details. To find which draw call produced a specific wrong-looking pixel, use frame-debugger-pick-pixel instead of scanning.",
   "inputSchema": {
     "type": "object",
     "properties": {

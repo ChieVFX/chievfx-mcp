@@ -222,6 +222,16 @@ class McpServerCore:
         return render_static_prompt(prompt, arguments)
 
     def call_tool(self, params: dict[str, Any], request_id: Any = None, notify: Any | None = None) -> dict[str, Any]:
+        # Single chokepoint for every tool: dispatch, then surface any argument the tool does not
+        # declare. Silently dropping a mistyped argument (outputPath vs savePath) sends the caller
+        # hunting for an effect that never happened.
+        result = self._dispatch_tool_call(params, request_id, notify)
+        name = params.get("name")
+        if isinstance(name, str):
+            return with_unknown_argument_warning(result, name, params.get("arguments") or {})
+        return result
+
+    def _dispatch_tool_call(self, params: dict[str, Any], request_id: Any = None, notify: Any | None = None) -> dict[str, Any]:
         name = params.get("name")
         arguments = params.get("arguments") or {}
         if not isinstance(name, str):

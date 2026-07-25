@@ -1,0 +1,69 @@
+import json
+import sys
+import unittest
+from pathlib import Path
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import chievfx_mcp_server as mcp  # noqa: E402
+
+
+class UnknownArgumentTests(unittest.TestCase):
+    """Unknown arguments used to be dropped silently, sending callers hunting for an effect that never
+    happened (outputPath vs savePath on screenshot-game-view)."""
+
+    def test_misspelled_argument_is_reported_with_suggestion(self) -> None:
+        unknown = mcp.unknown_tool_arguments("screenshot-game-view", {"outputPath": "/tmp/x.png"})
+        self.assertEqual(unknown, ["outputPath"])
+        message = mcp.describe_unknown_tool_arguments("screenshot-game-view", unknown)
+        self.assertIn("outputPath", message)
+        self.assertIn("savePath", message)
+
+    def test_declared_and_universal_arguments_are_silent(self) -> None:
+        for arguments in (
+            {"savePath": "/tmp/x.png", "maxDimension": 320},
+            {"outputFormat": "json"},
+            {"timeoutMs": 5000},
+            {},
+        ):
+            self.assertEqual(mcp.unknown_tool_arguments("screenshot-game-view", arguments), [], arguments)
+
+    def test_honored_aliases_are_never_called_unrecognized(self) -> None:
+        # The editor acts on these even though only the canonical name is in the schema; claiming they
+        # had no effect would be a lie.
+        for tool, arguments in (
+            ("editor-playmode-set", {"play": True}),
+            ("editor-playmode-set", {"playing": True}),
+            ("ui-control-find", {"query": "Btn"}),
+            ("ui-runtime-drag", {"x": 1, "y": 2, "toX": 3, "toY": 4}),
+            ("ui-runtime-click", {"normalized": {"x": 0.5, "y": 0.5}}),
+            ("bridge-get-operation", {"operationId": "abc"}),
+        ):
+            self.assertEqual(mcp.unknown_tool_arguments(tool, arguments), [], (tool, arguments))
+
+    def test_suggestion_only_when_plausible(self) -> None:
+        self.assertIn("maxEntries", mcp.describe_unknown_tool_arguments("console-get-logs", ["maxEntires"]))
+        self.assertNotIn("did you mean", mcp.describe_unknown_tool_arguments("console-get-logs", ["banana"]))
+
+    def test_warning_prepends_to_human_text(self) -> None:
+        result = {"content": [{"type": "text", "text": "captured"}], "isError": False}
+        out = mcp.with_unknown_argument_warning(result, "screenshot-game-view", {"outputPath": "x"})
+        self.assertTrue(out["content"][0]["text"].startswith("! Unrecognized"))
+        self.assertIn("captured", out["content"][0]["text"])
+
+    def test_warning_never_corrupts_json_output(self) -> None:
+        payload = {"pngWidth": 320}
+        result = {"content": [{"type": "text", "text": json.dumps(payload)}], "isError": False}
+        out = mcp.with_unknown_argument_warning(result, "screenshot-game-view", {"outputPath": "x"})
+        # First block must still parse as JSON; the warning goes in its own block.
+        self.assertEqual(json.loads(out["content"][0]["text"]), payload)
+        self.assertTrue(any("Unrecognized" in block.get("text", "") for block in out["content"][1:]))
+
+    def test_clean_call_leaves_result_untouched(self) -> None:
+        result = {"content": [{"type": "text", "text": "ok"}], "isError": False}
+        out = mcp.with_unknown_argument_warning(result, "screenshot-game-view", {"savePath": "/tmp/x.png"})
+        self.assertEqual(out["content"], [{"type": "text", "text": "ok"}])
+
+
+if __name__ == "__main__":
+    unittest.main()

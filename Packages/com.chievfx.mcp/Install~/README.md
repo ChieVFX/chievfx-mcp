@@ -73,20 +73,20 @@ and `*.pyc`/`*.pyo`. The choice and folder are remembered per launcher project.
 
 ## Setup
 
-Nothing to do: launching from Unity (**Window > ChievFX > MCP** → **Connection** →
-**Advanced details** → **Launch Python Installer**) uses the first interpreter that can
-import PyQt6, and if none can it creates `Install~/.venv` and installs
-`requirements.txt` into it automatically (~30 s once, ~255 MB). The venv is gitignored
-and excluded from the built `.tgz`, so it never ships to a target project.
+Nothing to do. Launching from Unity (**Window > ChievFX > MCP** → **Connection** →
+**Advanced details** → **Launch Python Installer**) uses the **single shared managed
+environment** at `~/.chievfx-mcp/env` — the same interpreter that runs the MCP server —
+and installs `requirements.txt` into it on first use (~25 s once per machine). Every
+project copy reuses that one environment; there is no per-project virtual environment.
 
-To set it up by hand instead, from a Unity project that already contains this package:
+If the shared environment cannot be used, the launcher falls back to any interpreter that
+already has PyQt6 (a hand-made `Install~/.venv`, or a system Python) and logs a warning
+saying why.
+
+To install the requirements by hand:
 
 ```bash
-cd Packages/com.chievfx.mcp/Install~
-python3 -m venv .venv
-source .venv/bin/activate          # macOS / Linux
-# .venv\Scripts\activate            # Windows
-pip install -r requirements.txt
+~/.chievfx-mcp/env/bin/python3 -m pip install -r requirements.txt
 ```
 
 ## Run

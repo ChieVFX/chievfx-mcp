@@ -74,15 +74,47 @@ namespace Chievfx.Mcp.Editor
             // third-party packages. Launching with it started a process that died instantly on
             // "ModuleNotFoundError: No module named 'PyQt6'": no Unity error, no window, nothing to go
             // on. Pick an interpreter that can actually import PyQt6, and say so plainly when none can.
-            var python = ResolveInstallerPythonWithGui(installDirectory, out var checkedPythons);
-            if (python == null && !TryProvisionInstallerVenv(installDirectory, out python, out var provisionError))
+            // One environment per machine, shared by every project copy and used for BOTH the MCP server
+            // and this installer. So the shared managed env is authoritative: if it lacks PyQt6 we add it
+            // there rather than silently borrowing a system Python that happens to have it — that would
+            // leave the server and the installer on different interpreters.
+            var provisionError = string.Empty;
+            string? python = null;
+            var checkedPythons = new List<string>();
+            if (ChievfxMcpManagedPython.TryGetExecutablePath(out var managedPython) && File.Exists(managedPython))
+            {
+                checkedPythons.Add(managedPython);
+                python = CanImportPyQt6(managedPython)
+                    ? managedPython
+                    : (TryProvisionSharedEnvironment(installDirectory, out var provisioned, out provisionError) ? provisioned : null);
+            }
+            else if (!TryProvisionSharedEnvironment(installDirectory, out python, out provisionError))
+            {
+                python = null;
+            }
+
+            if (python == null)
+            {
+                // Last resort: any other interpreter that already has PyQt6 (a hand-made venv, or system
+                // Python) so a broken managed env does not block the installer entirely.
+                python = ResolveInstallerPythonWithGui(installDirectory, out var fallbackChecked);
+                checkedPythons.AddRange(fallbackChecked);
+                if (python != null)
+                {
+                    Debug.LogWarning(
+                        $"ChievFX MCP could not use the shared Python environment for the installer, so it fell back to '{python}'. {provisionError}");
+                }
+            }
+
+            if (python == null)
             {
                 error =
-                    "The Python installer is a PyQt6 GUI, no interpreter with PyQt6 was found, and creating "
-                    + $"its virtual environment failed.\n\n{provisionError}\n\n"
-                    + $"Manual fallback:  cd {installDirectory} && python3 -m venv .venv && "
-                    + ".venv/bin/pip install -r requirements.txt\n"
-                    + $"Interpreters checked for PyQt6: {string.Join(", ", checkedPythons)}";
+                    "The Python installer is a PyQt6 GUI and no usable interpreter was found.\n\n"
+                    + $"{provisionError}\n\n"
+                    + "Manual fallback:  "
+                    + $"{ChievfxMcpManagedPython.ExpectedExecutablePath()} -m pip install -r "
+                    + $"{Path.Combine(installDirectory, "requirements.txt")}\n"
+                    + $"Interpreters checked for PyQt6: {string.Join(", ", checkedPythons.Distinct())}";
                 return false;
             }
 
@@ -221,63 +253,50 @@ namespace Chievfx.Mcp.Editor
         }
 
         /// <summary>
-        /// Creates Install~/.venv and installs requirements.txt into it, so a machine with no PyQt6
-        /// anywhere still gets a working installer from one button press. The venv is used instead of
-        /// mutating a system Python (which may be externally managed) or the managed server runtime.
+        /// Installs the installer's requirements into the ONE shared managed environment
+        /// (~/.chievfx-mcp/env) that already runs the MCP server, so every project copy reuses a single
+        /// Python install instead of a per-project venv. Installing into a system Python is avoided: it
+        /// is not ours to mutate and is often externally managed.
         /// </summary>
-        private static bool TryProvisionInstallerVenv(string installDirectory, out string? venvPython, out string error)
+        private static bool TryProvisionSharedEnvironment(string installDirectory, out string? sharedPython, out string error)
         {
-            venvPython = null;
+            sharedPython = null;
             error = string.Empty;
-            var venvDirectory = Path.Combine(installDirectory, ".venv");
-            var candidateVenvPython = IsWindows()
-                ? Path.Combine(venvDirectory, "Scripts", "python.exe")
-                : Path.Combine(venvDirectory, "bin", "python3");
-
-            var basePython = EnumerateInstallerPythonCandidates(installDirectory)
-                .FirstOrDefault(candidate =>
-                    !candidate.StartsWith(venvDirectory, StringComparison.Ordinal) && IsRunnablePython(candidate));
-            if (string.IsNullOrWhiteSpace(basePython))
-            {
-                error = "No usable Python 3 interpreter was found to build the virtual environment.";
-                return false;
-            }
-
             try
             {
-                EditorUtility.DisplayProgressBar("ChievFX MCP", "Creating the installer virtual environment...", 0.2f);
-                if (!File.Exists(candidateVenvPython)
-                    && !TryRunProcess(basePython!, $"-m venv {QuoteArg(venvDirectory)}", installDirectory, 180_000, out var venvOutput))
+                EditorUtility.DisplayProgressBar("ChievFX MCP", "Preparing the shared Python environment...", 0.2f);
+                if (!ChievfxMcpManagedPython.IsInstalledAndCurrent()
+                    && !ChievfxMcpManagedPython.TryEnsureInstalled(forceReinstall: false, out var installError))
                 {
-                    error = $"'{basePython} -m venv .venv' failed. {venvOutput}";
+                    error = $"The shared managed Python environment is unavailable. {installError}";
                     return false;
                 }
 
-                if (!File.Exists(candidateVenvPython))
+                if (!ChievfxMcpManagedPython.TryGetExecutablePath(out var managedPython) || !IsRunnablePython(managedPython))
                 {
-                    error = $"The virtual environment was created but {candidateVenvPython} is missing.";
+                    error = $"The shared managed Python at {ChievfxMcpManagedPython.ExpectedExecutablePath()} is not runnable.";
                     return false;
                 }
 
-                EditorUtility.DisplayProgressBar("ChievFX MCP", "Installing PyQt6 into the installer environment...", 0.6f);
+                EditorUtility.DisplayProgressBar("ChievFX MCP", "Installing PyQt6 into the shared Python environment...", 0.6f);
                 var requirements = Path.Combine(installDirectory, "requirements.txt");
                 var installArguments = File.Exists(requirements)
                     ? $"-m pip install --disable-pip-version-check -r {QuoteArg(requirements)}"
                     : "-m pip install --disable-pip-version-check PyQt6";
-                if (!TryRunProcess(candidateVenvPython, installArguments, installDirectory, 600_000, out var pipOutput))
+                if (!TryRunProcess(managedPython, installArguments, installDirectory, 600_000, out var pipOutput))
                 {
-                    error = $"Installing the installer requirements failed. {pipOutput}";
+                    error = $"Installing the installer requirements into {managedPython} failed. {pipOutput}";
                     return false;
                 }
 
-                if (!CanImportPyQt6(candidateVenvPython))
+                if (!CanImportPyQt6(managedPython))
                 {
-                    error = $"Requirements installed but PyQt6 still cannot be imported by {candidateVenvPython}.";
+                    error = $"Requirements installed but PyQt6 still cannot be imported by {managedPython}.";
                     return false;
                 }
 
-                Debug.Log($"ChievFX MCP created the installer environment at {venvDirectory} (base: {basePython}).");
-                venvPython = candidateVenvPython;
+                Debug.Log($"ChievFX MCP installed the installer requirements into the shared environment at {ChievfxMcpManagedPython.RootDirectory}.");
+                sharedPython = managedPython;
                 return true;
             }
             catch (Exception ex)
@@ -365,7 +384,15 @@ namespace Chievfx.Mcp.Editor
 
         private static IEnumerable<string> EnumerateInstallerPythonCandidates(string installDirectory)
         {
-            // The installer venv is the intended home for PyQt6, so try it first.
+            // One shared environment for every project copy: the same managed Python that runs the MCP
+            // server also runs the installer, so PyQt6 is installed once per machine rather than once
+            // per project. Preferred over everything else.
+            if (ChievfxMcpManagedPython.TryGetExecutablePath(out var managedPython) && File.Exists(managedPython))
+            {
+                yield return managedPython;
+            }
+
+            // A hand-made per-project venv still works if someone created one.
             var venvPython = ResolveInstallerPythonExecutable(installDirectory);
             if (venvPython != null)
             {

@@ -183,7 +183,14 @@ def build_extra_capabilities_section(plan: dict[str, Any]) -> str:
     collapsed = collapsed_categories(plan)
     if not collapsed:
         return ""
-    lines = [EXTRA_CAPABILITIES_HEADER]
+    # Clients truncate mid-list, which used to drop every category after the cut alphabetically. Lead
+    # with a one-line inventory of every domain (cheap) so the full set of available domains survives;
+    # the per-category descriptions that follow are what gets sacrificed instead.
+    inventory = ", ".join(entry["name"] for entry in collapsed)
+    lines = [
+        EXTRA_CAPABILITIES_HEADER,
+        f"Domains: {inventory}. Read chievfx://categories/<domain> for any of them.",
+    ]
     lines.extend(format_collapsed_category_line(entry) for entry in collapsed)
     return "\n".join(lines)
 

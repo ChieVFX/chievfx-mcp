@@ -20,9 +20,11 @@ so curated records here should not repeat them.
 ---
 type: global
 text: |
-  These instructions are truncated by most clients. Before hand-writing a script-execute for
-  anything Unity already exposes, read chievfx://instructions/core-descriptors — it lists every
-  tool with argument signatures. Reimplementing an existing tool is the most common failure here.
+  REQUIRED FIRST STEP: read chievfx://instructions/core-descriptors before your first Unity
+  action of the session — including a screenshot or a read-only query, and even when you already
+  know which tool you want. These instructions are truncated by most clients, so that resource is
+  the only complete list of tools and argument signatures. Picking a worse tool, or hand-writing
+  what already exists, is the most common failure here.
 ---
 
 ---

@@ -21,6 +21,9 @@ class McpServerCore:
         self.wait_cancellation_lock = threading.Lock()
         self.active_event_waits: dict[str, dict[str, Any]] = {}
         self.active_event_wait_lock = threading.Lock()
+        # Whether this session read the full tool list, and whether the one-shot nudge already went out.
+        self.core_descriptors_read = False
+        self.core_descriptor_reminder_sent = False
         configure_extension_manifest_bridge_fetcher(self.fetch_extension_manifest_from_bridge)
 
     def fetch_extension_manifest_from_bridge(self) -> dict[str, Any] | None:
@@ -228,7 +231,47 @@ class McpServerCore:
         result = self._dispatch_tool_call(params, request_id, notify)
         name = params.get("name")
         if isinstance(name, str):
-            return with_unknown_argument_warning(result, name, params.get("arguments") or {})
+            result = with_unknown_argument_warning(result, name, params.get("arguments") or {})
+            result = self._with_core_descriptor_reminder(result, name)
+        return result
+
+    def _with_core_descriptor_reminder(self, result: Any, name: str) -> Any:
+        """Nudge once per session, on the first tool call, if the full tool list was never read.
+
+        An imperative in initialize.instructions is easy to skip — clients truncate it, and it competes
+        with everything else in context. A line that arrives attached to the first actual Unity result
+        lands when it is actionable.
+        """
+        if self.core_descriptors_read or self.core_descriptor_reminder_sent:
+            return result
+        # Reading the resource is the remedy; don't nag on the calls that constitute reading it.
+        if name in {"tools-list-categories", "tools-list-category"}:
+            return result
+
+        if not isinstance(result, dict):
+            return result
+        content = result.get("content")
+        if not isinstance(content, list):
+            return result
+
+        # Only extend a result that already carries text. An image-only result has a shape callers rely
+        # on, so leave it alone and keep the nudge pending for the next call that has text.
+        if not any(isinstance(block, dict) and block.get("type") == "text" for block in content):
+            return result
+
+        self.core_descriptor_reminder_sent = True
+        # A separate trailing block, never prepended into the payload: this fires on the first call of
+        # every session, and callers parse tool text positionally (first line, or as JSON).
+        content.append(
+            {
+                "type": "text",
+                "text": (
+                    f"! First ChievFX tool call this session and {CORE_DESCRIPTOR_INSTRUCTIONS_URI} has not "
+                    "been read. Read it now: startup instructions are truncated by most clients, so it is "
+                    "the only complete list of tools and argument signatures."
+                ),
+            }
+        )
         return result
 
     def _dispatch_tool_call(self, params: dict[str, Any], request_id: Any = None, notify: Any | None = None) -> dict[str, Any]:
@@ -690,6 +733,8 @@ class McpServerCore:
 
         resource_kind, resource_id = resolve_resource_uri(uri)
         ensure_resource_enabled(uri)
+        if uri == CORE_DESCRIPTOR_INSTRUCTIONS_URI:
+            self.core_descriptors_read = True
         mime_type = RESOURCE_MIME_TYPE
 
         def fetch_via_bridge() -> dict[str, Any]:

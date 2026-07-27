@@ -110,7 +110,9 @@ class ScreenshotSavePathTests(unittest.TestCase):
         )
 
         self.assertFalse(result["isError"])
-        self.assertEqual([item["type"] for item in result["content"]], ["image", "text"])
+        # Image first, then the metadata text. Trailing advisory blocks (e.g. the once-per-session
+        # core-descriptors pointer) may follow, so assert the leading shape rather than the exact list.
+        self.assertEqual([item["type"] for item in result["content"][:2]], ["image", "text"])
         self.assertIn("savePathError", result["structuredContent"])
         self.assertFalse(save_target.exists())
 

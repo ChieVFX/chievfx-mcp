@@ -67,22 +67,25 @@ namespace Chievfx.Mcp.Editor
             }
 
             var installDirectory = Path.GetDirectoryName(scriptPath)!;
-            var python = ResolveInstallerPythonExecutable(installDirectory) ?? ExecutablePath;
-            if (!LooksLikeAbsoluteExecutable(python))
-            {
-                // Unity's PATH on macOS is often too thin for bare "python3".
-                // Re-resolve against Unix known locations before giving up.
-                InvalidateCache();
-                python = ResolveInstallerPythonExecutable(installDirectory) ?? ResolveExecutablePath();
-            }
 
-            if (!LooksLikeAbsoluteExecutable(python) && !IsWindows())
+            // The installer is a PyQt6 GUI, but ExecutablePath is the MCP *server* interpreter — by
+            // default the managed CPython under ~/.chievfx-mcp/env, which deliberately has no
+            // third-party packages. Launching with it started a process that died instantly on
+            // "ModuleNotFoundError: No module named 'PyQt6'": no Unity error, no window, nothing to go
+            // on. Pick an interpreter that can actually import PyQt6, and say so plainly when none can.
+            var python = ResolveInstallerPythonWithGui(installDirectory, out var checkedPythons);
+            if (python == null)
             {
-                var probed = ProbeUnixWhich("python3") ?? ProbeUnixWhich("python");
-                if (!string.IsNullOrWhiteSpace(probed))
-                {
-                    python = probed!;
-                }
+                error =
+                    "The Python installer is a PyQt6 GUI and no interpreter with PyQt6 was found, so it would "
+                    + "start and exit immediately.\n\nFix either way:\n"
+                    + $"  1. Create the installer venv:  cd {installDirectory} && python3 -m venv .venv && "
+                    + ".venv/bin/pip install -r requirements.txt\n"
+                    + "  2. Or install PyQt6 for a system Python:  pip3 install PyQt6\n\n"
+                    + "Managed Python (~/.chievfx-mcp/env) runs the MCP server and intentionally has no "
+                    + "third-party packages, so it cannot run the installer.\n"
+                    + $"Checked: {string.Join(", ", checkedPythons)}";
+                return false;
             }
 
             var arguments =
@@ -92,6 +95,17 @@ namespace Chievfx.Mcp.Editor
             {
                 if (!TryStartInstallerProcess(python, arguments, installDirectory, out var process, out error))
                 {
+                    return false;
+                }
+
+                // A process that starts and dies is indistinguishable from "nothing happened" unless we
+                // look. Give it a moment and report a premature exit instead of claiming success.
+                if (process.WaitForExit(2000) && process.ExitCode != 0)
+                {
+                    error =
+                        $"The Python installer exited immediately (code {process.ExitCode}) using '{python}'.\n"
+                        + "Run it in a terminal to see the reason:\n"
+                        + $"  cd {installDirectory} && {python} chievfx_mcp_installer.py";
                     return false;
                 }
 
@@ -199,6 +213,106 @@ namespace Chievfx.Mcp.Editor
             catch (Exception ex)
             {
                 Debug.LogWarning($"ChievFX MCP could not frontmost installer on macOS. {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// First interpreter that can import PyQt6, preferring the installer's own venv. Returns null
+        /// when none qualifies, with the list of interpreters tried for the error message.
+        /// </summary>
+        private static string? ResolveInstallerPythonWithGui(string installDirectory, out List<string> checkedPythons)
+        {
+            checkedPythons = new List<string>();
+            foreach (var candidate in EnumerateInstallerPythonCandidates(installDirectory))
+            {
+                if (string.IsNullOrWhiteSpace(candidate) || checkedPythons.Contains(candidate))
+                {
+                    continue;
+                }
+
+                checkedPythons.Add(candidate);
+                if (CanImportPyQt6(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<string> EnumerateInstallerPythonCandidates(string installDirectory)
+        {
+            // The installer venv is the intended home for PyQt6, so try it first.
+            var venvPython = ResolveInstallerPythonExecutable(installDirectory);
+            if (venvPython != null)
+            {
+                yield return venvPython;
+            }
+
+            foreach (var candidate in EnumerateCandidates())
+            {
+                yield return candidate;
+            }
+
+            if (!IsWindows())
+            {
+                var probed = ProbeUnixWhich("python3");
+                if (!string.IsNullOrWhiteSpace(probed))
+                {
+                    yield return probed!;
+                }
+
+                probed = ProbeUnixWhich("python");
+                if (!string.IsNullOrWhiteSpace(probed))
+                {
+                    yield return probed!;
+                }
+            }
+        }
+
+        private static bool CanImportPyQt6(string python)
+        {
+            try
+            {
+                if (!File.Exists(python))
+                {
+                    return false;
+                }
+
+                using var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = python,
+                        Arguments = "-c \"import PyQt6\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true,
+                    },
+                };
+                process.Start();
+                process.StandardOutput.ReadToEnd();
+                process.StandardError.ReadToEnd();
+                if (!process.WaitForExit(10000))
+                {
+                    try
+                    {
+                        process.Kill();
+                    }
+                    catch
+                    {
+                        // Ignore kill failures on a probe process.
+                    }
+
+                    return false;
+                }
+
+                return process.ExitCode == 0;
+            }
+            catch
+            {
+                return false;
             }
         }
 

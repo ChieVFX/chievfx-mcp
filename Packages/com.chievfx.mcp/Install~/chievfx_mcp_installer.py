@@ -92,7 +92,9 @@ MCP_META_PATHS: tuple[str, ...] = (
     "Packages/com.chievfx.mcp.meta",
 )
 MCP_TEST_PATHS: tuple[str, ...] = ()
-COPY_IGNORE_DIRS: frozenset[str] = frozenset({"__pycache__", "tests"})
+# .venv holds the installer's own PyQt6 environment (tens of MB, machine-specific). It is created on
+# demand next to this script, so it must never be copied into a target project or packed into a .tgz.
+COPY_IGNORE_DIRS: frozenset[str] = frozenset({"__pycache__", "tests", ".venv"})
 COPY_IGNORE_SUFFIXES: tuple[str, ...] = (".pyc", ".pyo")
 
 

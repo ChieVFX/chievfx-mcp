@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using UnityEditor;
 using Debug = UnityEngine.Debug;
 
 namespace Chievfx.Mcp.Editor
@@ -74,17 +75,20 @@ namespace Chievfx.Mcp.Editor
             // "ModuleNotFoundError: No module named 'PyQt6'": no Unity error, no window, nothing to go
             // on. Pick an interpreter that can actually import PyQt6, and say so plainly when none can.
             var python = ResolveInstallerPythonWithGui(installDirectory, out var checkedPythons);
-            if (python == null)
+            if (python == null && !TryProvisionInstallerVenv(installDirectory, out python, out var provisionError))
             {
                 error =
-                    "The Python installer is a PyQt6 GUI and no interpreter with PyQt6 was found, so it would "
-                    + "start and exit immediately.\n\nFix either way:\n"
-                    + $"  1. Create the installer venv:  cd {installDirectory} && python3 -m venv .venv && "
+                    "The Python installer is a PyQt6 GUI, no interpreter with PyQt6 was found, and creating "
+                    + $"its virtual environment failed.\n\n{provisionError}\n\n"
+                    + $"Manual fallback:  cd {installDirectory} && python3 -m venv .venv && "
                     + ".venv/bin/pip install -r requirements.txt\n"
-                    + "  2. Or install PyQt6 for a system Python:  pip3 install PyQt6\n\n"
-                    + "Managed Python (~/.chievfx-mcp/env) runs the MCP server and intentionally has no "
-                    + "third-party packages, so it cannot run the installer.\n"
-                    + $"Checked: {string.Join(", ", checkedPythons)}";
+                    + $"Interpreters checked for PyQt6: {string.Join(", ", checkedPythons)}";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(python))
+            {
+                error = "Could not resolve a Python interpreter for the installer.";
                 return false;
             }
 
@@ -93,7 +97,7 @@ namespace Chievfx.Mcp.Editor
 
             try
             {
-                if (!TryStartInstallerProcess(python, arguments, installDirectory, out var process, out error))
+                if (!TryStartInstallerProcess(python!, arguments, installDirectory, out var process, out error))
                 {
                     return false;
                 }
@@ -213,6 +217,125 @@ namespace Chievfx.Mcp.Editor
             catch (Exception ex)
             {
                 Debug.LogWarning($"ChievFX MCP could not frontmost installer on macOS. {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Creates Install~/.venv and installs requirements.txt into it, so a machine with no PyQt6
+        /// anywhere still gets a working installer from one button press. The venv is used instead of
+        /// mutating a system Python (which may be externally managed) or the managed server runtime.
+        /// </summary>
+        private static bool TryProvisionInstallerVenv(string installDirectory, out string? venvPython, out string error)
+        {
+            venvPython = null;
+            error = string.Empty;
+            var venvDirectory = Path.Combine(installDirectory, ".venv");
+            var candidateVenvPython = IsWindows()
+                ? Path.Combine(venvDirectory, "Scripts", "python.exe")
+                : Path.Combine(venvDirectory, "bin", "python3");
+
+            var basePython = EnumerateInstallerPythonCandidates(installDirectory)
+                .FirstOrDefault(candidate =>
+                    !candidate.StartsWith(venvDirectory, StringComparison.Ordinal) && IsRunnablePython(candidate));
+            if (string.IsNullOrWhiteSpace(basePython))
+            {
+                error = "No usable Python 3 interpreter was found to build the virtual environment.";
+                return false;
+            }
+
+            try
+            {
+                EditorUtility.DisplayProgressBar("ChievFX MCP", "Creating the installer virtual environment...", 0.2f);
+                if (!File.Exists(candidateVenvPython)
+                    && !TryRunProcess(basePython!, $"-m venv {QuoteArg(venvDirectory)}", installDirectory, 180_000, out var venvOutput))
+                {
+                    error = $"'{basePython} -m venv .venv' failed. {venvOutput}";
+                    return false;
+                }
+
+                if (!File.Exists(candidateVenvPython))
+                {
+                    error = $"The virtual environment was created but {candidateVenvPython} is missing.";
+                    return false;
+                }
+
+                EditorUtility.DisplayProgressBar("ChievFX MCP", "Installing PyQt6 into the installer environment...", 0.6f);
+                var requirements = Path.Combine(installDirectory, "requirements.txt");
+                var installArguments = File.Exists(requirements)
+                    ? $"-m pip install --disable-pip-version-check -r {QuoteArg(requirements)}"
+                    : "-m pip install --disable-pip-version-check PyQt6";
+                if (!TryRunProcess(candidateVenvPython, installArguments, installDirectory, 600_000, out var pipOutput))
+                {
+                    error = $"Installing the installer requirements failed. {pipOutput}";
+                    return false;
+                }
+
+                if (!CanImportPyQt6(candidateVenvPython))
+                {
+                    error = $"Requirements installed but PyQt6 still cannot be imported by {candidateVenvPython}.";
+                    return false;
+                }
+
+                Debug.Log($"ChievFX MCP created the installer environment at {venvDirectory} (base: {basePython}).");
+                venvPython = candidateVenvPython;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+            }
+        }
+
+        private static bool TryRunProcess(string fileName, string arguments, string workingDirectory, int timeoutMs, out string output)
+        {
+            output = string.Empty;
+            try
+            {
+                using var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = fileName,
+                        Arguments = arguments,
+                        WorkingDirectory = workingDirectory,
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true,
+                    },
+                };
+                process.Start();
+                var stdout = process.StandardOutput.ReadToEnd();
+                var stderr = process.StandardError.ReadToEnd();
+                if (!process.WaitForExit(timeoutMs))
+                {
+                    try
+                    {
+                        process.Kill();
+                    }
+                    catch
+                    {
+                        // Ignore kill failures.
+                    }
+
+                    output = $"Timed out after {timeoutMs / 1000}s.";
+                    return false;
+                }
+
+                // Keep only the tail: pip is verbose and the failure reason is at the end.
+                var combined = (stderr + "\n" + stdout).Trim();
+                output = combined.Length > 600 ? combined.Substring(combined.Length - 600) : combined;
+                return process.ExitCode == 0;
+            }
+            catch (Exception ex)
+            {
+                output = ex.Message;
+                return false;
             }
         }
 

@@ -73,10 +73,16 @@ and `*.pyc`/`*.pyo`. The choice and folder are remembered per launcher project.
 
 ## Setup
 
-From a Unity project that already contains this package:
+Nothing to do: launching from Unity (**Window > ChievFX > MCP** → **Connection** →
+**Advanced details** → **Launch Python Installer**) uses the first interpreter that can
+import PyQt6, and if none can it creates `Install~/.venv` and installs
+`requirements.txt` into it automatically (~30 s once, ~255 MB). The venv is gitignored
+and excluded from the built `.tgz`, so it never ships to a target project.
+
+To set it up by hand instead, from a Unity project that already contains this package:
 
 ```bash
-cd Packages/com.chievfx.mcp/Install
+cd Packages/com.chievfx.mcp/Install~
 python3 -m venv .venv
 source .venv/bin/activate          # macOS / Linux
 # .venv\Scripts\activate            # Windows

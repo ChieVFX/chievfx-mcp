@@ -133,9 +133,18 @@ def build_core_tool_name_lines(plan: dict[str, Any]) -> list[str]:
         summary = _short_tool_summary(tool)
         rows.append((category, f"- {name}({arguments}){f': {summary}' if summary else ''}", name))
 
-    # Flat list, essentials first then category order, so it reads as one "commonly used" inventory.
-    rows.sort(key=lambda row: (row[0] != "essentials", row[0].casefold(), row[2]))
+    # Reaching-for order: the explicit top list, then remaining tools by category (essentials first),
+    # then the explicit bottom list.
+    rows.sort(key=lambda row: (*_tool_order_rank(row[2]), row[0] != "essentials", row[0].casefold(), row[2]))
     return [line for _, line, _ in rows]
+
+
+def _tool_order_rank(name: str) -> tuple[int, int]:
+    if name in TOOL_ORDER_TOP:
+        return (0, TOOL_ORDER_TOP.index(name))
+    if name in TOOL_ORDER_BOTTOM:
+        return (2, TOOL_ORDER_BOTTOM.index(name))
+    return (1, 0)
 
 
 # A short descriptor per tool: enough to pick the right one without a second fetch, short enough that
@@ -144,6 +153,11 @@ _MAX_TOOL_SUMMARY_CHARS = 60
 
 
 def _short_tool_summary(tool: dict[str, Any]) -> str:
+    # Prefer the hand-written caveman summary; truncating a real description mid-word reads badly and
+    # often cuts exactly the qualifier that mattered.
+    curated = TOOL_SHORT_SUMMARIES.get(str(tool.get("name") or ""))
+    if curated:
+        return curated
     description = str(tool.get("description") or "").strip()
     if not description:
         return ""

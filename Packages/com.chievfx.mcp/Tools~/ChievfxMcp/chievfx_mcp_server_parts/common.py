@@ -200,6 +200,72 @@ DEFAULT_REQUIRED_TOOL_IDS = {
     "editor-window-focus",
 }
 DEFAULT_ENABLED_TOOL_IDS: set[str] = set()
+# Order of the "Commonly used tools" list in initialize.instructions. Reaching-for order beats
+# alphabetical: what you check first (bridge health, the escape hatch, seeing the editor, logs, play
+# mode, events) goes on top; specialist plumbing goes to the bottom. Tools named in neither tuple keep
+# their category order in between.
+TOOL_ORDER_TOP: tuple[str, ...] = (
+    "bridge-get-status",
+    "script-execute",
+    "screenshot-editor-window",
+    "editor-window-focus",
+    "editor-window-list",
+    "editor-window-open",
+    "events-wait",
+    "console-clear-logs",
+    "console-get-logs",
+    "console-get-logs-single",
+    "editor-playmode-set",
+    "events-check-since",
+)
+
+TOOL_ORDER_BOTTOM: tuple[str, ...] = (
+    "tool-batch",
+    "reflection-method-call",
+    "reflection-method-find",
+    "reflection-method-find-single",
+)
+
+# Caveman summaries for the instruction list: written short on purpose, because the alternative was
+# truncating a full description mid-word. The real description still ships via tools/list.
+TOOL_SHORT_SUMMARIES: dict[str, str] = {
+    "bridge-get-status": "Bridge health: alive, compiling, importing, recent ops",
+    "script-execute": "Run C#. Last resort - look for a real tool first",
+    "screenshot-editor-window": "Screenshot any editor window",
+    "editor-window-focus": "Focus an editor window tab",
+    "editor-window-list": "List open editor windows + ids",
+    "editor-window-open": "Open an editor window by type or menu path",
+    "events-wait": "Wait for next matching Unity event. timedOut is normal",
+    "console-clear-logs": "Clear console logs",
+    "console-get-logs": "Recent console entries. Filter by level or text",
+    "console-get-logs-single": "One console entry by id, with stack",
+    "editor-playmode-set": "Enter or exit Play Mode. Waits until settled",
+    "events-check-since": "Events since a cursor. Use after a wait timed out",
+    "screenshot-game-view": "Screenshot the Game View",
+    "screenshot-camera": "Screenshot from a camera",
+    "recompile": "Recompile scripts. Returns compile errors",
+    "assets-refresh": "Reimport assets (not scripts)",
+    "asset-create": "Create prefab or ScriptableObject asset",
+    "asset-delete": "Delete assets or folders",
+    "asset-find": "Find assets by name, type, label, folder",
+    "folder-ensure": "Create missing Assets/ folders",
+    "bridge-get-operation": "One bridge operation record by opId",
+    "tests-run": "Run Unity tests",
+    "shader-status": "Magenta or cyan? Shader errors + compiling state",
+    "ui-control-find": "Find on-screen UI controls + paths",
+    "ui-runtime-click": "Click UI by path or x,y (Play Mode)",
+    "ui-runtime-drag": "Drag UI point to point (Play Mode)",
+    "ui-runtime-focus": "Focus a UI control (Play Mode)",
+    "ui-runtime-clear-focus": "Clear UI focus (Play Mode)",
+    "ui-runtime-set-control-value": "Set UI control value: slider, toggle, dropdown, field",
+    "ui-runtime-type-text": "Type text into the focused UI control",
+    "tool-batch": "Run one tool over many inputs",
+    "reflection-method-call": "Call one loaded C# method",
+    "reflection-method-find": "Find loaded C# methods",
+    "reflection-method-find-single": "Full info for one found method",
+    "frame-debugger-pick-pixel": "Which draw call wrote this pixel",
+}
+
 TOOL_CATEGORIES = {
     "screenshot-game-view": "essentials",
     "screenshot-camera": "essentials",

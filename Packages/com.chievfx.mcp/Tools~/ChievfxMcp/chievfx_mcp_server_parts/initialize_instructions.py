@@ -6,9 +6,22 @@ from __future__ import annotations
 from typing import Any
 
 def core_descriptor_instructions_header() -> str:
-    # Caveman style on purpose: this competes for a truncated budget, and the signatures below are the
-    # payload. `?` marks optional.
-    return "Essential tools (name(args), ? = optional):"
+    return "Commonly used tools:"
+
+
+def build_domain_inventory_line(plan: dict[str, Any]) -> str:
+    """One line naming every domain that has enabled items, near the top.
+
+    Cheap, truncation-proof, and enough to decide which chievfx://categories/<domain> to read.
+    """
+    categories = plan.get("categories", {})
+    names = sorted(
+        (entry["name"] for entry in categories.values() if entry.get("total")),
+        key=lambda name: name.casefold(),
+    )
+    if not names:
+        return ""
+    return f"Domains: {', '.join(names)}. Read chievfx://categories/<domain> for any of them."
 
 
 def build_initialize_instructions() -> str:
@@ -57,15 +70,16 @@ def build_initialize_instructions() -> str:
             if isinstance(text, str) and text.strip():
                 lines.append(text.strip())
 
-    # Callable content first: essential tools with argument signatures are directly usable, so they get
-    # the surviving budget. The domain map is only a pointer, so it follows.
+    # Domains first (one cheap line, every domain), then the commonly used tools with signatures. The
+    # old per-domain "Extra API capabilities" block is gone: the domain line plus
+    # chievfx://categories/<domain> covers it, and that budget pays for tool signatures instead.
+    domain_line = build_domain_inventory_line(plan)
+    if domain_line:
+        lines.append(domain_line)
+
     descriptor_blob = build_enabled_descriptor_instructions(plan)
     if descriptor_blob:
         lines.append(descriptor_blob)
-
-    extra_capabilities_blob = build_extra_capabilities_section(plan)
-    if extra_capabilities_blob:
-        lines.append(extra_capabilities_blob)
 
     return "\n".join(lines).strip()
 
@@ -98,17 +112,15 @@ def build_initialize_server_info(instructions: str | None = None) -> dict[str, s
 
 
 def build_core_tool_name_lines(plan: dict[str, Any]) -> list[str]:
-    """Enabled tools in non-collapsed categories WITH argument signatures, one tool per line,
-    essentials first.
+    """One line per enabled tool in a non-collapsed category: name(args) plus a short summary.
 
-    Names alone were not enough: agents did not follow the pointer to the full descriptor resource, so
-    they guessed or hand-rolled instead. An inline signature makes a tool callable without reading
-    anything else. Descriptions are omitted — the name plus argument names usually carry the meaning,
-    and tools/list has the prose anyway.
+    Agents did not follow a pointer to the full descriptor resource however it was phrased, so the
+    callable detail lives here instead: the signature makes the tool callable and the summary makes it
+    selectable, with no second fetch. tools/list still carries the full schema and prose.
     """
     categories = plan.get("categories", {})
     enabled_tool_ids = load_enabled_tool_ids()
-    grouped: dict[str, list[str]] = {}
+    rows: list[tuple[str, str, str]] = []
     for tool in all_tools():
         name = tool.get("name", "")
         if name not in enabled_tool_ids:
@@ -118,27 +130,57 @@ def build_core_tool_name_lines(plan: dict[str, Any]) -> list[str]:
         if entry is not None and entry.get("collapsed"):
             continue
         arguments = _compact_signature_arguments(_schema_arguments(tool.get("inputSchema")))
-        grouped.setdefault(category, []).append(f"{name}({arguments})")
-    ordered = sorted(grouped.items(), key=lambda item: (item[0] != "essentials", item[0].casefold()))
-    lines: list[str] = []
-    for category, signatures in ordered:
-        lines.append(f"{category}:")
-        lines.extend(f"- {signature}" for signature in sorted(signatures))
-    return lines
+        summary = _short_tool_summary(tool)
+        rows.append((category, f"- {name}({arguments}){f': {summary}' if summary else ''}", name))
+
+    # Flat list, essentials first then category order, so it reads as one "commonly used" inventory.
+    rows.sort(key=lambda row: (row[0] != "essentials", row[0].casefold(), row[2]))
+    return [line for _, line, _ in rows]
+
+
+# A short descriptor per tool: enough to pick the right one without a second fetch, short enough that
+# ~35 of them still fit the truncated instruction budget.
+_MAX_TOOL_SUMMARY_CHARS = 60
+
+
+def _short_tool_summary(tool: dict[str, Any]) -> str:
+    description = str(tool.get("description") or "").strip()
+    if not description:
+        return ""
+    # First sentence only; tool descriptions lead with what the tool does and follow with caveats.
+    sentence = re.split(r"(?<=[.!?])\s", description, maxsplit=1)[0].strip().rstrip(".")
+    if len(sentence) <= _MAX_TOOL_SUMMARY_CHARS:
+        return sentence
+    return sentence[: _MAX_TOOL_SUMMARY_CHARS - 1].rstrip() + "…"
 
 
 # Cap the inline signature: a handful of tools declare a dozen arguments, and the tail of a long list
 # costs budget that other tools need. tools/list and core-descriptors still carry the full schema.
-_MAX_INLINE_SIGNATURE_ARGUMENTS = 7
+_MAX_INLINE_SIGNATURE_ARGUMENTS = 6
+# Long enum unions (import options, log levels, capture areas) dominate a line while adding little at
+# selection time, so collapse the type and let tools/list supply the allowed values.
+_MAX_INLINE_ARGUMENT_TYPE_CHARS = 30
 
 
 def _compact_signature_arguments(arguments: str) -> str:
     if not arguments:
         return ""
-    parts = [part for part in arguments.split(", ") if part]
+    parts = [_shorten_argument(part) for part in arguments.split(", ") if part]
     if len(parts) <= _MAX_INLINE_SIGNATURE_ARGUMENTS:
         return ", ".join(parts)
     return ", ".join(parts[:_MAX_INLINE_SIGNATURE_ARGUMENTS]) + ", ..."
+
+
+def _shorten_argument(argument: str) -> str:
+    name, separator, type_name = argument.partition(":")
+    if not separator or len(type_name) <= _MAX_INLINE_ARGUMENT_TYPE_CHARS:
+        return argument
+    if type_name.startswith("{"):
+        # Nested object shape: the field list belongs in tools/list, not here.
+        return f"{name}:obj"
+    if "|" in type_name:
+        return f"{name}:{type_name.split('|', 1)[0]}|..."
+    return f"{name}:{type_name[:_MAX_INLINE_ARGUMENT_TYPE_CHARS]}..."
 
 
 def _build_descriptor_section_lines(plan: dict[str, Any], include_tools: bool = True) -> list[str]:

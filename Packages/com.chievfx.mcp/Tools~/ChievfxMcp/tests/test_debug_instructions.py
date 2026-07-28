@@ -113,13 +113,13 @@ class DebugInstructionsTests(unittest.TestCase):
         self.assertIn("Trigger: test-trigger", text)
         self.assertIn("## Tool descriptors (tools/list)", text)
         self.assertIn("## initialize.instructions", text)
-        self.assertIn("Essential tools (name(args), ? = optional):", text)
+        self.assertIn("Commonly used tools:", text)
         # Instructions advertise callable tool signatures only. Resources are deliberately NOT listed
         # (except the core-descriptors / categories pointers), so that budget goes to tools.
         self.assertNotIn("chievfx://editor/context", text)
         self.assertNotIn("chievfx://scene/opened", text)
-        self.assertIn("read chievfx://categories/<domain>", text)
-        self.assertIn("gameobject(", text)
+        self.assertIn("Read chievfx://categories/<domain> for any of them.", text)
+        self.assertIn("gameobject", text)
 
         self.assertTrue(mcp.DEBUG_DESCRIPTORS_DIR.is_dir())
         tools_list_path = mcp.DEBUG_DESCRIPTORS_DIR / "tools-list.json"

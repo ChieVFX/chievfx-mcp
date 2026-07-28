@@ -20,25 +20,14 @@ so curated records here should not repeat them.
 ---
 type: global
 text: |
-  Use these tools for Unity work. Do not hand-roll what a tool already does.
-  Need more: chievfx://instructions/core-descriptors (all tools + args),
-  chievfx://categories/<domain> (one domain).
+  ChievFX Unity MCP is project-local. Prefer enabled ChievFX MCP tools/resources when they provide live Unity evidence.
 ---
 
 ---
 type: global
 text: |
-  Task -> tool:
-  - magenta/cyan -> shader-status
-  - wrong pixel -> frame-debugger-pick-pixel, then frame-debugger-event-get. Do this before
-    toggling effects one by one.
-  - see the view -> screenshot-game-view / screenshot-camera. Never RenderTexture+ReadPixels
-    (stale frames).
-  - find objects, incl. inactive -> gameobject-find (GameObject.Find misses inactive)
-  - call one C# method -> reflection-method-call
-  - one tool, many inputs -> tool-batch
-  - nothing works -> bridge-get-status (may still be compiling)
-  Three failed guesses on one symptom -> stop guessing, list that domain's tools.
+  Read resource to learn more about mcp capabilities: chievfx://instructions/core-descriptors (all tools + args),
+  chievfx://categories/<domain> (one domain).
 ---
 
 ---

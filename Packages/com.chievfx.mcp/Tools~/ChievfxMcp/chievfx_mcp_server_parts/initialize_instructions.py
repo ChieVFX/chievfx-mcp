@@ -6,13 +6,9 @@ from __future__ import annotations
 from typing import Any
 
 def core_descriptor_instructions_header() -> str:
-    # Tool names only: descriptions and argument schemas already arrive via tools/list,
-    # so repeating them here would burn the tight initialize.instructions budget
-    # (Claude Desktop truncates around 5KB).
-    return (
-        "Core tools by category (names only; descriptions+schemas come via tools/list; "
-        f"per-category details: chievfx://categories/<category>; full compact list: {CORE_DESCRIPTOR_INSTRUCTIONS_URI}):"
-    )
+    # Caveman style on purpose: this competes for a truncated budget, and the signatures below are the
+    # payload. `?` marks optional.
+    return "Essential tools (name(args), ? = optional):"
 
 
 def build_initialize_instructions() -> str:
@@ -61,16 +57,15 @@ def build_initialize_instructions() -> str:
             if isinstance(text, str) and text.strip():
                 lines.append(text.strip())
 
-    # Inverted pyramid: the capability map by domain is the part that changes which tool gets reached
-    # for, so it goes ABOVE the alphabetical per-tool reference. Clients truncate these instructions
-    # (~5KB), and truncation used to eat the map while keeping the alphabetical list.
-    extra_capabilities_blob = build_extra_capabilities_section(plan)
-    if extra_capabilities_blob:
-        lines.append(extra_capabilities_blob)
-
+    # Callable content first: essential tools with argument signatures are directly usable, so they get
+    # the surviving budget. The domain map is only a pointer, so it follows.
     descriptor_blob = build_enabled_descriptor_instructions(plan)
     if descriptor_blob:
         lines.append(descriptor_blob)
+
+    extra_capabilities_blob = build_extra_capabilities_section(plan)
+    if extra_capabilities_blob:
+        lines.append(extra_capabilities_blob)
 
     return "\n".join(lines).strip()
 
@@ -103,9 +98,14 @@ def build_initialize_server_info(instructions: str | None = None) -> dict[str, s
 
 
 def build_core_tool_name_lines(plan: dict[str, Any]) -> list[str]:
-    """Names-only listing of enabled tools in non-collapsed categories, one line
-    per category, essentials first. Full descriptors stay in tools/list and the
-    core-descriptors resource."""
+    """Enabled tools in non-collapsed categories WITH argument signatures, one tool per line,
+    essentials first.
+
+    Names alone were not enough: agents did not follow the pointer to the full descriptor resource, so
+    they guessed or hand-rolled instead. An inline signature makes a tool callable without reading
+    anything else. Descriptions are omitted — the name plus argument names usually carry the meaning,
+    and tools/list has the prose anyway.
+    """
     categories = plan.get("categories", {})
     enabled_tool_ids = load_enabled_tool_ids()
     grouped: dict[str, list[str]] = {}
@@ -117,9 +117,28 @@ def build_core_tool_name_lines(plan: dict[str, Any]) -> list[str]:
         entry = categories.get(category.casefold())
         if entry is not None and entry.get("collapsed"):
             continue
-        grouped.setdefault(category, []).append(name)
+        arguments = _compact_signature_arguments(_schema_arguments(tool.get("inputSchema")))
+        grouped.setdefault(category, []).append(f"{name}({arguments})")
     ordered = sorted(grouped.items(), key=lambda item: (item[0] != "essentials", item[0].casefold()))
-    return [f"- {category}: {', '.join(sorted(names))}" for category, names in ordered]
+    lines: list[str] = []
+    for category, signatures in ordered:
+        lines.append(f"{category}:")
+        lines.extend(f"- {signature}" for signature in sorted(signatures))
+    return lines
+
+
+# Cap the inline signature: a handful of tools declare a dozen arguments, and the tail of a long list
+# costs budget that other tools need. tools/list and core-descriptors still carry the full schema.
+_MAX_INLINE_SIGNATURE_ARGUMENTS = 7
+
+
+def _compact_signature_arguments(arguments: str) -> str:
+    if not arguments:
+        return ""
+    parts = [part for part in arguments.split(", ") if part]
+    if len(parts) <= _MAX_INLINE_SIGNATURE_ARGUMENTS:
+        return ", ".join(parts)
+    return ", ".join(parts[:_MAX_INLINE_SIGNATURE_ARGUMENTS]) + ", ..."
 
 
 def _build_descriptor_section_lines(plan: dict[str, Any], include_tools: bool = True) -> list[str]:
@@ -173,10 +192,9 @@ def build_enabled_descriptor_instructions(plan: dict[str, Any] | None = None) ->
     if name_lines:
         lines.append(core_descriptor_instructions_header())
         lines.extend(name_lines)
-    # Resource/template/prompt descriptors keep their one-line descriptions: unlike
-    # tools, most MCP clients do not surface resource lists to the model, so these
-    # lines are the only startup advertisement they get.
-    lines.extend(_build_descriptor_section_lines(plan, include_tools=False))
+    # Resources, templates and prompts are deliberately NOT advertised here. Only core-descriptors and
+    # chievfx://categories/<domain> are named (in the header records), and that budget is spent on
+    # callable tool signatures instead — agents used the tools and ignored the resource list.
     if not lines:
         return ""
     return "\n".join(lines)
@@ -190,7 +208,7 @@ def build_core_descriptor_instructions_resource_body(plan: dict[str, Any] | None
     descriptor_lines = _build_descriptor_section_lines(plan)
     if descriptor_lines:
         parts.append("\n".join(descriptor_lines))
-    extra = build_extra_capabilities_section(plan)
+    extra = build_extra_capabilities_section(plan, detailed=True)
     if extra:
         parts.append(extra)
     return "\n".join(parts).strip()

@@ -63,6 +63,20 @@ class UnknownArgumentTests(unittest.TestCase):
         result = {"content": [{"type": "text", "text": "ok"}], "isError": False}
         out = mcp.with_unknown_argument_warning(result, "screenshot-game-view", {"savePath": "/tmp/x.png"})
         self.assertEqual(out["content"], [{"type": "text", "text": "ok"}])
+        self.assertNotIn("structuredContent", out)
+
+    def test_warning_reaches_clients_that_render_structured_content(self) -> None:
+        # Screenshot results carry structuredContent, and clients that display it drop the content
+        # text blocks. A warning that lives only in text is invisible exactly where it matters most.
+        result = {
+            "content": [{"type": "image", "data": "..."}, {"type": "text", "text": "pngWidth:320"}],
+            "structuredContent": {"pngWidth": 320},
+            "isError": False,
+        }
+        out = mcp.with_unknown_argument_warning(result, "screenshot-game-view", {"outputPath": "x"})
+        self.assertTrue(any("Unrecognized" in n for n in out["structuredContent"]["notices"]))
+        # The payload keys a caller reads are untouched.
+        self.assertEqual(out["structuredContent"]["pngWidth"], 320)
 
 class CoreDescriptorReminderTests(unittest.TestCase):
     """The startup imperative is easy to skip (clients truncate it), so the first tool call of a
@@ -96,6 +110,22 @@ class CoreDescriptorReminderTests(unittest.TestCase):
         server._with_core_descriptor_reminder(self._text_result(), "screenshot-game-view")
         second = server._with_core_descriptor_reminder(self._text_result(), "screenshot-game-view")
         self.assertFalse(any(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI in b.get("text", "") for b in second["content"]))
+
+    def test_reminder_reaches_clients_that_render_structured_content(self) -> None:
+        # The regression this guards: the reminder was emitted as a trailing text block on a
+        # screenshot result, and Claude Code renders structuredContent and drops those blocks — so
+        # the nudge never arrived on the likeliest first call of a session.
+        server = self._server()
+        result = {
+            "content": [{"type": "image", "data": "..."}, {"type": "text", "text": "pngWidth:320"}],
+            "structuredContent": {"pngWidth": 320},
+            "isError": False,
+        }
+        out = server._with_core_descriptor_reminder(result, "screenshot-game-view")
+        notices = out["structuredContent"]["notices"]
+        self.assertTrue(any(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI in n for n in notices))
+        self.assertEqual(out["structuredContent"]["pngWidth"], 320)
+        self.assertTrue(server.core_descriptor_reminder_sent)
 
     def test_no_reminder_once_the_resource_was_read(self) -> None:
         server = self._server()

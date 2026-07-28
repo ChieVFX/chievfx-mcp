@@ -248,30 +248,14 @@ class McpServerCore:
         if name in {"tools-list-categories", "tools-list-category"}:
             return result
 
-        if not isinstance(result, dict):
-            return result
-        content = result.get("content")
-        if not isinstance(content, list):
-            return result
-
-        # Only extend a result that already carries text. An image-only result has a shape callers rely
-        # on, so leave it alone and keep the nudge pending for the next call that has text.
-        if not any(isinstance(block, dict) and block.get("type") == "text" for block in content):
-            return result
-
-        self.core_descriptor_reminder_sent = True
-        # A separate trailing block, never prepended into the payload: this fires on the first call of
-        # every session, and callers parse tool text positionally (first line, or as JSON).
-        content.append(
-            {
-                "type": "text",
-                "text": (
-                    f"! First ChievFX tool call this session and {CORE_DESCRIPTOR_INSTRUCTIONS_URI} has not "
-                    "been read. Read it now: startup instructions are truncated by most clients, so it is "
-                    "the only complete list of tools and argument signatures."
-                ),
-            }
+        delivered = attach_result_notice(
+            result,
+            f"! First ChievFX tool call this session and {CORE_DESCRIPTOR_INSTRUCTIONS_URI} has not "
+            "been read. Read it now: startup instructions are truncated by most clients, so it is "
+            "the only complete list of tools and argument signatures.",
         )
+        if delivered:
+            self.core_descriptor_reminder_sent = True
         return result
 
     def _dispatch_tool_call(self, params: dict[str, Any], request_id: Any = None, notify: Any | None = None) -> dict[str, Any]:

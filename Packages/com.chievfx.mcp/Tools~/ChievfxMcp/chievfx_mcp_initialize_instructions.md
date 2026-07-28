@@ -20,34 +20,25 @@ so curated records here should not repeat them.
 ---
 type: global
 text: |
-  REQUIRED FIRST STEP: read chievfx://instructions/core-descriptors before your first Unity
-  action of the session — including a screenshot or a read-only query, and even when you already
-  know which tool you want. These instructions are truncated by most clients, so that resource is
-  the only complete list of tools and argument signatures. Picking a worse tool, or hand-writing
-  what already exists, is the most common failure here.
+  Use these tools for Unity work. Do not hand-roll what a tool already does.
+  Need more: chievfx://instructions/core-descriptors (all tools + args),
+  chievfx://categories/<domain> (one domain).
 ---
 
 ---
 type: global
 text: |
-  Start from the task, not from script-execute:
-  - Wrong colours, magenta or cyan -> shader-status (compile errors + whether variants still compile).
-  - Any wrong-looking pixel -> frame-debugger-pick-pixel (which draw call wrote it), then
-    frame-debugger-event-get. Ask this BEFORE toggling effects to bisect by elimination.
-  - Capture the view -> screenshot-game-view / screenshot-camera. Never hand-roll
-    RenderTexture + ReadPixels; the hand-rolled path returns stale frames.
-  - Find objects, including inactive ones -> gameobject-find (GameObject.Find misses inactive).
-  - Call one existing C# method -> reflection-method-call, not hand-written reflection.
-  - Same tool over many inputs -> tool-batch, not one round trip each.
-  - Nothing seems to apply -> bridge-get-status first; a compile or import may still be running.
-  If three hypotheses about one symptom have failed, stop hypothesising and inventory the
-  instruments for that domain (chievfx://categories/<category>).
----
-
----
-type: global
-text: |
-  Prefer enabled ChievFX MCP tools/resources when they provide live Unity evidence.
+  Task -> tool:
+  - magenta/cyan -> shader-status
+  - wrong pixel -> frame-debugger-pick-pixel, then frame-debugger-event-get. Do this before
+    toggling effects one by one.
+  - see the view -> screenshot-game-view / screenshot-camera. Never RenderTexture+ReadPixels
+    (stale frames).
+  - find objects, incl. inactive -> gameobject-find (GameObject.Find misses inactive)
+  - call one C# method -> reflection-method-call
+  - one tool, many inputs -> tool-batch
+  - nothing works -> bridge-get-status (may still be compiling)
+  Three failed guesses on one symptom -> stop guessing, list that domain's tools.
 ---
 
 ---

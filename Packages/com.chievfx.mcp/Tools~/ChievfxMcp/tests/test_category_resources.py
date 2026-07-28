@@ -101,15 +101,14 @@ class CategoryResourceTests(unittest.TestCase):
 
         instructions = mcp.build_initialize_instructions()
 
-        self.assertIn("Extra API capabilities", instructions)
-        self.assertIn("chievfx://categories/frame-debugger", instructions)
+        self.assertIn("read chievfx://categories/<domain>", instructions)
+        self.assertIn("frame-debugger(", instructions)
         self.assertNotIn("frame-debugger-control", instructions)
-        # Inverted pyramid: the batched capability map is what changes which tool gets reached for, so
-        # it must sit ABOVE the per-tool descriptor block. Clients truncate these instructions, and with
-        # the map last, truncation removed the map and kept the alphabetical reference.
+        # Callable content first: inline tool signatures are directly usable, so they precede the
+        # domain map, which is only a pointer. Clients truncate these instructions.
         self.assertLess(
-            instructions.index("Extra API capabilities"),
-            instructions.index("Core tools by category"),
+            instructions.index("Essential tools"),
+            instructions.index("read chievfx://categories/<domain>"),
         )
 
     def test_collapsed_category_advertised_and_readable(self) -> None:
@@ -132,7 +131,8 @@ class CategoryResourceTests(unittest.TestCase):
         instructions = mcp.build_initialize_instructions()
 
         # Inline core categories list tool names only; descriptions stay in tools/list.
-        self.assertIn("- frame-debugger: ", instructions)
+        self.assertIn("frame-debugger:", instructions)
+        self.assertIn("- frame-debugger-control(", instructions)
         self.assertIn("frame-debugger-control", instructions)
         self.assertNotIn("frame-debugger-control:", instructions)
         self.assertNotIn("chievfx://categories/frame-debugger", instructions)
@@ -144,7 +144,8 @@ class CategoryResourceTests(unittest.TestCase):
 
         instructions = mcp.build_initialize_instructions()
 
-        self.assertIn("- frame-debugger: ", instructions)
+        self.assertIn("frame-debugger:", instructions)
+        self.assertIn("- frame-debugger-control(", instructions)
         self.assertIn("frame-debugger-control", instructions)
         self.assertNotIn("chievfx://categories/frame-debugger", instructions)
 
@@ -155,8 +156,9 @@ class CategoryResourceTests(unittest.TestCase):
 
         instructions = mcp.build_initialize_instructions()
 
-        self.assertNotIn(mcp.EXTRA_CAPABILITIES_HEADER, instructions)
-        self.assertIn("- frame-debugger: ", instructions)
+        self.assertNotIn("read chievfx://categories/<domain>", instructions)
+        self.assertIn("frame-debugger:", instructions)
+        self.assertIn("- frame-debugger-control(", instructions)
         self.assertIn("frame-debugger-control", instructions)
         self.assertEqual(mcp.dynamic_category_resources(), [])
 
@@ -233,10 +235,10 @@ class CategoryResourceTests(unittest.TestCase):
 
         instructions = mcp.build_initialize_instructions()
 
-        self.assertIn("chievfx://categories/asset", instructions)
-        asset_line = next(line for line in instructions.splitlines() if "chievfx://categories/asset" in line)
-        self.assertIn("4 resources", asset_line)
-        self.assertNotIn("templates", asset_line)
+        # Templates still fold into the resource count; the map is now one compact line.
+        map_line = next(line for line in instructions.splitlines() if "read chievfx://categories/<domain>" in line)
+        self.assertIn("asset(4r)", map_line)
+        self.assertNotIn("templates", map_line)
 
     def test_essentials_never_collapses_by_default(self) -> None:
         self.write_tool_selection([])
@@ -270,8 +272,8 @@ class CategoryResourceTests(unittest.TestCase):
         self.assertTrue(before["serverInfo"]["version"].startswith(f"{major_minor}."))
         self.assertTrue(before["serverInfo"]["version"].endswith(f"+instructions.{before_fingerprint}"))
         self.assertNotEqual(before["serverInfo"]["version"], after["serverInfo"]["version"])
-        self.assertNotIn("chievfx://categories/frame-debugger", before["instructions"])
-        self.assertIn("chievfx://categories/frame-debugger", after["instructions"])
+        self.assertNotIn("frame-debugger(", before["instructions"])
+        self.assertIn("frame-debugger(", after["instructions"])
 
 
 if __name__ == "__main__":

@@ -852,6 +852,43 @@ def describe_unknown_tool_arguments(name: str, unknown: list[str]) -> str:
     return f"! Unrecognized {name} argument(s): {', '.join(parts)}. Not in this tool's schema — expect no effect."
 
 
+def attach_result_notice(result: Any, notice: str) -> bool:
+    """Attach an advisory line to a tool result through every channel a client might render.
+
+    A text block alone is not enough. When a result carries structuredContent, some clients
+    (Claude Code among them) render that object and drop the content text blocks entirely, so a
+    notice written only into text is silently discarded — precisely on the screenshot tools, which
+    are the likeliest first call of a session. Mirroring into structuredContent.notices costs one
+    key (no tool here declares an outputSchema, so nothing can fail validation) and makes the
+    advisory survive whichever channel the client chose to display.
+
+    Returns True if the notice landed somewhere, so one-shot callers can stay pending otherwise.
+    """
+    if not isinstance(result, dict):
+        return False
+
+    delivered = False
+
+    content = result.get("content")
+    if isinstance(content, list):
+        # Only extend a result that already carries text. An image-only result has a shape callers
+        # rely on, so leave its content list alone and let structuredContent carry the notice.
+        if any(isinstance(block, dict) and block.get("type") == "text" for block in content):
+            content.append({"type": "text", "text": notice})
+            delivered = True
+
+    structured = result.get("structuredContent")
+    if isinstance(structured, dict):
+        notices = structured.get("notices")
+        if not isinstance(notices, list):
+            notices = []
+            structured["notices"] = notices
+        notices.append(notice)
+        delivered = True
+
+    return delivered
+
+
 def with_unknown_argument_warning(result: Any, name: str, arguments: Any) -> Any:
     """Prepend an unrecognized-argument warning to a tool result's text so it is seen on the first call."""
     if not isinstance(result, dict):
@@ -860,6 +897,15 @@ def with_unknown_argument_warning(result: Any, name: str, arguments: Any) -> Any
     if not unknown:
         return result
     warning = describe_unknown_tool_arguments(name, unknown)
+    # Mirror into structuredContent first: clients that render it drop the text blocks below, and a
+    # dropped warning is exactly the silent failure this chokepoint exists to prevent.
+    structured = result.get("structuredContent")
+    if isinstance(structured, dict):
+        warnings = structured.get("notices")
+        if not isinstance(warnings, list):
+            warnings = []
+            structured["notices"] = warnings
+        warnings.append(warning)
     content = result.get("content")
     if not isinstance(content, list):
         return result

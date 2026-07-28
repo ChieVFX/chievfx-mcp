@@ -179,20 +179,36 @@ def format_collapsed_category_line(entry: dict[str, Any]) -> str:
     return f"- {entry['name']} ({count_text}):{suffix} -> {CATEGORY_RESOURCE_URI_PREFIX}{entry['slug']}"
 
 
-def build_extra_capabilities_section(plan: dict[str, Any]) -> str:
+def build_extra_capabilities_section(plan: dict[str, Any], detailed: bool = False) -> str:
     collapsed = collapsed_categories(plan)
     if not collapsed:
         return ""
-    # Clients truncate mid-list, which used to drop every category after the cut alphabetically. Lead
-    # with a one-line inventory of every domain (cheap) so the full set of available domains survives;
-    # the per-category descriptions that follow are what gets sacrificed instead.
-    inventory = ", ".join(entry["name"] for entry in collapsed)
-    lines = [
-        EXTRA_CAPABILITIES_HEADER,
-        f"Domains: {inventory}. Read chievfx://categories/<domain> for any of them.",
-    ]
-    lines.extend(format_collapsed_category_line(entry) for entry in collapsed)
-    return "\n".join(lines)
+    if detailed:
+        # The core-descriptors resource is the thorough document and has no truncation budget, so it
+        # keeps the per-domain descriptions and spelled-out URIs.
+        lines = [EXTRA_CAPABILITIES_HEADER]
+        lines.extend(format_collapsed_category_line(entry) for entry in collapsed)
+        return "\n".join(lines)
+    # One line, no prose. The per-domain descriptions used to live here, but they cost ~1KB of a
+    # truncated budget that is better spent on callable tool signatures above; the domain name plus
+    # counts is enough to decide whether to read the domain resource.
+    inventory = ", ".join(f"{entry['name']}{_describe_category_counts(entry)}" for entry in collapsed)
+    return f"More tools/resources by domain, read chievfx://categories/<domain>: {inventory}"
+
+
+def _describe_category_counts(entry: dict[str, Any]) -> str:
+    counts = []
+    tools = entry.get("tools")
+    resources = entry.get("resources")
+    templates = entry.get("templates")
+    if isinstance(tools, list) and tools:
+        counts.append(f"{len(tools)}t")
+    resource_total = (len(resources) if isinstance(resources, list) else 0) + (
+        len(templates) if isinstance(templates, list) else 0
+    )
+    if resource_total:
+        counts.append(f"{resource_total}r")
+    return f"({','.join(counts)})" if counts else ""
 
 
 def dynamic_category_resources() -> list[dict[str, Any]]:

@@ -21,9 +21,32 @@ def build_domain_inventory_line(plan: dict[str, Any]) -> str:
     return f"Domains: {', '.join(names)}. Read chievfx://categories/<domain> for any of them."
 
 
+def build_core_descriptor_precondition() -> str:
+    """A precondition with a trigger and the literal call to make.
+
+    Descriptions of available context get skipped; a precondition attached to an action, naming the exact
+    call, is treated as configuration. The server name and payload size are filled in here because a
+    static instructions record cannot know either.
+    """
+    try:
+        size_kb = max(1, round(len(build_core_descriptor_instructions_resource_body()) / 1024))
+        size_text = f" (~{size_kb} KB)"
+    except Exception:
+        size_text = ""
+    return (
+        "IMPORTANT: The tool list below is truncated by most clients. Before your FIRST tool call in a\n"
+        "session that goes beyond a single read-only call (screenshot, bridge-get-status,\n"
+        f"console-get-logs), read {CORE_DESCRIPTOR_INSTRUCTIONS_URI} — it is the only complete list of\n"
+        "tool names and argument signatures, and calling with guessed args fails.\n"
+        f'Read it with: ReadMcpResourceTool({{ server: "{CURSOR_SERVER_NAME}", uri: '
+        f'"{CORE_DESCRIPTOR_INSTRUCTIONS_URI}" }}){size_text}\n'
+        'If that tool is not loaded, load it first: ToolSearch({ query: "select:ReadMcpResourceTool" })'
+    )
+
+
 def build_initialize_instructions() -> str:
     records = load_initialize_instruction_records_from_md()
-    lines: list[str] = []
+    lines: list[str] = [build_core_descriptor_precondition()]
     lines.extend(records.get("global", []))
 
     enabled_tool_ids = load_enabled_tool_ids()

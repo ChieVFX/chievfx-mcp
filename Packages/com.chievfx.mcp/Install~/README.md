@@ -136,6 +136,13 @@ into the default profile on first use.
 
 The MCP server should appear as `unity-mcp-chievfx`.
 
+Opening the project also writes a `mcp-unity-chievfx` skill for each client —
+`.cursor/`, `.claude/`, `.codex/`, `.kimi-code/` under `skills/mcp-unity-chievfx/SKILL.md` —
+holding the complete tool/resource reference with argument signatures. MCP startup
+instructions are truncated by most clients, so the same content is placed where the client
+loads skills from. These files are generated (rewritten on open, content follows the local
+tool selection); gitignore them like the `mcp.json` configs.
+
 ## Notes
 
 - On macOS, Unity launches this as a bare Python process. The installer now

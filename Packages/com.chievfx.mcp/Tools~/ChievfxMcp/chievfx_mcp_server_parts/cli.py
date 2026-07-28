@@ -20,6 +20,11 @@ def parse_args() -> argparse.Namespace:
         help="Write .temp/debug_instructions.md from current selection and exit.",
     )
     parser.add_argument(
+        "--core-descriptors",
+        action="store_true",
+        help="Print the chievfx://instructions/core-descriptors body and exit (used to generate client skills).",
+    )
+    parser.add_argument(
         "--debug-trigger",
         default="",
         help="Optional trigger label stored in debug_instructions.md.",
@@ -38,6 +43,9 @@ def main() -> int:
         return 0
     if args.prompt_metadata:
         sys.stdout.write(json.dumps(build_prompt_metadata(), ensure_ascii=False, separators=(",", ":")) + "\n")
+        return 0
+    if args.core_descriptors:
+        sys.stdout.write(build_core_descriptor_instructions_resource_body() + "\n")
         return 0
     if args.dump_debug_instructions:
         path = dump_debug_instructions(args.debug_trigger)

@@ -132,9 +132,13 @@ namespace Chievfx.Mcp.Editor
                 }
             }
 
+            // The same reference the startup instructions can only point at, placed where each client
+            // loads skills from. Idempotent, so an unchanged project writes nothing.
+            written.AddRange(ChievfxMcpClientSkillWriter.WriteAll());
+
             if (written.Count > 0)
             {
-                Debug.Log($"[ChievFX MCP] Wrote MCP client configs for this project: {string.Join("; ", written)}.");
+                Debug.Log($"[ChievFX MCP] Wrote MCP client configs/skills for this project: {string.Join("; ", written)}.");
                 RefreshOpenWindows();
             }
 

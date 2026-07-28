@@ -32,6 +32,5 @@ text: |
 ---
 type: global
 text: |
-  Read resource to learn more about mcp capabilities: chievfx://instructions/core-descriptors (all tools + args),
-  chievfx://categories/<domain> (one domain).
+  One domain in detail: chievfx://categories/<domain>.
 ---

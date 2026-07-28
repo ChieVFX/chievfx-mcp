@@ -18,12 +18,24 @@ class InstructionLayoutTests(unittest.TestCase):
 
     def test_sections_are_in_order(self) -> None:
         for earlier, later in (
+            ("IMPORTANT: The tool list below is truncated", "ChievFX Unity MCP is project-local"),
             ("ChievFX Unity MCP is project-local", "When calling `CallMcpTool`"),
-            ("When calling `CallMcpTool`", "Read resource to learn more"),
-            ("Read resource to learn more", "Domains: "),
+            ("When calling `CallMcpTool`", "One domain in detail"),
+            ("One domain in detail", "Domains: "),
             ("Domains: ", "Commonly used tools:"),
         ):
             self.assertLess(self.instructions.index(earlier), self.instructions.index(later), (earlier, later))
+
+    def test_precondition_is_first_and_carries_the_literal_call(self) -> None:
+        # A precondition with a trigger and the exact call is treated as configuration; a description of
+        # available context is not. It leads so client truncation cannot remove it.
+        self.assertTrue(self.instructions.startswith("IMPORTANT: The tool list below is truncated"))
+        self.assertIn(f'ReadMcpResourceTool({{ server: "{mcp.CURSOR_SERVER_NAME}"', self.instructions)
+        self.assertIn(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI, self.instructions)
+        self.assertIn('ToolSearch({ query: "select:ReadMcpResourceTool" })', self.instructions)
+        # Names the read-only calls that do NOT require reading it first.
+        for exempt in ("screenshot", "bridge-get-status", "console-get-logs"):
+            self.assertIn(exempt, self.instructions.split("Commonly used tools:")[0])
 
     def test_no_extra_api_capabilities_header(self) -> None:
         # That batched header now lives only in the detailed core-descriptors body.

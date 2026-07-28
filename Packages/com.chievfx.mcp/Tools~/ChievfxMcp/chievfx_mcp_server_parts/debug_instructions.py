@@ -57,6 +57,15 @@ def refresh_debug_artifacts_on_tools_list_changed(trigger: str = "tools-list-cha
     return dump_debug_instructions(trigger)
 
 
+_PROCESS_START_TIME = time.time()
+
+
+def _process_start_time() -> float:
+    """When THIS process began. A dump written by a long-lived process reflects the code that process
+    loaded at startup, not what is on disk now."""
+    return _PROCESS_START_TIME
+
+
 def build_debug_instructions_markdown(trigger: str = "", instructions: str | None = None) -> str:
     if instructions is None:
         instructions = build_initialize_instructions()
@@ -65,11 +74,17 @@ def build_debug_instructions_markdown(trigger: str = "", instructions: str | Non
     enabled_template_count = len(enabled_resource_templates())
     enabled_prompt_count = len(enabled_prompts())
 
+    # Every connected client runs its own server process against the same .temp file, and a process
+    # started before a code edit keeps serving (and re-dumping) the old instructions. Stamp who wrote
+    # this and how old that process is, so "is this dump stale?" is answerable from the file itself.
     lines = [
         "# ChievFX MCP debug instructions",
         "",
         f"Generated at (UTC): {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}",
         f"Project root: {PROJECT_ROOT}",
+        f"Written by: pid {os.getpid()} started {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(_process_start_time()))} "
+        f"(restart the MCP server if that predates your last edit)",
+        f"Instructions fingerprint: {hashlib.sha256(instructions.encode('utf-8')).hexdigest()[:12]}",
     ]
     if trigger.strip():
         lines.append(f"Trigger: {trigger.strip()}")

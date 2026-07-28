@@ -10,15 +10,12 @@ def core_descriptor_instructions_header() -> str:
 
 
 def build_domain_inventory_line(plan: dict[str, Any]) -> str:
-    """One line naming every domain that has enabled items, near the top.
+    """One line naming the domains whose tools are NOT listed below.
 
-    Cheap, truncation-proof, and enough to decide which chievfx://categories/<domain> to read.
+    Listing inlined domains too (essentials, gameobject, ...) was redundant: their tools already appear
+    under "Commonly used tools". This line is for domains you would have to read about.
     """
-    categories = plan.get("categories", {})
-    names = sorted(
-        (entry["name"] for entry in categories.values() if entry.get("total")),
-        key=lambda name: name.casefold(),
-    )
+    names = [entry["name"] for entry in collapsed_categories(plan)]
     if not names:
         return ""
     return f"Domains: {', '.join(names)}. Read chievfx://categories/<domain> for any of them."
@@ -170,7 +167,7 @@ def _short_tool_summary(tool: dict[str, Any]) -> str:
 
 # Cap the inline signature: a handful of tools declare a dozen arguments, and the tail of a long list
 # costs budget that other tools need. tools/list and core-descriptors still carry the full schema.
-_MAX_INLINE_SIGNATURE_ARGUMENTS = 6
+_MAX_INLINE_SIGNATURE_ARGUMENTS = 5
 # Long enum unions (import options, log levels, capture areas) dominate a line while adding little at
 # selection time, so collapse the type and let tools/list supply the allowed values.
 _MAX_INLINE_ARGUMENT_TYPE_CHARS = 30

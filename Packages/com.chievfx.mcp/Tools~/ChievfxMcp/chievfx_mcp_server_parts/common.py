@@ -264,6 +264,22 @@ TOOL_SHORT_SUMMARIES: dict[str, str] = {
     "reflection-method-find": "Find loaded C# methods",
     "reflection-method-find-single": "Full info for one found method",
     "frame-debugger-pick-pixel": "Which draw call wrote this pixel",
+    "input-control-keyboard-event": "Key down, up, or tap (Play Mode)",
+    "input-control-keyboard-sequence": "Type text, or tap many keys, in one call",
+    "input-control-mouse-event": "Mouse button or move (Play Mode)",
+    "input-control-mouse-gesture": "Mouse drag: down, move, up across frames",
+    "input-control-pointer-capture": "Own the mouse: begin, end, or status",
+    "input-control-touch-event": "Touch down, move, up, or tap (Play Mode)",
+    "gameobject-find": "Find GameObjects. includeInactive covers hidden ones",
+    "gameobject-hierarchy": "Scene hierarchy tree, compact",
+    "gameobject-create": "Create a GameObject at a hierarchy path",
+    "gameobject-duplicate": "Duplicate a GameObject subtree",
+    "gameobject-update": "Set name, tag, layer, active, static",
+    "gameobject-set-parent": "Reparent a GameObject, or move to scene root",
+    "gameobject-component-get": "Read one component's serialized values",
+    "gameobject-component-update-or-create": "Set component values, add it if missing",
+    "gameobject-transform-get": "Read position, rotation, scale",
+    "gameobject-transform-update": "Set position, rotation, scale",
 }
 
 TOOL_CATEGORIES = {

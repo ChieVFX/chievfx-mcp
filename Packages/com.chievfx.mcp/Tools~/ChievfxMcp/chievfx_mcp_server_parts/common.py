@@ -588,6 +588,24 @@ RESPONSE_PROFILE_BY_TOOL = {
 INSTRUCTIONS_CORE_DESCRIPTORS_RESOURCE_ID = "instructions-core-descriptors"
 CORE_DESCRIPTOR_INSTRUCTIONS_URI = "chievfx://instructions/core-descriptors"
 
+# The read-only calls a caller may make before reading the core descriptors. One glance at a
+# screenshot or the bridge status needs no argument reference, so demanding a ~14 KB read first
+# spends context to answer a question that is already answered. Both the precondition wording in
+# initialize.instructions and the first-call notice derive from this set: when they were written
+# separately the notice fired on the very calls the precondition had carved out.
+CORE_DESCRIPTOR_GRACE_TOOL_IDS = frozenset(
+    {
+        "screenshot-game-view",
+        "screenshot-camera",
+        "screenshot-editor-window",
+        "bridge-get-status",
+        "console-get-logs",
+        "console-get-logs-single",
+    }
+)
+# Reading the descriptors is the remedy; these calls constitute reading it, so they never nag.
+CORE_DESCRIPTOR_REMEDY_TOOL_IDS = frozenset({"tools-list-categories", "tools-list-category"})
+
 RESPONSE_PROFILE_BY_RESOURCE = {
     "editor-context": "status",
     "instructions-core-descriptors": "guide",

@@ -21,6 +21,25 @@ def build_domain_inventory_line(plan: dict[str, Any]) -> str:
     return f"Domains: {', '.join(names)}. Read chievfx://categories/<domain> for any of them."
 
 
+def build_core_descriptor_grace_display() -> str:
+    """Name the grace calls compactly, collapsing families to one `prefix*` token.
+
+    Spelling out all three screenshot tools costs a line of instruction text to say what
+    `screenshot-*` says. Any id not covered by a family is appended verbatim, so extending
+    CORE_DESCRIPTOR_GRACE_TOOL_IDS can never leave the wording narrower than the code.
+    """
+    remaining = set(CORE_DESCRIPTOR_GRACE_TOOL_IDS)
+    parts: list[str] = []
+    for family in ("screenshot-", "bridge-get-status", "console-get-logs"):
+        members = sorted(tool_id for tool_id in remaining if tool_id.startswith(family))
+        if not members:
+            continue
+        remaining.difference_update(members)
+        parts.append(f"{family.rstrip('-')}*" if len(members) > 1 else members[0])
+    parts.extend(sorted(remaining))
+    return ", ".join(parts)
+
+
 def build_core_descriptor_precondition() -> str:
     """A precondition with a trigger and the literal call to make.
 
@@ -35,8 +54,8 @@ def build_core_descriptor_precondition() -> str:
         size_text = ""
     return (
         "IMPORTANT: The tool list below is truncated by most clients. Before your FIRST tool call in a\n"
-        "session that goes beyond a single read-only call (screenshot, bridge-get-status,\n"
-        f"console-get-logs), read {CORE_DESCRIPTOR_INSTRUCTIONS_URI} — it is the only complete list of\n"
+        f"session that goes beyond read-only calls ({build_core_descriptor_grace_display()}),\n"
+        f"read {CORE_DESCRIPTOR_INSTRUCTIONS_URI} — it is the only complete list of\n"
         "tool names and argument signatures, and calling with guessed args fails.\n"
         f'Read it with: ReadMcpResourceTool({{ server: "{CURSOR_SERVER_NAME}", uri: '
         f'"{CORE_DESCRIPTOR_INSTRUCTIONS_URI}" }}){size_text}\n'

@@ -79,8 +79,18 @@ class UnknownArgumentTests(unittest.TestCase):
         self.assertEqual(out["structuredContent"]["pngWidth"], 320)
 
 class CoreDescriptorReminderTests(unittest.TestCase):
-    """The startup imperative is easy to skip (clients truncate it), so the first tool call of a
-    session carries the pointer when it is actionable."""
+    """The startup imperative is easy to skip (clients truncate it), so the first tool call that
+    needs the argument reference carries the pointer when it is actionable.
+
+    The vehicle here is a non-grace tool on purpose: CORE_DESCRIPTOR_GRACE_TOOL_IDS calls are the
+    ones the precondition allows before the read, so they must stay silent (see
+    test_read_only_grace_calls_stay_silent) and cannot double as delivery-mechanism fixtures.
+    """
+
+    # Not in the grace set, and its result carries image + structuredContent — the shape that
+    # exposed the delivery bug test_reminder_reaches_clients_that_render_structured_content guards.
+    IMAGE_TOOL = "frame-debugger-drawcall-screenshot"
+    TEXT_TOOL = "gameobject-find"
 
     def _server(self):
         import tempfile
@@ -91,7 +101,7 @@ class CoreDescriptorReminderTests(unittest.TestCase):
         return {"content": [{"type": "text", "text": "captureSource:gameview"}], "isError": False}
 
     def test_first_call_carries_the_pointer(self) -> None:
-        out = self._server()._with_core_descriptor_reminder(self._text_result(), "screenshot-game-view")
+        out = self._server()._with_core_descriptor_reminder(self._text_result(), self.TEXT_TOOL)
         blocks = [block.get("text", "") for block in out["content"]]
         self.assertTrue(any(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI in text for text in blocks))
         # The original payload must be untouched; the pointer rides in its own block.
@@ -100,28 +110,28 @@ class CoreDescriptorReminderTests(unittest.TestCase):
     def test_image_only_result_is_not_reshaped(self) -> None:
         server = self._server()
         result = {"content": [{"type": "image", "data": "..."}], "isError": False}
-        out = server._with_core_descriptor_reminder(result, "screenshot-game-view")
+        out = server._with_core_descriptor_reminder(result, self.IMAGE_TOOL)
         self.assertEqual([block["type"] for block in out["content"]], ["image"])
         # Still pending, so the next result that has text carries it.
         self.assertFalse(server.core_descriptor_reminder_sent)
 
     def test_reminder_is_sent_once_per_session(self) -> None:
         server = self._server()
-        server._with_core_descriptor_reminder(self._text_result(), "screenshot-game-view")
-        second = server._with_core_descriptor_reminder(self._text_result(), "screenshot-game-view")
+        server._with_core_descriptor_reminder(self._text_result(), self.TEXT_TOOL)
+        second = server._with_core_descriptor_reminder(self._text_result(), self.TEXT_TOOL)
         self.assertFalse(any(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI in b.get("text", "") for b in second["content"]))
 
     def test_reminder_reaches_clients_that_render_structured_content(self) -> None:
-        # The regression this guards: the reminder was emitted as a trailing text block on a
-        # screenshot result, and Claude Code renders structuredContent and drops those blocks — so
-        # the nudge never arrived on the likeliest first call of a session.
+        # The regression this guards: the reminder was emitted as a trailing text block, and Claude
+        # Code renders structuredContent and drops those blocks — so the nudge never arrived on
+        # results shaped like this one.
         server = self._server()
         result = {
             "content": [{"type": "image", "data": "..."}, {"type": "text", "text": "pngWidth:320"}],
             "structuredContent": {"pngWidth": 320},
             "isError": False,
         }
-        out = server._with_core_descriptor_reminder(result, "screenshot-game-view")
+        out = server._with_core_descriptor_reminder(result, self.IMAGE_TOOL)
         notices = out["structuredContent"]["notices"]
         self.assertTrue(any(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI in n for n in notices))
         self.assertEqual(out["structuredContent"]["pngWidth"], 320)
@@ -130,15 +140,38 @@ class CoreDescriptorReminderTests(unittest.TestCase):
     def test_no_reminder_once_the_resource_was_read(self) -> None:
         server = self._server()
         server.core_descriptors_read = True
-        out = server._with_core_descriptor_reminder(self._text_result(), "screenshot-game-view")
+        out = server._with_core_descriptor_reminder(self._text_result(), self.TEXT_TOOL)
         self.assertFalse(any(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI in b.get("text", "") for b in out["content"]))
 
     def test_reminder_never_corrupts_json_output(self) -> None:
         payload = {"pngWidth": 320}
         result = {"content": [{"type": "text", "text": json.dumps(payload)}], "isError": False}
-        out = self._server()._with_core_descriptor_reminder(result, "screenshot-game-view")
+        out = self._server()._with_core_descriptor_reminder(result, self.TEXT_TOOL)
         self.assertEqual(json.loads(out["content"][0]["text"]), payload)
         self.assertTrue(any("First ChievFX" in block.get("text", "") for block in out["content"][1:]))
+
+    def test_read_only_grace_calls_stay_silent(self) -> None:
+        # The precondition tells callers a read-only glance needs no descriptor read first. Nagging
+        # on exactly those calls contradicts the instruction it is enforcing, and spends a ~9 KB
+        # read to answer a question the screenshot already answered.
+        server = self._server()
+        for tool_id in sorted(mcp.CORE_DESCRIPTOR_GRACE_TOOL_IDS):
+            with self.subTest(tool=tool_id):
+                out = server._with_core_descriptor_reminder(self._text_result(), tool_id)
+                blocks = [block.get("text", "") for block in out["content"]]
+                self.assertFalse(any(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI in text for text in blocks))
+                self.assertFalse(server.core_descriptor_reminder_sent)
+        # Silence is a deferral, not a cancellation: the first call needing the reference still gets it.
+        out = server._with_core_descriptor_reminder(self._text_result(), self.TEXT_TOOL)
+        self.assertTrue(any(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI in b.get("text", "") for b in out["content"]))
+
+    def test_grace_ids_name_real_tools(self) -> None:
+        # A typo here would silently widen the nudge back to the calls it is meant to exempt.
+        known = {tool["name"] for tool in mcp.all_tools()}
+        self.assertEqual(sorted(mcp.CORE_DESCRIPTOR_GRACE_TOOL_IDS - known), [])
+        self.assertEqual(sorted(mcp.CORE_DESCRIPTOR_REMEDY_TOOL_IDS - known), [])
+        self.assertNotIn(self.IMAGE_TOOL, mcp.CORE_DESCRIPTOR_GRACE_TOOL_IDS)
+        self.assertNotIn(self.TEXT_TOOL, mcp.CORE_DESCRIPTOR_GRACE_TOOL_IDS)
 
 if __name__ == "__main__":
     unittest.main()

@@ -241,11 +241,14 @@ class McpServerCore:
         An imperative in initialize.instructions is easy to skip — clients truncate it, and it competes
         with everything else in context. A line that arrives attached to the first actual Unity result
         lands when it is actionable.
+
+        Stays silent on the read-only calls the precondition explicitly allows before that read
+        (CORE_DESCRIPTOR_GRACE_TOOL_IDS): a notice contradicting the instruction it is enforcing
+        teaches the caller to discount both.
         """
         if self.core_descriptors_read or self.core_descriptor_reminder_sent:
             return result
-        # Reading the resource is the remedy; don't nag on the calls that constitute reading it.
-        if name in {"tools-list-categories", "tools-list-category"}:
+        if name in CORE_DESCRIPTOR_REMEDY_TOOL_IDS or name in CORE_DESCRIPTOR_GRACE_TOOL_IDS:
             return result
 
         delivered = attach_result_notice(

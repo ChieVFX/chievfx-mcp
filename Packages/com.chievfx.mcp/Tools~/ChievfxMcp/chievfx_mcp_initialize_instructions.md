@@ -26,12 +26,12 @@ text: |
 ---
 type: global
 text: |
-  Read resource to learn more about mcp capabilities: chievfx://instructions/core-descriptors (all tools + args),
-  chievfx://categories/<domain> (one domain).
+  When calling `CallMcpTool`, pass tool parameters inside top-level `arguments`. Eg:`CallMcpTool({ server, toolName, arguments: { path: "Assets/Foo" } })`
 ---
 
 ---
 type: global
 text: |
-  When calling `CallMcpTool`, pass tool parameters inside top-level `arguments`. Eg:`CallMcpTool({ server, toolName, arguments: { path: "Assets/Foo" } })`
+  Read resource to learn more about mcp capabilities: chievfx://instructions/core-descriptors (all tools + args),
+  chievfx://categories/<domain> (one domain).
 ---

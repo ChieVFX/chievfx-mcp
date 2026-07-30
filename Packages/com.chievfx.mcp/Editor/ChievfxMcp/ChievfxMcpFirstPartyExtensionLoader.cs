@@ -1461,7 +1461,9 @@ namespace Chievfx.Mcp.Extensions.Control
 
         private static void CollectShadersFromOpenScenes(List<(Shader, string)> shaders, List<Dictionary<string, object?>> missing)
         {
-            foreach (var renderer in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Include))
+#pragma warning disable CS0618
+            foreach (var renderer in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+#pragma warning restore CS0618
             {
                 foreach (var material in renderer.sharedMaterials)
                 {

@@ -60,6 +60,21 @@ After the package is installed in your Unity project:
 
 The MCP server appears as `unity-mcp-chievfx`.
 
+**Codex only:** Codex ignores a project's `.codex/config.toml` — the only place this server is
+declared — until the project is trusted in your user-level config (`CODEX_HOME` or
+`~/.codex/config.toml`):
+
+```toml
+[projects.'/absolute/path/to/project']
+trust_level = "trusted"
+```
+
+Normally Codex writes that itself when you answer its trust prompt, but a host that drives Codex
+without showing the prompt (JetBrains AI's Codex agent) never gets the chance, so the config looks
+correct while no Unity tools load. Auto-setup adds the entry when nothing covers the project yet;
+turn it off with **Record Codex project trust** in the window's Automation section. Trust matching is
+exact-path: only the launch directory or the repo root Codex resolves from it counts.
+
 ## Documentation
 
 These guides ship inside the package (`Packages/com.chievfx.mcp/Documentation~/`), so they travel with both the UPM and Python installs:

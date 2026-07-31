@@ -133,6 +133,16 @@ namespace Chievfx.Mcp.Editor
                 }
             }
 
+            // Writing .codex/config.toml is not enough on its own: Codex only reads a project's
+            // .codex/ layer once the project is trusted at user level. Idempotent — a project that
+            // already has a trust decision (either answer) is left alone.
+            if (ChievfxMcpToolPolicy.EnsureCodexProjectTrust
+                && ChievfxMcpCodexTrust.TryEnsureProjectTrusted(out var trustDetail))
+            {
+                written.Add($"Codex project trust — {ChievfxMcpCodexTrust.ConfigPath}");
+                Debug.Log($"[ChievFX MCP] {trustDetail}");
+            }
+
             // The same reference the startup instructions can only point at, placed where each client
             // loads skills from. Idempotent, so an unchanged project writes nothing.
             written.AddRange(ChievfxMcpClientSkillWriter.WriteAll());
@@ -480,6 +490,16 @@ namespace Chievfx.Mcp.Editor
                 EditorPrefs.SetBool(ChievfxMcpToolPolicy.AutoWriteClientConfigsKey, evt.newValue));
             automation.Add(autoWriteClientConfigsToggle);
             automation.Add(CreateMutedLabel("Writes .cursor/mcp.json, .mcp.json, .codex/config.toml, .kimi-code/mcp.json, and .ai/mcp/mcp.json so the project is ready without a manual Write Config. Turn off to manage client configs yourself."));
+
+            var ensureCodexTrustToggle = new Toggle("Record Codex project trust")
+            {
+                value = ChievfxMcpToolPolicy.EnsureCodexProjectTrust,
+                tooltip = "When on, adds [projects.'<project path>'] trust_level = \"trusted\" to your user-level Codex config (CODEX_HOME or ~/.codex/config.toml) if no trust decision covers this project yet. Codex skips a project's .codex/config.toml — where this project's MCP server is declared — until the project is trusted, and hosts that drive Codex without its trust prompt never record it. Existing decisions, including \"untrusted\", are never changed. Default on."
+            };
+            ensureCodexTrustToggle.RegisterValueChangedCallback(evt =>
+                EditorPrefs.SetBool(ChievfxMcpToolPolicy.EnsureCodexProjectTrustKey, evt.newValue));
+            automation.Add(ensureCodexTrustToggle);
+            automation.Add(CreateMutedLabel("Appends one entry to the global Codex config; the MCP server itself stays project-local. Trusting a directory also lets Codex default to workspace-write there. Turn off to answer Codex's own trust prompt yourself."));
 
             autoReloadExternallyChangedScenesToggle = new Toggle("Auto-reload externally changed open scenes")
             {
@@ -838,7 +858,18 @@ namespace Chievfx.Mcp.Editor
 
             if (clientConfigHintLabel != null)
             {
-                clientConfigHintLabel.text = clientInfo.Hint;
+                // Codex's project config only loads for a trusted project, so its real state is the
+                // config file plus the user-level trust record. Read it only while Codex is the
+                // selected client, so the other clients' refresh stays file-free.
+                var hint = clientInfo.Hint;
+                if (string.Equals(clientInfo.DisplayName, ClientCodex, StringComparison.Ordinal))
+                {
+                    hint += ChievfxMcpCodexTrust.HasTrustDecision()
+                        ? $"\n\nProject trust: recorded in {ChievfxMcpCodexTrust.ConfigPath}."
+                        : $"\n\nProject trust: MISSING from {ChievfxMcpCodexTrust.ConfigPath} — until it is there Codex ignores .codex/config.toml entirely and loads no Unity tools. Write Codex Config adds it.";
+                }
+
+                clientConfigHintLabel.text = hint;
             }
 
             if (writeConfigButton != null)
@@ -1128,10 +1159,22 @@ namespace Chievfx.Mcp.Editor
             ChievfxMcpToolPolicy.EnsureBridgeStarted();
             var clientInfo = GetClientInfo(GetClient());
             WriteClientConfig(clientInfo, GetTransport(), GetPort(), GetTimeout());
+
+            // A Codex config nobody is allowed to read is not a written config, so the trust record
+            // is part of the same action.
+            var trustNote = string.Empty;
+            if (string.Equals(clientInfo.DisplayName, ClientCodex, StringComparison.Ordinal)
+                && ChievfxMcpToolPolicy.EnsureCodexProjectTrust
+                && ChievfxMcpCodexTrust.TryEnsureProjectTrusted(out var trustDetail))
+            {
+                trustNote = $"\n\n{trustDetail}";
+                Debug.Log($"[ChievFX MCP] {trustDetail}");
+            }
+
             RefreshUi();
             EditorUtility.DisplayDialog(
                 "ChievFX MCP",
-                $"{clientInfo.DisplayName} config written. Reload MCP tools or restart {clientInfo.DisplayName} before {ChievfxMcpToolPolicy.CursorServerName} appears in the current session.",
+                $"{clientInfo.DisplayName} config written. Reload MCP tools or restart {clientInfo.DisplayName} before {ChievfxMcpToolPolicy.CursorServerName} appears in the current session.{trustNote}",
                 "OK");
         }
 
@@ -1167,7 +1210,7 @@ namespace Chievfx.Mcp.Editor
                 return new McpClientInfo(
                     ClientCodex,
                     CodexConfigPath,
-                    "Codex reads project MCP servers from .codex/config.toml after the project is trusted. Restart Codex after writing config.",
+                    "Codex reads project MCP servers from .codex/config.toml only while the project is trusted in your user-level Codex config. Restart Codex after writing config.",
                     McpClientConfigFormat.CodexToml,
                     true,
                     "codex",

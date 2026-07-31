@@ -136,6 +136,15 @@ into the default profile on first use.
 
 The MCP server should appear as `unity-mcp-chievfx`.
 
+For `Codex`, one extra record is required outside the project: Codex skips a project's
+`.codex/config.toml` — the only place this server is declared — unless the project is trusted in
+`CODEX_HOME`/`~/.codex/config.toml` via `[projects.'<absolute path>'] trust_level = "trusted"`.
+Codex writes it when you answer its trust prompt; hosts that drive Codex without the prompt
+(JetBrains AI's Codex agent) never do, which looks like a correct config that exposes no Unity
+tools. Auto-setup adds it when no decision covers the project (existing decisions, including
+`untrusted`, are left alone); the `Record Codex project trust` toggle turns it off. Matching is
+exact-path — only the launch directory or the repo root Codex resolves from it counts.
+
 Opening the project also writes a `mcp-unity-chievfx` skill for each client —
 `.cursor/`, `.claude/`, `.codex/`, `.kimi-code/` under `skills/mcp-unity-chievfx/SKILL.md` —
 holding the complete tool/resource reference with argument signatures. MCP startup

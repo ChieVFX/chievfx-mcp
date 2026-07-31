@@ -310,6 +310,12 @@ namespace Chievfx.Mcp.Editor
 
         public static string KimiCodeConfigPath => Path.Combine(ProjectRoot, ".kimi-code", "mcp.json");
 
+        // JetBrains IDEs (Rider, IntelliJ, …) share one project-level MCP file for both AI Assistant
+        // and Junie. The path is the "llm.mcp.client.project.mcp.json.path" registry key, default
+        // ".ai/mcp/mcp.json", resolved against the project directory — for a Unity solution that is
+        // this project root. (~/.ai/mcp/mcp.json is the global equivalent; we only write the project one.)
+        public static string RiderConfigPath => Path.Combine(ProjectRoot, ".ai", "mcp", "mcp.json");
+
         // Watched by the reload-mcps extension (when its file-reload setting is on). Writing
         // {"serverName": CursorServerName} here asks Cursor to reload just this project's MCP.
         public static string CursorReloadSignalPath => Path.Combine(ProjectRoot, ".cursor", "reload-mcps.json");

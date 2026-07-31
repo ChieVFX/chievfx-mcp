@@ -131,7 +131,7 @@ into the default profile on first use.
 
 1. Open the project, wait for compile and domain reload.
 2. `Window > ChievFX > MCP` -> `Start Bridge`.
-3. Keep `Cursor` selected, or switch the client to `Claude Code` or `Codex`, then click `Write <client> Config`.
+3. Keep `Cursor` selected, or switch the client to `Claude Code`, `Codex`, `Kimi Code` or `JetBrains Rider`, then click `Write <client> Config`.
 4. Reload your MCP client's tools or restart it.
 
 The MCP server should appear as `unity-mcp-chievfx`.

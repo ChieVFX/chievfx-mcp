@@ -33,7 +33,7 @@ namespace Chievfx.Mcp.Editor
         }
 
         // Surfaces only at initial setup of the plugin: when MCP client configs were just
-        // (re)written — telling the user the MCP is now available to Cursor/Claude/Codex/Kimi — or
+        // (re)written — telling the user the MCP is now available to Cursor/Claude/Codex/Kimi/Rider — or
         // when something is wrong and needs attention. A healthy, already-configured project
         // never pops it.
         public static void ShowOnStartupIfNeeded(List<string> writtenConfigs)

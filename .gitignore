@@ -132,6 +132,8 @@ packages/com.singularity*
 .cursor/mcp.json
 .kimi-code/mcp.json
 .mcp.json
+# JetBrains project-level MCP config (Rider AI Assistant / Junie).
+.ai/mcp/mcp.json
 # Installer GUI virtual environment (auto-created on demand by the MCP window)
 Packages/com.chievfx.mcp/Install~/.venv/
 

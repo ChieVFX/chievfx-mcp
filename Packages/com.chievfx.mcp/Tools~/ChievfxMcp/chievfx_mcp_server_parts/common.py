@@ -243,7 +243,7 @@ TOOL_SHORT_SUMMARIES: dict[str, str] = {
     "events-check-since": "Events since a cursor. Use after a wait timed out",
     "screenshot-game-view": "Screenshot the Game View",
     "screenshot-camera": "Screenshot from a camera",
-    "recompile": "Recompile scripts. Returns compile errors",
+    "recompile": "Recompile scripts (stops Play Mode). Returns compile errors",
     "assets-refresh": "Reimport assets (not scripts)",
     "asset-create": "Create prefab or ScriptableObject asset",
     "asset-delete": "Delete assets or folders",

@@ -148,9 +148,53 @@ class BridgeTransportMixin:
         timeout_ms = clamp_int(arguments.get("timeoutMs"), int(RECOMPILE_WAIT_SECONDS * 1000), 1000, 30 * 60 * 1000)
         wait_seconds = timeout_ms / 1000
         status_before = self.get_bridge_status({})
-        self.emit_progress(progress_token, notify, 0.05, "Waiting for Unity to become idle before recompile.")
-        ready_before = self.wait_for_bridge_ready(max_wait_seconds=wait_seconds)
-        bridge_result = self.call_unity_bridge("recompile", arguments, request_id, progress_token, notify)
+        was_playing = self.read_playmode_state() is True
+
+        if was_playing:
+            # Do NOT wait for idle first here. Unity cannot compile during Play Mode, so a compile it
+            # already parked keeps isCompiling pinned true until play ends: the pre-wait would burn the
+            # whole timeout before the request that stops Play Mode was ever sent. That is the "recompile
+            # timed out while isCompiling stayed true" case.
+            ready_before = None
+            self.emit_progress(
+                progress_token, notify, 0.05, "Unity is in Play Mode; stopping it before recompile."
+            )
+        else:
+            self.emit_progress(progress_token, notify, 0.05, "Waiting for Unity to become idle before recompile.")
+            ready_before = self.wait_for_bridge_ready(max_wait_seconds=wait_seconds)
+
+        try:
+            bridge_result = self.call_unity_bridge("recompile", arguments, request_id, progress_token, notify)
+            result = bridge_result.get("result")
+            if not isinstance(result, dict):
+                result = {}
+        except RuntimeError:
+            # Leaving Play Mode domain-reloads Unity, which can swallow the response or briefly stale the
+            # heartbeat mid-round-trip — the same recovery editor_playmode_set needs. The editor still
+            # took the request, so confirm from the heartbeat below instead of failing the call.
+            if not was_playing or not self.bridge_dir:
+                raise
+            result = {
+                "requested": True,
+                "wasPlaying": True,
+                "exitedPlayMode": True,
+                "compileRequestedAfterPlayModeExit": True,
+                "bridgeRoundTripInterrupted": True,
+            }
+
+        # The compile is only issued once the editor is back in edit mode, so wait for the exit before
+        # waiting on compilation itself.
+        if result.get("exitedPlayMode"):
+            self.emit_progress(progress_token, notify, 0.3, "Waiting for Play Mode to exit before compiling.")
+            exit_wait_seconds = min(wait_seconds, PLAYMODE_EXIT_WAIT_TIMEOUT_SECONDS)
+            exited, exit_waited_ms = self.wait_for_playmode(False, exit_wait_seconds, progress_token, notify)
+            result["playModeExited"] = exited
+            result["playModeExitWaitedMs"] = exit_waited_ms
+            if not exited:
+                result["warning"] = (
+                    f"Play Mode did not exit within {int(exit_wait_seconds * 1000)}ms, so compilation "
+                    "may not have started. Unity does not compile while playing."
+                )
 
         # Compilation usually flips busy on the next editor tick. Give Unity a
         # short chance to enter compile/import state before waiting for idle.
@@ -158,9 +202,6 @@ class BridgeTransportMixin:
         self.emit_progress(progress_token, notify, 0.5, "Waiting for Unity compilation to finish.")
         ready_after = self.wait_for_bridge_ready(max_wait_seconds=wait_seconds)
         status_after = self.get_bridge_status({})
-        result = bridge_result.get("result")
-        if not isinstance(result, dict):
-            result = {}
 
         result.update(
             {
@@ -172,7 +213,13 @@ class BridgeTransportMixin:
             }
         )
         if not ready_after:
-            result["warning"] = "Timed out waiting for Unity compile/import busy state to clear."
+            timeout_warning = "Timed out waiting for Unity compile/import busy state to clear."
+            # Keep an earlier Play-Mode warning: it explains WHY nothing compiled, which the timeout
+            # alone does not.
+            existing_warning = result.get("warning")
+            result["warning"] = (
+                f"{existing_warning} {timeout_warning}" if isinstance(existing_warning, str) else timeout_warning
+            )
 
         # Surface compile errors/warnings produced by this recompile directly, so callers do not need a
         # separate console-get-logs round-trip. Read from the event stream (which survives the domain

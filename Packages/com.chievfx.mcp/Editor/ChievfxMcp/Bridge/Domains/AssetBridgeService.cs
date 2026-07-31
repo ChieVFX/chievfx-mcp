@@ -296,6 +296,31 @@ namespace Chievfx.Mcp.Editor
         {
             var wasCompiling = EditorApplication.isCompiling;
             var wasUpdating = EditorApplication.isUpdating;
+            var wasPlaying = EditorApplication.isPlaying || EditorApplication.isPlayingOrWillChangePlaymode;
+            var stopPlayMode = ReadBool(args, "stopPlayMode", true);
+
+            // Unity refuses to compile on demand during Play Mode, so a request issued now either
+            // vanishes or parks as a pending compile that pins isCompiling until play ends — a
+            // "compile" that reports success without compiling, or one that never finishes. Leave Play
+            // Mode and re-issue from edit mode instead.
+            if (wasPlaying && stopPlayMode)
+            {
+                BridgePendingRecompile.RequestAfterPlayModeExit(EventJournal);
+                return new Dictionary<string, object?>
+                {
+                    ["requested"] = true,
+                    ["assetDatabaseRefreshed"] = false,
+                    ["wasPlaying"] = true,
+                    ["exitedPlayMode"] = true,
+                    ["compileRequestedAfterPlayModeExit"] = true,
+                    ["scriptChangesWhilePlaying"] = BridgePendingRecompile.ScriptChangesWhilePlaying(),
+                    ["wasCompiling"] = wasCompiling,
+                    ["wasUpdating"] = wasUpdating,
+                    ["isCompiling"] = EditorApplication.isCompiling,
+                    ["isUpdating"] = EditorApplication.isUpdating
+                };
+            }
+
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
             CompilationPipeline.RequestScriptCompilation();
             EventJournal.Write(
@@ -306,9 +331,10 @@ namespace Chievfx.Mcp.Editor
                 data: new Dictionary<string, object?>
                 {
                     ["wasCompiling"] = wasCompiling,
-                    ["wasUpdating"] = wasUpdating
+                    ["wasUpdating"] = wasUpdating,
+                    ["wasPlaying"] = wasPlaying
                 });
-            return new Dictionary<string, object?>
+            var result = new Dictionary<string, object?>
             {
                 ["requested"] = true,
                 ["assetDatabaseRefreshed"] = true,
@@ -317,6 +343,21 @@ namespace Chievfx.Mcp.Editor
                 ["isCompiling"] = EditorApplication.isCompiling,
                 ["isUpdating"] = EditorApplication.isUpdating
             };
+
+            if (wasPlaying)
+            {
+                // stopPlayMode was turned off explicitly. Say plainly that the request may not produce
+                // a compile, rather than letting the caller read "requested" as "compiled".
+                result["wasPlaying"] = true;
+                result["exitedPlayMode"] = false;
+                result["scriptChangesWhilePlaying"] = BridgePendingRecompile.ScriptChangesWhilePlaying();
+                result["warning"] =
+                    "Requested while Play Mode is running with stopPlayMode=false. Unity may defer or "
+                    + "drop the compile, so no diagnostics are guaranteed. Re-run with stopPlayMode "
+                    + "omitted, or exit Play Mode first.";
+            }
+
+            return result;
         }
 
         private static Dictionary<string, object?> CreateTargetedRefreshResult(RefreshTargets targets, ImportAssetOptions options)

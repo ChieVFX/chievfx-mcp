@@ -136,6 +136,7 @@ class EventsStatusMixin:
             stale_processing_files,
             pending_response_count,
             len(active_event_waits),
+            compile_waiting_for_play_mode_exit=bool(editor.get("compileWaitingForPlayModeExit")),
         )
 
         if verbose:
@@ -535,8 +536,17 @@ class EventsStatusMixin:
         stale_processing_files: list[dict[str, Any]],
         pending_response_count: int,
         active_event_wait_count: int = 0,
+        compile_waiting_for_play_mode_exit: bool = False,
     ) -> list[str]:
         hints: list[str] = []
+        if compile_waiting_for_play_mode_exit:
+            # Without this, "isCompiling: true" during Play Mode looks like a compile in flight and
+            # callers keep waiting for an idle state that cannot arrive.
+            hints.append(
+                "isCompiling reflects a compile Unity is holding until Play Mode exits, not work in "
+                "progress. Call recompile (it stops Play Mode first) or editor-playmode-set "
+                "isPlaying=false."
+            )
         if not bridge_reachable:
             if heartbeat_age is None:
                 hints.append("No Unity heartbeat file. Open Unity or wait for bridge startup.")

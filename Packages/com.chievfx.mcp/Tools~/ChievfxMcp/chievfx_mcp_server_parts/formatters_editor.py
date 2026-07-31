@@ -15,6 +15,12 @@ def format_recompile_text(result: dict[str, Any]) -> str:
         return f"{count} {noun}{'' if count == 1 else 's'}"
 
     lines = [f"recompile {outcome} — {plural(error_count, 'error')}, {plural(warning_count, 'warning')}"]
+    # Stopping Play Mode is a visible side effect of the caller's own request, so never leave it to a
+    # json-only field.
+    if result.get("exitedPlayMode"):
+        lines.append("Play Mode stopped first (Unity does not compile while playing).")
+    elif result.get("wasPlaying"):
+        lines.append("Ran while Play Mode was active (stopPlayMode=false).")
     if result.get("warning"):
         lines.append(f"! {result['warning']}")
 

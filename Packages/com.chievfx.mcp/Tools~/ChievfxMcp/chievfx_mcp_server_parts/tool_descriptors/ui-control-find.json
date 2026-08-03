@@ -41,7 +41,7 @@
       "normalizeCoords": {
         "type": "boolean",
         "default": false,
-        "description": "When true, zone bounds are normalized 0..1 from bottom-left (0) to top-right (1) using the current screen size. Text output uses D.DD except exact 0 and 1."
+        "description": "When true, zone bounds are normalized 0..1 from bottom-left (0) to top-right (1) using the Game View render size reported as screenSize (not the Game View window size). Text output uses D.DD except exact 0 and 1."
       }
     },
     "additionalProperties": false

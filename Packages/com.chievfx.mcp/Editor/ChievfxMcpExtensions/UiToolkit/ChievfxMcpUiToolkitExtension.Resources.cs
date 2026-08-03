@@ -26,7 +26,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         {
             var warnings = new List<string>();
             var result = CreateEnvelope(uri, status);
-            AddCoordinateInfo(result, RuntimeScreenPosition.FromScreenPosition(new Vector2(Screen.width * 0.5f, Screen.height * 0.5f)));
+            AddCoordinateInfo(result, RuntimeScreenPosition.FromScreenPosition(ChievfxMcpRuntimeScreenSize.Resolve() * 0.5f));
             result["playMode"] = IsRuntimePlayModeActive();
             result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
             if (Equals(result["runtimeAvailable"], false))

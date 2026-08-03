@@ -141,9 +141,14 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return eventSystem;
         }
 
+        // A real pointer event carries the raycast that produced it, and handlers read it —
+        // eventData.pointerCurrentRaycast.gameObject to identify what was hit, .worldPosition to place
+        // something in the world. A hand-built event leaves those default, so such a handler sees null or
+        // (0,0,0) and takes the wrong branch while the click itself looks like it worked. Fill them from the
+        // same EventSystem raycast the real input module would have run at this position.
         internal static PointerEventData CreatePointerEventData(EventSystem eventSystem, Vector2 position)
         {
-            return new PointerEventData(eventSystem)
+            var pointer = new PointerEventData(eventSystem)
             {
                 button = PointerEventData.InputButton.Left,
                 clickCount = 1,
@@ -152,6 +157,102 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 position = position,
                 delta = Vector2.zero,
             };
+
+            var results = new List<RaycastResult>();
+            try
+            {
+                eventSystem.RaycastAll(pointer, results);
+            }
+            catch (Exception)
+            {
+                // A raycaster that throws must not take the interaction down with it; the event still
+                // dispatches, just without raycast detail.
+                results.Clear();
+            }
+
+            if (results.Count > 0)
+            {
+                pointer.pointerCurrentRaycast = results[0];
+                pointer.pointerPressRaycast = results[0];
+            }
+
+            return pointer;
+        }
+
+        // pointerPress/rawPointerPress are what a handler reads to ask "which object is this press on?"
+        // (drag handlers especially). The real input module sets them when the press is dispatched.
+        internal static void AssignPointerPressTarget(PointerEventData pointer, GameObject? dispatchTarget, GameObject? rawTarget)
+        {
+            pointer.pointerPress = dispatchTarget;
+            pointer.rawPointerPress = rawTarget ?? dispatchTarget;
+        }
+
+        // Pooled UI makes a hierarchy path ambiguous: a shop list can hold 177 objects all named
+        // "Root/List/CarItem(Clone)", nearly all of them deactivated in the pool. Transform.Find hands back
+        // whichever it walks into first, so targeting by path used to land on a disabled pooled entry and
+        // report "no handler" as if the control itself were broken. Prefer the live one and say what was
+        // ambiguous. The scan only runs when the cheap lookup came back empty or inactive, so the common
+        // unambiguous case stays a single Transform.Find.
+        internal static GameObject? ResolveRuntimeTargetFromArgs(JToken args, string pathKey, string instanceIdKey, List<string> warnings)
+        {
+            var byInstanceId = ResolveGameObject(ReadInt(args, instanceIdKey, 0));
+            if (byInstanceId != null)
+            {
+                return byInstanceId;
+            }
+
+            var path = ReadString(args, pathKey);
+            var firstMatch = ResolveGameObject(path);
+            if (firstMatch == null || firstMatch.activeInHierarchy)
+            {
+                return firstMatch;
+            }
+
+            var matches = FindGameObjectsByRuntimePath(path!);
+            var activeMatch = matches.FirstOrDefault(candidate => candidate.activeInHierarchy);
+            if (activeMatch == null)
+            {
+                if (matches.Length > 1)
+                {
+                    warnings.Add($"Path '{path}' matched {matches.Length} objects and none are active in the hierarchy; using instanceId {UnityObjectIdentity.GetLegacyInstanceId(firstMatch)}. Pass instanceId to pick one.");
+                }
+                else
+                {
+                    warnings.Add($"Path '{path}' resolved to an object that is inactive in the hierarchy; runtime interactions will not reach it.");
+                }
+
+                return firstMatch;
+            }
+
+            if (matches.Length > 1)
+            {
+                warnings.Add($"Path '{path}' matched {matches.Length} objects ({matches.Count(candidate => candidate.activeInHierarchy)} active, typically a pooled list); using the active one, instanceId {UnityObjectIdentity.GetLegacyInstanceId(activeMatch)}. Pass instanceId to pick a specific object.");
+            }
+
+            return activeMatch;
+        }
+
+        internal static GameObject[] FindGameObjectsByRuntimePath(string path)
+        {
+            var normalized = path.Trim().Trim('/');
+            if (normalized.Length == 0)
+            {
+                return Array.Empty<GameObject>();
+            }
+
+            // Callers pass either the full path the tools report or one relative to a scene root, so accept a
+            // suffix on a '/' boundary. Filtering on the leaf name first keeps this off the hot path cost.
+            var leafName = normalized.Substring(normalized.LastIndexOf('/') + 1);
+            return Resources.FindObjectsOfTypeAll<GameObject>()
+                .Where(candidate => candidate.scene.IsValid()
+                    && string.Equals(candidate.name, leafName, StringComparison.Ordinal))
+                .Where(candidate =>
+                {
+                    var fullPath = GetTransformPath(candidate.transform);
+                    return string.Equals(fullPath, normalized, StringComparison.Ordinal)
+                        || fullPath.EndsWith("/" + normalized, StringComparison.Ordinal);
+                })
+                .ToArray();
         }
 
         internal static GameObject? ResolveRuntimeInteractionTarget(
@@ -162,8 +263,8 @@ namespace Chievfx.Mcp.Extensions.Ugui
             List<string> warnings,
             out Dictionary<string, object?>[] stack)
         {
-            var explicitTarget = ResolveGameObject(args, "path", "instanceId")
-                ?? ResolveGameObject(args, "targetPath", "instanceId");
+            var explicitTarget = ResolveRuntimeTargetFromArgs(args, "path", "instanceId", warnings)
+                ?? ResolveRuntimeTargetFromArgs(args, "targetPath", "instanceId", warnings);
             if (explicitTarget != null)
             {
                 stack = Array.Empty<Dictionary<string, object?>>();
@@ -183,7 +284,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 return null;
             }
 
-            if (IsOutsideScreen(screenPosition, new Vector2(Math.Max(1, Screen.width), Math.Max(1, Screen.height))))
+            if (IsOutsideScreen(screenPosition, ResolveRuntimeUiScreenSize(status)))
             {
                 warnings.Add("Coordinate is outside current screen/game-view bounds.");
             }
@@ -474,19 +575,31 @@ namespace Chievfx.Mcp.Extensions.Ugui
             var controls = GetControlComponents(target, status).Select(component => component.GetType().Name).ToArray();
             var canvas = FindParentCanvas(target, status);
             var sorting = CreateSortingRow(canvas);
+            var interactionEnabled = ResolveInteractionEnabled(target, status, out var disabledComponents);
             var row = new Dictionary<string, object?>
             {
                 ["i"] = index,
                 ["path"] = GetTransformPath(target.transform),
                 ["instanceId"] = UnityObjectIdentity.GetLegacyInstanceId(target),
                 ["type"] = ResolveCompactProbeHitType(target, GetMemberValue(raycastResult, "module") as Component, controls, status),
-                ["enabled"] = target.GetComponents<Component>().Where(component => component is Behaviour).Cast<Behaviour>().All(component => component.enabled),
+                ["enabled"] = interactionEnabled,
                 ["interactable"] = GetFirstPropertyValue(target, "interactable", status.SelectableType, status.ButtonType, status.ToggleType, status.SliderType, status.ScrollbarType, status.DropdownType, status.TmpDropdownType, status.InputFieldType),
                 ["raycastTarget"] = GetFirstPropertyValue(target, "raycastTarget", status.GraphicType, status.ImageType, status.TmpTextType),
             };
+            if (disabledComponents.Length > 0)
+            {
+                row["disabledComponents"] = disabledComponents;
+            }
+
             if (controls.Length > 0)
             {
                 row["controls"] = controls;
+            }
+
+            var handlers = GetEventHandlerTypeNames(target, controls);
+            if (handlers.Length > 0)
+            {
+                row["handlers"] = handlers;
             }
 
             if (sorting != null && sorting.TryGetValue("sortingOrder", out var sortingOrder))
@@ -582,8 +695,20 @@ namespace Chievfx.Mcp.Extensions.Ugui
         {
             var row = CreateGameObjectRow(target);
             row["type"] = "GameObject";
-            row["controlComponents"] = GetControlComponents(target, status).Select(component => component.GetType().Name).ToArray();
-            row["enabled"] = target.GetComponents<Component>().Where(component => component is Behaviour).Cast<Behaviour>().All(component => component.enabled);
+            var controlComponents = GetControlComponents(target, status).Select(component => component.GetType().Name).ToArray();
+            row["controlComponents"] = controlComponents;
+            row["enabled"] = ResolveInteractionEnabled(target, status, out var disabledComponents);
+            if (disabledComponents.Length > 0)
+            {
+                row["disabledComponents"] = disabledComponents;
+            }
+
+            var handlers = GetEventHandlerTypeNames(target, controlComponents);
+            if (handlers.Length > 0)
+            {
+                row["handlers"] = handlers;
+            }
+
             row["interactable"] = GetFirstPropertyValue(target, "interactable", status.SelectableType, status.ButtonType, status.ToggleType, status.SliderType, status.ScrollbarType, status.DropdownType, status.TmpDropdownType, status.InputFieldType);
             row["raycastTarget"] = GetFirstPropertyValue(target, "raycastTarget", status.GraphicType, status.ImageType, status.TmpTextType);
             row["canvas"] = CreateCanvasReferenceRow(target, status);
@@ -620,6 +745,49 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             return GetFirstPropertyValue(target, "raycastTarget", status.GraphicType, status.ImageType, status.TmpTextType) is true;
+        }
+
+        // "enabled" used to mean "every Behaviour on this GameObject is enabled", so a single unrelated
+        // disabled script (an Animator, a game-side controller) reported a perfectly clickable button as
+        // "not enabled" — a false negative that sends callers chasing the wrong cause. Scope it to the
+        // components that actually decide whether this hit can react: the raycast Graphic and the event
+        // handlers. When it is false, name them, because "not enabled" alone says nothing actionable.
+        internal static bool ResolveInteractionEnabled(GameObject target, UguiDependencyStatus status, out string[] disabledComponents)
+        {
+            var relevant = target.GetComponents<Component>()
+                .OfType<Behaviour>()
+                .Where(behaviour => behaviour is IEventSystemHandler
+                    || IsComponentOfType(behaviour, status.GraphicType)
+                    || IsComponentOfType(behaviour, status.ImageType)
+                    || IsComponentOfType(behaviour, status.TmpTextType))
+                .ToArray();
+
+            disabledComponents = relevant
+                .Where(behaviour => !behaviour.enabled)
+                .Select(behaviour => behaviour.GetType().Name)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            return disabledComponents.Length == 0;
+        }
+
+        // The handler types are the difference between "this is a Button whose onClick I can fire" and "this
+        // is an EventTrigger with PointerDown/PointerUp entries that a synthetic click cannot satisfy" —
+        // exactly what is needed to diagnose a click that resolves but does nothing. Control components are
+        // already reported separately, so skip those names here.
+        internal static string[] GetEventHandlerTypeNames(GameObject target, IEnumerable<string> reportedControls)
+        {
+            var known = new HashSet<string>(reportedControls, StringComparer.Ordinal);
+            return target.GetComponents<Component>()
+                .OfType<IEventSystemHandler>()
+                .Select(handler => handler.GetType().Name)
+                .Where(name => !known.Contains(name))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static bool IsComponentOfType(Component component, Type? type)
+        {
+            return type != null && type.IsInstanceOfType(component);
         }
 
         internal static Component[] GetControlComponents(GameObject target, UguiDependencyStatus status)

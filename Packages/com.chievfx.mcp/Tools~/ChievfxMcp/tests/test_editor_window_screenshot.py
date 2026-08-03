@@ -391,8 +391,19 @@ class editorWindowScreenshotMetadataTests(unittest.TestCase):
         # events-wait/events-check-since/asset-find intentionally keep per-property descriptions because
         # correct usage is intuition-critical; they are exempt from the lean-descriptor cap.
         documented_tools = mcp.ADVERTISED_SCHEMA_DESCRIPTION_TOOLS
-        lean_estimates = {name: value for name, value in estimates.items() if name not in documented_tools}
+        # ui-runtime-click/drag advertise the `space` enum on top of an already-wide coordinate surface.
+        # It has to be advertised: a caller who cannot see space:"screenshot" cannot use the one mode that
+        # turns a pixel read off a screenshot into a click, and an undocumented coordinate space is how
+        # mirrored clicks go unnoticed. ~10 tokens each, capped so the surface cannot creep further.
+        coordinate_tools = {"ui-runtime-click", "ui-runtime-drag"}
+        lean_estimates = {
+            name: value
+            for name, value in estimates.items()
+            if name not in documented_tools and name not in coordinate_tools
+        }
         self.assertLessEqual(max(lean_estimates.values()), 160)
+        for name in coordinate_tools:
+            self.assertLessEqual(estimates[name], 170, name)
         self.assertLessEqual(estimates["tests-run"], 130)
         # screenshot-editor-window's advertised surface is design-locked to {target, openIfMissing,
         # savePath} (see test_advertised_editor_window_screenshot_schema_keeps_common_path_only); the

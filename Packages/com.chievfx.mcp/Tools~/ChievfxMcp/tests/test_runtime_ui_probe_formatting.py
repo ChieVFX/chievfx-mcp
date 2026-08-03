@@ -14,7 +14,7 @@ from chievfx_mcp_server_parts.initialize_instructions import (  # noqa: E402
 class RuntimeUiProbeFormattingTests(unittest.TestCase):
     def test_initialize_instructions_advertises_typed_probe_arguments(self) -> None:
         schema = mcp.advertised_input_schema({"name": "ui-runtime-probe", "inputSchema": {}})
-        self.assertEqual(_schema_arguments(schema), "x:num, y:num, isNormalized?:bool, page?:int")
+        self.assertEqual(_schema_arguments(schema), "x:num, y:num, isNormalized?:bool, space?:screen|screenshot, page?:int")
 
         line = format_tool_for_initialize_instructions(
             {
@@ -23,7 +23,7 @@ class RuntimeUiProbeFormattingTests(unittest.TestCase):
                 "inputSchema": schema,
             }
         )
-        self.assertIn("args=(x:num, y:num, isNormalized?:bool, page?:int)", line)
+        self.assertIn("args=(x:num, y:num, isNormalized?:bool, space?:screen|screenshot, page?:int)", line)
 
     def test_initialize_instructions_advertises_typed_type_text_arguments(self) -> None:
         schema = mcp.advertised_input_schema({"name": "ui-runtime-type-text", "inputSchema": {}})
@@ -85,7 +85,7 @@ class RuntimeUiProbeFormattingTests(unittest.TestCase):
         schema = mcp.advertised_input_schema({"name": "ui-runtime-click", "inputSchema": {}})
         self.assertEqual(
             _schema_arguments(schema),
-            "framework?:all|auto|ugui|uitoolkit, x?:num, y?:num, isNormalized?:bool, path?:str, instanceId?:int, handler?:pointerClick|submit",
+            "framework?:all|auto|ugui|uitoolkit, x?:num, y?:num, isNormalized?:bool, space?:screen|screenshot, path?:str, instanceId?:int, handler?:pointerClick|submit",
         )
 
         line = format_tool_for_initialize_instructions(
@@ -96,7 +96,7 @@ class RuntimeUiProbeFormattingTests(unittest.TestCase):
             }
         )
         self.assertIn(
-            "args=(framework?:all|auto|ugui|uitoolkit, x?:num, y?:num, isNormalized?:bool, path?:str, instanceId?:int, handler?:pointerClick|submit)",
+            "args=(framework?:all|auto|ugui|uitoolkit, x?:num, y?:num, isNormalized?:bool, space?:screen|screenshot, path?:str, instanceId?:int, handler?:pointerClick|submit)",
             line,
         )
         self.assertEqual(
@@ -106,6 +106,7 @@ class RuntimeUiProbeFormattingTests(unittest.TestCase):
                 "x",
                 "y",
                 "isNormalized",
+                "space",
                 "path",
                 "instanceId",
                 "handler",
@@ -116,7 +117,7 @@ class RuntimeUiProbeFormattingTests(unittest.TestCase):
         schema = mcp.advertised_input_schema({"name": "ui-runtime-drag", "inputSchema": {}})
         self.assertEqual(
             _schema_arguments(schema),
-            "framework?:all|auto|ugui|uitoolkit, x?:num, y?:num, toX?:num, toY?:num, deltaX?:num, deltaY?:num, isNormalized?:bool, path?:str, instanceId?:int",
+            "framework?:all|auto|ugui|uitoolkit, x?:num, y?:num, toX?:num, toY?:num, deltaX?:num, deltaY?:num, isNormalized?:bool, space?:screen|screenshot, path?:str, instanceId?:int",
         )
 
         line = format_tool_for_initialize_instructions(
@@ -127,7 +128,7 @@ class RuntimeUiProbeFormattingTests(unittest.TestCase):
             }
         )
         self.assertIn(
-            "args=(framework?:all|auto|ugui|uitoolkit, x?:num, y?:num, toX?:num, toY?:num, deltaX?:num, deltaY?:num, isNormalized?:bool, path?:str, instanceId?:int)",
+            "args=(framework?:all|auto|ugui|uitoolkit, x?:num, y?:num, toX?:num, toY?:num, deltaX?:num, deltaY?:num, isNormalized?:bool, space?:screen|screenshot, path?:str, instanceId?:int)",
             line,
         )
         self.assertEqual(
@@ -141,6 +142,7 @@ class RuntimeUiProbeFormattingTests(unittest.TestCase):
                 "deltaX",
                 "deltaY",
                 "isNormalized",
+                "space",
                 "path",
                 "instanceId",
             ],
@@ -208,6 +210,103 @@ class RuntimeUiProbeFormattingTests(unittest.TestCase):
         self.assertIn("### Warnings", text)
         self.assertIn("- sample warning", text)
         self.assertNotIn("count:", text)
+
+    def test_probe_position_reports_screen_size_source_when_screen_disagrees(self) -> None:
+        result = {
+            "runtimeAvailable": True,
+            "page": 1,
+            "totalPages": 1,
+            "totalHits": 0,
+            "probe": {
+                "origin": "bottom-left",
+                "normalized": {"x": 0.5, "y": 0.5},
+                "screen": {"x": 1170, "y": 540},
+                "screenSize": {"x": 2340, "y": 1080},
+                "screenSizeSource": "gameView.targetSize",
+            },
+            "ugui": {"available": True, "probed": True, "count": 0, "hits": []},
+        }
+
+        text = mcp.format_ugui_runtime_probe_text(result)
+
+        self.assertIn("screen size 2340.00, 1080.00 · screen size from gameView.targetSize", text)
+
+    def test_probe_position_omits_screen_size_source_when_absent(self) -> None:
+        result = {
+            "runtimeAvailable": True,
+            "page": 1,
+            "totalPages": 1,
+            "totalHits": 0,
+            "probe": {
+                "origin": "bottom-left",
+                "normalized": {"x": 0.5, "y": 0.5},
+                "screen": {"x": 960, "y": 540},
+                "screenSize": {"x": 1920, "y": 1080},
+            },
+            "ugui": {"available": True, "probed": True, "count": 0, "hits": []},
+        }
+
+        text = mcp.format_ugui_runtime_probe_text(result)
+
+        self.assertIn("screen size 1920.00, 1080.00", text)
+        self.assertNotIn("screen size from", text)
+
+    def test_hit_details_name_the_disabled_components_and_handlers(self) -> None:
+        # "not enabled" with nothing named reads as "not clickable" and sends the reader after the wrong
+        # cause; the handler type is what identifies an EventTrigger-driven HUD button.
+        result = {
+            "runtimeAvailable": True,
+            "page": 1,
+            "totalPages": 1,
+            "totalHits": 1,
+            "probe": {
+                "origin": "bottom-left",
+                "normalized": {"x": 0.96, "y": 0.83},
+                "screen": {"x": 2258, "y": 902},
+                "screenSize": {"x": 2340, "y": 1080},
+            },
+            "ugui": {
+                "available": True,
+                "probed": True,
+                "count": 1,
+                "hits": [
+                    {
+                        "i": 0,
+                        "path": "Root/TopRight/Home",
+                        "type": "Image",
+                        "raycastTarget": True,
+                        "enabled": False,
+                        "disabledComponents": ["HomeMenuAnimator"],
+                        "handlers": ["EventTrigger"],
+                    }
+                ],
+            },
+        }
+
+        text = mcp.format_ugui_runtime_probe_text(result)
+
+        self.assertIn("handlers: EventTrigger", text)
+        self.assertIn("not enabled (HomeMenuAnimator)", text)
+
+    def test_hit_details_keep_plain_not_enabled_without_component_names(self) -> None:
+        result = {
+            "runtimeAvailable": True,
+            "page": 1,
+            "totalPages": 1,
+            "totalHits": 1,
+            "probe": {"origin": "bottom-left", "screenSize": {"x": 1920, "y": 1080}},
+            "ugui": {
+                "available": True,
+                "probed": True,
+                "count": 1,
+                "hits": [{"i": 0, "path": "Canvas/Button", "type": "Button", "enabled": False}],
+            },
+        }
+
+        text = mcp.format_ugui_runtime_probe_text(result)
+
+        self.assertIn("not enabled", text)
+        self.assertNotIn("not enabled (", text)
 
     def test_per_canvas_warnings_are_aggregated_by_category(self) -> None:
         result = {

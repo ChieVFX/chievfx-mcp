@@ -158,6 +158,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                     var clickHandlerObject = ExecuteEvents.GetEventHandler<IPointerClickHandler>(target);
                     var clickTarget = clickHandlerObject ?? target;
                     var pointer = CreatePointerEventData(eventSystem, position.ScreenPosition);
+                    AssignPointerPressTarget(pointer, clickTarget, target);
                     ExecuteEvents.Execute(clickTarget, pointer, ExecuteEvents.pointerEnterHandler);
                     var downHandled = ExecuteEvents.Execute(clickTarget, pointer, ExecuteEvents.pointerDownHandler);
                     var upHandled = ExecuteEvents.Execute(clickTarget, pointer, ExecuteEvents.pointerUpHandler);
@@ -231,6 +232,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             {
                 var dragTarget = ExecuteEvents.GetEventHandler<IDragHandler>(target) ?? target;
                 var pointer = CreatePointerEventData(eventSystem, geometry.Start.ScreenPosition);
+                AssignPointerPressTarget(pointer, dragTarget, target);
                 pointer.pointerDrag = dragTarget;
                 ExecuteEvents.Execute(dragTarget, pointer, ExecuteEvents.initializePotentialDrag);
                 ExecuteEvents.Execute(dragTarget, pointer, ExecuteEvents.beginDragHandler);
@@ -423,9 +425,15 @@ namespace Chievfx.Mcp.Extensions.Ugui
             result["eventSystem"] = eventSystem == null ? null : CreateGameObjectRow(eventSystem.gameObject);
 
             var target = ResolveRuntimeInteractionTarget(args, status, eventSystem, position.ScreenPosition, warnings, out var stack);
-            result["stack"] = stack;
             var inputField = target == null ? null : ResolveTextInputComponent(target, status);
             var resolved = inputField != null;
+            // The hit stack is one row per RectTransform under the pointer — the evidence you need when the
+            // field was not found, and pure noise (several KB per call in a real UI) once it was.
+            if (!resolved)
+            {
+                result["stack"] = stack;
+            }
+
             result["resolved"] = resolved;
             result["target"] = target == null ? null : CreateRuntimeElementRow(target, status);
             result["targetStateBefore"] = target == null ? null : CreateControlStateRow(target, status);
@@ -543,7 +551,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
         {
             var warnings = new List<string>();
             var result = CreateEnvelope(uri, status);
-            AddCoordinateInfo(result, RuntimeScreenPosition.FromScreenPosition(new Vector2(Screen.width * 0.5f, Screen.height * 0.5f)));
+            AddCoordinateInfo(result, RuntimeScreenPosition.FromScreenPosition(ResolveRuntimeUiScreenSize(status) * 0.5f));
             result["playMode"] = IsRuntimePlayModeActive();
             result["runtimeAvailable"] = EnsureRuntimeReadAllowed(warnings);
             if (Equals(result["runtimeAvailable"], false))

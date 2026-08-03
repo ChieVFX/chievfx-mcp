@@ -143,6 +143,49 @@ class CoreDescriptorReminderTests(unittest.TestCase):
         out = server._with_core_descriptor_reminder(self._text_result(), self.TEXT_TOOL)
         self.assertFalse(any(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI in b.get("text", "") for b in out["content"]))
 
+    def test_reminder_does_not_return_after_a_server_restart(self) -> None:
+        # The server process restarts far more often than an agent's context does (Unity reloads, client
+        # reconnects). In-memory-only state re-fired the notice mid-session at a caller that had already
+        # read the resource, inside a result payload.
+        import tempfile
+
+        bridge_dir = tempfile.mkdtemp()
+        first = mcp.McpServer("http://127.0.0.1:1", bridge_dir, timeout_ms=1000)
+        first.read_resource({"uri": mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI})
+        self.assertTrue(first.core_descriptors_read)
+
+        restarted = mcp.McpServer("http://127.0.0.1:1", bridge_dir, timeout_ms=1000)
+        self.assertTrue(restarted.core_descriptors_read)
+        out = restarted._with_core_descriptor_reminder(self._text_result(), self.TEXT_TOOL)
+        self.assertFalse(any(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI in b.get("text", "") for b in out["content"]))
+
+    def test_reminder_returns_for_a_session_started_after_the_marker_expired(self) -> None:
+        import json as json_module
+        import tempfile
+        import time as time_module
+
+        bridge_dir = Path(tempfile.mkdtemp())
+        stale = time_module.time() - (mcp.CORE_DESCRIPTOR_READ_MARKER_TTL_SECONDS + 60)
+        (bridge_dir / mcp.CORE_DESCRIPTOR_READ_MARKER_FILENAME).write_text(
+            json_module.dumps({"readAtEpochSeconds": stale}), encoding="utf-8"
+        )
+
+        server = mcp.McpServer("http://127.0.0.1:1", str(bridge_dir), timeout_ms=1000)
+
+        self.assertFalse(server.core_descriptors_read)
+        out = server._with_core_descriptor_reminder(self._text_result(), self.TEXT_TOOL)
+        self.assertTrue(any(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI in b.get("text", "") for b in out["content"]))
+
+    def test_corrupt_read_marker_is_ignored(self) -> None:
+        import tempfile
+
+        bridge_dir = Path(tempfile.mkdtemp())
+        (bridge_dir / mcp.CORE_DESCRIPTOR_READ_MARKER_FILENAME).write_text("not json", encoding="utf-8")
+
+        server = mcp.McpServer("http://127.0.0.1:1", str(bridge_dir), timeout_ms=1000)
+
+        self.assertFalse(server.core_descriptors_read)
+
     def test_reminder_never_corrupts_json_output(self) -> None:
         payload = {"pngWidth": 320}
         result = {"content": [{"type": "text", "text": json.dumps(payload)}], "isError": False}

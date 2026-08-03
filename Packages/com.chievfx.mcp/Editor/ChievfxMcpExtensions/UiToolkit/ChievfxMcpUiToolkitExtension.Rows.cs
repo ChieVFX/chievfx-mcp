@@ -311,7 +311,8 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
         internal static RuntimeScreenPosition ReadScreenPosition(JToken args, List<string> warnings)
         {
-            var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
+            ChievfxMcpRuntimeUiInteractionInput.EnsureNoUnresolvedCoordinateSpace(args);
+            var screenSize = ChievfxMcpRuntimeScreenSize.Resolve();
             var isNormalized = ReadBool(args, "isNormalized", false);
 
             if (TryReadVector2(args["normalized"], out var legacyNormalized))

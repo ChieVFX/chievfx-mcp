@@ -41,7 +41,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
         public static RuntimeScreenPosition FromScreenPosition(Vector2 screenPosition)
         {
-            var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
+            var screenSize = ChievfxMcpRuntimeScreenSize.Resolve();
             return new RuntimeScreenPosition(
                 screenPosition,
                 screenSize,

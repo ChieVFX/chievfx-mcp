@@ -606,6 +606,13 @@ CORE_DESCRIPTOR_GRACE_TOOL_IDS = frozenset(
 # Reading the descriptors is the remedy; these calls constitute reading it, so they never nag.
 CORE_DESCRIPTOR_REMEDY_TOOL_IDS = frozenset({"tools-list-categories", "tools-list-category"})
 
+# The "read the descriptors" state lives in a marker file, not just in memory, because the server
+# process restarts (a Unity reload, a client reconnect) far more often than an agent's context does.
+# In-memory-only state re-fired the notice mid-session, inside a result payload, at a caller that had
+# already read the resource. The window is short enough that a genuinely new session still gets nudged.
+CORE_DESCRIPTOR_READ_MARKER_FILENAME = "core-descriptors-read.json"
+CORE_DESCRIPTOR_READ_MARKER_TTL_SECONDS = 4 * 60 * 60
+
 RESPONSE_PROFILE_BY_RESOURCE = {
     "editor-context": "status",
     "instructions-core-descriptors": "guide",
@@ -723,7 +730,7 @@ ADVERTISED_PROPERTY_OMISSIONS: dict[str, set[str]] = {
 # Canonical property order for advertised inputSchema surfaces (tools/list, initialize args=).
 # Short args= lines and full schemas share this order via reorder_advertised_schema_properties().
 TOOL_ADVERTISED_PROPERTY_ORDERS: dict[str, list[str]] = {
-    "ui-runtime-probe": ["x", "y", "isNormalized", "page"],
+    "ui-runtime-probe": ["x", "y", "isNormalized", "space", "page"],
     "ui-runtime-type-text": [
         "framework",
         "x",
@@ -740,6 +747,7 @@ TOOL_ADVERTISED_PROPERTY_ORDERS: dict[str, list[str]] = {
         "x",
         "y",
         "isNormalized",
+        "space",
         "path",
         "instanceId",
         "handler",
@@ -753,6 +761,7 @@ TOOL_ADVERTISED_PROPERTY_ORDERS: dict[str, list[str]] = {
         "deltaX",
         "deltaY",
         "isNormalized",
+        "space",
         "path",
         "instanceId",
     ],

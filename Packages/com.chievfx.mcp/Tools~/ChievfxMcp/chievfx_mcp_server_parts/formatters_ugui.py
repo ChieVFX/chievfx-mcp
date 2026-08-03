@@ -605,6 +605,12 @@ def format_probe_position_markdown(
     if screen_size_text:
         parts.append(f"screen size {screen_size_text}")
 
+    # Present only when Unity's Screen.* disagrees with the size the tool divided by — a fixed-resolution
+    # Game View. Show it so the divisor behind these numbers is checkable instead of implied.
+    screen_size_source = probe.get("screenSizeSource")
+    if isinstance(screen_size_source, str) and screen_size_source.strip():
+        parts.append(f"screen size from {screen_size_source.strip()}")
+
     if include_ui_toolkit_coords or (legacy and probe.get("uiToolkitYInverted") is True):
         if probe.get("uiToolkitYInverted") is True:
             parts.append("UITK Y inverted yes")
@@ -707,6 +713,12 @@ def format_probe_hit_details(hit: dict[str, Any], *, legacy: bool = False) -> st
         if control_names:
             parts.append(f"controls: {control_names}")
 
+    handlers = hit.get("handlers")
+    if isinstance(handlers, list) and handlers:
+        handler_names = ", ".join(str(handler) for handler in handlers if handler)
+        if handler_names:
+            parts.append(f"handlers: {handler_names}")
+
     flags: list[str] = []
     for key, label in (
         ("interactable", "interactable"),
@@ -716,7 +728,14 @@ def format_probe_hit_details(hit: dict[str, Any], *, legacy: bool = False) -> st
     ):
         value = hit.get(key)
         if value is False:
-            flags.append(f"not {label}")
+            # Name the components that are off — "not enabled" on its own reads as "not clickable" and
+            # sends the reader after the wrong cause.
+            disabled = hit.get("disabledComponents") if key == "enabled" else None
+            if isinstance(disabled, list) and disabled:
+                disabled_names = ", ".join(str(name) for name in disabled if name)
+                flags.append(f"not {label} ({disabled_names})" if disabled_names else f"not {label}")
+            else:
+                flags.append(f"not {label}")
         elif value is True:
             flags.append(label)
 

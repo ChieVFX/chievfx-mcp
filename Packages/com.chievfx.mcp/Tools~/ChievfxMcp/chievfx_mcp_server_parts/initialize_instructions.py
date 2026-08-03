@@ -6,12 +6,66 @@ from __future__ import annotations
 from typing import Any
 
 def core_descriptor_instructions_header() -> str:
-    return f"Core descriptors (if list cut, read {CORE_DESCRIPTOR_INSTRUCTIONS_URI}):"
+    return "Commonly used tools:"
+
+
+def build_domain_inventory_line(plan: dict[str, Any]) -> str:
+    """One line naming the domains whose tools are NOT listed below.
+
+    Listing inlined domains too (essentials, gameobject, ...) was redundant: their tools already appear
+    under "Commonly used tools". This line is for domains you would have to read about.
+    """
+    names = [entry["name"] for entry in collapsed_categories(plan)]
+    if not names:
+        return ""
+    return f"Domains: {', '.join(names)}. Read chievfx://categories/<domain> for any of them."
+
+
+def build_core_descriptor_grace_display() -> str:
+    """Name the grace calls compactly, collapsing families to one `prefix*` token.
+
+    Spelling out all three screenshot tools costs a line of instruction text to say what
+    `screenshot-*` says. Any id not covered by a family is appended verbatim, so extending
+    CORE_DESCRIPTOR_GRACE_TOOL_IDS can never leave the wording narrower than the code.
+    """
+    remaining = set(CORE_DESCRIPTOR_GRACE_TOOL_IDS)
+    parts: list[str] = []
+    for family in ("screenshot-", "bridge-get-status", "console-get-logs"):
+        members = sorted(tool_id for tool_id in remaining if tool_id.startswith(family))
+        if not members:
+            continue
+        remaining.difference_update(members)
+        parts.append(f"{family.rstrip('-')}*" if len(members) > 1 else members[0])
+    parts.extend(sorted(remaining))
+    return ", ".join(parts)
+
+
+def build_core_descriptor_precondition() -> str:
+    """A precondition with a trigger and the literal call to make.
+
+    Descriptions of available context get skipped; a precondition attached to an action, naming the exact
+    call, is treated as configuration. The server name and payload size are filled in here because a
+    static instructions record cannot know either.
+    """
+    try:
+        size_kb = max(1, round(len(build_core_descriptor_instructions_resource_body()) / 1024))
+        size_text = f" (~{size_kb} KB)"
+    except Exception:
+        size_text = ""
+    return (
+        "IMPORTANT: The tool list below is truncated by most clients. Before your FIRST tool call in a\n"
+        f"session that goes beyond read-only calls ({build_core_descriptor_grace_display()}),\n"
+        f"read {CORE_DESCRIPTOR_INSTRUCTIONS_URI} — it is the only complete list of\n"
+        "tool names and argument signatures, and calling with guessed args fails.\n"
+        f'Read it with: ReadMcpResourceTool({{ server: "{CURSOR_SERVER_NAME}", uri: '
+        f'"{CORE_DESCRIPTOR_INSTRUCTIONS_URI}" }}){size_text}\n'
+        'If that tool is not loaded, load it first: ToolSearch({ query: "select:ReadMcpResourceTool" })'
+    )
 
 
 def build_initialize_instructions() -> str:
     records = load_initialize_instruction_records_from_md()
-    lines: list[str] = []
+    lines: list[str] = [build_core_descriptor_precondition()]
     lines.extend(records.get("global", []))
 
     enabled_tool_ids = load_enabled_tool_ids()
@@ -55,13 +109,16 @@ def build_initialize_instructions() -> str:
             if isinstance(text, str) and text.strip():
                 lines.append(text.strip())
 
+    # Domains first (one cheap line, every domain), then the commonly used tools with signatures. The
+    # old per-domain "Extra API capabilities" block is gone: the domain line plus
+    # chievfx://categories/<domain> covers it, and that budget pays for tool signatures instead.
+    domain_line = build_domain_inventory_line(plan)
+    if domain_line:
+        lines.append(domain_line)
+
     descriptor_blob = build_enabled_descriptor_instructions(plan)
     if descriptor_blob:
         lines.append(descriptor_blob)
-
-    extra_capabilities_blob = build_extra_capabilities_section(plan)
-    if extra_capabilities_blob:
-        lines.append(extra_capabilities_blob)
 
     return "\n".join(lines).strip()
 
@@ -93,19 +150,106 @@ def build_initialize_server_info(instructions: str | None = None) -> dict[str, s
     return {"name": CURSOR_SERVER_NAME, "version": f"{major}.{minor}.{patch}+instructions.{fingerprint}"}
 
 
-def _build_descriptor_section_lines(plan: dict[str, Any]) -> list[str]:
+def build_core_tool_name_lines(plan: dict[str, Any]) -> list[str]:
+    """One line per enabled tool in a non-collapsed category: name(args) plus a short summary.
+
+    Agents did not follow a pointer to the full descriptor resource however it was phrased, so the
+    callable detail lives here instead: the signature makes the tool callable and the summary makes it
+    selectable, with no second fetch. tools/list still carries the full schema and prose.
+    """
+    categories = plan.get("categories", {})
+    enabled_tool_ids = load_enabled_tool_ids()
+    rows: list[tuple[str, str, str]] = []
+    for tool in all_tools():
+        name = tool.get("name", "")
+        if name not in enabled_tool_ids:
+            continue
+        category = _tool_category(tool)
+        entry = categories.get(category.casefold())
+        if entry is not None and entry.get("collapsed"):
+            continue
+        arguments = _compact_signature_arguments(_schema_arguments(tool.get("inputSchema")))
+        summary = _short_tool_summary(tool)
+        rows.append((category, f"- {name}({arguments}){f': {summary}' if summary else ''}", name))
+
+    # Reaching-for order: the explicit top list, then remaining tools by category (essentials first),
+    # then the explicit bottom list.
+    rows.sort(key=lambda row: (*_tool_order_rank(row[2]), row[0] != "essentials", row[0].casefold(), row[2]))
+    return [line for _, line, _ in rows]
+
+
+def _tool_order_rank(name: str) -> tuple[int, int]:
+    if name in TOOL_ORDER_TOP:
+        return (0, TOOL_ORDER_TOP.index(name))
+    if name in TOOL_ORDER_BOTTOM:
+        return (2, TOOL_ORDER_BOTTOM.index(name))
+    return (1, 0)
+
+
+# A short descriptor per tool: enough to pick the right one without a second fetch, short enough that
+# ~35 of them still fit the truncated instruction budget.
+_MAX_TOOL_SUMMARY_CHARS = 60
+
+
+def _short_tool_summary(tool: dict[str, Any]) -> str:
+    # Prefer the hand-written caveman summary; truncating a real description mid-word reads badly and
+    # often cuts exactly the qualifier that mattered.
+    curated = TOOL_SHORT_SUMMARIES.get(str(tool.get("name") or ""))
+    if curated:
+        return curated
+    description = str(tool.get("description") or "").strip()
+    if not description:
+        return ""
+    # First sentence only; tool descriptions lead with what the tool does and follow with caveats.
+    sentence = re.split(r"(?<=[.!?])\s", description, maxsplit=1)[0].strip().rstrip(".")
+    if len(sentence) <= _MAX_TOOL_SUMMARY_CHARS:
+        return sentence
+    return sentence[: _MAX_TOOL_SUMMARY_CHARS - 1].rstrip() + "…"
+
+
+# Cap the inline signature: a handful of tools declare a dozen arguments, and the tail of a long list
+# costs budget that other tools need. tools/list and core-descriptors still carry the full schema.
+_MAX_INLINE_SIGNATURE_ARGUMENTS = 5
+# Long enum unions (import options, log levels, capture areas) dominate a line while adding little at
+# selection time, so collapse the type and let tools/list supply the allowed values.
+_MAX_INLINE_ARGUMENT_TYPE_CHARS = 30
+
+
+def _compact_signature_arguments(arguments: str) -> str:
+    if not arguments:
+        return ""
+    parts = [_shorten_argument(part) for part in arguments.split(", ") if part]
+    if len(parts) <= _MAX_INLINE_SIGNATURE_ARGUMENTS:
+        return ", ".join(parts)
+    return ", ".join(parts[:_MAX_INLINE_SIGNATURE_ARGUMENTS]) + ", ..."
+
+
+def _shorten_argument(argument: str) -> str:
+    name, separator, type_name = argument.partition(":")
+    if not separator or len(type_name) <= _MAX_INLINE_ARGUMENT_TYPE_CHARS:
+        return argument
+    if type_name.startswith("{"):
+        # Nested object shape: the field list belongs in tools/list, not here.
+        return f"{name}:obj"
+    if "|" in type_name:
+        return f"{name}:{type_name.split('|', 1)[0]}|..."
+    return f"{name}:{type_name[:_MAX_INLINE_ARGUMENT_TYPE_CHARS]}..."
+
+
+def _build_descriptor_section_lines(plan: dict[str, Any], include_tools: bool = True) -> list[str]:
     collapsed_lines = collapsed_item_lines(plan)
     sections: list[str] = []
 
-    tool_descriptors = sorted(enabled_tools(), key=lambda item: item.get("name", ""))
-    tool_lines = [
-        line
-        for descriptor in tool_descriptors
-        if (line := format_tool_for_initialize_instructions(descriptor)) not in collapsed_lines["tools"]
-    ]
-    if tool_lines:
-        sections.append("Tools:")
-        sections.extend(tool_lines)
+    if include_tools:
+        tool_descriptors = sorted(enabled_tools(), key=lambda item: item.get("name", ""))
+        tool_lines = [
+            line
+            for descriptor in tool_descriptors
+            if (line := format_tool_for_initialize_instructions(descriptor)) not in collapsed_lines["tools"]
+        ]
+        if tool_lines:
+            sections.append("Tools:")
+            sections.extend(tool_lines)
 
     resource_descriptors = sorted(enabled_resources(), key=lambda item: item.get("uri", ""))
     resource_lines = [
@@ -138,10 +282,17 @@ def _build_descriptor_section_lines(plan: dict[str, Any]) -> list[str]:
 def build_enabled_descriptor_instructions(plan: dict[str, Any] | None = None) -> str:
     if plan is None:
         plan = build_category_plan()
-    lines = _build_descriptor_section_lines(plan)
+    lines: list[str] = []
+    name_lines = build_core_tool_name_lines(plan)
+    if name_lines:
+        lines.append(core_descriptor_instructions_header())
+        lines.extend(name_lines)
+    # Resources, templates and prompts are deliberately NOT advertised here. Only core-descriptors and
+    # chievfx://categories/<domain> are named (in the header records), and that budget is spent on
+    # callable tool signatures instead — agents used the tools and ignored the resource list.
     if not lines:
         return ""
-    return "\n".join([core_descriptor_instructions_header(), *lines])
+    return "\n".join(lines)
 
 
 def build_core_descriptor_instructions_resource_body(plan: dict[str, Any] | None = None) -> str:
@@ -152,7 +303,7 @@ def build_core_descriptor_instructions_resource_body(plan: dict[str, Any] | None
     descriptor_lines = _build_descriptor_section_lines(plan)
     if descriptor_lines:
         parts.append("\n".join(descriptor_lines))
-    extra = build_extra_capabilities_section(plan)
+    extra = build_extra_capabilities_section(plan, detailed=True)
     if extra:
         parts.append(extra)
     return "\n".join(parts).strip()

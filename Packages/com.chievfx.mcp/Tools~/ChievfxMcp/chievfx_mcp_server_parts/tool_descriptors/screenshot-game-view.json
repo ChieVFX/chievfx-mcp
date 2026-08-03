@@ -1,6 +1,6 @@
 {
   "name": "screenshot-game-view",
-  "description": "Captures the Unity Editor Game View. Metadata: pngWidth/pngHeight (PNG, top-left origin), screenWidth/screenHeight (the Screen space clicks use, bottom-left). To click a spot you see, pass its 0..1 PNG position to ui-runtime-click/drag/probe with space:\"screenshot\" (the tool Y-flips and scales). If pixelMappingReliable:false is present the view is letterboxed — target by path/instanceId (ui-control-find) instead.",
+  "description": "Captures the Unity Editor Game View. Metadata: pngWidth/pngHeight (PNG, top-left origin), screenWidth/screenHeight (Game View render size clicks map to, bottom-left). To click a spot you see, pass its 0..1 PNG position to ui-runtime-click/drag/probe with space:\"screenshot\" (the tool Y-flips and scales). If pixelMappingReliable:false is present the view is letterboxed — target by path/instanceId (ui-control-find) instead.",
   "inputSchema": {
     "type": "object",
     "properties": {

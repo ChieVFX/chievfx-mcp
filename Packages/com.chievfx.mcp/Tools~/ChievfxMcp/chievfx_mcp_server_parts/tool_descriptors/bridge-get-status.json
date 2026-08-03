@@ -1,6 +1,6 @@
 {
   "name": "bridge-get-status",
-  "description": "Slim ChievFX bridge health snapshot. Pass verbose=true for full diagnostics.",
+  "description": "Slim ChievFX bridge health snapshot: heartbeat, compile/import busy state, recent operations, and event-wait liveness. Check before longer orchestration. Pass verbose=true for full diagnostics.",
   "inputSchema": {
     "type": "object",
     "properties": {

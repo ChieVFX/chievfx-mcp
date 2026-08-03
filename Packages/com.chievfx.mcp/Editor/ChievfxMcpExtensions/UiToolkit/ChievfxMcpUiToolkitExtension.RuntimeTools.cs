@@ -423,7 +423,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 warnings.Add("UI Toolkit outside Play Mode uses editor panel layout; enter Play Mode for runtime-accurate UI state.");
             }
 
-            var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
+            var screenSize = ChievfxMcpRuntimeScreenSize.Resolve();
             var matches = new List<(object element, PanelGroup group, string controlType)>();
 
             foreach (var group in FindRuntimePanelGroups(status))

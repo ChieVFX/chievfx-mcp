@@ -1,0 +1,29 @@
+{
+  "name": "frame-debugger-pick-pixel",
+  "description": "Which draw call wrote this pixel? Give a 0..1 position from a Game View screenshot (top-left origin) and it binary-searches Frame Debugger events for the one that produced the final colour there. Start here for any wrong-looking pixel instead of toggling effects.",
+  "inputSchema": {
+    "type": "object",
+    "required": ["x", "y"],
+    "properties": {
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      },
+      "x": {
+        "type": "number",
+        "description": "0..1 from the LEFT edge of the capture (px/pngWidth of a screenshot-game-view PNG)."
+      },
+      "y": {
+        "type": "number",
+        "description": "0..1 from the TOP edge of the capture (py/pngHeight; PNG origin is top-left)."
+      },
+      "maxDimension": {
+        "type": "integer",
+        "description": "Capture resolution cap. Defaults to 4096 (effectively native) so single-pixel detail survives; lower it to trade accuracy for speed."
+      },
+      "tolerance": {
+        "type": "integer",
+        "description": "Per-channel 0..255 colour match tolerance (default 2)."
+      }
+    }
+  }
+}

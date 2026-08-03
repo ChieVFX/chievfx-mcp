@@ -14,6 +14,23 @@ namespace Chievfx.Mcp.Editor
                 || args["y"] != null;
         }
 
+        // Framework adapters read plain Screen-space x/y; the registry resolves space:"screenshot" (and its
+        // Y-flip) before dispatching. If a non-screen space still reaches an adapter, the request bypassed
+        // that step — fail loudly rather than silently interacting with a vertically mirrored point, which
+        // is exactly how a mirrored pressPosition shipped while every echoed coordinate looked right.
+        internal static void EnsureNoUnresolvedCoordinateSpace(JToken args)
+        {
+            var space = args["space"]?.Value<string>()?.Trim();
+            if (string.IsNullOrEmpty(space) || string.Equals(space, "screen", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            throw new ArgumentException(
+                $"Coordinate space '{space}' reached a framework adapter unresolved. Screenshot-space "
+                + "coordinates must be converted to Screen space before dispatch.");
+        }
+
         internal static bool HasExplicitTargetInput(JToken args)
         {
             if (args["instanceId"] != null)

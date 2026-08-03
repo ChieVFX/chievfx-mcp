@@ -21,7 +21,39 @@ class McpServerCore:
         self.wait_cancellation_lock = threading.Lock()
         self.active_event_waits: dict[str, dict[str, Any]] = {}
         self.active_event_wait_lock = threading.Lock()
+        # Whether this session read the full tool list, and whether the one-shot nudge already went out.
+        self.core_descriptor_read_marker_path = self.bridge_dir / CORE_DESCRIPTOR_READ_MARKER_FILENAME
+        self.core_descriptors_read = self.read_core_descriptor_marker()
+        self.core_descriptor_reminder_sent = False
         configure_extension_manifest_bridge_fetcher(self.fetch_extension_manifest_from_bridge)
+
+    def read_core_descriptor_marker(self) -> bool:
+        """True when the core descriptors were read recently enough to skip the notice.
+
+        Best-effort by design: a missing, unreadable, or stale marker just means the notice can fire.
+        """
+        try:
+            raw = json.loads(self.core_descriptor_read_marker_path.read_text(encoding="utf-8"))
+        except Exception:
+            return False
+
+        read_at = raw.get("readAtEpochSeconds") if isinstance(raw, dict) else None
+        if not isinstance(read_at, (int, float)):
+            return False
+
+        age = time.time() - float(read_at)
+        return 0 <= age <= CORE_DESCRIPTOR_READ_MARKER_TTL_SECONDS
+
+    def write_core_descriptor_marker(self) -> None:
+        try:
+            self.bridge_dir.mkdir(parents=True, exist_ok=True)
+            write_json_file_atomic(
+                self.core_descriptor_read_marker_path,
+                {"readAtEpochSeconds": time.time(), "uri": CORE_DESCRIPTOR_INSTRUCTIONS_URI},
+            )
+        except Exception:
+            # The in-memory flag still covers this process; persistence is an optimization.
+            pass
 
     def fetch_extension_manifest_from_bridge(self) -> dict[str, Any] | None:
         if not self.bridge_dir or not self.state_path.exists():
@@ -222,6 +254,43 @@ class McpServerCore:
         return render_static_prompt(prompt, arguments)
 
     def call_tool(self, params: dict[str, Any], request_id: Any = None, notify: Any | None = None) -> dict[str, Any]:
+        # Single chokepoint for every tool: dispatch, then surface any argument the tool does not
+        # declare. Silently dropping a mistyped argument (outputPath vs savePath) sends the caller
+        # hunting for an effect that never happened.
+        result = self._dispatch_tool_call(params, request_id, notify)
+        name = params.get("name")
+        if isinstance(name, str):
+            result = with_unknown_argument_warning(result, name, params.get("arguments") or {})
+            result = self._with_core_descriptor_reminder(result, name)
+        return result
+
+    def _with_core_descriptor_reminder(self, result: Any, name: str) -> Any:
+        """Nudge once per session, on the first tool call, if the full tool list was never read.
+
+        An imperative in initialize.instructions is easy to skip — clients truncate it, and it competes
+        with everything else in context. A line that arrives attached to the first actual Unity result
+        lands when it is actionable.
+
+        Stays silent on the read-only calls the precondition explicitly allows before that read
+        (CORE_DESCRIPTOR_GRACE_TOOL_IDS): a notice contradicting the instruction it is enforcing
+        teaches the caller to discount both.
+        """
+        if self.core_descriptors_read or self.core_descriptor_reminder_sent:
+            return result
+        if name in CORE_DESCRIPTOR_REMEDY_TOOL_IDS or name in CORE_DESCRIPTOR_GRACE_TOOL_IDS:
+            return result
+
+        delivered = attach_result_notice(
+            result,
+            f"! First ChievFX tool call this session and {CORE_DESCRIPTOR_INSTRUCTIONS_URI} has not "
+            "been read. Read it now: startup instructions are truncated by most clients, so it is "
+            "the only complete list of tools and argument signatures.",
+        )
+        if delivered:
+            self.core_descriptor_reminder_sent = True
+        return result
+
+    def _dispatch_tool_call(self, params: dict[str, Any], request_id: Any = None, notify: Any | None = None) -> dict[str, Any]:
         name = params.get("name")
         arguments = params.get("arguments") or {}
         if not isinstance(name, str):
@@ -396,6 +465,9 @@ class McpServerCore:
             name == "ui-runtime-set-control-value" and arguments.get("outputFormat") != "json"
         )
         force_ui_runtime_focus_json = name == "ui-runtime-focus" and arguments.get("outputFormat") != "json"
+        force_ui_runtime_type_text_json = (
+            name == "ui-runtime-type-text" and arguments.get("outputFormat") != "json"
+        )
         force_ui_runtime_clear_focus_json = (
             name == "ui-runtime-clear-focus" and arguments.get("outputFormat") != "json"
         )
@@ -405,6 +477,7 @@ class McpServerCore:
             or force_ui_runtime_drag_json
             or force_ui_runtime_set_control_value_json
             or force_ui_runtime_focus_json
+            or force_ui_runtime_type_text_json
             or force_ui_runtime_clear_focus_json
         ):
             bridge_arguments = dict(arguments)
@@ -530,6 +603,23 @@ class McpServerCore:
                         {
                             "type": "text",
                             "text": format_ui_runtime_focus_text(result),
+                        }
+                    ],
+                    "isError": False,
+                }
+
+        if force_ui_runtime_type_text_json:
+            if not isinstance(result, dict):
+                retry_arguments = dict(arguments)
+                retry_arguments["outputFormat"] = "json"
+                bridge_result = self.call_unity_bridge(name, retry_arguments, request_id, progress_token, notify)
+                result = bridge_result.get("result")
+            if isinstance(result, dict):
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": format_ui_runtime_type_text_text(result),
                         }
                     ],
                     "isError": False,
@@ -680,6 +770,9 @@ class McpServerCore:
 
         resource_kind, resource_id = resolve_resource_uri(uri)
         ensure_resource_enabled(uri)
+        if uri == CORE_DESCRIPTOR_INSTRUCTIONS_URI:
+            self.core_descriptors_read = True
+            self.write_core_descriptor_marker()
         mime_type = RESOURCE_MIME_TYPE
 
         def fetch_via_bridge() -> dict[str, Any]:

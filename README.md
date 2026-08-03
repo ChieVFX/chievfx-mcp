@@ -55,10 +55,25 @@ After the package is installed in your Unity project:
 
 1. Open the project and wait for compile + domain reload.
 2. **Window > ChievFX > MCP** → **Start Bridge**.
-3. Keep **Cursor** selected, or switch the client to **Claude Code** or **Codex**, then click **Write <client> Config**.
+3. Keep **Cursor** selected, or switch the client to **Claude Code**, **Codex**, **Kimi Code** or **JetBrains Rider**, then click **Write <client> Config**.
 4. Reload your MCP client's tools (or restart it).
 
 The MCP server appears as `unity-mcp-chievfx`.
+
+**Codex only:** Codex ignores a project's `.codex/config.toml` — the only place this server is
+declared — until the project is trusted in your user-level config (`CODEX_HOME` or
+`~/.codex/config.toml`):
+
+```toml
+[projects.'/absolute/path/to/project']
+trust_level = "trusted"
+```
+
+Normally Codex writes that itself when you answer its trust prompt, but a host that drives Codex
+without showing the prompt (JetBrains AI's Codex agent) never gets the chance, so the config looks
+correct while no Unity tools load. Auto-setup adds the entry when nothing covers the project yet;
+turn it off with **Record Codex project trust** in the window's Automation section. Trust matching is
+exact-path: only the launch directory or the repo root Codex resolves from it counts.
 
 ## Documentation
 

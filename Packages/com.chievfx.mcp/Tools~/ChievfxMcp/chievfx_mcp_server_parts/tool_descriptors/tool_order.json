@@ -71,6 +71,7 @@
     "frame-debugger-group-events-list",
     "frame-debugger-drawcall-get",
     "frame-debugger-drawcall-screenshot",
+    "frame-debugger-pick-pixel",
     "frame-debugger-events-list",
     "frame-debugger-event-get"
   ]

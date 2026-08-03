@@ -196,6 +196,7 @@ namespace Chievfx.Mcp.Editor
         {
             var request = args is JObject obj ? obj : new JObject();
             ChievfxMcpRuntimeUiInteractionInput.EnsureTargetOrScreenPosition(request, "ui-runtime-type-text");
+            var adapterRequest = CreateAdapterInteractionRequest(request);
             var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
             var candidates = SnapshotAdapters()
                 .Where(registered => registered.Adapter is IChievfxMcpRuntimeUiTextInputAdapter)
@@ -218,7 +219,7 @@ namespace Chievfx.Mcp.Editor
                     throw new InvalidOperationException($"Text-input adapter '{framework}' is registered but unavailable.");
                 }
 
-                var forced = ((IChievfxMcpRuntimeUiTextInputAdapter)selected.Adapter).TypeIntoFocusedTextField(request.DeepClone(), requireTarget: true);
+                var forced = ((IChievfxMcpRuntimeUiTextInputAdapter)selected.Adapter).TypeIntoFocusedTextField(adapterRequest.DeepClone(), requireTarget: true);
                 return WrapTypeTextResult(uri, selected.Adapter, forced);
             }
 
@@ -234,7 +235,7 @@ namespace Chievfx.Mcp.Editor
                 object? result;
                 try
                 {
-                    result = ((IChievfxMcpRuntimeUiTextInputAdapter)registered.Adapter).TypeIntoFocusedTextField(request.DeepClone(), requireTarget: false);
+                    result = ((IChievfxMcpRuntimeUiTextInputAdapter)registered.Adapter).TypeIntoFocusedTextField(adapterRequest.DeepClone(), requireTarget: false);
                 }
                 catch (Exception ex)
                 {
@@ -283,6 +284,7 @@ namespace Chievfx.Mcp.Editor
         {
             var request = args is JObject obj ? obj : new JObject();
             ChievfxMcpRuntimeUiInteractionInput.EnsureTargetOrScreenPosition(request, "ui-runtime-set-control-value");
+            var adapterRequest = CreateAdapterInteractionRequest(request);
             var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
             var candidates = SnapshotAdapters()
                 .Where(registered => registered.Adapter is IChievfxMcpRuntimeUiSetControlValueAdapter)
@@ -305,7 +307,7 @@ namespace Chievfx.Mcp.Editor
                     throw new InvalidOperationException($"Set-control-value adapter '{framework}' is registered but unavailable.");
                 }
 
-                var forced = ((IChievfxMcpRuntimeUiSetControlValueAdapter)selected.Adapter).SetControlValue(request.DeepClone(), requireTarget: true);
+                var forced = ((IChievfxMcpRuntimeUiSetControlValueAdapter)selected.Adapter).SetControlValue(adapterRequest.DeepClone(), requireTarget: true);
                 return WrapSetControlValueResult(forced, selected.Adapter);
             }
 
@@ -321,7 +323,7 @@ namespace Chievfx.Mcp.Editor
                 object? result;
                 try
                 {
-                    result = ((IChievfxMcpRuntimeUiSetControlValueAdapter)registered.Adapter).SetControlValue(request.DeepClone(), requireTarget: false);
+                    result = ((IChievfxMcpRuntimeUiSetControlValueAdapter)registered.Adapter).SetControlValue(adapterRequest.DeepClone(), requireTarget: false);
                 }
                 catch (ArgumentException)
                 {
@@ -381,6 +383,7 @@ namespace Chievfx.Mcp.Editor
 
             var request = args is JObject obj ? obj : new JObject();
             ChievfxMcpRuntimeUiInteractionInput.EnsureTargetOrScreenPosition(request, "ui-runtime-focus");
+            var adapterRequest = CreateAdapterInteractionRequest(request);
             var framework = (request["framework"]?.Value<string>() ?? string.Empty).Trim().ToLowerInvariant();
             var candidates = SnapshotAdapters()
                 .Where(registered => registered.Adapter is IChievfxMcpRuntimeUiFocusAdapter)
@@ -403,7 +406,7 @@ namespace Chievfx.Mcp.Editor
                     throw new InvalidOperationException($"Focus adapter '{framework}' is registered but unavailable.");
                 }
 
-                var forced = ((IChievfxMcpRuntimeUiFocusAdapter)selected.Adapter).Focus(request.DeepClone(), requireTarget: true);
+                var forced = ((IChievfxMcpRuntimeUiFocusAdapter)selected.Adapter).Focus(adapterRequest.DeepClone(), requireTarget: true);
                 return WrapFocusResult(forced, selected.Adapter);
             }
 
@@ -419,7 +422,7 @@ namespace Chievfx.Mcp.Editor
                 object? result;
                 try
                 {
-                    result = ((IChievfxMcpRuntimeUiFocusAdapter)registered.Adapter).Focus(request.DeepClone(), requireTarget: false);
+                    result = ((IChievfxMcpRuntimeUiFocusAdapter)registered.Adapter).Focus(adapterRequest.DeepClone(), requireTarget: false);
                 }
                 catch (Exception ex)
                 {
@@ -643,7 +646,7 @@ namespace Chievfx.Mcp.Editor
         {
             var isNormalized = ReadBool(args, "isNormalized", false);
             var screenshotSpace = IsScreenshotSpace(args);
-            var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
+            var screenSize = ChievfxMcpRuntimeScreenSize.Resolve();
             RuntimeScreenPosition start;
             if (TryReadDragScreenPoint(args, "x", "y", "startScreenPosition", "startNormalized", isNormalized, screenshotSpace, screenSize, out var startScreen))
             {
@@ -684,6 +687,7 @@ namespace Chievfx.Mcp.Editor
             var explicitTargetMode = ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(request);
             var warnings = new List<string>();
             var geometry = ReadRuntimeDragGeometry(request, warnings);
+            var adapterRequest = CreateAdapterDragRequest(request, geometry);
             var dragAdapters = SnapshotAdapters()
                 .Where(registered => registered.Adapter is IChievfxMcpRuntimeUiDragAdapter)
                 .Where(registered => ChievfxMcpRuntimeUiControlFind.MatchesFrameworkFilter(framework, registered.Adapter.FrameworkId))
@@ -712,7 +716,7 @@ namespace Chievfx.Mcp.Editor
                 Dictionary<string, object?>? dragDetail;
                 try
                 {
-                    dragDetail = ReadDragDetail(((IChievfxMcpRuntimeUiDragAdapter)adapter).DragAtPosition(request));
+                    dragDetail = ReadDragDetail(((IChievfxMcpRuntimeUiDragAdapter)adapter).DragAtPosition(adapterRequest.DeepClone()));
                 }
                 catch (Exception ex)
                 {
@@ -748,6 +752,8 @@ namespace Chievfx.Mcp.Editor
             {
                 warnings.Add("No uGUI or UI Toolkit target resolved at the drag start position. Use ui-control-find or ui-runtime-probe to inspect draggable controls and coordinates.");
             }
+
+            MergeAdapterWarnings(sections, anyResolved, warnings);
 
             return new Dictionary<string, object?>
             {
@@ -878,6 +884,11 @@ namespace Chievfx.Mcp.Editor
                 section["target"] = target;
             }
 
+            if (detail.TryGetValue("warnings", out var detailWarnings))
+            {
+                section["warnings"] = detailWarnings;
+            }
+
             if (detail.TryGetValue("intendedHandler", out var handler))
             {
                 section["handler"] = handler;
@@ -921,6 +932,7 @@ namespace Chievfx.Mcp.Editor
                 position = ReadScreenPosition(request, warnings);
             }
 
+            var adapterRequest = CreateAdapterInteractionRequest(request, position);
             var clickAdapters = SnapshotAdapters()
                 .Where(registered => registered.Adapter is IChievfxMcpRuntimeUiClickAdapter)
                 .Where(registered => ChievfxMcpRuntimeUiControlFind.MatchesFrameworkFilter(framework, registered.Adapter.FrameworkId))
@@ -949,7 +961,7 @@ namespace Chievfx.Mcp.Editor
                 Dictionary<string, object?>? clickDetail;
                 try
                 {
-                    clickDetail = ReadClickDetail(((IChievfxMcpRuntimeUiClickAdapter)adapter).ClickAtPosition(request));
+                    clickDetail = ReadClickDetail(((IChievfxMcpRuntimeUiClickAdapter)adapter).ClickAtPosition(adapterRequest.DeepClone()));
                 }
                 catch (Exception ex)
                 {
@@ -993,6 +1005,8 @@ namespace Chievfx.Mcp.Editor
                 warnings.Add("No uGUI or UI Toolkit target resolved at the supplied position. Use ui-control-find or ui-runtime-probe to inspect clickable controls and coordinates.");
             }
 
+            MergeAdapterWarnings(sections, anyResolved, warnings);
+
             var result = new Dictionary<string, object?>
             {
                 ["uri"] = "tool://" + ClickToolName,
@@ -1010,6 +1024,31 @@ namespace Chievfx.Mcp.Editor
             }
 
             return result;
+        }
+
+        // An adapter's warnings are the explanation for what just happened — "click dispatched but no
+        // recognized handler responded", "that path matched 177 objects, the active one was used". Folding
+        // the adapter result into a framework section used to drop them, leaving a bare clicked:false with
+        // nothing to act on. Surface the resolving framework's warnings; when nothing resolved, surface all
+        // of them, because then they are the whole answer.
+        private static void MergeAdapterWarnings(
+            IEnumerable<Dictionary<string, object?>> sections,
+            bool anyResolved,
+            List<string> warnings)
+        {
+            foreach (var section in sections)
+            {
+                var sectionResolved = section.TryGetValue("resolved", out var resolved) && resolved is true;
+                if (anyResolved && !sectionResolved)
+                {
+                    continue;
+                }
+
+                if (section.TryGetValue("warnings", out var sectionWarnings))
+                {
+                    warnings.AddRange(ChievfxMcpRuntimeUiProbeCompact.ReadStringArray(sectionWarnings));
+                }
+            }
         }
 
         private static Dictionary<string, object?> CreateClickSection(
@@ -1035,6 +1074,11 @@ namespace Chievfx.Mcp.Editor
             if (detail.TryGetValue("target", out var target))
             {
                 section["target"] = target;
+            }
+
+            if (detail.TryGetValue("warnings", out var detailWarnings))
+            {
+                section["warnings"] = detailWarnings;
             }
 
             if (detail.TryGetValue("intendedHandler", out var handler))
@@ -1090,6 +1134,7 @@ namespace Chievfx.Mcp.Editor
                     ["width"] = (int)position.ScreenSize.x,
                     ["height"] = (int)position.ScreenSize.y,
                 },
+                ["screenSizeSource"] = ChievfxMcpRuntimeScreenSize.DescribeResolvedSource(position.ScreenSize),
                 ["screenPosition"] = new Dictionary<string, object?>
                 {
                     ["x"] = RoundCoordinate(position.ScreenPosition.x),
@@ -1196,7 +1241,7 @@ namespace Chievfx.Mcp.Editor
             }
 
             var normalizeCoords = ReadBool(request, "normalizeCoords", false);
-            var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
+            var screenSize = ChievfxMcpRuntimeScreenSize.Resolve();
             var selected = controls
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
@@ -1223,6 +1268,7 @@ namespace Chievfx.Mcp.Editor
                     ["width"] = (int)screenSize.x,
                     ["height"] = (int)screenSize.y,
                 },
+                ["screenSizeSource"] = ChievfxMcpRuntimeScreenSize.DescribeResolvedSource(screenSize),
                 ["frameworkFilter"] = string.IsNullOrEmpty(framework) ? null : framework,
                 ["controls"] = selected,
                 ["frameworks"] = sections.ToArray(),
@@ -1426,6 +1472,57 @@ namespace Chievfx.Mcp.Editor
                 uitoolkitSection);
         }
 
+        // Adapters re-parse the raw request, and their readers understand only x/y + isNormalized — not
+        // space:"screenshot", whose Y-flip lives here. So a screenshot-space click was flipped for the echo
+        // and for the hit test, but reached the adapter unflipped: the right object was hit while the
+        // PointerEventData carried a vertically mirrored position, and any handler reading pressPosition
+        // (OnPointerClick, OnBeginDrag, OnDrag) acted on the mirror while the tool reported success.
+        // Resolve coordinates once, here, and hand adapters plain absolute screen pixels — which is what
+        // CreateAdapterProbeRequest has always done for the probe.
+        internal static JToken CreateAdapterInteractionRequest(JObject request, RuntimeScreenPosition? resolvedPosition = null)
+        {
+            if (!ChievfxMcpRuntimeUiInteractionInput.HasScreenPositionInput(request))
+            {
+                return request.DeepClone();
+            }
+
+            var position = resolvedPosition ?? ReadScreenPosition(request, new List<string>());
+            var adapterRequest = (JObject)request.DeepClone();
+            adapterRequest.Remove("x");
+            adapterRequest.Remove("y");
+            adapterRequest.Remove("isNormalized");
+            adapterRequest.Remove("normalized");
+            adapterRequest.Remove("space");
+            adapterRequest["screenPosition"] = new JObject
+            {
+                ["x"] = position.ScreenPosition.x,
+                ["y"] = position.ScreenPosition.y,
+            };
+            return adapterRequest;
+        }
+
+        // Same contract for drag: both first-party adapters happen to re-read the geometry through this
+        // class, so they are correct today, but nothing about the interface says they must — hand them
+        // resolved pixels rather than a coordinate space they have to interpret.
+        internal static JToken CreateAdapterDragRequest(JObject request, RuntimeDragScreenGeometry geometry)
+        {
+            var adapterRequest = (JObject)request.DeepClone();
+            foreach (var key in new[]
+                     {
+                         "isNormalized", "space", "normalized", "delta", "deltaX", "deltaY",
+                         "startNormalized", "endNormalized", "startScreenPosition", "endScreenPosition",
+                     })
+            {
+                adapterRequest.Remove(key);
+            }
+
+            adapterRequest["x"] = geometry.Start.ScreenPosition.x;
+            adapterRequest["y"] = geometry.Start.ScreenPosition.y;
+            adapterRequest["toX"] = geometry.End.ScreenPosition.x;
+            adapterRequest["toY"] = geometry.End.ScreenPosition.y;
+            return adapterRequest;
+        }
+
         private static JObject CreateAdapterProbeRequest(JObject request, RuntimeScreenPosition position)
         {
             var adapterRequest = (JObject)request.DeepClone();
@@ -1627,7 +1724,7 @@ namespace Chievfx.Mcp.Editor
 
         private static RuntimeScreenPosition ReadProbeScreenPosition(JToken args, List<string> warnings)
         {
-            var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
+            var screenSize = ChievfxMcpRuntimeScreenSize.Resolve();
             if (IsScreenshotSpace(args))
             {
                 return ReadScreenshotSpacePosition(args, screenSize);
@@ -1696,7 +1793,7 @@ namespace Chievfx.Mcp.Editor
 
         private static RuntimeScreenPosition ReadScreenPosition(JToken args, List<string> warnings)
         {
-            var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
+            var screenSize = ChievfxMcpRuntimeScreenSize.Resolve();
             if (IsScreenshotSpace(args))
             {
                 return ReadScreenshotSpacePosition(args, screenSize);
@@ -1902,7 +1999,7 @@ namespace Chievfx.Mcp.Editor
 
             public static RuntimeScreenPosition FromScreenPosition(Vector2 screenPosition)
             {
-                var screenSize = new Vector2(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
+                var screenSize = ChievfxMcpRuntimeScreenSize.Resolve();
                 return new RuntimeScreenPosition(screenPosition, screenSize, new Vector2(screenPosition.x / screenSize.x, screenPosition.y / screenSize.y));
             }
         }

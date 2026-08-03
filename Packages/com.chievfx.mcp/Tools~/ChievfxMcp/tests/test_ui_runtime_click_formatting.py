@@ -209,7 +209,7 @@ class UiRuntimeClickAdvertisedSchemaTests(unittest.TestCase):
         self.assertTrue(schema.get("additionalProperties"))
         self.assertEqual(
             list(schema["properties"].keys()),
-            ["framework", "x", "y", "isNormalized", "path", "instanceId", "handler"],
+            ["framework", "x", "y", "isNormalized", "space", "path", "instanceId", "handler"],
         )
 
 

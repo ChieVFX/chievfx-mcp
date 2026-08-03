@@ -73,14 +73,20 @@ and `*.pyc`/`*.pyo`. The choice and folder are remembered per launcher project.
 
 ## Setup
 
-From a Unity project that already contains this package:
+Nothing to do. Launching from Unity (**Window > ChievFX > MCP** → **Connection** →
+**Advanced details** → **Launch Python Installer**) uses the **single shared managed
+environment** at `~/.chievfx-mcp/env` — the same interpreter that runs the MCP server —
+and installs `requirements.txt` into it on first use (~25 s once per machine). Every
+project copy reuses that one environment; there is no per-project virtual environment.
+
+If the shared environment cannot be used, the launcher falls back to any interpreter that
+already has PyQt6 (a hand-made `Install~/.venv`, or a system Python) and logs a warning
+saying why.
+
+To install the requirements by hand:
 
 ```bash
-cd Packages/com.chievfx.mcp/Install
-python3 -m venv .venv
-source .venv/bin/activate          # macOS / Linux
-# .venv\Scripts\activate            # Windows
-pip install -r requirements.txt
+~/.chievfx-mcp/env/bin/python3 -m pip install -r requirements.txt
 ```
 
 ## Run
@@ -125,10 +131,26 @@ into the default profile on first use.
 
 1. Open the project, wait for compile and domain reload.
 2. `Window > ChievFX > MCP` -> `Start Bridge`.
-3. Keep `Cursor` selected, or switch the client to `Claude Code` or `Codex`, then click `Write <client> Config`.
+3. Keep `Cursor` selected, or switch the client to `Claude Code`, `Codex`, `Kimi Code` or `JetBrains Rider`, then click `Write <client> Config`.
 4. Reload your MCP client's tools or restart it.
 
 The MCP server should appear as `unity-mcp-chievfx`.
+
+For `Codex`, one extra record is required outside the project: Codex skips a project's
+`.codex/config.toml` — the only place this server is declared — unless the project is trusted in
+`CODEX_HOME`/`~/.codex/config.toml` via `[projects.'<absolute path>'] trust_level = "trusted"`.
+Codex writes it when you answer its trust prompt; hosts that drive Codex without the prompt
+(JetBrains AI's Codex agent) never do, which looks like a correct config that exposes no Unity
+tools. Auto-setup adds it when no decision covers the project (existing decisions, including
+`untrusted`, are left alone); the `Record Codex project trust` toggle turns it off. Matching is
+exact-path — only the launch directory or the repo root Codex resolves from it counts.
+
+Opening the project also writes a `mcp-unity-chievfx` skill for each client —
+`.cursor/`, `.claude/`, `.codex/`, `.kimi-code/` under `skills/mcp-unity-chievfx/SKILL.md` —
+holding the complete tool/resource reference with argument signatures. MCP startup
+instructions are truncated by most clients, so the same content is placed where the client
+loads skills from. These files are generated (rewritten on open, content follows the local
+tool selection); gitignore them like the `mcp.json` configs.
 
 ## Notes
 

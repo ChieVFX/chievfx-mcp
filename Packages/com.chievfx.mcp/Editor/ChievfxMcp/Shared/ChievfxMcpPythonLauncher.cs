@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using UnityEditor;
 using Debug = UnityEngine.Debug;
 
 namespace Chievfx.Mcp.Editor
@@ -67,22 +68,60 @@ namespace Chievfx.Mcp.Editor
             }
 
             var installDirectory = Path.GetDirectoryName(scriptPath)!;
-            var python = ResolveInstallerPythonExecutable(installDirectory) ?? ExecutablePath;
-            if (!LooksLikeAbsoluteExecutable(python))
+
+            // The installer is a PyQt6 GUI, but ExecutablePath is the MCP *server* interpreter — by
+            // default the managed CPython under ~/.chievfx-mcp/env, which deliberately has no
+            // third-party packages. Launching with it started a process that died instantly on
+            // "ModuleNotFoundError: No module named 'PyQt6'": no Unity error, no window, nothing to go
+            // on. Pick an interpreter that can actually import PyQt6, and say so plainly when none can.
+            // One environment per machine, shared by every project copy and used for BOTH the MCP server
+            // and this installer. So the shared managed env is authoritative: if it lacks PyQt6 we add it
+            // there rather than silently borrowing a system Python that happens to have it — that would
+            // leave the server and the installer on different interpreters.
+            var provisionError = string.Empty;
+            string? python = null;
+            var checkedPythons = new List<string>();
+            if (ChievfxMcpManagedPython.TryGetExecutablePath(out var managedPython) && File.Exists(managedPython))
             {
-                // Unity's PATH on macOS is often too thin for bare "python3".
-                // Re-resolve against Unix known locations before giving up.
-                InvalidateCache();
-                python = ResolveInstallerPythonExecutable(installDirectory) ?? ResolveExecutablePath();
+                checkedPythons.Add(managedPython);
+                python = CanImportPyQt6(managedPython)
+                    ? managedPython
+                    : (TryProvisionSharedEnvironment(installDirectory, out var provisioned, out provisionError) ? provisioned : null);
+            }
+            else if (!TryProvisionSharedEnvironment(installDirectory, out python, out provisionError))
+            {
+                python = null;
             }
 
-            if (!LooksLikeAbsoluteExecutable(python) && !IsWindows())
+            if (python == null)
             {
-                var probed = ProbeUnixWhich("python3") ?? ProbeUnixWhich("python");
-                if (!string.IsNullOrWhiteSpace(probed))
+                // Last resort: any other interpreter that already has PyQt6 (a hand-made venv, or system
+                // Python) so a broken managed env does not block the installer entirely.
+                python = ResolveInstallerPythonWithGui(installDirectory, out var fallbackChecked);
+                checkedPythons.AddRange(fallbackChecked);
+                if (python != null)
                 {
-                    python = probed!;
+                    Debug.LogWarning(
+                        $"ChievFX MCP could not use the shared Python environment for the installer, so it fell back to '{python}'. {provisionError}");
                 }
+            }
+
+            if (python == null)
+            {
+                error =
+                    "The Python installer is a PyQt6 GUI and no usable interpreter was found.\n\n"
+                    + $"{provisionError}\n\n"
+                    + "Manual fallback:  "
+                    + $"{ChievfxMcpManagedPython.ExpectedExecutablePath()} -m pip install -r "
+                    + $"{Path.Combine(installDirectory, "requirements.txt")}\n"
+                    + $"Interpreters checked for PyQt6: {string.Join(", ", checkedPythons.Distinct())}";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(python))
+            {
+                error = "Could not resolve a Python interpreter for the installer.";
+                return false;
             }
 
             var arguments =
@@ -90,8 +129,19 @@ namespace Chievfx.Mcp.Editor
 
             try
             {
-                if (!TryStartInstallerProcess(python, arguments, installDirectory, out var process, out error))
+                if (!TryStartInstallerProcess(python!, arguments, installDirectory, out var process, out error))
                 {
+                    return false;
+                }
+
+                // A process that starts and dies is indistinguishable from "nothing happened" unless we
+                // look. Give it a moment and report a premature exit instead of claiming success.
+                if (process.WaitForExit(2000) && process.ExitCode != 0)
+                {
+                    error =
+                        $"The Python installer exited immediately (code {process.ExitCode}) using '{python}'.\n"
+                        + "Run it in a terminal to see the reason:\n"
+                        + $"  cd {installDirectory} && {python} chievfx_mcp_installer.py";
                     return false;
                 }
 
@@ -199,6 +249,220 @@ namespace Chievfx.Mcp.Editor
             catch (Exception ex)
             {
                 Debug.LogWarning($"ChievFX MCP could not frontmost installer on macOS. {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Installs the installer's requirements into the ONE shared managed environment
+        /// (~/.chievfx-mcp/env) that already runs the MCP server, so every project copy reuses a single
+        /// Python install instead of a per-project venv. Installing into a system Python is avoided: it
+        /// is not ours to mutate and is often externally managed.
+        /// </summary>
+        private static bool TryProvisionSharedEnvironment(string installDirectory, out string? sharedPython, out string error)
+        {
+            sharedPython = null;
+            error = string.Empty;
+            try
+            {
+                EditorUtility.DisplayProgressBar("ChievFX MCP", "Preparing the shared Python environment...", 0.2f);
+                if (!ChievfxMcpManagedPython.IsInstalledAndCurrent()
+                    && !ChievfxMcpManagedPython.TryEnsureInstalled(forceReinstall: false, out var installError))
+                {
+                    error = $"The shared managed Python environment is unavailable. {installError}";
+                    return false;
+                }
+
+                if (!ChievfxMcpManagedPython.TryGetExecutablePath(out var managedPython) || !IsRunnablePython(managedPython))
+                {
+                    error = $"The shared managed Python at {ChievfxMcpManagedPython.ExpectedExecutablePath()} is not runnable.";
+                    return false;
+                }
+
+                EditorUtility.DisplayProgressBar("ChievFX MCP", "Installing PyQt6 into the shared Python environment...", 0.6f);
+                var requirements = Path.Combine(installDirectory, "requirements.txt");
+                var installArguments = File.Exists(requirements)
+                    ? $"-m pip install --disable-pip-version-check -r {QuoteArg(requirements)}"
+                    : "-m pip install --disable-pip-version-check PyQt6";
+                if (!TryRunProcess(managedPython, installArguments, installDirectory, 600_000, out var pipOutput))
+                {
+                    error = $"Installing the installer requirements into {managedPython} failed. {pipOutput}";
+                    return false;
+                }
+
+                if (!CanImportPyQt6(managedPython))
+                {
+                    error = $"Requirements installed but PyQt6 still cannot be imported by {managedPython}.";
+                    return false;
+                }
+
+                Debug.Log($"ChievFX MCP installed the installer requirements into the shared environment at {ChievfxMcpManagedPython.RootDirectory}.");
+                sharedPython = managedPython;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+            }
+        }
+
+        private static bool TryRunProcess(string fileName, string arguments, string workingDirectory, int timeoutMs, out string output)
+        {
+            output = string.Empty;
+            try
+            {
+                using var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = fileName,
+                        Arguments = arguments,
+                        WorkingDirectory = workingDirectory,
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true,
+                    },
+                };
+                process.Start();
+                var stdout = process.StandardOutput.ReadToEnd();
+                var stderr = process.StandardError.ReadToEnd();
+                if (!process.WaitForExit(timeoutMs))
+                {
+                    try
+                    {
+                        process.Kill();
+                    }
+                    catch
+                    {
+                        // Ignore kill failures.
+                    }
+
+                    output = $"Timed out after {timeoutMs / 1000}s.";
+                    return false;
+                }
+
+                // Keep only the tail: pip is verbose and the failure reason is at the end.
+                var combined = (stderr + "\n" + stdout).Trim();
+                output = combined.Length > 600 ? combined.Substring(combined.Length - 600) : combined;
+                return process.ExitCode == 0;
+            }
+            catch (Exception ex)
+            {
+                output = ex.Message;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// First interpreter that can import PyQt6, preferring the installer's own venv. Returns null
+        /// when none qualifies, with the list of interpreters tried for the error message.
+        /// </summary>
+        private static string? ResolveInstallerPythonWithGui(string installDirectory, out List<string> checkedPythons)
+        {
+            checkedPythons = new List<string>();
+            foreach (var candidate in EnumerateInstallerPythonCandidates(installDirectory))
+            {
+                if (string.IsNullOrWhiteSpace(candidate) || checkedPythons.Contains(candidate))
+                {
+                    continue;
+                }
+
+                checkedPythons.Add(candidate);
+                if (CanImportPyQt6(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<string> EnumerateInstallerPythonCandidates(string installDirectory)
+        {
+            // One shared environment for every project copy: the same managed Python that runs the MCP
+            // server also runs the installer, so PyQt6 is installed once per machine rather than once
+            // per project. Preferred over everything else.
+            if (ChievfxMcpManagedPython.TryGetExecutablePath(out var managedPython) && File.Exists(managedPython))
+            {
+                yield return managedPython;
+            }
+
+            // A hand-made per-project venv still works if someone created one.
+            var venvPython = ResolveInstallerPythonExecutable(installDirectory);
+            if (venvPython != null)
+            {
+                yield return venvPython;
+            }
+
+            foreach (var candidate in EnumerateCandidates())
+            {
+                yield return candidate;
+            }
+
+            if (!IsWindows())
+            {
+                var probed = ProbeUnixWhich("python3");
+                if (!string.IsNullOrWhiteSpace(probed))
+                {
+                    yield return probed!;
+                }
+
+                probed = ProbeUnixWhich("python");
+                if (!string.IsNullOrWhiteSpace(probed))
+                {
+                    yield return probed!;
+                }
+            }
+        }
+
+        private static bool CanImportPyQt6(string python)
+        {
+            try
+            {
+                if (!File.Exists(python))
+                {
+                    return false;
+                }
+
+                using var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = python,
+                        Arguments = "-c \"import PyQt6\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true,
+                    },
+                };
+                process.Start();
+                process.StandardOutput.ReadToEnd();
+                process.StandardError.ReadToEnd();
+                if (!process.WaitForExit(10000))
+                {
+                    try
+                    {
+                        process.Kill();
+                    }
+                    catch
+                    {
+                        // Ignore kill failures on a probe process.
+                    }
+
+                    return false;
+                }
+
+                return process.ExitCode == 0;
+            }
+            catch
+            {
+                return false;
             }
         }
 

@@ -23,12 +23,13 @@ namespace Chievfx.Mcp.Editor
         private const string ClientClaudeCode = "Claude Code";
         private const string ClientCodex = "Codex";
         private const string ClientKimiCode = "Kimi Code";
+        private const string ClientRider = "JetBrains Rider";
         private const string AllInfoEditorPrefsKey = "ChievfxMcp.Selection.AllInfo";
         private const string ShowExperimentalPromptsEditorPrefsKey = "ChievfxMcp.Experimental.ShowPromptsTab";
         private const string ShowExperimentalAutonomyToolsEditorPrefsKey = "ChievfxMcp.Experimental.ShowAutonomyTools";
 
         private static readonly string[] TransportChoices = { TransportStdio, TransportHttp };
-        private static readonly string[] ClientChoices = { ClientCursor, ClientClaudeCode, ClientCodex, ClientKimiCode };
+        private static readonly string[] ClientChoices = { ClientCursor, ClientClaudeCode, ClientCodex, ClientKimiCode, ClientRider };
         private static Process? httpProcess;
         private static ChievfxMcpTab? pendingTab;
 
@@ -99,8 +100,8 @@ namespace Chievfx.Mcp.Editor
             return GetClientsNeedingConfigWrite().Count == 0;
         }
 
-        // Writes the MCP config for every supported client (Cursor, Claude Code, Codex, Kimi Code)
-        // for this project copy when it is not already current. Used by the on-load auto-setup so the
+        // Writes the MCP config for every supported client (Cursor, Claude Code, Codex, Kimi Code,
+        // JetBrains Rider) for this project copy when it is not already current. Used by the on-load auto-setup so the
         // project is ready without a manual Write Config. No-op for configs already up to date.
         // Returns one human-readable line per config file that was (re)written, e.g.
         // "Cursor — .cursor/mcp.json", for the Welcome window's "what was done" report.
@@ -132,9 +133,23 @@ namespace Chievfx.Mcp.Editor
                 }
             }
 
+            // Writing .codex/config.toml is not enough on its own: Codex only reads a project's
+            // .codex/ layer once the project is trusted at user level. Idempotent — a project that
+            // already has a trust decision (either answer) is left alone.
+            if (ChievfxMcpToolPolicy.EnsureCodexProjectTrust
+                && ChievfxMcpCodexTrust.TryEnsureProjectTrusted(out var trustDetail))
+            {
+                written.Add($"Codex project trust — {ChievfxMcpCodexTrust.ConfigPath}");
+                Debug.Log($"[ChievFX MCP] {trustDetail}");
+            }
+
+            // The same reference the startup instructions can only point at, placed where each client
+            // loads skills from. Idempotent, so an unchanged project writes nothing.
+            written.AddRange(ChievfxMcpClientSkillWriter.WriteAll());
+
             if (written.Count > 0)
             {
-                Debug.Log($"[ChievFX MCP] Wrote MCP client configs for this project: {string.Join("; ", written)}.");
+                Debug.Log($"[ChievFX MCP] Wrote MCP client configs/skills for this project: {string.Join("; ", written)}.");
                 RefreshOpenWindows();
             }
 
@@ -469,12 +484,22 @@ namespace Chievfx.Mcp.Editor
             var autoWriteClientConfigsToggle = new Toggle("Auto-write MCP client configs on Unity open")
             {
                 value = ChievfxMcpToolPolicy.AutoWriteClientConfigs,
-                tooltip = "When on, each time Unity opens this project the MCP config for every supported client (Cursor, Claude Code, Codex, Kimi Code) is written for this project copy if it is missing, stale, or points at a different copy. Default on."
+                tooltip = "When on, each time Unity opens this project the MCP config for every supported client (Cursor, Claude Code, Codex, Kimi Code, JetBrains Rider) is written for this project copy if it is missing, stale, or points at a different copy. Default on."
             };
             autoWriteClientConfigsToggle.RegisterValueChangedCallback(evt =>
                 EditorPrefs.SetBool(ChievfxMcpToolPolicy.AutoWriteClientConfigsKey, evt.newValue));
             automation.Add(autoWriteClientConfigsToggle);
-            automation.Add(CreateMutedLabel("Writes .cursor/mcp.json, .mcp.json, .codex/config.toml, and .kimi-code/mcp.json so the project is ready without a manual Write Config. Turn off to manage client configs yourself."));
+            automation.Add(CreateMutedLabel("Writes .cursor/mcp.json, .mcp.json, .codex/config.toml, .kimi-code/mcp.json, and .ai/mcp/mcp.json so the project is ready without a manual Write Config. Turn off to manage client configs yourself."));
+
+            var ensureCodexTrustToggle = new Toggle("Record Codex project trust")
+            {
+                value = ChievfxMcpToolPolicy.EnsureCodexProjectTrust,
+                tooltip = "When on, adds [projects.'<project path>'] trust_level = \"trusted\" to your user-level Codex config (CODEX_HOME or ~/.codex/config.toml) if no trust decision covers this project yet. Codex skips a project's .codex/config.toml — where this project's MCP server is declared — until the project is trusted, and hosts that drive Codex without its trust prompt never record it. Existing decisions, including \"untrusted\", are never changed. Default on."
+            };
+            ensureCodexTrustToggle.RegisterValueChangedCallback(evt =>
+                EditorPrefs.SetBool(ChievfxMcpToolPolicy.EnsureCodexProjectTrustKey, evt.newValue));
+            automation.Add(ensureCodexTrustToggle);
+            automation.Add(CreateMutedLabel("Appends one entry to the global Codex config; the MCP server itself stays project-local. Trusting a directory also lets Codex default to workspace-write there. Turn off to answer Codex's own trust prompt yourself."));
 
             autoReloadExternallyChangedScenesToggle = new Toggle("Auto-reload externally changed open scenes")
             {
@@ -609,6 +634,8 @@ namespace Chievfx.Mcp.Editor
         private static string CodexConfigPath => ChievfxMcpToolPolicy.CodexConfigPath;
 
         private static string KimiCodeConfigPath => ChievfxMcpToolPolicy.KimiCodeConfigPath;
+
+        private static string RiderConfigPath => ChievfxMcpToolPolicy.RiderConfigPath;
 
         private static string ServerScriptPath => ChievfxMcpToolPolicy.ServerScriptPath;
 
@@ -831,7 +858,18 @@ namespace Chievfx.Mcp.Editor
 
             if (clientConfigHintLabel != null)
             {
-                clientConfigHintLabel.text = clientInfo.Hint;
+                // Codex's project config only loads for a trusted project, so its real state is the
+                // config file plus the user-level trust record. Read it only while Codex is the
+                // selected client, so the other clients' refresh stays file-free.
+                var hint = clientInfo.Hint;
+                if (string.Equals(clientInfo.DisplayName, ClientCodex, StringComparison.Ordinal))
+                {
+                    hint += ChievfxMcpCodexTrust.HasTrustDecision()
+                        ? $"\n\nProject trust: recorded in {ChievfxMcpCodexTrust.ConfigPath}."
+                        : $"\n\nProject trust: MISSING from {ChievfxMcpCodexTrust.ConfigPath} — until it is there Codex ignores .codex/config.toml entirely and loads no Unity tools. Write Codex Config adds it.";
+                }
+
+                clientConfigHintLabel.text = hint;
             }
 
             if (writeConfigButton != null)
@@ -1121,10 +1159,22 @@ namespace Chievfx.Mcp.Editor
             ChievfxMcpToolPolicy.EnsureBridgeStarted();
             var clientInfo = GetClientInfo(GetClient());
             WriteClientConfig(clientInfo, GetTransport(), GetPort(), GetTimeout());
+
+            // A Codex config nobody is allowed to read is not a written config, so the trust record
+            // is part of the same action.
+            var trustNote = string.Empty;
+            if (string.Equals(clientInfo.DisplayName, ClientCodex, StringComparison.Ordinal)
+                && ChievfxMcpToolPolicy.EnsureCodexProjectTrust
+                && ChievfxMcpCodexTrust.TryEnsureProjectTrusted(out var trustDetail))
+            {
+                trustNote = $"\n\n{trustDetail}";
+                Debug.Log($"[ChievFX MCP] {trustDetail}");
+            }
+
             RefreshUi();
             EditorUtility.DisplayDialog(
                 "ChievFX MCP",
-                $"{clientInfo.DisplayName} config written. Reload MCP tools or restart {clientInfo.DisplayName} before {ChievfxMcpToolPolicy.CursorServerName} appears in the current session.",
+                $"{clientInfo.DisplayName} config written. Reload MCP tools or restart {clientInfo.DisplayName} before {ChievfxMcpToolPolicy.CursorServerName} appears in the current session.{trustNote}",
                 "OK");
         }
 
@@ -1160,7 +1210,7 @@ namespace Chievfx.Mcp.Editor
                 return new McpClientInfo(
                     ClientCodex,
                     CodexConfigPath,
-                    "Codex reads project MCP servers from .codex/config.toml after the project is trusted. Restart Codex after writing config.",
+                    "Codex reads project MCP servers from .codex/config.toml only while the project is trusted in your user-level Codex config. Restart Codex after writing config.",
                     McpClientConfigFormat.CodexToml,
                     true,
                     "codex",
@@ -1182,6 +1232,21 @@ namespace Chievfx.Mcp.Editor
                     "Kimi CLI found",
                     "Kimi CLI missing",
                     includeTypeField: false);
+            }
+
+            if (client == ClientRider)
+            {
+                // Same {"mcpServers": {...}} shape as Cursor/Claude Code, with "type" accepted
+                // (the plugin's bundled schema documents stdio/http/sse).
+                return new McpClientInfo(
+                    ClientRider,
+                    RiderConfigPath,
+                    "Rider AI Assistant and Junie read project MCP servers from .ai/mcp/mcp.json. A server added or changed on disk stays disabled until you accept the IDE's \"Enable Servers\" notification, or turn on Settings | Tools | AI Assistant | Model Context Protocol (MCP) → \"Automatically enable new and changed MCP servers\".",
+                    McpClientConfigFormat.JsonMcpServers,
+                    true,
+                    "rider",
+                    "Rider found",
+                    "Rider missing");
             }
 
             return new McpClientInfo(
@@ -1207,12 +1272,87 @@ namespace Chievfx.Mcp.Editor
                 return true;
             }
 
-            // Claude Code's Store (MSIX) build installs under a package-redirected AppData
-            // path that non-packaged processes like the Unity editor cannot see, so a plain
-            // executable probe fails even when it is installed. Fall back to signals that are
-            // not affected by package redirection.
-            return string.Equals(clientInfo.ProbeExecutableName, "claude", StringComparison.OrdinalIgnoreCase)
-                && IsClaudeCodeInstalled();
+            // Per-client fallbacks for installs an executable probe cannot see.
+            if (string.Equals(clientInfo.ProbeExecutableName, "claude", StringComparison.OrdinalIgnoreCase))
+            {
+                // Claude Code's Store (MSIX) build installs under a package-redirected AppData
+                // path that non-packaged processes like the Unity editor cannot see, so a plain
+                // executable probe fails even when it is installed. Fall back to signals that are
+                // not affected by package redirection.
+                return IsClaudeCodeInstalled();
+            }
+
+            if (string.Equals(clientInfo.ProbeExecutableName, "rider", StringComparison.OrdinalIgnoreCase))
+            {
+                return IsRiderInstalled();
+            }
+
+            return false;
+        }
+
+        // Rider is normally installed through JetBrains Toolbox or as a plain app bundle and puts
+        // nothing on PATH, so the executable probe above rarely fires. Every build writes a
+        // per-version settings directory (JetBrains/Rider<version>) on first run — the same place
+        // the MCP plugin keeps its global server list — so that is the reliable signal.
+        private static bool IsRiderInstalled()
+        {
+            foreach (var root in JetBrainsSettingsRoots())
+            {
+                try
+                {
+                    if (Directory.Exists(root) && Directory.GetDirectories(root, "Rider*").Length > 0)
+                    {
+                        return true;
+                    }
+                }
+                catch
+                {
+                    // Unreadable candidate root; try the next one.
+                }
+            }
+
+            return false;
+        }
+
+        private static List<string> JetBrainsSettingsRoots()
+        {
+            var roots = new List<string>();
+            try
+            {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    var appData = Environment.GetEnvironmentVariable("APPDATA");
+                    if (!string.IsNullOrWhiteSpace(appData))
+                    {
+                        roots.Add(Path.Combine(appData!, "JetBrains"));
+                    }
+
+                    return roots;
+                }
+
+                var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                if (string.IsNullOrWhiteSpace(home))
+                {
+                    return roots;
+                }
+
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                {
+                    roots.Add(Path.Combine(home, "Library", "Application Support", "JetBrains"));
+                    return roots;
+                }
+
+                var xdgConfig = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+                roots.Add(string.IsNullOrWhiteSpace(xdgConfig)
+                    ? Path.Combine(home, ".config", "JetBrains")
+                    : Path.Combine(xdgConfig!, "JetBrains"));
+            }
+            catch (PlatformNotSupportedException)
+            {
+                // No user profile available; treat as "cannot tell".
+            }
+
+            return roots;
         }
 
         private static bool IsClaudeCodeInstalled()
@@ -2123,9 +2263,18 @@ namespace Chievfx.Mcp.Editor
 
         private string GetClient()
         {
-            return clientField?.value == ClientClaudeCode || clientField?.value == ClientCodex
-                ? clientField.value
-                : ClientCursor;
+            // Validate against the full choice list. An explicit allow-list of two clients silently
+            // reset every other selection (Kimi Code) back to Cursor on save and on Write Config.
+            var value = clientField?.value;
+            foreach (var choice in ClientChoices)
+            {
+                if (string.Equals(value, choice, StringComparison.Ordinal))
+                {
+                    return choice;
+                }
+            }
+
+            return ClientCursor;
         }
 
         private void SavePreferences()

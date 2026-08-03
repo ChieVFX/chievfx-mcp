@@ -16,12 +16,17 @@ Generated scene path: `Assets/Scenes/ChievfxMcpUguiRuntimeQaFixture.unity`.
 
 Runtime probe coordinates use Game View screen pixels with origin at bottom-left.
 
-Normalized coordinates map to pixels as:
+Normalized coordinates map to pixels against the size the Game View *renders* at — the value the tools
+report as `screenSize` and screenshots report as `screenWidth`/`screenHeight`:
 
 ```text
-pixel.x = normalized.x * Screen.width
-pixel.y = normalized.y * Screen.height
+pixel.x = normalized.x * screenSize.width
+pixel.y = normalized.y * screenSize.height
 ```
+
+That is not `Screen.width`/`Screen.height`: read from editor code, Unity resolves `Screen.*` against the
+Game View *window*, so a Game View locked to a fixed resolution reports the window size instead. See the
+fixed-resolution check below.
 
 Expected marker points:
 
@@ -74,5 +79,49 @@ Expected proof:
 
 - Probe warnings include `outside current screen/game-view bounds`.
 - Probe `ugui.count` is `0`.
+
+## Fixed-Resolution Check (coordinate regression)
+
+Every normalized coordinate is divided by the Game View render size, so the case worth re-testing is a Game
+View whose render size differs from its window size. Set the Game View to a fixed resolution that does not
+match the window aspect — e.g. add a `2340x1080` Fixed Resolution size and select it — then, in Play Mode:
+
+```json
+{"tool":"ui-runtime-probe","arguments":{"x":0.5,"y":0.5,"isNormalized":true}}
+```
+
+Expected proof:
+
+- Probe `screenSize` is `2340x1080` (the render size), not the Game View window size.
+- Probe `screenSizeSource` is `gameView.targetSize`, and the text output says `screen size from
+  gameView.targetSize`.
+- Probe `screen` is `1170, 540` and `ugui.hits[0].path` ends with `TopHitPanel/TopButton` — the center
+  control, not a control to its left.
+- `screenshot-game-view` reports `screenWidth` `2340` and omits `pixelMappingReliable`, so reading a pixel
+  off the PNG and passing it back with `space:"screenshot"` lands on the control that was rendered there.
+
+A regression here shows up as a horizontal shift proportional to `x`: targets near `x=0` still hit, and
+everything on the right half misses silently.
+
+## Screenshot-Space Click Check (what the handler receives)
+
+`space:"screenshot"` takes top-left-origin coordinates and the tools Y-flip them. The flip has to reach the
+dispatched `PointerEventData`, not just the echoed numbers — a handler that reads `eventData.pressPosition`
+(`OnPointerClick`, `OnBeginDrag`, `OnDrag`) acts on that field, so a half-applied flip produces a click that
+reports success at the right coordinates and acts on the vertically mirrored point.
+
+In Play Mode, click the lower half of the screen in screenshot space:
+
+```json
+{"tool":"ui-runtime-click","arguments":{"x":0.5,"y":0.75,"space":"screenshot","framework":"ugui"}}
+```
+
+Expected proof:
+
+- The echoed `pos px` y is `0.25 * screenHeight` (top-left `0.75` flips to bottom-left `0.25`).
+- The handler that runs sees `pressPosition == position ==` that same echoed point — compare against an
+  equivalent `isNormalized` call at `y = 0.25`; both must act identically, not mirror each other.
+- `pointerCurrentRaycast.gameObject`, `pointerPressRaycast.gameObject`, `pointerPress` and `rawPointerPress`
+  are the clicked object, not null.
 
 If `screenshot-game-view` misses Screen Space Overlay UI, capture `screenshot-editor-window` for the visible Game View and include the same center/disabled marker coordinates in notes.

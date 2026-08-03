@@ -71,6 +71,7 @@ class UiRuntimeDragAdvertisedSchemaTests(unittest.TestCase):
                 "deltaX",
                 "deltaY",
                 "isNormalized",
+                "space",
                 "path",
                 "instanceId",
             ],

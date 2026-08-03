@@ -187,6 +187,18 @@ def format_ui_runtime_normalized(value: float) -> str:
     return f"{value:.2f}"
 
 
+def format_ui_runtime_warning_lines(warnings: Any) -> list[str]:
+    """Warning lines for the ui-runtime-* text outputs, with the per-canvas flood collapsed.
+
+    A real UI emits one warning per canvas about raycasters and visibility — 77 of them in a shipping
+    game — and they are static scene facts, identical on every call, not findings about this interaction.
+    Aggregate them the same way the probe does so a click result stays a handful of lines.
+    """
+    if not isinstance(warnings, list):
+        return []
+    return [f"! {warning}" for warning in summarize_probe_warnings(warnings)]
+
+
 def format_ui_runtime_click_text(result: dict[str, Any]) -> str:
     header_parts = [
         f"playMode:{format_toon_atom(result.get('playMode'))}",
@@ -228,11 +240,7 @@ def format_ui_runtime_click_text(result: dict[str, Any]) -> str:
             if row:
                 lines.append(row)
 
-    warnings = result.get("warnings")
-    if isinstance(warnings, list):
-        for warning in warnings:
-            if isinstance(warning, str) and warning.strip():
-                lines.append(f"! {warning.strip()}")
+    lines.extend(format_ui_runtime_warning_lines(result.get("warnings")))
 
     return "\n".join(line for line in lines if line)
 
@@ -352,11 +360,7 @@ def format_ui_runtime_drag_text(result: dict[str, Any]) -> str:
             if row:
                 lines.append(row)
 
-    warnings = result.get("warnings")
-    if isinstance(warnings, list):
-        for warning in warnings:
-            if isinstance(warning, str) and warning.strip():
-                lines.append(f"! {warning.strip()}")
+    lines.extend(format_ui_runtime_warning_lines(result.get("warnings")))
 
     return "\n".join(line for line in lines if line)
 
@@ -476,11 +480,74 @@ def format_ui_runtime_set_control_value_text(result: dict[str, Any]) -> str:
                 row_parts.append(f"error:{format_toon_atom(attempt.get('error'))}")
             lines.append(" ".join(row_parts))
 
-    warnings = result.get("warnings")
-    if isinstance(warnings, list):
-        for warning in warnings:
-            if isinstance(warning, str) and warning.strip():
-                lines.append(f"! {warning.strip()}")
+    lines.extend(format_ui_runtime_warning_lines(result.get("warnings")))
+
+    return "\n".join(line for line in lines if line)
+
+
+def format_ui_runtime_type_text_text(result: dict[str, Any]) -> str:
+    """Compact text for ui-runtime-type-text.
+
+    Without this the tool fell through to the generic dump: the whole hit stack, both target states and
+    every canvas warning, several KB per keystroke-equivalent call. What a caller needs is whether the
+    field was found and what it now contains.
+    """
+    header_parts = [f"playMode:{format_toon_atom(result.get('playMode'))}"]
+    header_parts.append("resolved:true" if result.get("resolved") is True else "resolved:false")
+    framework = result.get("framework")
+    if not should_omit_toon_value(framework):
+        header_parts.append(f"framework:{format_toon_atom(framework)}")
+    control_type = result.get("controlType")
+    if not should_omit_toon_value(control_type):
+        header_parts.append(f"control:{format_toon_atom(control_type)}")
+    if result.get("submitted") is True or result.get("submit") is True:
+        header_parts.append("submitted:true")
+    lines = ["type-text " + " ".join(header_parts)]
+
+    target = result.get("target")
+    if isinstance(target, dict):
+        target_parts = []
+        path = target.get("path")
+        if not should_omit_toon_value(path):
+            target_parts.append(f"path:{format_toon_atom(path)}")
+        instance_id = target.get("instanceId")
+        if not should_omit_toon_value(instance_id):
+            target_parts.append(f"id:{format_toon_atom(instance_id)}")
+        visual_element_ref = target.get("visualElementRef")
+        if not should_omit_toon_value(visual_element_ref):
+            target_parts.append(f"ref:{format_toon_atom(visual_element_ref)}")
+        if target_parts:
+            lines.append("target " + " ".join(target_parts))
+
+    for label, key in (("before", "textBefore"), ("after", "textAfter")):
+        value = result.get(key)
+        if not should_omit_toon_value(value):
+            lines.append(f'{label} "{value}"')
+
+    attempts = result.get("attempts")
+    if isinstance(attempts, list):
+        for attempt in attempts:
+            if not isinstance(attempt, dict):
+                continue
+            row_parts = [f"- {format_toon_atom(attempt.get('framework'))}"]
+            if attempt.get("available") is False:
+                row_parts.append("unavailable")
+            elif attempt.get("resolved") is False:
+                row_parts.append("miss")
+            elif attempt.get("error"):
+                row_parts.append(f"error:{format_toon_atom(attempt.get('error'))}")
+            lines.append(" ".join(row_parts))
+
+    # Only surfaced when the field was not found; that is when the hit stack is the answer.
+    stack = result.get("stack")
+    if isinstance(stack, list) and stack and result.get("resolved") is not True:
+        for hit in stack[:5]:
+            if isinstance(hit, dict):
+                path = hit.get("path")
+                if not should_omit_toon_value(path):
+                    lines.append(f"hit {format_toon_atom(path)}")
+
+    lines.extend(format_ui_runtime_warning_lines(result.get("warnings")))
 
     return "\n".join(line for line in lines if line)
 
@@ -540,11 +607,7 @@ def format_ui_runtime_focus_text(result: dict[str, Any]) -> str:
                 row_parts.append(f"error:{format_toon_atom(attempt.get('error'))}")
             lines.append(" ".join(row_parts))
 
-    warnings = result.get("warnings")
-    if isinstance(warnings, list):
-        for warning in warnings:
-            if isinstance(warning, str) and warning.strip():
-                lines.append(f"! {warning.strip()}")
+    lines.extend(format_ui_runtime_warning_lines(result.get("warnings")))
 
     return "\n".join(line for line in lines if line)
 
@@ -569,11 +632,7 @@ def format_ui_runtime_clear_focus_text(result: dict[str, Any]) -> str:
                 parts.append("noop")
             lines.append(" ".join(parts))
 
-    warnings = result.get("warnings")
-    if isinstance(warnings, list):
-        for warning in warnings:
-            if isinstance(warning, str) and warning.strip():
-                lines.append(f"! {warning.strip()}")
+    lines.extend(format_ui_runtime_warning_lines(result.get("warnings")))
 
     return "\n".join(line for line in lines if line)
 
@@ -696,6 +755,10 @@ def format_tool_result_text(tool_name: str, result: Any, arguments: dict[str, An
     if tool_name == "ui-runtime-focus":
         if isinstance(result, dict):
             return format_ui_runtime_focus_text(result)
+
+    if tool_name == "ui-runtime-type-text":
+        if isinstance(result, dict):
+            return format_ui_runtime_type_text_text(result)
 
     if tool_name == "ui-runtime-clear-focus":
         if isinstance(result, dict):

@@ -60,6 +60,7 @@ namespace Chievfx.Mcp.Editor
                         ["pngHeight"] = dimensions.Height,
                     };
                     AddInputSpaceMetadata(metadata, dimensions.Width, dimensions.Height);
+                    AddShaderCompileMetadata(metadata);
                     return new ImageResult("image/png", Convert.ToBase64String(png), metadata);
                 }
             }
@@ -72,12 +73,21 @@ namespace Chievfx.Mcp.Editor
         // letterboxed and screenshot pixels no longer map linearly to click positions — the single biggest
         // coordinate footgun. Report the input Screen size, and pixelMappingReliable:false ONLY when they
         // mismatch, so a caller knows to target by path instead. The how-to lives in the tool descriptor.
+        // The size has to come from ChievfxMcpRuntimeScreenSize, not Screen.*: on a fixed-resolution Game
+        // View, Screen.* read from the editor is the window size, which both mis-scales these numbers and
+        // reports a bogus aspect mismatch on a capture that maps perfectly.
         private static void AddInputSpaceMetadata(Dictionary<string, object?> metadata, int captureWidth, int captureHeight)
         {
-            var screenWidth = Mathf.Max(1, Screen.width);
-            var screenHeight = Mathf.Max(1, Screen.height);
+            var screenSize = ChievfxMcpRuntimeScreenSize.Resolve();
+            var screenWidth = Mathf.Max(1, Mathf.RoundToInt(screenSize.x));
+            var screenHeight = Mathf.Max(1, Mathf.RoundToInt(screenSize.y));
             metadata["screenWidth"] = screenWidth;
             metadata["screenHeight"] = screenHeight;
+            var screenSizeSource = ChievfxMcpRuntimeScreenSize.DescribeResolvedSource(screenSize);
+            if (screenSizeSource != null)
+            {
+                metadata["screenSizeSource"] = screenSizeSource;
+            }
 
             var captureAspect = captureHeight > 0 ? captureWidth / (double)captureHeight : 0d;
             var screenAspect = screenWidth / (double)screenHeight;
@@ -86,6 +96,28 @@ namespace Chievfx.Mcp.Editor
             {
                 metadata["pixelMappingReliable"] = false;
             }
+        }
+
+        // A frame captured while shader variants are still compiling shows placeholder colors (the classic
+        // cyan/magenta), which reads as a real rendering result and sends callers chasing a bug that is
+        // just a mid-compile frame. Flag it on the capture itself.
+        private static void AddShaderCompileMetadata(Dictionary<string, object?> metadata)
+        {
+            try
+            {
+                if (!UnityEditor.ShaderUtil.anythingCompiling)
+                {
+                    return;
+                }
+            }
+            catch (Exception)
+            {
+                return;
+            }
+
+            metadata["shadersCompiling"] = true;
+            metadata["shadersCompilingNote"] =
+                "Shader variants were still compiling when this frame was captured; placeholder (cyan/magenta) colors may not be real. Recapture once shader-status reports compiling:false.";
         }
 
         public ImageResult CaptureCamera(JToken args)
@@ -408,6 +440,7 @@ namespace Chievfx.Mcp.Editor
             metadata["screenSpaceOverlayCanvasCount"] = screenSpaceOverlayCanvasCount;
             metadata["screenSpaceOverlayHandling"] = screenSpaceOverlayHandling;
             AddInputSpaceMetadata(metadata, width, height);
+            AddShaderCompileMetadata(metadata);
             var distinctWarnings = warnings.Distinct(StringComparer.Ordinal).ToArray();
             if (distinctWarnings.Length > 0)
             {
@@ -571,18 +604,12 @@ namespace Chievfx.Mcp.Editor
             }
         }
 
+        // UnityEditor.GameView.GetMainGameViewTargetSize is gone in current Unity versions (renamed to
+        // PlayModeView.GetMainPlayModeViewTargetSize), which silently dropped gameViewWidth/Height from this
+        // metadata; the shared resolver probes every spelling.
         private static Vector2? TryGetMainGameViewTargetSize()
         {
-            try
-            {
-                var gameViewType = typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");
-                var method = gameViewType?.GetMethod("GetMainGameViewTargetSize", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
-                return method?.Invoke(null, null) is Vector2 size && size.x >= 1f && size.y >= 1f ? size : null;
-            }
-            catch
-            {
-                return null;
-            }
+            return ChievfxMcpRuntimeScreenSize.TryGetGameViewTargetSize();
         }
 
         private static int ReadGameViewMaxDimension(JToken args)

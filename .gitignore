@@ -126,5 +126,20 @@ packages/com.singularity*
 .cursor/rules/caveman*
 .cursor/skills/caveman*
 .generated/
-.vkb/
+.vkb/*
 .vscode/
+.codex/config.toml
+.cursor/mcp.json
+.kimi-code/mcp.json
+.mcp.json
+# JetBrains project-level MCP config (Rider AI Assistant / Junie).
+.ai/mcp/mcp.json
+# Installer GUI virtual environment (auto-created on demand by the MCP window)
+Packages/com.chievfx.mcp/Install~/.venv/
+
+# Generated per-project ChievFX MCP capability skill (rewritten by Unity on open,
+# content follows the local tool selection — same class of artifact as the mcp.json configs).
+.cursor/skills/mcp-unity-chievfx/
+.claude/skills/mcp-unity-chievfx/
+.codex/skills/mcp-unity-chievfx/
+.kimi-code/skills/mcp-unity-chievfx/

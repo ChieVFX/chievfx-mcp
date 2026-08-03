@@ -26,13 +26,20 @@ namespace Chievfx.Mcp.Editor
             Vector2 screenPosition,
             Vector2 normalizedPosition)
         {
-            return new Dictionary<string, object?>
+            var block = new Dictionary<string, object?>
             {
                 ["origin"] = "bottom-left",
                 ["screenSize"] = Vec(screenSize),
                 ["normalized"] = Vec(normalizedPosition),
                 ["screen"] = Vec(screenPosition),
             };
+            var screenSizeSource = ChievfxMcpRuntimeScreenSize.DescribeResolvedSource(screenSize);
+            if (screenSizeSource != null)
+            {
+                block["screenSizeSource"] = screenSizeSource;
+            }
+
+            return block;
         }
 
         internal static Dictionary<string, object?> CreateMergedProbeResult(
@@ -263,6 +270,8 @@ namespace Chievfx.Mcp.Editor
             CopyValue(row, source, "interactable");
             CopyValue(row, source, "raycastTarget");
             CopyValue(row, source, "enabled");
+            CopyValue(row, source, "disabledComponents");
+            CopyValue(row, source, "handlers");
 
             if (source.TryGetValue("controls", out var controls) && controls != null)
             {
@@ -339,7 +348,7 @@ namespace Chievfx.Mcp.Editor
                 : Array.Empty<Dictionary<string, object?>>();
         }
 
-        private static string[] ReadStringArray(object? value)
+        internal static string[] ReadStringArray(object? value)
         {
             if (value == null)
             {

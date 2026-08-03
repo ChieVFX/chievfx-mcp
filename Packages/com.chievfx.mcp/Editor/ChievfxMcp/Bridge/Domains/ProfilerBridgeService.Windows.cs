@@ -104,14 +104,33 @@ namespace Chievfx.Mcp.Editor
             var enabledSpecified = HasProperty(args, "enabled");
             var eventIndex = ReadNullableInt(args, "eventIndex");
             var eventLimit = ReadNullableInt(args, "eventLimit");
+            bool? requestedEnabled = null;
             if (enabledSpecified)
             {
-                SetFrameDebuggerEnabled(window, ReadBool(args, "enabled", false), diagnostics);
+                // ReadBool falls back to false for a non-boolean value (e.g. enabled:1), which would
+                // silently *disable* the debugger while reporting success. Reject instead of guessing.
+                if (!TryReadStrictBool(args, "enabled", out var requested))
+                {
+                    throw new ArgumentException("frame-debugger-control 'enabled' must be true or false.", nameof(args));
+                }
+
+                requestedEnabled = requested;
+                SetFrameDebuggerEnabled(window, requested, diagnostics);
             }
             else if (eventIndex.HasValue || eventLimit.HasValue)
             {
+                requestedEnabled = true;
                 SetFrameDebuggerEnabled(window, true, diagnostics);
                 diagnostics.Add("Frame Debugger enabled automatically because event selection was requested.");
+            }
+            else if (!HasProperty(args, "open") && !HasProperty(args, "focus"))
+            {
+                // Nothing to do: without enabled/eventIndex/eventLimit this only opened a window, yet
+                // used to answer success:true — indistinguishable from an actual capture.
+                throw new ArgumentException(
+                    "frame-debugger-control had nothing to do: pass enabled (true/false), eventIndex, or eventLimit. "
+                    + "Use open/focus alone only to surface the window.",
+                    nameof(args));
             }
 
             var eventCount = GetFrameDebuggerEventCount(diagnostics);
@@ -168,13 +187,66 @@ namespace Chievfx.Mcp.Editor
             EditorApplication.QueuePlayerLoopUpdate();
             UnityEditorInternal.InternalEditorUtility.RepaintAllViews();
 
+            var frameDebuggerState = CreateFrameDebuggerState(window, diagnostics);
+
+            // success must reflect what actually happened. It used to be a literal true, so a request that
+            // changed nothing still answered success:true enabled:false eventCount:0.
+            var success = true;
+            if (requestedEnabled.HasValue)
+            {
+                var actualEnabled = frameDebuggerState.TryGetValue("enabled", out var enabledValue) ? enabledValue as bool? : null;
+                if (actualEnabled.HasValue && actualEnabled.Value != requestedEnabled.Value)
+                {
+                    success = false;
+                    diagnostics.Add(requestedEnabled.Value
+                        ? "Frame Debugger did not turn on. Unity toggles it asynchronously and needs a renderable Game view — make sure the Game view is visible and not docked in the same tab group as the Frame Debugger, then call again."
+                        : "Frame Debugger did not turn off.");
+                }
+                else if (!actualEnabled.HasValue)
+                {
+                    success = false;
+                    diagnostics.Add("Could not read Frame Debugger enabled state, so the requested change is unverified.");
+                }
+                else if (requestedEnabled.Value)
+                {
+                    var eventCountValue = frameDebuggerState.TryGetValue("eventCount", out var countValue) ? countValue as int? : null;
+                    if (!eventCountValue.HasValue || eventCountValue.Value <= 0)
+                    {
+                        // Enabled, but nothing captured yet: the count only fills once a frame renders
+                        // with the debugger on. Say so rather than letting eventCount:0 look like a bug.
+                        diagnostics.Add("Frame Debugger is on but has captured no events yet — events appear after the next rendered frame. Call frame-debugger-events-list once the Game view has repainted.");
+                    }
+                }
+            }
+
             return new
             {
-                success = true,
+                success,
                 window = EditorWindowBridgeService.CreateEditorWindowSummary(window, diagnostics, includeTabs: true),
-                frameDebugger = CreateFrameDebuggerState(window, diagnostics),
+                frameDebugger = frameDebuggerState,
                 diagnostics = diagnostics.Distinct(StringComparer.Ordinal).ToArray()
             };
+        }
+
+        // Strict boolean read: only real booleans and "true"/"false" strings count. Prevents a wrong-typed
+        // value from silently meaning false.
+        private static bool TryReadStrictBool(JToken args, string name, out bool value)
+        {
+            value = false;
+            var token = args?[name];
+            if (token is null)
+            {
+                return false;
+            }
+
+            if (token.Type == JTokenType.Boolean)
+            {
+                value = token.Value<bool>();
+                return true;
+            }
+
+            return token.Type == JTokenType.String
+                && bool.TryParse(token.Value<string>(), out value);
         }
 
         public object ListFrameDebuggerEvents(JToken args)
@@ -328,6 +400,175 @@ namespace Chievfx.Mcp.Editor
                 frameEvent,
                 diagnostics = diagnostics.Distinct(StringComparer.Ordinal).ToArray()
             };
+        }
+
+        /// <summary>
+        /// "Which draw call wrote this pixel?" — the right first question for a wrong-looking pixel, and
+        /// previously answerable only by eyeballing draw calls one at a time. Binary-searches the frame
+        /// debugger event limit for the first event whose output at (x,y) matches the finished frame, so
+        /// it costs ~log2(eventCount) captures instead of a linear sweep.
+        /// </summary>
+        public object PickFrameDebuggerPixel(JToken args)
+        {
+            var diagnostics = new List<string>();
+            var window = PrepareFrameDebuggerForInspection(args, diagnostics, selectEventIndex: null);
+            var state = CreateFrameDebuggerState(window, diagnostics);
+            var eventCount = state.TryGetValue("eventCount", out var countValue) ? countValue as int? : null;
+            if (!eventCount.HasValue || eventCount.Value <= 0)
+            {
+                throw new InvalidOperationException("Frame Debugger has no captured events. Enable it on a rendered frame first (frame-debugger-control enabled:true).");
+            }
+
+            var maxDimension = Math.Max(128, Math.Min(ReadInt(args, "maxDimension", 4096), 8192));
+            var screenshotArgs = new JObject { ["maxDimension"] = maxDimension };
+            var screenshots = new ScreenshotBridgeService();
+            var tolerance = Math.Max(0, Math.Min(ReadInt(args, "tolerance", 2), 255)) / 255f;
+
+            // Sample the finished frame first: it fixes both the target colour and the capture size the
+            // caller's normalized coordinates resolve against.
+            SelectFrameDebuggerEventForCapture(window, eventCount.Value - 1, diagnostics);
+            var finalTexture = DecodeCapture(screenshots.CaptureGameView(screenshotArgs));
+            int pixelX, pixelY, captureWidth, captureHeight;
+            Color finalColor;
+            try
+            {
+                captureWidth = finalTexture.width;
+                captureHeight = finalTexture.height;
+                ResolvePickPixel(args, captureWidth, captureHeight, out pixelX, out pixelY);
+                finalColor = finalTexture.GetPixel(pixelX, pixelY);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(finalTexture);
+            }
+
+            Color SampleAtLimit(int eventIndex)
+            {
+                SelectFrameDebuggerEventForCapture(window, eventIndex, diagnostics);
+                var texture = DecodeCapture(screenshots.CaptureGameView(screenshotArgs));
+                try
+                {
+                    return texture.GetPixel(pixelX, pixelY);
+                }
+                finally
+                {
+                    UnityEngine.Object.DestroyImmediate(texture);
+                }
+            }
+
+            // Smallest event index whose output already matches the final colour. Monotonic in the common
+            // case; a pixel that changes away and back is reported with a caveat below.
+            var low = 0;
+            var high = eventCount.Value - 1;
+            var captures = 1;
+            while (low < high)
+            {
+                var mid = low + ((high - low) / 2);
+                if (ColorsMatch(SampleAtLimit(mid), finalColor, tolerance))
+                {
+                    high = mid;
+                }
+                else
+                {
+                    low = mid + 1;
+                }
+
+                captures++;
+            }
+
+            var writerIndex = low;
+            var beforeColor = writerIndex > 0 ? SampleAtLimit(writerIndex - 1) : (Color?)null;
+            if (writerIndex > 0)
+            {
+                captures++;
+            }
+
+            // Leave the frame debugger showing the culprit so the Unity window matches the answer.
+            SelectFrameDebuggerEventForCapture(window, writerIndex, diagnostics);
+
+            var frameEvent = CreateFrameDebuggerEventSummary(writerIndex, includeDetails: true, diagnostics);
+            if (beforeColor.HasValue && ColorsMatch(beforeColor.Value, finalColor, tolerance))
+            {
+                diagnostics.Add("The pixel already had its final colour before this event, so an earlier event may be the real writer (the colour likely changed away and back). Re-run with a nearby maxDimension or inspect neighbouring events.");
+            }
+
+            return new
+            {
+                success = true,
+                pixel = new Dictionary<string, object?>
+                {
+                    ["x"] = pixelX,
+                    ["y"] = pixelY,
+                    ["captureWidth"] = captureWidth,
+                    ["captureHeight"] = captureHeight,
+                },
+                writerEventIndex = writerIndex,
+                capturesTaken = captures,
+                eventCount = eventCount.Value,
+                finalColor = DescribeColor(finalColor),
+                colorBefore = beforeColor.HasValue ? DescribeColor(beforeColor.Value) : null,
+                frameEvent,
+                diagnostics = diagnostics.Distinct(StringComparer.Ordinal).ToArray()
+            };
+        }
+
+        private static void ResolvePickPixel(JToken args, int width, int height, out int pixelX, out int pixelY)
+        {
+            // Normalized 0..1 with a top-left origin, matching screenshot PNG space (what the caller is
+            // looking at). Texture2D sampling is bottom-left, so flip Y here.
+            var normalizedX = ReadNormalized(args, "x") ?? throw new ArgumentException("frame-debugger-pick-pixel requires x (0..1, from the left edge of the capture).", nameof(args));
+            var normalizedY = ReadNormalized(args, "y") ?? throw new ArgumentException("frame-debugger-pick-pixel requires y (0..1, from the TOP edge of the capture).", nameof(args));
+            if (normalizedX < 0f || normalizedX > 1f || normalizedY < 0f || normalizedY > 1f)
+            {
+                throw new ArgumentOutOfRangeException(nameof(args), "x and y must be normalized 0..1 of the capture (top-left origin).");
+            }
+
+            pixelX = Mathf.Clamp(Mathf.RoundToInt(normalizedX * (width - 1)), 0, width - 1);
+            pixelY = Mathf.Clamp(Mathf.RoundToInt((1f - normalizedY) * (height - 1)), 0, height - 1);
+        }
+
+        private static float? ReadNormalized(JToken args, string name)
+        {
+            var token = args?[name];
+            if (token == null || token.Type == JTokenType.Null)
+            {
+                return null;
+            }
+
+            if (token.Type == JTokenType.Float || token.Type == JTokenType.Integer)
+            {
+                return token.Value<float>();
+            }
+
+            return token.Type == JTokenType.String
+                && float.TryParse(token.Value<string>(), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+                ? parsed
+                : null;
+        }
+
+        private static Texture2D DecodeCapture(ImageResult capture)
+        {
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            if (!texture.LoadImage(Convert.FromBase64String(capture.Base64)))
+            {
+                UnityEngine.Object.DestroyImmediate(texture);
+                throw new InvalidOperationException("Could not decode the Frame Debugger capture for pixel sampling.");
+            }
+
+            return texture;
+        }
+
+        private static bool ColorsMatch(Color left, Color right, float tolerance)
+        {
+            return Mathf.Abs(left.r - right.r) <= tolerance
+                && Mathf.Abs(left.g - right.g) <= tolerance
+                && Mathf.Abs(left.b - right.b) <= tolerance
+                && Mathf.Abs(left.a - right.a) <= tolerance;
+        }
+
+        private static string DescribeColor(Color color)
+        {
+            return $"#{Mathf.RoundToInt(color.r * 255):X2}{Mathf.RoundToInt(color.g * 255):X2}{Mathf.RoundToInt(color.b * 255):X2}{Mathf.RoundToInt(color.a * 255):X2}";
         }
 
         public ImageResult CaptureFrameDebuggerDrawCall(JToken args)
@@ -1080,8 +1321,12 @@ namespace Chievfx.Mcp.Editor
 
         private static bool IsFrameDebuggerWindowReadyForEventSelection(EditorWindow window)
         {
+            // Unity renamed the tree field: 6.x has m_Tree, older versions m_TreeView. Requiring only the
+            // old name made this permanently false on Unity 6, so every eventIndex/eventLimit call failed
+            // with "event tree is still initializing".
             return EditorWindowBridgeService.GetReflectedValue(window, "m_EventDetailsView") != null
-                && EditorWindowBridgeService.GetReflectedValue(window, "m_TreeView") != null;
+                && (EditorWindowBridgeService.GetReflectedValue(window, "m_Tree") != null
+                    || EditorWindowBridgeService.GetReflectedValue(window, "m_TreeView") != null);
         }
 
         private static int? GetFrameDebuggerEventCount(List<string> diagnostics)

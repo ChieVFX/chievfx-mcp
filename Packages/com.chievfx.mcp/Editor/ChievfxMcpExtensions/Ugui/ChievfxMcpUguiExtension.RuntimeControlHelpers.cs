@@ -57,6 +57,9 @@ namespace Chievfx.Mcp.Extensions.Ugui
         internal static bool HasScreenPositionInput(JToken args)
             => ChievfxMcpRuntimeUiInteractionInput.HasScreenPositionInput(args);
 
+        internal static void EnsureNoUnresolvedCoordinateSpace(JToken args)
+            => ChievfxMcpRuntimeUiInteractionInput.EnsureNoUnresolvedCoordinateSpace(args);
+
         internal static bool HasExplicitRuntimeInteractionTarget(JToken args)
             => ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args);
 
@@ -89,6 +92,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
         internal static RuntimeScreenPosition ReadScreenPosition(JToken args, List<string> warnings, UguiDependencyStatus status)
         {
+            EnsureNoUnresolvedCoordinateSpace(args);
             var screenSize = ResolveRuntimeUiScreenSize(status);
             var isNormalized = ReadBool(args, "isNormalized", false);
 
@@ -165,24 +169,16 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 $"Runtime uGUI interaction requires {screenPositionKey} or {normalizedKey} screen coordinates.");
         }
 
+        // Screen.* and Display.main both report the Game View window size when read from the editor, so the
+        // Game View render target wins here and the canvases this extension already walks are the fallback.
+        // See ChievfxMcpRuntimeScreenSize for why picking the largest of the three was not enough.
         internal static Vector2 ResolveRuntimeUiScreenSize(UguiDependencyStatus status)
         {
-            var screenSize = new Vector2(Math.Max(1, Screen.width), Math.Max(1, Screen.height));
-            var displaySize = Display.main != null
-                ? new Vector2(Math.Max(1, Display.main.renderingWidth), Math.Max(1, Display.main.renderingHeight))
-                : screenSize;
-
-            var canvasSize = FindRuntimeCanvases(status)
-                .Where(canvas => canvas.gameObject.activeInHierarchy && IsEnabledComponent(canvas))
-                .Select(GetCanvasPixelSize)
-                .Where(size => size.x > 0.5f && size.y > 0.5f)
-                .OrderByDescending(size => size.x * size.y)
-                .FirstOrDefault();
-
-            return new[] { screenSize, displaySize, canvasSize }
-                .Where(size => size.x > 0.5f && size.y > 0.5f)
-                .OrderByDescending(size => size.x * size.y)
-                .First();
+            return ChievfxMcpRuntimeScreenSize.Resolve(
+                () => FindRuntimeCanvases(status)
+                    .Where(canvas => canvas.gameObject.activeInHierarchy && IsEnabledComponent(canvas))
+                    .Select(GetCanvasPixelSize),
+                out _);
         }
 
         internal static Vector2 GetCanvasPixelSize(Component canvas)

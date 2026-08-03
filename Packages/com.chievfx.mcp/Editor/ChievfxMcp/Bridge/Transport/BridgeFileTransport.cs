@@ -39,6 +39,11 @@ namespace Chievfx.Mcp.Editor
                     runtimeState.EditorWindowScreenshotOperations.HasActiveRequests,
                     runtimeState.ScriptOperations.IsBusy()));
             runtimeState.IncrementEditorUpdateTick();
+
+            // Fires a recompile that was owed from before a Play Mode exit, once the editor is back in
+            // edit mode. Checked on the tick rather than from a playModeStateChanged handler so it
+            // works whether or not the exit domain-reloaded.
+            BridgePendingRecompile.ProcessIfDue(handlers.EventJournal);
             handlers.ProcessPendingPackageRequests();
             handlers.ProcessPendingTestRequests();
             handlers.ProcessPendingScriptInvocationRequests();

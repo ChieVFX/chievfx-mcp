@@ -1,11 +1,15 @@
 {
   "name": "recompile",
-  "description": "Refreshes scripts, requests Unity script compilation, and returns only after Unity is idle again. The result includes a compile summary (errorCount/warningCount plus the error/warning messages) produced by this recompile, so no separate console-get-logs call is needed to check whether it succeeded.",
+  "description": "Refreshes scripts, requests Unity script compilation, and returns only after Unity is idle again. Stops Play Mode first when the editor is playing, because Unity does not compile on demand while playing. The result includes a compile summary (errorCount/warningCount plus the error/warning messages) produced by this recompile, so no separate console-get-logs call is needed to check whether it succeeded.",
   "inputSchema": {
     "type": "object",
     "properties": {
       "outputFormat": {
         "$chievfxSchema": "outputFormat"
+      },
+      "stopPlayMode": {
+        "type": "boolean",
+        "description": "Exit Play Mode before compiling (default true). Unity cannot compile scripts on demand while playing, so with false the compile is deferred or dropped and no diagnostics are guaranteed."
       },
       "timeoutMs": {
         "type": "integer",

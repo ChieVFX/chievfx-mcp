@@ -200,6 +200,88 @@ DEFAULT_REQUIRED_TOOL_IDS = {
     "editor-window-focus",
 }
 DEFAULT_ENABLED_TOOL_IDS: set[str] = set()
+# Order of the "Commonly used tools" list in initialize.instructions. Reaching-for order beats
+# alphabetical: what you check first (bridge health, the escape hatch, seeing the editor, logs, play
+# mode, events) goes on top; specialist plumbing goes to the bottom. Tools named in neither tuple keep
+# their category order in between.
+TOOL_ORDER_TOP: tuple[str, ...] = (
+    "bridge-get-status",
+    "script-execute",
+    "screenshot-editor-window",
+    "editor-window-focus",
+    "editor-window-list",
+    "editor-window-open",
+    "events-wait",
+    "console-clear-logs",
+    "console-get-logs",
+    "console-get-logs-single",
+    "editor-playmode-set",
+    "events-check-since",
+)
+
+TOOL_ORDER_BOTTOM: tuple[str, ...] = (
+    "tool-batch",
+    "reflection-method-call",
+    "reflection-method-find",
+    "reflection-method-find-single",
+)
+
+# Caveman summaries for the instruction list: written short on purpose, because the alternative was
+# truncating a full description mid-word. The real description still ships via tools/list.
+TOOL_SHORT_SUMMARIES: dict[str, str] = {
+    "bridge-get-status": "Bridge health: alive, compiling, importing, recent ops",
+    "script-execute": "Run C#. Last resort - look for a real tool first",
+    "screenshot-editor-window": "Screenshot any editor window",
+    "editor-window-focus": "Focus an editor window tab",
+    "editor-window-list": "List open editor windows + ids",
+    "editor-window-open": "Open an editor window by type or menu path",
+    "events-wait": "Wait for next matching Unity event. timedOut is normal",
+    "console-clear-logs": "Clear console logs",
+    "console-get-logs": "Recent console entries. Filter by level or text",
+    "console-get-logs-single": "One console entry by id, with stack",
+    "editor-playmode-set": "Enter or exit Play Mode. Waits until settled",
+    "events-check-since": "Events since a cursor. Use after a wait timed out",
+    "screenshot-game-view": "Screenshot the Game View",
+    "screenshot-camera": "Screenshot from a camera",
+    "recompile": "Recompile scripts (stops Play Mode). Returns compile errors",
+    "assets-refresh": "Reimport assets (not scripts)",
+    "asset-create": "Create prefab or ScriptableObject asset",
+    "asset-delete": "Delete assets or folders",
+    "asset-find": "Find assets by name, type, label, folder",
+    "folder-ensure": "Create missing Assets/ folders",
+    "bridge-get-operation": "One bridge operation record by opId",
+    "tests-run": "Run Unity tests",
+    "shader-status": "Magenta or cyan? Shader errors + compiling state",
+    "ui-control-find": "Find on-screen UI controls + paths",
+    "ui-runtime-click": "Click UI by path or x,y (Play Mode)",
+    "ui-runtime-drag": "Drag UI point to point (Play Mode)",
+    "ui-runtime-focus": "Focus a UI control (Play Mode)",
+    "ui-runtime-clear-focus": "Clear UI focus (Play Mode)",
+    "ui-runtime-set-control-value": "Set UI control value: slider, toggle, dropdown, field",
+    "ui-runtime-type-text": "Type text into the focused UI control",
+    "tool-batch": "Run one tool over many inputs",
+    "reflection-method-call": "Call one loaded C# method",
+    "reflection-method-find": "Find loaded C# methods",
+    "reflection-method-find-single": "Full info for one found method",
+    "frame-debugger-pick-pixel": "Which draw call wrote this pixel",
+    "input-control-keyboard-event": "Key down, up, or tap (Play Mode)",
+    "input-control-keyboard-sequence": "Type text, or tap many keys, in one call",
+    "input-control-mouse-event": "Mouse button or move (Play Mode)",
+    "input-control-mouse-gesture": "Mouse drag: down, move, up across frames",
+    "input-control-pointer-capture": "Own the mouse: begin, end, or status",
+    "input-control-touch-event": "Touch down, move, up, or tap (Play Mode)",
+    "gameobject-find": "Find GameObjects. includeInactive covers hidden ones",
+    "gameobject-hierarchy": "Scene hierarchy tree, compact",
+    "gameobject-create": "Create a GameObject at a hierarchy path",
+    "gameobject-duplicate": "Duplicate a GameObject subtree",
+    "gameobject-update": "Set name, tag, layer, active, static",
+    "gameobject-set-parent": "Reparent a GameObject, or move to scene root",
+    "gameobject-component-get": "Read one component's serialized values",
+    "gameobject-component-update-or-create": "Set component values, add it if missing",
+    "gameobject-transform-get": "Read position, rotation, scale",
+    "gameobject-transform-update": "Set position, rotation, scale",
+}
+
 TOOL_CATEGORIES = {
     "screenshot-game-view": "essentials",
     "screenshot-camera": "essentials",
@@ -275,6 +357,7 @@ TOOL_CATEGORIES = {
     "frame-debugger-group-events-list": "frame-debugger",
     "frame-debugger-drawcall-get": "frame-debugger",
     "frame-debugger-drawcall-screenshot": "frame-debugger",
+    "frame-debugger-pick-pixel": "frame-debugger",
     "frame-debugger-events-list": "frame-debugger",
     "frame-debugger-event-get": "frame-debugger",
 }
@@ -282,21 +365,21 @@ TOOL_CATEGORY_DESCRIPTIONS = {
     "essentials": "Always-on safe basics for screenshots, console inspection, asset refresh, and reflected C# calls.",
     "autonomous": "Optional discovery and enablement helpers for agents to inspect and change optional MCP tool exposure.",
     "editor-window": "Always-on Unity editor window discovery, opening, tab selection, and render-backed capture workflows.",
-    "scene": "Optional scene inventory and open/save control.",
-    "gameobject": "Optional GameObject hierarchy, lookup, creation, metadata/component mutation, transform, parenting, and duplication tools.",
-    "prefab": "Optional prefab-stage and prefab asset workflows.",
-    "package-manager": "Optional Unity Package Manager inventory, search, add, and remove operations.",
-    "script-execution-tests": "Optional high-risk local script execution and Unity test running tools.",
-    "profiler": "Optional Unity profiler state, recording, counter, and focused window navigation helpers.",
-    "frame-debugger": "Optional Unity Frame Debugger window state and event navigation helpers.",
-    "cinemachine-and-timeline": "Optional camera and cutscene authoring helpers for Cinemachine, Timeline, shots, and camera QA.",
-    "control": "Optional Play Mode keyboard and mouse input helpers for New Input System-driven control.",
-    "particles": "Optional built-in ParticleSystem authoring, playback, preview, and inspection helpers.",
-    "runtime-ui": "Optional runtime UI screen-position probing across registered UI adapters.",
+    "scene": "Scene inventory and open/save control.",
+    "gameobject": "Find and edit objects (gameobject-find covers inactive objects, unlike GameObject.Find): hierarchy, lookup, creation, components, transform, parenting, duplication.",
+    "prefab": "Prefab-stage and prefab asset workflows.",
+    "package-manager": "Unity Package Manager inventory, search, add, and remove operations.",
+    "script-execution-tests": "Escape hatch for arbitrary C# plus Unity test running. Check for a purpose-built tool first — reflection-method-call runs one existing method without hand-written reflection.",
+    "profiler": "Measure performance: profiler state, recording, counters, and focused window navigation.",
+    "frame-debugger": "Primary instrument for any wrong-looking pixel: find which draw call wrote it, then inspect that draw call's shader, pass, and render target.",
+    "cinemachine-and-timeline": "Camera and cutscene authoring for Cinemachine, Timeline, shots, and camera QA.",
+    "control": "Drive the game in Play Mode: keyboard and mouse input via the New Input System.",
+    "particles": "Built-in ParticleSystem authoring, playback, preview, and inspection.",
+    "runtime-ui": "Probe runtime UI at a screen position across registered UI adapters.",
     "ui-runtime-common": "Shared Play Mode runtime UI tools: cross-framework probe, control discovery, and text input.",
-    "ui-toolkit": "Optional runtime UI Toolkit panel inspection and runtime interaction helpers.",
-    "ugui-design": "Optional editor-time uGUI authoring helpers for Canvas, RectTransform, images, layout, TMP, and sprites.",
-    "ugui-runtime-control": "Optional Play Mode uGUI control helpers: clicks, drags, selection, and control values.",
+    "ui-toolkit": "Inspect and interact with runtime UI Toolkit panels.",
+    "ugui-design": "Author uGUI at edit time: Canvas, RectTransform, images, layout, TMP, sprites.",
+    "ugui-runtime-control": "Drive uGUI in Play Mode: clicks, drags, selection, control values.",
     "obsolete": "Deprecated compatibility tools. Only enable explicitly; bulk enable skips this category.",
 }
 DEFAULT_REQUIRED_RESOURCE_IDS: set[str] = {
@@ -498,11 +581,37 @@ RESPONSE_PROFILE_BY_TOOL = {
     "frame-debugger-group-events-list": "row-list",
     "frame-debugger-drawcall-get": "status",
     "frame-debugger-drawcall-screenshot": "image",
+    "frame-debugger-pick-pixel": "small",
     "frame-debugger-events-list": "row-list",
     "frame-debugger-event-get": "status",
 }
 INSTRUCTIONS_CORE_DESCRIPTORS_RESOURCE_ID = "instructions-core-descriptors"
 CORE_DESCRIPTOR_INSTRUCTIONS_URI = "chievfx://instructions/core-descriptors"
+
+# The read-only calls a caller may make before reading the core descriptors. One glance at a
+# screenshot or the bridge status needs no argument reference, so demanding a ~14 KB read first
+# spends context to answer a question that is already answered. Both the precondition wording in
+# initialize.instructions and the first-call notice derive from this set: when they were written
+# separately the notice fired on the very calls the precondition had carved out.
+CORE_DESCRIPTOR_GRACE_TOOL_IDS = frozenset(
+    {
+        "screenshot-game-view",
+        "screenshot-camera",
+        "screenshot-editor-window",
+        "bridge-get-status",
+        "console-get-logs",
+        "console-get-logs-single",
+    }
+)
+# Reading the descriptors is the remedy; these calls constitute reading it, so they never nag.
+CORE_DESCRIPTOR_REMEDY_TOOL_IDS = frozenset({"tools-list-categories", "tools-list-category"})
+
+# The "read the descriptors" state lives in a marker file, not just in memory, because the server
+# process restarts (a Unity reload, a client reconnect) far more often than an agent's context does.
+# In-memory-only state re-fired the notice mid-session, inside a result payload, at a caller that had
+# already read the resource. The window is short enough that a genuinely new session still gets nudged.
+CORE_DESCRIPTOR_READ_MARKER_FILENAME = "core-descriptors-read.json"
+CORE_DESCRIPTOR_READ_MARKER_TTL_SECONDS = 4 * 60 * 60
 
 RESPONSE_PROFILE_BY_RESOURCE = {
     "editor-context": "status",
@@ -621,7 +730,7 @@ ADVERTISED_PROPERTY_OMISSIONS: dict[str, set[str]] = {
 # Canonical property order for advertised inputSchema surfaces (tools/list, initialize args=).
 # Short args= lines and full schemas share this order via reorder_advertised_schema_properties().
 TOOL_ADVERTISED_PROPERTY_ORDERS: dict[str, list[str]] = {
-    "ui-runtime-probe": ["x", "y", "isNormalized", "page"],
+    "ui-runtime-probe": ["x", "y", "isNormalized", "space", "page"],
     "ui-runtime-type-text": [
         "framework",
         "x",
@@ -638,6 +747,7 @@ TOOL_ADVERTISED_PROPERTY_ORDERS: dict[str, list[str]] = {
         "x",
         "y",
         "isNormalized",
+        "space",
         "path",
         "instanceId",
         "handler",
@@ -651,6 +761,7 @@ TOOL_ADVERTISED_PROPERTY_ORDERS: dict[str, list[str]] = {
         "deltaX",
         "deltaY",
         "isNormalized",
+        "space",
         "path",
         "instanceId",
     ],

@@ -771,3 +771,163 @@ def enabled_tools() -> list[dict[str, Any]]:
         tools.append(advertised_tool)
 
     return tools
+
+
+# Arguments every tool accepts regardless of its own schema: outputFormat is injected into each
+# descriptor, and timeoutMs is honored generically by get_tool_timeout_ms.
+UNIVERSAL_TOOL_ARGUMENT_KEYS = frozenset({"outputFormat", "timeoutMs"})
+
+# Undocumented-but-honored aliases. The editor reads these even though only the canonical name is in
+# the schema, so they must NOT be reported as unrecognized — never tell a caller an argument had no
+# effect when Unity actually acts on it. (Sources: the alias arrays / multi-key reads in
+# ChievfxMcpFirstPartyExtensionLoader, ChievfxMcpRuntimeUiAdapterRegistry, ChievfxMcpRuntimeUiInteractionInput.)
+_RUNTIME_UI_TARGET_ALIASES = frozenset({"targetPath", "targetRef", "targetName", "visualElementRef", "name"})
+_RUNTIME_UI_POINT_ALIASES = frozenset({"normalized", "screenPosition"})
+_RUNTIME_UI_DRAG_ALIASES = _RUNTIME_UI_POINT_ALIASES | frozenset(
+    {"startScreenPosition", "startNormalized", "endScreenPosition", "endNormalized", "delta"}
+)
+
+TOOL_ARGUMENT_ALIASES: dict[str, frozenset[str]] = {
+    "editor-playmode-set": frozenset({"play", "playing", "enabled"}),
+    "ui-control-find": frozenset({"query", "nameContains", "namePattern", "search", "pattern", "text"}),
+    "bridge-get-operation": frozenset({"operationId"}),
+    "ui-runtime-click": _RUNTIME_UI_TARGET_ALIASES | _RUNTIME_UI_POINT_ALIASES,
+    "ui-runtime-focus": _RUNTIME_UI_TARGET_ALIASES | _RUNTIME_UI_POINT_ALIASES,
+    "ui-runtime-set-control-value": _RUNTIME_UI_TARGET_ALIASES | _RUNTIME_UI_POINT_ALIASES,
+    "ui-runtime-probe": _RUNTIME_UI_POINT_ALIASES,
+    "ui-runtime-clear-focus": _RUNTIME_UI_TARGET_ALIASES,
+    "ui-runtime-type-text": _RUNTIME_UI_TARGET_ALIASES | _RUNTIME_UI_POINT_ALIASES,
+    "ui-runtime-drag": _RUNTIME_UI_TARGET_ALIASES | _RUNTIME_UI_DRAG_ALIASES,
+}
+
+
+def _tool_schema_properties(name: str) -> dict[str, Any]:
+    tool = next((item for item in all_tools() if item.get("name") == name), None)
+    schema = tool.get("inputSchema") if isinstance(tool, dict) else None
+    properties = schema.get("properties") if isinstance(schema, dict) else None
+    return properties if isinstance(properties, dict) else {}
+
+
+def unknown_tool_arguments(name: str, arguments: Any) -> list[str]:
+    """Argument names the caller passed that this tool does not declare and does not alias.
+
+    Silently dropping a mistyped argument (outputPath vs savePath) costs the caller several turns
+    hunting for an effect that never happened, so surface it on the very first call.
+    """
+    if not isinstance(arguments, dict) or not arguments:
+        return []
+    properties = _tool_schema_properties(name)
+    if not properties:
+        # No declared surface to judge against; stay silent rather than guess.
+        return []
+    known = set(properties) | UNIVERSAL_TOOL_ARGUMENT_KEYS | set(TOOL_ARGUMENT_ALIASES.get(name, ()))
+    return sorted(key for key in arguments if isinstance(key, str) and key not in known)
+
+
+def _camel_tokens(value: str) -> list[str]:
+    import re
+
+    return [token.lower() for token in re.findall(r"[A-Za-z][a-z0-9]*", value)] or [value.lower()]
+
+
+def _suggest_tool_argument(key: str, candidates: list[str]) -> str | None:
+    import difflib
+
+    close = difflib.get_close_matches(key, candidates, n=1, cutoff=0.6)
+    if close:
+        return close[0]
+    # Wrong word, right concept: outputPath vs savePath share the trailing camelCase token. Matching on
+    # that is precise where a fuzzy ratio is not (it would pair 'banana' with 'contains').
+    suffix = _camel_tokens(key)[-1]
+    suffix_matches = [item for item in candidates if _camel_tokens(item)[-1] == suffix]
+    return min(suffix_matches, key=len) if suffix_matches else None
+
+
+def describe_unknown_tool_arguments(name: str, unknown: list[str]) -> str:
+    candidates = sorted(_tool_schema_properties(name))
+    parts: list[str] = []
+    for key in unknown:
+        suggestion = _suggest_tool_argument(key, candidates)
+        parts.append(f"'{key}'" + (f" (did you mean '{suggestion}'?)" if suggestion else ""))
+    return f"! Unrecognized {name} argument(s): {', '.join(parts)}. Not in this tool's schema — expect no effect."
+
+
+def attach_result_notice(result: Any, notice: str) -> bool:
+    """Attach an advisory line to a tool result through every channel a client might render.
+
+    A text block alone is not enough. When a result carries structuredContent, some clients
+    (Claude Code among them) render that object and drop the content text blocks entirely, so a
+    notice written only into text is silently discarded — precisely on the screenshot tools, which
+    are the likeliest first call of a session. Mirroring into structuredContent.notices costs one
+    key (no tool here declares an outputSchema, so nothing can fail validation) and makes the
+    advisory survive whichever channel the client chose to display.
+
+    Returns True if the notice landed somewhere, so one-shot callers can stay pending otherwise.
+    """
+    if not isinstance(result, dict):
+        return False
+
+    delivered = False
+
+    content = result.get("content")
+    if isinstance(content, list):
+        # Only extend a result that already carries text. An image-only result has a shape callers
+        # rely on, so leave its content list alone and let structuredContent carry the notice.
+        if any(isinstance(block, dict) and block.get("type") == "text" for block in content):
+            content.append({"type": "text", "text": notice})
+            delivered = True
+
+    structured = result.get("structuredContent")
+    if isinstance(structured, dict):
+        notices = structured.get("notices")
+        if not isinstance(notices, list):
+            notices = []
+            structured["notices"] = notices
+        notices.append(notice)
+        delivered = True
+
+    return delivered
+
+
+def with_unknown_argument_warning(result: Any, name: str, arguments: Any) -> Any:
+    """Prepend an unrecognized-argument warning to a tool result's text so it is seen on the first call."""
+    if not isinstance(result, dict):
+        return result
+    unknown = unknown_tool_arguments(name, arguments)
+    if not unknown:
+        return result
+    warning = describe_unknown_tool_arguments(name, unknown)
+    # Mirror into structuredContent first: clients that render it drop the text blocks below, and a
+    # dropped warning is exactly the silent failure this chokepoint exists to prevent.
+    structured = result.get("structuredContent")
+    if isinstance(structured, dict):
+        warnings = structured.get("notices")
+        if not isinstance(warnings, list):
+            warnings = []
+            structured["notices"] = warnings
+        warnings.append(warning)
+    content = result.get("content")
+    if not isinstance(content, list):
+        return result
+    for block in content:
+        if not (isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str)):
+            continue
+        # Never prepend into a machine-readable block: outputFormat:"json" results are parsed by the
+        # caller, and a leading warning line would make them unparseable.
+        if _looks_like_json_text(block["text"]):
+            break
+        block["text"] = warning + "\n" + block["text"]
+        return result
+    content.append({"type": "text", "text": warning})
+    return result
+
+
+def _looks_like_json_text(text: str) -> bool:
+    stripped = text.lstrip()
+    if not stripped or stripped[0] not in "{[":
+        return False
+    try:
+        json.loads(text)
+    except (ValueError, TypeError):
+        return False
+    return True

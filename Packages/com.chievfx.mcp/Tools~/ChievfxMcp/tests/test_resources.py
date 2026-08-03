@@ -194,7 +194,7 @@ class ResourceTests(unittest.TestCase):
         )["result"]["contents"][0]
 
         self.assertIn("Tools:", content["text"])
-        self.assertNotIn("Core descriptors (if list cut, read", content["text"])
+        self.assertNotIn("Core tools by category", content["text"])
         self.assertEqual(self.server.calls, [])
 
     def test_extension_manifest_watcher_invalidation_refreshes_cached_manifest(self) -> None:

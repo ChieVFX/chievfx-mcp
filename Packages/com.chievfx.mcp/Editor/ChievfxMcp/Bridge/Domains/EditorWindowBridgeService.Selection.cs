@@ -38,7 +38,18 @@ namespace Chievfx.Mcp.Editor
             if (instanceId.HasValue)
             {
                 return GetOpenEditorWindows().FirstOrDefault(window => GetLegacyInstanceId(window) == instanceId.Value)
-                    ?? throw new InvalidOperationException($"No open EditorWindow found with instanceId {instanceId.Value}.");
+                    ?? throw new InvalidOperationException(
+                        $"No open EditorWindow found with instanceId {instanceId.Value}. Re-read editor-window-list: ids change when a window is reopened.");
+            }
+
+            // No targeting argument at all. Without this guard every open window "matches" and the caller
+            // gets an Ambiguous error listing them, which misreads as "the tool is broken" — and hides the
+            // real cause (arguments never arrived, e.g. dropped by a client's tool-call wrapper).
+            if (!focused && !mouseOver && string.IsNullOrWhiteSpace(typeName) && string.IsNullOrWhiteSpace(titleContains))
+            {
+                throw new ArgumentException(
+                    "editor-window-focus needs a target: instanceId (from editor-window-list), typeName, titleContains, focused, or mouseOver. "
+                    + "Received no targeting argument — if you did pass one, your client dropped it; retry with instanceId.");
             }
 
             if (focused)
@@ -82,9 +93,11 @@ namespace Chievfx.Mcp.Editor
             }
 
             var descriptions = matches
-                .Take(10)
-                .Select(window => $"{GetEditorWindowTitle(window)} ({window.GetType().FullName}, instanceId:{GetLegacyInstanceId(window)})");
-            throw new InvalidOperationException($"Ambiguous EditorWindow target. Matches: {string.Join("; ", descriptions)}");
+                .Take(5)
+                .Select(window => $"{GetEditorWindowTitle(window)} (instanceId:{GetLegacyInstanceId(window)})");
+            var overflow = matches.Length > 5 ? $" (+{matches.Length - 5} more)" : string.Empty;
+            throw new InvalidOperationException(
+                $"{matches.Length} EditorWindows matched. Pass one instanceId: {string.Join("; ", descriptions)}{overflow}");
         }
 
         private static object CreateEditorWindowActionResult(string action, EditorWindow window, List<string> diagnostics)

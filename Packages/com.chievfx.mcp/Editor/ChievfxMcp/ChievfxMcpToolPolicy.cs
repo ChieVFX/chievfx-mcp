@@ -176,6 +176,15 @@ namespace Chievfx.Mcp.Editor
         // "Write Config".
         public static bool AutoWriteClientConfigs => EditorPrefs.GetBool(AutoWriteClientConfigsKey, true);
 
+        public const string EnsureCodexProjectTrustKey = ServerName + ".ensureCodexProjectTrust";
+
+        // Default ON: Codex ignores a project's .codex/config.toml — the only place this project's
+        // MCP server is declared — until the project is trusted in the user-level Codex config, and
+        // hosts that drive Codex without its interactive trust prompt (JetBrains AI's Codex agent)
+        // never get the chance to record it. Writing our config without this leaves setup that looks
+        // complete but exposes no Unity tools.
+        public static bool EnsureCodexProjectTrust => EditorPrefs.GetBool(EnsureCodexProjectTrustKey, true);
+
         public const string ManualToolResourceSelectionKey = ServerName + ".manualToolResourceSelection";
 
         // Default OFF: expose every non-hidden tool and resource; the Tools/Resources tabs are read-only
@@ -309,6 +318,12 @@ namespace Chievfx.Mcp.Editor
         public static string CodexConfigPath => Path.Combine(ProjectRoot, ".codex", "config.toml");
 
         public static string KimiCodeConfigPath => Path.Combine(ProjectRoot, ".kimi-code", "mcp.json");
+
+        // JetBrains IDEs (Rider, IntelliJ, …) share one project-level MCP file for both AI Assistant
+        // and Junie. The path is the "llm.mcp.client.project.mcp.json.path" registry key, default
+        // ".ai/mcp/mcp.json", resolved against the project directory — for a Unity solution that is
+        // this project root. (~/.ai/mcp/mcp.json is the global equivalent; we only write the project one.)
+        public static string RiderConfigPath => Path.Combine(ProjectRoot, ".ai", "mcp", "mcp.json");
 
         // Watched by the reload-mcps extension (when its file-reload setting is on). Writing
         // {"serverName": CursorServerName} here asks Cursor to reload just this project's MCP.

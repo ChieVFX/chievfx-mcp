@@ -157,6 +157,7 @@ namespace Chievfx.Mcp.Editor
             {
                 eventJournal.RestoreCursorFromStream();
                 operationStore.CleanupRecords();
+                var compileWaitingForPlayModeExit = BridgePendingRecompile.IsCompileWaitingForPlayModeExit();
                 var busy = new Dictionary<string, object?>
                 {
                     ["isCompiling"] = EditorApplication.isCompiling,
@@ -184,10 +185,16 @@ namespace Chievfx.Mcp.Editor
                         ["isPaused"] = EditorApplication.isPaused,
                         ["isPlayingOrWillChangePlaymode"] = EditorApplication.isPlayingOrWillChangePlaymode,
                         ["isCompiling"] = EditorApplication.isCompiling,
-                        ["isUpdating"] = EditorApplication.isUpdating
+                        ["isUpdating"] = EditorApplication.isUpdating,
+
+                        // Without these two, "isCompiling: true" during Play Mode reads as work in
+                        // progress when it is really a queue Unity cannot drain until play ends.
+                        ["compileWaitingForPlayModeExit"] = compileWaitingForPlayModeExit,
+                        ["pendingRecompileAfterPlayModeExit"] = BridgePendingRecompile.IsPending,
+                        ["scriptChangesWhilePlaying"] = BridgePendingRecompile.ScriptChangesWhilePlaying()
                     },
                     ["busy"] = busy,
-                    ["busyReasons"] = BuildBusyReasons(busy)
+                    ["busyReasons"] = BuildBusyReasons(busy, compileWaitingForPlayModeExit)
                 };
 
                 WriteAllTextAtomic(ChievfxMcpToolPolicy.BridgeStatePath, JsonConvert.SerializeObject(payload, JsonOptions));
@@ -246,9 +253,18 @@ namespace Chievfx.Mcp.Editor
             }
         }
 
-        private static string[] BuildBusyReasons(IReadOnlyDictionary<string, object?> busy)
+        private static string[] BuildBusyReasons(
+            IReadOnlyDictionary<string, object?> busy,
+            bool compileWaitingForPlayModeExit)
         {
             var reasons = new List<string>();
+            if (compileWaitingForPlayModeExit)
+            {
+                // Distinct from editor-compiling: this one never clears on its own, so a caller that
+                // just keeps waiting for idle waits forever.
+                reasons.Add("compile-waiting-for-play-mode-exit");
+            }
+
             AddBusyReason(reasons, busy, "isCompiling", "editor-compiling");
             AddBusyReason(reasons, busy, "isUpdating", "asset-database-updating");
             AddBusyReason(reasons, busy, "packageBusy", "package-manager");

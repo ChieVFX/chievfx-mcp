@@ -1,6 +1,6 @@
 {
   "name": "script-execute",
-  "description": "Compiles and runs caller-provided C# without writing project files. Entry point convention: a static Main method (any access level, any return type); otherwise pass methodName/className. A script defining exactly one public static method runs it without needing Main.",
+  "description": "Last resort: check chievfx://instructions/core-descriptors first \u2014 a purpose-built tool usually exists. Compiles and runs caller-provided C# without writing project files. Entry point convention: a static Main method (any access level, any return type); otherwise pass methodName/className. A script defining exactly one public static method runs it without needing Main.",
   "inputSchema": {
     "type": "object",
     "properties": {

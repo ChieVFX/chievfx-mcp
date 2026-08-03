@@ -101,13 +101,14 @@ class CategoryResourceTests(unittest.TestCase):
 
         instructions = mcp.build_initialize_instructions()
 
-        self.assertIn("Extra API capabilities", instructions)
-        self.assertIn("chievfx://categories/frame-debugger", instructions)
-        self.assertNotIn("frame-debugger-control:", instructions)
-        # The batched section must sit below the Tools/Resources descriptor block.
-        self.assertGreater(
-            instructions.index("Extra API capabilities"),
-            instructions.index("Core descriptors (if list cut, read"),
+        # Collapsed: the domain is named in the Domains line but its tools are not listed inline.
+        self.assertIn("Domains: ", instructions)
+        self.assertIn("frame-debugger", instructions)
+        self.assertNotIn("- frame-debugger-control(", instructions)
+        # Domains line precedes the commonly-used tool list.
+        self.assertLess(
+            instructions.index("Domains: "),
+            instructions.index("Commonly used tools:"),
         )
 
     def test_collapsed_category_advertised_and_readable(self) -> None:
@@ -129,7 +130,8 @@ class CategoryResourceTests(unittest.TestCase):
 
         instructions = mcp.build_initialize_instructions()
 
-        self.assertIn("frame-debugger-control:", instructions)
+        # Inline: each tool gets a "- name(args): summary" line.
+        self.assertIn("- frame-debugger-control(", instructions)
         self.assertNotIn("chievfx://categories/frame-debugger", instructions)
 
     def test_always_supplied_category_not_collapsed(self) -> None:
@@ -139,7 +141,7 @@ class CategoryResourceTests(unittest.TestCase):
 
         instructions = mcp.build_initialize_instructions()
 
-        self.assertIn("frame-debugger-control:", instructions)
+        self.assertIn("- frame-debugger-control(", instructions)
         self.assertNotIn("chievfx://categories/frame-debugger", instructions)
 
     def test_force_all_collapses_nothing(self) -> None:
@@ -149,8 +151,7 @@ class CategoryResourceTests(unittest.TestCase):
 
         instructions = mcp.build_initialize_instructions()
 
-        self.assertNotIn(mcp.EXTRA_CAPABILITIES_HEADER, instructions)
-        self.assertIn("frame-debugger-control:", instructions)
+        self.assertIn("- frame-debugger-control(", instructions)
         self.assertEqual(mcp.dynamic_category_resources(), [])
 
     def test_server_lists_and_reads_category_resource(self) -> None:
@@ -185,7 +186,7 @@ class CategoryResourceTests(unittest.TestCase):
 
         body = mcp.build_core_descriptor_instructions_resource_body()
         self.assertIn("Tools:", body)
-        self.assertNotIn("Core descriptors (if list cut, read", body)
+        self.assertNotIn("Core tools by category", body)
         self.assertIn("Extra API capabilities", body)
         self.assertIn("chievfx://categories/frame-debugger", body)
         self.assertNotIn("frame-debugger-control:", body)
@@ -224,10 +225,9 @@ class CategoryResourceTests(unittest.TestCase):
             ["asset-detail", "asset-subasset-detail", "scene-all-usage-assets", "scene-all-usage-asset"],
         )
 
-        instructions = mcp.build_initialize_instructions()
-
-        self.assertIn("chievfx://categories/asset", instructions)
-        asset_line = next(line for line in instructions.splitlines() if "chievfx://categories/asset" in line)
+        # Counts moved to the detailed core-descriptors body; templates still fold into "resources".
+        body = mcp.build_core_descriptor_instructions_resource_body()
+        asset_line = next(line for line in body.splitlines() if "chievfx://categories/asset" in line)
         self.assertIn("4 resources", asset_line)
         self.assertNotIn("templates", asset_line)
 
@@ -263,8 +263,10 @@ class CategoryResourceTests(unittest.TestCase):
         self.assertTrue(before["serverInfo"]["version"].startswith(f"{major_minor}."))
         self.assertTrue(before["serverInfo"]["version"].endswith(f"+instructions.{before_fingerprint}"))
         self.assertNotEqual(before["serverInfo"]["version"], after["serverInfo"]["version"])
-        self.assertNotIn("chievfx://categories/frame-debugger", before["instructions"])
-        self.assertIn("chievfx://categories/frame-debugger", after["instructions"])
+        # Enabling the frame-debugger tools adds that domain to the Domains line (they exceed the
+        # collapse threshold, so they are summarized there rather than listed inline).
+        self.assertNotIn("frame-debugger", before["instructions"])
+        self.assertIn("frame-debugger", after["instructions"])
 
 
 if __name__ == "__main__":

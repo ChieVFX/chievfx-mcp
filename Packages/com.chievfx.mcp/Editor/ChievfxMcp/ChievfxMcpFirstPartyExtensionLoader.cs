@@ -142,6 +142,7 @@ namespace Chievfx.Mcp.Extensions.Control
                 Category = EssentialsCategory,
             });
             descriptor.Tools.Add(Tool("editor-playmode-set", "Enter or exit Unity Play Mode.", PlayModeSetSchema(), EssentialsCategory));
+            descriptor.Tools.Add(Tool("shader-status", "Why is it magenta/cyan? Reports shader compile errors and whether variants are still compiling. No args scans renderers in open scenes for missing/error shaders (magenta); path targets one shader or material.", ShaderStatusSchema(), EssentialsCategory));
             if (api)
             {
                 descriptor.Tools.Add(Tool("input-control-keyboard-event", "Queue a New Input System keyboard down, up, or tap event. Tap holds the key for holdFrames player frames so wasPressedThisFrame edges are visible to game Update() code, and returns a completionMarker for events-wait.", KeyboardSchema()));
@@ -172,6 +173,11 @@ namespace Chievfx.Mcp.Extensions.Control
             if (string.Equals(toolName, "editor-playmode-set", StringComparison.Ordinal))
             {
                 return PlayModeSet(args);
+            }
+
+            if (string.Equals(toolName, "shader-status", StringComparison.Ordinal))
+            {
+                return ShaderStatus(args);
             }
 
             if (!InputApi.TryCreate(out var api, out var reason))
@@ -979,6 +985,16 @@ namespace Chievfx.Mcp.Extensions.Control
 
             if (!dryRun)
             {
+                // Injected input is only consumed on player-loop frames. Paused Play Mode produces none,
+                // so the events would sit unconsumed until the watchdog drops them — say so now rather
+                // than after a wait that looks like a hang.
+                if (mutated && EditorApplication.isPaused)
+                {
+                    warnings = warnings
+                        .Append("Play Mode is paused, so no player frames advance and injected input cannot be consumed. Resume Play Mode (editor-playmode-set), then retry; the queued input is dropped shortly with an 'input-stalled'/'sequence-stalled' event.")
+                        .ToArray();
+                }
+
                 // Only surface the game-view state when it is actually a problem; on the happy path it is
                 // pure noise. When injected input may be muted, warn AND include the state for context.
                 var gameView = GameViewStateRow();
@@ -1322,6 +1338,240 @@ namespace Chievfx.Mcp.Extensions.Control
             ["action"] = Enum("Pointer capture action.", "begin", "end", "status"),
             ["allowStateMutation"] = Bool("Deprecated and optional; no longer required for begin."),
         }, "action");
+
+        private static JObject ShaderStatusSchema() => Schema(new JObject
+        {
+            ["path"] = Str("Asset path of a .shader or a material to inspect. Omit to scan renderers in the open scenes."),
+            ["includeWarnings"] = Bool("Include warning-severity shader messages too (default false: errors only)."),
+            ["maxMessages"] = Int("Max messages per shader (default 10)."),
+        });
+
+        // Magenta (error/missing shader) and cyan (variant still compiling) are the two most common
+        // rendering symptoms, and both previously needed a hand-written ShaderUtil probe to diagnose.
+        private static Dictionary<string, object?> ShaderStatus(JToken args)
+        {
+            var path = ReadString(args, "path");
+            var includeWarnings = ReadBool(args, "includeWarnings", false);
+            var maxMessages = Math.Clamp(ReadInt(args, "maxMessages", 10), 1, 100);
+
+            var result = new Dictionary<string, object?>
+            {
+                ["ok"] = true,
+                ["compiling"] = UnityEditor.ShaderUtil.anythingCompiling,
+            };
+
+            if (UnityEditor.ShaderUtil.anythingCompiling)
+            {
+                result["hint"] = "Shader variants are still compiling — objects can render cyan/placeholder until they finish. Re-check before trusting a screenshot.";
+            }
+
+            var shaders = new List<(Shader Shader, string Origin)>();
+            var missing = new List<Dictionary<string, object?>>();
+
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                CollectShadersFromAssetPath(path!, shaders, result);
+            }
+            else
+            {
+                CollectShadersFromOpenScenes(shaders, missing);
+                result["scanned"] = "open-scene renderers";
+            }
+
+            var rows = new List<Dictionary<string, object?>>();
+            foreach (var (shader, origin) in shaders
+                         .GroupBy(entry => entry.Shader, entry => entry.Origin)
+                         .Select(group => (Shader: group.Key, Origin: string.Join(", ", group.Distinct().Take(3)))))
+            {
+                if (shader == null)
+                {
+                    continue;
+                }
+
+                var messages = ReadShaderMessages(shader, includeWarnings, maxMessages, out var errorCount, out var warningCount);
+                if (errorCount == 0 && messages.Count == 0)
+                {
+                    continue;
+                }
+
+                rows.Add(new Dictionary<string, object?>
+                {
+                    ["shader"] = shader.name,
+                    ["assetPath"] = AssetDatabase.GetAssetPath(shader),
+                    ["usedBy"] = origin,
+                    ["errorCount"] = errorCount,
+                    ["warningCount"] = warningCount,
+                    ["messages"] = messages,
+                });
+            }
+
+            if (rows.Count > 0)
+            {
+                result["shadersWithErrors"] = rows;
+            }
+
+            if (missing.Count > 0)
+            {
+                result["missingShaders"] = missing;
+            }
+
+            if (rows.Count == 0 && missing.Count == 0)
+            {
+                result["summary"] = UnityEditor.ShaderUtil.anythingCompiling
+                    ? "No shader errors found, but variants are still compiling."
+                    : "No shader errors or missing shaders found.";
+            }
+            else
+            {
+                // Carry the next step in the result: a diagnostic that arrives when it is needed gets
+                // read, unlike a catalogue the caller has to think to consult.
+                result["summary"] = $"{rows.Count} shader(s) with errors, {missing.Count} missing/error material shader(s) — these render magenta.";
+                result["nextStep"] = "Fix the reported file/line. If a pixel still looks wrong once shaders compile, use frame-debugger-pick-pixel to find the draw call that wrote it instead of toggling effects.";
+            }
+
+            return result;
+        }
+
+        private static void CollectShadersFromAssetPath(string path, List<(Shader, string)> shaders, Dictionary<string, object?> result)
+        {
+            var shader = AssetDatabase.LoadAssetAtPath<Shader>(path);
+            if (shader != null)
+            {
+                shaders.Add((shader, path));
+                return;
+            }
+
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material != null)
+            {
+                if (material.shader != null)
+                {
+                    shaders.Add((material.shader, path));
+                }
+                else
+                {
+                    result["note"] = $"Material '{path}' has no shader assigned (renders magenta).";
+                }
+
+                return;
+            }
+
+            throw new ArgumentException($"No shader or material found at '{path}'.");
+        }
+
+        private static void CollectShadersFromOpenScenes(List<(Shader, string)> shaders, List<Dictionary<string, object?>> missing)
+        {
+#pragma warning disable CS0618
+            foreach (var renderer in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+#pragma warning restore CS0618
+            {
+                foreach (var material in renderer.sharedMaterials)
+                {
+                    var rendererPath = HierarchyPath(renderer.gameObject);
+                    if (material == null)
+                    {
+                        missing.Add(new Dictionary<string, object?>
+                        {
+                            ["gameObject"] = rendererPath,
+                            ["reason"] = "material slot is empty",
+                        });
+                        continue;
+                    }
+
+                    if (material.shader == null)
+                    {
+                        missing.Add(new Dictionary<string, object?>
+                        {
+                            ["gameObject"] = rendererPath,
+                            ["material"] = material.name,
+                            ["reason"] = "material has no shader",
+                        });
+                        continue;
+                    }
+
+                    shaders.Add((material.shader, rendererPath));
+                }
+            }
+        }
+
+        private static string HierarchyPath(GameObject gameObject)
+        {
+            var path = gameObject.name;
+            for (var parent = gameObject.transform.parent; parent != null; parent = parent.parent)
+            {
+                path = parent.name + "/" + path;
+            }
+
+            return "/" + path;
+        }
+
+        private static List<Dictionary<string, object?>> ReadShaderMessages(
+            Shader shader,
+            bool includeWarnings,
+            int maxMessages,
+            out int errorCount,
+            out int warningCount)
+        {
+            errorCount = 0;
+            warningCount = 0;
+            var rows = new List<Dictionary<string, object?>>();
+            UnityEditor.ShaderMessage[] messages;
+            try
+            {
+                messages = UnityEditor.ShaderUtil.GetShaderMessages(shader);
+            }
+            catch (Exception)
+            {
+                return rows;
+            }
+
+            foreach (var message in messages)
+            {
+                var isError = message.severity == UnityEditor.Rendering.ShaderCompilerMessageSeverity.Error;
+                if (isError)
+                {
+                    errorCount++;
+                }
+                else
+                {
+                    warningCount++;
+                }
+
+                if ((!isError && !includeWarnings) || rows.Count >= maxMessages)
+                {
+                    continue;
+                }
+
+                var row = new Dictionary<string, object?>
+                {
+                    ["severity"] = isError ? "error" : "warning",
+                    ["message"] = message.message,
+                };
+                if (!string.IsNullOrEmpty(message.file))
+                {
+                    row["file"] = message.file;
+                }
+
+                if (message.line > 0)
+                {
+                    row["line"] = message.line;
+                }
+
+                // messageDetails is "Compiling Subshader: N, Pass: X, <stage> program..." followed by a
+                // multi-line dump of every platform define and disabled keyword. The first line says which
+                // pass/variant failed (useful); the rest is hundreds of tokens of noise.
+                var details = message.messageDetails;
+                if (!string.IsNullOrEmpty(details))
+                {
+                    var firstLineEnd = details.IndexOf('\n');
+                    row["variant"] = (firstLineEnd >= 0 ? details.Substring(0, firstLineEnd) : details).Trim();
+                }
+
+                rows.Add(row);
+            }
+
+            return rows;
+        }
 
         private static JObject PlayModeSetSchema() => Schema(new JObject
         {

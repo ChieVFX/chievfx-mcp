@@ -63,6 +63,17 @@ namespace Chievfx.Mcp.Editor
             .ParameterType
             .GetMethod("FromULong", BindingFlags.Static | BindingFlags.Public);
 
+        // Unity 6000.5 flipped [Obsolete] on EditorUtility.InstanceIDToObject(int) to
+        // error:true, so a direct call is CS0619 -- an error, which #pragma warning cannot
+        // suppress. Reflect it like the EntityId members above so the package keeps
+        // compiling on both 2022.3 (no EntityId API) and 6000.5+ (no InstanceIDToObject).
+        private static readonly MethodInfo? InstanceIdToObjectMethod = typeof(EditorUtility).GetMethod(
+            "InstanceIDToObject",
+            BindingFlags.Static | BindingFlags.Public,
+            null,
+            new[] { typeof(int) },
+            null);
+
         public static int GetLegacyInstanceId(UnityEngine.Object? unityObject)
         {
             if (unityObject == null)
@@ -96,9 +107,7 @@ namespace Chievfx.Mcp.Editor
                 return entityId == null ? null : EntityIdToObjectMethod.Invoke(null, new[] { entityId }) as UnityEngine.Object;
             }
 
-#pragma warning disable CS0618
-            return EditorUtility.InstanceIDToObject(instanceId);
-#pragma warning restore CS0618
+            return InstanceIdToObjectMethod?.Invoke(null, new object[] { instanceId }) as UnityEngine.Object;
         }
     }
 }

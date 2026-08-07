@@ -2,6 +2,7 @@
 using static Chievfx.Mcp.Editor.McpLimits;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Threading;
@@ -11,15 +12,38 @@ namespace Chievfx.Mcp.Editor
 {
     internal sealed class BridgeEventJournal
     {
+        // Every console line reaches this class through Application.logMessageReceivedThreaded, so Write
+        // sits on Unity's main thread inside LogStringToConsole. It used to re-read, re-deserialize,
+        // re-serialize and atomically rewrite the whole events.json per event; with the stream at its
+        // steady-state cap (MaxEventEntries records, ~300 KB) that measured ~42 ms per Debug.Log, which
+        // is what made log-heavy frames stall. The in-memory stream is now the authority and the file is
+        // a debounced mirror of it: writes are pure memory, disk work is coalesced to one rewrite per
+        // FlushIntervalMs regardless of how many events landed in between.
+        //
+        // The interval is matched to the Python server's EVENTS_WAIT_POLL_SECONDS (50 ms) so events-wait
+        // observes no added latency. Anything that hands a consumer an event cursor force-flushes first
+        // (see Flush callers) so a cursor is never newer than the file backing it.
+        private const int FlushIntervalMs = 50;
+
         private readonly object eventLock = new();
+        private readonly Stopwatch flushClock = Stopwatch.StartNew();
+
+        // Null until first use / after a domain reload, at which point it is rehydrated from disk.
+        private BridgeEventStream? stream;
+        private bool dirty;
+        private long lastFlushMs = -FlushIntervalMs;
+
+        // Reservation high-water mark. Deliberately distinct from stream.lastEventId (the highest id
+        // actually appended): NextEventId hands out an id before the matching Write lands, and that
+        // reserved id must survive the collision check below.
         private long lastEventId;
 
         public long NextEventId()
         {
             lock (eventLock)
             {
-                var stream = ReadEventStream();
-                var nextEventId = Math.Max(CurrentEventId(), GetDurableLastEventId(stream)) + 1;
+                EnsureLoadedLocked();
+                var nextEventId = CurrentEventId() + 1;
                 Interlocked.Exchange(ref lastEventId, nextEventId);
                 return nextEventId;
             }
@@ -71,11 +95,11 @@ namespace Chievfx.Mcp.Editor
 
                 lock (eventLock)
                 {
-                    var stream = ReadEventStream();
-                    var durableLastEventId = GetDurableLastEventId(stream);
-                    if (eventId <= durableLastEventId)
+                    var loaded = EnsureLoadedLocked();
+                    var recordedLastEventId = loaded.lastEventId;
+                    if (eventId <= recordedLastEventId)
                     {
-                        eventId = durableLastEventId + 1;
+                        eventId = recordedLastEventId + 1;
                         eventRecord.eventId = eventId;
                     }
 
@@ -84,19 +108,12 @@ namespace Chievfx.Mcp.Editor
                         Interlocked.Exchange(ref lastEventId, eventId);
                     }
 
-                    stream.schemaVersion = 1;
-                    stream.lastEventId = Math.Max(durableLastEventId, eventId);
-                    stream.events.Add(eventRecord);
-                    TrimEventStream(stream);
-                    var json = JsonConvert.SerializeObject(stream, BridgeRuntimeState.JsonOptions);
-                    while (json.Length > MaxEventStreamChars && stream.events.Count > 0)
-                    {
-                        stream.truncatedBeforeEventId = Math.Max(stream.truncatedBeforeEventId, stream.events[0].eventId);
-                        stream.events.RemoveAt(0);
-                        json = JsonConvert.SerializeObject(stream, BridgeRuntimeState.JsonOptions);
-                    }
-
-                    BridgeRuntimeState.WriteAllTextAtomic(ChievfxMcpToolPolicy.BridgeEventPath, json);
+                    loaded.schemaVersion = 1;
+                    loaded.lastEventId = Math.Max(recordedLastEventId, eventId);
+                    loaded.events.Add(eventRecord);
+                    TrimEventStream(loaded);
+                    dirty = true;
+                    FlushLocked(force: false);
                 }
             }
             catch
@@ -107,15 +124,57 @@ namespace Chievfx.Mcp.Editor
             return eventId;
         }
 
+        // Mirrors the in-memory stream to disk immediately. Call before handing a consumer anything that
+        // carries an event cursor, and before the process may lose its statics (domain reload / stop).
+        public void Flush()
+        {
+            lock (eventLock)
+            {
+                try
+                {
+                    FlushLocked(force: true);
+                }
+                catch
+                {
+                    // Never let a failed mirror write escape into Unity logging (it would recurse).
+                }
+            }
+        }
+
+        // Debounced drain, driven off the editor tick so a burst that ends mid-frame still reaches disk
+        // promptly without every event paying for its own rewrite.
+        public void FlushIfDue()
+        {
+            lock (eventLock)
+            {
+                try
+                {
+                    FlushLocked(force: false);
+                }
+                catch
+                {
+                    // See Flush().
+                }
+            }
+        }
+
         public void RestoreCursorFromStream()
         {
             lock (eventLock)
             {
-                var durableLastEventId = GetDurableLastEventId(ReadEventStream());
-                if (durableLastEventId > CurrentEventId())
+                // Flush before dropping the cached stream: EnsureStarted (and therefore this method) also
+                // runs from the editor tick, so discarding unflushed events here would lose them.
+                try
                 {
-                    Interlocked.Exchange(ref lastEventId, durableLastEventId);
+                    FlushLocked(force: true);
                 }
+                catch
+                {
+                    // See Flush().
+                }
+
+                stream = null;
+                EnsureLoadedLocked();
             }
         }
 
@@ -128,15 +187,86 @@ namespace Chievfx.Mcp.Editor
                     return;
                 }
 
-                var stream = new BridgeEventStream
+                var loaded = EnsureLoadedLocked();
+                loaded.schemaVersion = 1;
+                loaded.lastEventId = Math.Max(loaded.lastEventId, CurrentEventId());
+                dirty = true;
+                try
                 {
-                    schemaVersion = 1,
-                    lastEventId = CurrentEventId()
-                };
-                BridgeRuntimeState.WriteAllTextAtomic(
-                    ChievfxMcpToolPolicy.BridgeEventPath,
-                    JsonConvert.SerializeObject(stream, BridgeRuntimeState.JsonOptions));
+                    FlushLocked(force: true);
+                }
+                catch
+                {
+                    // See Flush().
+                }
             }
+        }
+
+        // Caller must hold eventLock.
+        private BridgeEventStream EnsureLoadedLocked()
+        {
+            if (stream != null)
+            {
+                return stream;
+            }
+
+            var loaded = ReadEventStream();
+            loaded.events ??= new List<BridgeEventRecord>();
+
+            // Collapse the file's lastEventId, its truncation watermark and every record id into the one
+            // "highest id actually recorded" value the collision check in Write relies on.
+            var durableLastEventId = GetDurableLastEventId(loaded);
+            loaded.lastEventId = durableLastEventId;
+            if (durableLastEventId > CurrentEventId())
+            {
+                Interlocked.Exchange(ref lastEventId, durableLastEventId);
+            }
+
+            stream = loaded;
+            return loaded;
+        }
+
+        // Caller must hold eventLock.
+        private void FlushLocked(bool force)
+        {
+            if (!dirty || stream == null)
+            {
+                return;
+            }
+
+            var nowMs = flushClock.ElapsedMilliseconds;
+            if (!force && nowMs - lastFlushMs < FlushIntervalMs)
+            {
+                return;
+            }
+
+            BridgeRuntimeState.WriteAllTextAtomic(
+                ChievfxMcpToolPolicy.BridgeEventPath,
+                SerializeWithinBudget(stream));
+            dirty = false;
+            lastFlushMs = nowMs;
+        }
+
+        private static string SerializeWithinBudget(BridgeEventStream stream)
+        {
+            var json = JsonConvert.SerializeObject(stream, BridgeRuntimeState.JsonOptions);
+            while (json.Length > MaxEventStreamChars && stream.events.Count > 0)
+            {
+                // Drop a proportional batch, not one record per pass: the previous one-at-a-time loop
+                // re-serialized the entire (up to MaxEventStreamChars) stream after every single removal.
+                var averageRecordChars = Math.Max(1, json.Length / stream.events.Count);
+                var overflowChars = json.Length - MaxEventStreamChars;
+                var dropCount = Math.Min(stream.events.Count, (overflowChars / averageRecordChars) + 1);
+                for (var i = 0; i < dropCount; i++)
+                {
+                    stream.truncatedBeforeEventId = Math.Max(stream.truncatedBeforeEventId, stream.events[0].eventId);
+                    stream.events.RemoveAt(0);
+                }
+
+                json = JsonConvert.SerializeObject(stream, BridgeRuntimeState.JsonOptions);
+            }
+
+            return json;
         }
 
         private static BridgeEventStream ReadEventStream()

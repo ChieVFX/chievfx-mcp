@@ -134,6 +134,7 @@ namespace Chievfx.Mcp.Editor
         public void Stop()
         {
             EventJournal.Write("bridge", "stopped", "info", "ChievFX MCP bridge stopped.");
+            EventJournal.Flush();
             RuntimeState.Stop();
         }
 
@@ -188,6 +189,9 @@ namespace Chievfx.Mcp.Editor
         private void OnBeforeAssemblyReload()
         {
             EventJournal.Write("editor", "domain-reload-before", "info", "Unity domain reload starting.");
+            // Last chance to mirror: the reload resets the journal's statics, so anything still buffered
+            // in memory would be lost.
+            EventJournal.Flush();
         }
 
         private void OnAfterAssemblyReload()

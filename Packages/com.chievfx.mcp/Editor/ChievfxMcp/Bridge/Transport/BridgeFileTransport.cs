@@ -40,6 +40,11 @@ namespace Chievfx.Mcp.Editor
                     runtimeState.ScriptOperations.IsBusy()));
             runtimeState.IncrementEditorUpdateTick();
 
+            // The event journal buffers in memory and mirrors to disk on a debounce, so the tick is what
+            // drains a burst that ended mid-frame. Without this, the tail of a log storm would sit
+            // unflushed until the next event happened to arrive.
+            handlers.EventJournal.FlushIfDue();
+
             // Fires a recompile that was owed from before a Play Mode exit, once the editor is back in
             // edit mode. Checked on the tick rather than from a playModeStateChanged handler so it
             // works whether or not the exit domain-reloaded.
@@ -63,6 +68,10 @@ namespace Chievfx.Mcp.Editor
 
         public void WriteResponse(string id, object payload)
         {
+            // Responses carry event cursors (lastEventId, operation eventIds). Mirror the journal first so
+            // a client that reads events.json the instant it sees the response cannot observe a cursor
+            // pointing past the file's contents.
+            handlers.EventJournal.Flush();
             Directory.CreateDirectory(ChievfxMcpToolPolicy.BridgeResponseDirectory);
             var responsePath = Path.Combine(ChievfxMcpToolPolicy.BridgeResponseDirectory, id + ".json");
             BridgeRuntimeState.WriteAllTextAtomic(responsePath, JsonConvert.SerializeObject(payload, BridgeRuntimeState.JsonOptions));

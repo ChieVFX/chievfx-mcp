@@ -7,6 +7,33 @@ namespace Chievfx.Mcp.Editor.Tests
 {
     public sealed class ChievfxMcpBridgeEventJournalTests
     {
+        private string? savedEventStream;
+
+        // The journal writes to the one bridge events.json path, so running this suite inside a live
+        // editor would otherwise discard the session's event history. Put back whatever was there.
+        // The running bridge holds its stream in memory and is the only writer, so its next flush
+        // reconciles the file regardless of what these tests left in it.
+        [SetUp]
+        public void SetUp()
+        {
+            savedEventStream = File.Exists(ChievfxMcpToolPolicy.BridgeEventPath)
+                ? File.ReadAllText(ChievfxMcpToolPolicy.BridgeEventPath)
+                : null;
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            if (savedEventStream != null)
+            {
+                File.WriteAllText(ChievfxMcpToolPolicy.BridgeEventPath, savedEventStream);
+            }
+            else if (File.Exists(ChievfxMcpToolPolicy.BridgeEventPath))
+            {
+                File.Delete(ChievfxMcpToolPolicy.BridgeEventPath);
+            }
+        }
+
         // BridgeEventJournal assembles events.json by hand from cached per-record JSON fragments instead
         // of calling JsonConvert.SerializeObject on the whole stream (that cost two full serializations of
         // a ~512 KB document on every 50 ms flush). The hand-built envelope therefore has to stay in step

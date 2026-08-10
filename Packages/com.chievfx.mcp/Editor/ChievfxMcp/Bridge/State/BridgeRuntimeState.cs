@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Newtonsoft.Json;
@@ -207,6 +208,15 @@ namespace Chievfx.Mcp.Editor
 
         public static void WriteAllTextAtomic(string path, string contents)
         {
+            WriteAllTextAtomic(path, writer => writer.Write(contents));
+        }
+
+        // Streaming overload: the caller writes straight into the temp file instead of first building the
+        // whole payload as a string. Used by the event journal, whose ~500 KB mirror is rewritten 20x a
+        // second - materializing it would allocate the string and then WriteAllText's UTF-8 buffer on top,
+        // both large-object-heap sized, on every flush.
+        public static void WriteAllTextAtomic(string path, Action<TextWriter> writeContents)
+        {
             var directory = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(directory))
             {
@@ -214,7 +224,18 @@ namespace Chievfx.Mcp.Editor
             }
 
             var tempPath = Path.Combine(directory ?? string.Empty, "." + Path.GetFileName(path) + "." + Guid.NewGuid().ToString("N") + ".tmp");
-            File.WriteAllText(tempPath, contents);
+
+            try
+            {
+                // UTF-8 without a BOM, matching what File.WriteAllText produced before.
+                using var writer = new StreamWriter(tempPath, false, new UTF8Encoding(false));
+                writeContents(writer);
+            }
+            catch
+            {
+                TryDeleteFile(tempPath);
+                throw;
+            }
 
             // On Windows a reader (the Python MCP server polling state.json) can
             // briefly hold a share lock. Delete-then-move then races and throws

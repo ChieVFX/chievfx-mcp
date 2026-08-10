@@ -143,3 +143,6 @@ Packages/com.chievfx.mcp/Install~/.venv/
 .claude/skills/mcp-unity-chievfx/
 .codex/skills/mcp-unity-chievfx/
 .kimi-code/skills/mcp-unity-chievfx/
+
+# macOS Finder metadata
+.DS_Store

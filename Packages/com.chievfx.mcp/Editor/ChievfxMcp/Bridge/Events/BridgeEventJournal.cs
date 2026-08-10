@@ -183,12 +183,20 @@ namespace Chievfx.Mcp.Editor
             }
         }
 
-        public void RestoreCursorFromStream()
+        // Mirrors the journal, then makes sure the in-memory stream is live. Both callers go on to publish
+        // CurrentEventId() - the heartbeat into state.json, EnsureStarted at bridge start - so the flush is
+        // what keeps the cursor invariant: a consumer must never read a cursor newer than the file behind it.
+        //
+        // It deliberately does not drop the cached stream to force a re-read. This runs from the heartbeat,
+        // twice a second, and the journal is the only writer of events.json (the Python server only reads
+        // it), so re-reading and re-deserializing ~500 KB to relearn what is already in memory cost ~8.7 ms
+        // per heartbeat - 17 ms/s burned whether or not anything was being logged, and growing with the
+        // file. After a domain reload the journal instance is new and stream is null, so EnsureLoadedLocked
+        // rehydrates from disk on its own.
+        public void EnsureCursorLoaded()
         {
             lock (eventLock)
             {
-                // Flush before dropping the cached stream: EnsureStarted (and therefore this method) also
-                // runs from the editor tick, so discarding unflushed events here would lose them.
                 try
                 {
                     FlushLocked(force: true);
@@ -198,7 +206,6 @@ namespace Chievfx.Mcp.Editor
                     // See Flush().
                 }
 
-                stream = null;
                 EnsureLoadedLocked();
             }
         }

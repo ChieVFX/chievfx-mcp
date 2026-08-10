@@ -156,7 +156,7 @@ namespace Chievfx.Mcp.Editor
             lastHeartbeatWriteTime = now;
             try
             {
-                eventJournal.RestoreCursorFromStream();
+                eventJournal.EnsureCursorLoaded();
                 operationStore.CleanupRecords();
                 var compileWaitingForPlayModeExit = BridgePendingRecompile.IsCompileWaitingForPlayModeExit();
                 var busy = new Dictionary<string, object?>

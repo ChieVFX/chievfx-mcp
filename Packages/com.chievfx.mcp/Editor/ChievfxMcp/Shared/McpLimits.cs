@@ -65,6 +65,11 @@ namespace Chievfx.Mcp.Editor
         public const int OperationRecordTtlMinutes = 60;
         public const int StaleOperationMinutes = 10;
         public const int MaxOperationRecords = 200;
+
+        // How often the operation records are swept. Deliberately far coarser than the heartbeat that
+        // triggers it: every threshold the sweep enforces is measured in minutes, so running it at
+        // heartbeat rate (twice a second) did the work ~1200x more often than anything could act on.
+        public const double OperationCleanupCadenceSeconds = 10;
         public const int MaxEventEntries = 1000;
         public const int MaxEventStreamChars = 512000;
         public const int MaxEventMessageChars = 1000;

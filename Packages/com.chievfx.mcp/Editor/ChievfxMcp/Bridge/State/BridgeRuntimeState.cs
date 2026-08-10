@@ -157,7 +157,7 @@ namespace Chievfx.Mcp.Editor
             try
             {
                 eventJournal.EnsureCursorLoaded();
-                operationStore.CleanupRecords();
+                var activeOperationCount = operationStore.RefreshRecords();
                 var compileWaitingForPlayModeExit = BridgePendingRecompile.IsCompileWaitingForPlayModeExit();
                 var busy = new Dictionary<string, object?>
                 {
@@ -168,7 +168,7 @@ namespace Chievfx.Mcp.Editor
                     ["editorWindowScreenshotBusy"] = busyStatus.EditorWindowScreenshotBusy,
                     ["scriptBusy"] = busyStatus.ScriptBusy,
                     ["shaderCompiling"] = TryGetShaderCompileFlag(),
-                    ["activeOperationCount"] = operationStore.CountActiveRecords()
+                    ["activeOperationCount"] = activeOperationCount
                 };
 
                 var payload = new Dictionary<string, object?>

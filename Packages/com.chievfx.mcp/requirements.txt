@@ -3,4 +3,4 @@
 # no third-party packages are required for Cursor/Claude/Codex MCP stdio or HTTP transport.
 #
 # Optional PyQt drag-and-drop installer GUI:
-#   pip install -r Install/requirements.txt
+#   pip install -r Install~/requirements.txt

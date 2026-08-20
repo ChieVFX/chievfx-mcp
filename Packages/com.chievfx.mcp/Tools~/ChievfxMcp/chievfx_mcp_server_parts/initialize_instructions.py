@@ -65,7 +65,13 @@ def build_core_descriptor_precondition() -> str:
 
 def build_initialize_instructions() -> str:
     records = load_initialize_instruction_records_from_md()
-    lines: list[str] = [build_core_descriptor_precondition()]
+    lines: list[str] = []
+    # A secondary project leads with its identity, above even the descriptor precondition: acting on the
+    # wrong editor of two is a silent wrong answer (a screenshot of the other project looks fine), while a
+    # missed precondition only costs a re-read. Absent for the primary project, which stays unchanged.
+    if SERVER_LABEL.strip():
+        lines.append(SERVER_LABEL.strip())
+    lines.append(build_core_descriptor_precondition())
     lines.extend(records.get("global", []))
 
     enabled_tool_ids = load_enabled_tool_ids()

@@ -50,7 +50,7 @@ from PyQt6.QtWidgets import (
 
 
 APP_TITLE = "ChievFX Unity MCP Installer"
-APP_VERSION = "0.4.4"
+APP_VERSION = "0.4.5"
 SETTINGS_ROOT = Path.home() / ".chievfx_mcp_installer"
 LEGACY_SETTINGS_PATH = Path.home() / ".chievfx_mcp_installer.json"
 DEFAULT_PROFILE_CONTEXT = Path("__default__")
@@ -80,7 +80,12 @@ QPushButton#InstallButton:disabled {
 """
 
 PACKAGE_NAME = "com.chievfx.mcp"
-DEFAULT_TGZ_DEST_FOLDER = "Assets/Editor"
+# Project-root folder, outside Assets/, so Unity never imports the .tgz as an asset (no .meta churn,
+# no reimport on every install). manifest.json references it as file:../PackagesSource/<name>.tgz.
+DEFAULT_TGZ_DEST_FOLDER = "PackagesSource"
+# Prior installer versions dropped the tarball inside Assets/; profiles saved with that default are
+# migrated to the new one on load (a deliberately customized folder is kept).
+LEGACY_TGZ_DEST_FOLDER = "Assets/Editor"
 
 MCP_PATHS: tuple[str, ...] = (
     # New MCP lives as a Unity package inside `Packages/com.chievfx.mcp/`.
@@ -294,6 +299,8 @@ def load_profile(context_path: Path) -> InstallerProfile:
         raw_dest = data.get("tgzDestFolder")
         if isinstance(raw_dest, str) and raw_dest.strip():
             tgz_dest_folder = raw_dest.strip()
+            if _normalize_dest_folder(tgz_dest_folder) == LEGACY_TGZ_DEST_FOLDER:
+                tgz_dest_folder = DEFAULT_TGZ_DEST_FOLDER
     elif context_path == DEFAULT_PROFILE_CONTEXT:
         to_paths = _load_legacy_to_paths()
 
@@ -581,14 +588,22 @@ def _set_manifest_dependency(to_root: Path, dependency: str, log: Callable[[str]
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 
-def _remove_all_tarballs(to_root: Path, log: Callable[[str], None]) -> None:
-    """Remove every com.chievfx.mcp-*.tgz (and its .meta) under Assets/ or Packages/, wherever a prior
-    tarball install dropped it (the dest folder is user-configurable and may have changed)."""
+def _remove_all_tarballs(
+    to_root: Path,
+    log: Callable[[str], None],
+    extra_dirs: Iterable[str] = (),
+) -> None:
+    """Remove every com.chievfx.mcp-*.tgz (and its .meta) under PackagesSource/, Assets/, or Packages/,
+    wherever a prior tarball install dropped it (the dest folder is user-configurable, and older
+    installer versions defaulted to Assets/Editor). extra_dirs adds the currently configured dest
+    folder when it is outside those bases."""
     found = False
-    for base in ("Assets", "Packages"):
+    seen_bases: set[Path] = set()
+    for base in (DEFAULT_TGZ_DEST_FOLDER, "Assets", "Packages", *extra_dirs):
         base_dir = to_root / base
-        if not base_dir.is_dir():
+        if not base_dir.is_dir() or base_dir in seen_bases:
             continue
+        seen_bases.add(base_dir)
         for tgz in sorted(base_dir.rglob(f"{PACKAGE_NAME}-*.tgz")):
             _remove_path(tgz, log)
             meta = tgz.with_name(tgz.name + ".meta")
@@ -599,7 +614,12 @@ def _remove_all_tarballs(to_root: Path, log: Callable[[str], None]) -> None:
         log(f"  skipped (no {PACKAGE_NAME}-*.tgz found)")
 
 
-def clean_all_installations(to_root: Path, log: Callable[[str], None], drop_manifest_dependency: bool = True) -> None:
+def clean_all_installations(
+    to_root: Path,
+    log: Callable[[str], None],
+    drop_manifest_dependency: bool = True,
+    extra_tarball_dirs: Iterable[str] = (),
+) -> None:
     """Remove EVERY form of a prior com.chievfx.mcp install from TO so only the mode being installed
     remains: embedded/copied sources (+ tests) and .tgz tarballs, plus the manifest dependency (git url,
     file: tarball, or registry version) when drop_manifest_dependency is True. The tarball install keeps
@@ -612,7 +632,7 @@ def clean_all_installations(to_root: Path, log: Callable[[str], None], drop_mani
         else:
             log(f"  skipped (absent) {target}")
     log("  tarball files:")
-    _remove_all_tarballs(to_root, log)
+    _remove_all_tarballs(to_root, log, extra_dirs=extra_tarball_dirs)
     if drop_manifest_dependency:
         log("  manifest dependency:")
         _remove_manifest_dependency(to_root, log)
@@ -763,7 +783,7 @@ def perform_install_tgz(
     tgz_path = dest_dir / _tgz_filename(version, f_index)
 
     log("[1/3] Removing other existing MCP installs in TO (embedded sources, tarballs) ...")
-    clean_all_installations(to_root, log, drop_manifest_dependency=False)
+    clean_all_installations(to_root, log, drop_manifest_dependency=False, extra_tarball_dirs=(dest_rel,))
 
     log("")
     log(f"[2/3] Building {tgz_path.name} in {dest_rel} ...")
@@ -1265,7 +1285,8 @@ class InstallerWindow(QMainWindow):
         self._tgz_folder_edit = QLineEdit(DEFAULT_TGZ_DEST_FOLDER)
         self._tgz_folder_edit.setPlaceholderText(DEFAULT_TGZ_DEST_FOLDER)
         self._tgz_folder_edit.setToolTip(
-            "Project-relative folder in each TO project where the .tgz is written (default Assets/Editor)."
+            "Project-relative folder in each TO project where the .tgz is written (default PackagesSource, "
+            "outside Assets/ so Unity does not import the tarball as an asset)."
         )
         self._tgz_folder_edit.textChanged.connect(self._on_tgz_folder_changed)
         options.addWidget(self._tgz_folder_edit, 1)
@@ -1513,7 +1534,7 @@ class InstallerWindow(QMainWindow):
                 f"{target_lines}\n\n"
                 "In each TO folder, this will first REMOVE other existing MCP installs:\n"
                 "  - embedded Packages/com.chievfx.mcp (and its .meta)\n"
-                "  - any com.chievfx.mcp-*.tgz under Assets/ or Packages/\n\n"
+                "  - any com.chievfx.mcp-*.tgz under PackagesSource/, Assets/, or Packages/\n\n"
                 "Then it will:\n"
                 f"  - write the tarball into {tgz_dest_folder}/ (no suffix on a new version, then .f1/.f2/... per rebuild)\n"
                 "  - set the com.chievfx.mcp file: dependency in Packages/manifest.json (replace the existing line in place, or insert alphabetically)"
@@ -1524,7 +1545,7 @@ class InstallerWindow(QMainWindow):
                 f"{target_lines}\n\n"
                 "In each TO folder, this will first REMOVE every existing MCP install:\n"
                 "  - embedded Packages/com.chievfx.mcp (and its .meta)\n"
-                "  - any com.chievfx.mcp-*.tgz under Assets/ or Packages/\n"
+                "  - any com.chievfx.mcp-*.tgz under PackagesSource/, Assets/, or Packages/\n"
                 "  - the com.chievfx.mcp dependency in Packages/manifest.json (git url, file:, or version)\n\n"
                 "Then copy a fresh MCP package from FROM."
             )

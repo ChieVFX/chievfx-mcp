@@ -457,6 +457,8 @@ namespace Chievfx.Mcp.Editor
             cursorConfig.Add(CreateActionRow(writeConfigButton, CreateButton("Copy Preview", CopyPreview)));
             content.Add(cursorConfig);
 
+            content.Add(CreateSecondaryProjectsCard());
+
             var exposure = CreateSectionCard("Tool & Resource Exposure");
             var manualSelectionToggle = new Toggle("Customize which tools & resources are exposed")
             {
@@ -573,6 +575,124 @@ namespace Chievfx.Mcp.Editor
             advanced.Add(CreateMutedLabel("Unity console messages often carry <b>/<color> markup. Stripping keeps the agent-facing text clean without touching the live Unity Console. Default on."));
             advanced.Add(CreateExperimentalFoldout());
             content.Add(advanced);
+
+            RefreshUi();
+        }
+
+        // Other Unity projects exposed to this project's agent as extra MCP servers, so one session can
+        // drive two editors — built-in vs URP comparisons, or a server copy plus a client copy.
+        private VisualElement CreateSecondaryProjectsCard()
+        {
+            var card = CreateSectionCard("Secondary Projects");
+            card.Add(CreateMutedLabel(
+                "Add another Unity project that has ChievFX MCP installed and its server is injected into this project's client configs, "
+                + "next to this project's own. Each one runs that project's package and bridge, and tells the agent it is the secondary project and where it lives."));
+
+            var projects = ChievfxMcpSecondaryProjects.Load();
+            if (projects.Count == 0)
+            {
+                card.Add(CreateMutedLabel("None added."));
+            }
+
+            foreach (var project in projects)
+            {
+                card.Add(CreateSecondaryProjectRow(project));
+            }
+
+            card.Add(CreateActionRow(CreateButton("Add Project...", AddSecondaryProject)));
+            return card;
+        }
+
+        private VisualElement CreateSecondaryProjectRow(ChievfxMcpSecondaryProject project)
+        {
+            var row = new VisualElement
+            {
+                style =
+                {
+                    marginTop = 6,
+                    paddingLeft = 6,
+                    borderLeftWidth = 2,
+                    borderLeftColor = new Color(0.4f, 0.4f, 0.4f)
+                }
+            };
+
+            var header = new Label($"{project.FolderName}  ({project.ServerName})");
+            header.style.unityFontStyleAndWeight = FontStyle.Bold;
+            header.style.whiteSpace = WhiteSpace.Normal;
+            row.Add(header);
+            row.Add(CreateMutedLabel(project.ProjectRoot));
+
+            var note = new TextField("Note")
+            {
+                value = project.Note,
+                isDelayed = true,
+                tooltip = "Optional one-liner folded into what the agent is told about this project, e.g. \"server copy\" or \"URP\"."
+            };
+            var projectRoot = project.ProjectRoot;
+            note.RegisterValueChangedCallback(evt =>
+            {
+                ChievfxMcpSecondaryProjects.SetNote(projectRoot, evt.newValue ?? string.Empty);
+                ApplySecondaryProjectChange();
+            });
+            row.Add(note);
+
+            row.Add(CreateActionRow(CreateButton("Remove", () =>
+            {
+                if (!EditorUtility.DisplayDialog(
+                        "ChievFX MCP",
+                        $"Remove {ChievfxMcpSecondaryProjects.FolderNameOf(projectRoot)} from this project's MCP client configs?\n\n{projectRoot}\n\nThe project itself is not touched.",
+                        "Remove",
+                        "Cancel"))
+                {
+                    return;
+                }
+
+                ChievfxMcpSecondaryProjects.Remove(projectRoot);
+                ApplySecondaryProjectChange();
+                BuildWindow();
+            })));
+
+            return row;
+        }
+
+        private void AddSecondaryProject()
+        {
+            var picked = EditorUtility.OpenFolderPanel("Select the other Unity project (or any folder inside it)", string.Empty, string.Empty);
+            if (string.IsNullOrEmpty(picked))
+            {
+                return;
+            }
+
+            if (!ChievfxMcpSecondaryProjects.TryAdd(picked, out var error, out var warning))
+            {
+                EditorUtility.DisplayDialog("ChievFX MCP", error, "OK");
+                return;
+            }
+
+            ApplySecondaryProjectChange();
+            BuildWindow();
+
+            var message = "Added. Reload MCP tools or restart your client so the second project's server appears.";
+            if (!string.IsNullOrEmpty(warning))
+            {
+                message = $"{warning}\n\n{message}";
+            }
+
+            EditorUtility.DisplayDialog("ChievFX MCP", message, "OK");
+        }
+
+        // The set of servers this package owns in each client config just changed, so push it out now
+        // instead of waiting for the next Unity open. Idempotent: configs already correct are not touched.
+        private void ApplySecondaryProjectChange()
+        {
+            try
+            {
+                EnsureAllClientConfigs();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"ChievFX MCP could not update client configs after a secondary project change. {ex.Message}");
+            }
 
             RefreshUi();
         }
@@ -1459,7 +1579,10 @@ namespace Chievfx.Mcp.Editor
                 mcpServers[existingServer.Name] = existingServer.Value;
             }
 
-            mcpServers[ChievfxMcpToolPolicy.CursorServerName] = BuildExpectedServerEntry(transport, port, timeout, clientInfo.IncludeTypeField);
+            foreach (var expected in BuildExpectedManagedServerEntries(transport, port, timeout, clientInfo.IncludeTypeField))
+            {
+                mcpServers[expected.Key] = expected.Value;
+            }
 
             var root = new JObject { ["mcpServers"] = mcpServers };
             return root.ToString(Formatting.Indented);
@@ -1470,10 +1593,77 @@ namespace Chievfx.Mcp.Editor
             var existing = File.Exists(CodexConfigPath)
                 ? RemoveManagedCodexServerSections(File.ReadAllText(CodexConfigPath), port).TrimEnd()
                 : string.Empty;
-            var serverBlock = BuildExpectedCodexServerBlock(transport, port, timeout);
-            return string.IsNullOrWhiteSpace(existing)
-                ? serverBlock
-                : $"{existing}{Environment.NewLine}{Environment.NewLine}{serverBlock}";
+            if (string.IsNullOrWhiteSpace(existing))
+            {
+                existing = string.Empty;
+            }
+
+            var builder = new StringBuilder(existing);
+            foreach (var block in BuildExpectedCodexServerBlocks(transport, port, timeout))
+            {
+                if (builder.Length > 0)
+                {
+                    builder.Append(Environment.NewLine).Append(Environment.NewLine);
+                }
+
+                builder.Append(block.Value);
+            }
+
+            return builder.ToString();
+        }
+
+        // Server name → section text: this project's first, then one per secondary project in the order
+        // they were added.
+        private static List<KeyValuePair<string, string>> BuildExpectedCodexServerBlocks(string transport, int port, int timeout)
+        {
+            var blocks = new List<KeyValuePair<string, string>>
+            {
+                new(ChievfxMcpToolPolicy.CursorServerName, BuildExpectedCodexServerBlock(transport, port, timeout))
+            };
+
+            foreach (var project in ChievfxMcpSecondaryProjects.Load())
+            {
+                if (ChievfxMcpSecondaryProjects.IsSamePath(project.ProjectRoot, ProjectRoot))
+                {
+                    continue;
+                }
+
+                ChievfxMcpSecondaryProjects.EnsureLauncherWritten(project);
+                blocks.Add(new KeyValuePair<string, string>(project.ServerName, BuildSecondaryCodexServerBlock(project, timeout)));
+            }
+
+            return blocks;
+        }
+
+        // How many [mcp_servers.*] sections in the file are ones this package owns, by the same test the
+        // rewrite uses to strip them.
+        private static int CountManagedCodexSections(string text, int port)
+        {
+            var lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            var count = 0;
+            var index = 0;
+            while (index < lines.Length)
+            {
+                if (!IsTomlSectionHeader(lines[index]))
+                {
+                    index++;
+                    continue;
+                }
+
+                var start = index;
+                index++;
+                while (index < lines.Length && !IsTomlSectionHeader(lines[index]))
+                {
+                    index++;
+                }
+
+                if (ShouldSkipCodexSection(string.Join("\n", lines, start, index - start), port))
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
 
         private static string BuildExpectedCodexServerBlock(string transport, int port, int timeout)
@@ -1502,6 +1692,33 @@ namespace Chievfx.Mcp.Editor
                 builder.AppendLine($"args = {args}");
             }
 
+            builder.AppendLine($"tool_timeout_sec = {Mathf.CeilToInt(timeout / 1000f)}");
+            return builder.ToString().TrimEnd();
+        }
+
+        private static string BuildSecondaryCodexServerBlock(ChievfxMcpSecondaryProject project, int timeout)
+        {
+            var args = TomlArray(new[]
+            {
+                project.LauncherScriptPath,
+                "--transport",
+                TransportStdio,
+                "--project-root",
+                project.ProjectRoot,
+                "--bridge-dir",
+                project.BridgeDirectory,
+                "--timeout",
+                timeout.ToString()
+            });
+
+            var builder = new StringBuilder();
+            builder.AppendLine($"[mcp_servers.{TomlQuotedKey(project.ServerName)}]");
+            builder.AppendLine($"command = {TomlString(ChievfxMcpPythonLauncher.ExecutablePath)}");
+            builder.AppendLine($"args = {args}");
+
+            // Env var names are bare TOML keys (letters, digits, underscore), so the key needs no quoting.
+            builder.AppendLine(
+                $"env = {{ {ChievfxMcpSecondaryProjects.ServerLabelEnvironmentVariable} = {TomlString(project.Label)} }}");
             builder.AppendLine($"tool_timeout_sec = {Mathf.CeilToInt(timeout / 1000f)}");
             return builder.ToString().TrimEnd();
         }
@@ -1670,6 +1887,66 @@ namespace Chievfx.Mcp.Editor
             new(
                 @"^\[mcp_servers\.""?(?:unity-[0-9a-fA-F]{8}|unity-mcp-chievfx(?:-[0-9a-fA-F]{8})?)""?\]$",
                 System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        // Every entry this package owns in a client config, keyed by server name: this project's own,
+        // then one per secondary project. Written together and compared together, so adding, editing, or
+        // removing a secondary project is what makes a config stale.
+        private static Dictionary<string, JObject> BuildExpectedManagedServerEntries(
+            string transport,
+            int port,
+            int timeout,
+            bool includeTypeField)
+        {
+            var entries = new Dictionary<string, JObject>(StringComparer.Ordinal)
+            {
+                [ChievfxMcpToolPolicy.CursorServerName] = BuildExpectedServerEntry(transport, port, timeout, includeTypeField)
+            };
+
+            foreach (var project in ChievfxMcpSecondaryProjects.Load())
+            {
+                if (ChievfxMcpSecondaryProjects.IsSamePath(project.ProjectRoot, ProjectRoot))
+                {
+                    continue;
+                }
+
+                ChievfxMcpSecondaryProjects.EnsureLauncherWritten(project);
+                entries[project.ServerName] = BuildSecondaryServerEntry(project, timeout, includeTypeField);
+            }
+
+            return entries;
+        }
+
+        // Always stdio, whatever this project's transport is: the HTTP server binds one port and belongs to
+        // this project's process, so a second project cannot share it. The client spawns the other
+        // project's launcher instead, which runs that project's own package copy.
+        private static JObject BuildSecondaryServerEntry(
+            ChievfxMcpSecondaryProject project,
+            int timeout,
+            bool includeTypeField)
+        {
+            var server = new JObject();
+            if (includeTypeField)
+            {
+                server["type"] = TransportStdio;
+            }
+
+            server["command"] = ChievfxMcpPythonLauncher.ExecutablePath;
+            server["args"] = new JArray(
+                project.LauncherScriptPath,
+                "--transport",
+                TransportStdio,
+                "--project-root",
+                project.ProjectRoot,
+                "--bridge-dir",
+                project.BridgeDirectory,
+                "--timeout",
+                timeout.ToString());
+            server["env"] = new JObject
+            {
+                [ChievfxMcpSecondaryProjects.ServerLabelEnvironmentVariable] = project.Label
+            };
+            return server;
+        }
 
         private static JObject BuildExpectedServerEntry(string transport, int port, int timeout, bool includeTypeField)
         {
@@ -2128,24 +2405,53 @@ namespace Chievfx.Mcp.Editor
 
             if (clientInfo.Format == McpClientConfigFormat.CodexToml)
             {
-                // Compare ONLY our own [mcp_servers.<name>] section, order-independently. A full-file
+                // Compare ONLY the [mcp_servers.<name>] sections we own, order-independently. A full-file
                 // compare treated any change elsewhere (other MCP servers, section ordering, Codex
                 // reformatting them) as stale and rewrote on every check — an endless rewrite loop.
-                return TryExtractCodexSection(File.ReadAllText(clientInfo.ConfigPath), ChievfxMcpToolPolicy.CursorServerName, out var actualSection)
-                    && CodexSectionMatches(actualSection, BuildExpectedCodexServerBlock(transport, port, timeout));
+                var codexText = File.ReadAllText(clientInfo.ConfigPath);
+                var expectedBlocks = BuildExpectedCodexServerBlocks(transport, port, timeout);
+                foreach (var expectedBlock in expectedBlocks)
+                {
+                    if (!TryExtractCodexSection(codexText, expectedBlock.Key, out var actualSection)
+                        || !CodexSectionMatches(actualSection, expectedBlock.Value))
+                    {
+                        return false;
+                    }
+                }
+
+                // A section we own that is no longer expected (a secondary project that was removed)
+                // makes the file stale too, so the rewrite drops it.
+                return CountManagedCodexSections(codexText, port) == expectedBlocks.Count;
             }
 
             try
             {
                 var root = JToken.Parse(File.ReadAllText(clientInfo.ConfigPath));
                 if (root is not JObject rootObj
-                    || rootObj["mcpServers"] is not JObject mcpServers
-                    || mcpServers[ChievfxMcpToolPolicy.CursorServerName] is not JToken server)
+                    || rootObj["mcpServers"] is not JObject mcpServers)
                 {
                     return false;
                 }
 
-                return JToken.DeepEquals(server, BuildExpectedServerEntry(transport, port, timeout, clientInfo.IncludeTypeField));
+                var expected = BuildExpectedManagedServerEntries(transport, port, timeout, clientInfo.IncludeTypeField);
+                foreach (var entry in expected)
+                {
+                    if (mcpServers[entry.Key] is not JToken server || !JToken.DeepEquals(server, entry.Value))
+                    {
+                        return false;
+                    }
+                }
+
+                foreach (var property in mcpServers.Properties())
+                {
+                    if (ChievfxMcpToolPolicy.IsChievfxManagedServerName(property.Name)
+                        && !expected.ContainsKey(property.Name))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
             }
             catch (Exception)
             {

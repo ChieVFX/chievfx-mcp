@@ -92,10 +92,37 @@ instructions, so the same content is placed where the client loads skills from. 
 generated (rewritten on open, content follows the local tool selection); gitignore them like the
 `mcp.json` configs.
 
+### Driving a second project (secondary projects)
+
+Some work spans two editors: a built-in and a URP copy you want compared side by side, or a server
+build and a client build the agent should be able to run both halves of. **Window > ChievFX > MCP** →
+**Secondary Projects** → **Add Project...**, then pick the other project (or any folder inside it —
+it walks up to the project root).
+
+The other project's server is then injected into *this* project's client configs alongside our own,
+and the agent gets both. Each secondary entry:
+
+- runs **that** project's launcher, so its own package copy, tool selection, and bridge stay in
+  charge of it, and it is registered under the same `unity-<hash>` name that project reports itself;
+- always uses stdio, whatever transport this project is set to — the HTTP server binds one port and
+  belongs to this project;
+- tells the agent, in one line at the top of that server's instructions, that it is the **secondary**
+  project, which folder it is, and your optional note (`server copy`, `URP`) — enough to keep two
+  editors apart, since acting on the wrong one produces a wrong answer that still looks right.
+
+The list lives in `UserSettings/ChievfxMcpSecondaryProjects.json` (machine-local paths, not
+committed). Adding, editing a note, or removing rewrites the client configs immediately; **Remove**
+never touches the other project. A project without ChievFX MCP installed is refused rather than
+added as an entry that cannot start.
+
 ## What's new in 0.3.0
 
 Everything since the initial public release (0.2.0). Highlights:
 
+- **Secondary projects.** Add another Unity project in the MCP window and its server is injected into
+  this project's client configs, so one agent session can drive two editors — built-in vs URP
+  comparisons, or a server copy plus a client copy. Each one is labelled with its folder and marked
+  as the secondary project.
 - **Client setup is automatic.** Configs for Cursor, Claude Code, Codex, Kimi Code and JetBrains
   Rider are written once per Unity session, idempotently — never rewritten when already correct,
   never clobbered on a mid-write race, and never touched while entering or in Play Mode. Configs
@@ -105,7 +132,8 @@ Everything since the initial public release (0.2.0). Highlights:
 - **Managed Python.** A portable CPython is downloaded into `~/.chievfx-mcp/env/` and reused by the
   server and the drag-and-drop installer alike. The installer no longer needs a hand-made venv.
 - **Tarball install mode.** The Python installer can install the package as a manifest `file:` `.tgz`
-  dependency with a per-version build suffix, cleaning up prior install forms first.
+  dependency with a per-version build suffix, cleaning up prior install forms first. The tarball lands
+  in `PackagesSource/` at the project root (outside `Assets/`, so Unity never imports it as an asset).
 - **Agent instructions reworked.** Startup instructions lead with the imperative and the literal call
   convention, list only unlisted domains, and inline the essential tool signatures; a per-client
   capability skill carries the full reference. Tool descriptors were trimmed across the board (with a

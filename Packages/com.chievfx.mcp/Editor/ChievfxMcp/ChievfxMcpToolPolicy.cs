@@ -122,7 +122,15 @@ namespace Chievfx.Mcp.Editor
         // because Cursor prefixes tool names with the server name, and overly long
         // fully-qualified tool names get filtered out. Used only as the mcp.json
         // key; EditorPrefs keys stay on the stable bare ServerName.
-        public static string CursorServerName => $"unity-{ProjectKeySuffix()}";
+        public static string CursorServerName => ServerNameForProjectRoot(ProjectRoot);
+
+        // The same key for any project root, so a secondary project's injected entry carries the exact
+        // name that project's own server reports at handshake (the Python side hashes the --project-root
+        // string it is handed). Feed it the identical string that goes into --project-root.
+        public static string ServerNameForProjectRoot(string projectRoot)
+        {
+            return $"unity-{ProjectKeySuffix(projectRoot)}";
+        }
 
         // True for any Cursor mcp.json key this package has ever written for the
         // current project (current short form, the legacy bare name, and the prior
@@ -252,8 +260,13 @@ namespace Chievfx.Mcp.Editor
 
         private static string ProjectKeySuffix()
         {
+            return ProjectKeySuffix(ProjectRoot);
+        }
+
+        private static string ProjectKeySuffix(string projectRoot)
+        {
             using var sha1 = SHA1.Create();
-            var hash = sha1.ComputeHash(Encoding.UTF8.GetBytes(ProjectRoot));
+            var hash = sha1.ComputeHash(Encoding.UTF8.GetBytes(projectRoot));
             var builder = new StringBuilder(8);
             for (var i = 0; i < 4; i++)
             {
@@ -365,6 +378,10 @@ namespace Chievfx.Mcp.Editor
         public static string CategorySelectionPath => Path.Combine(ProjectRoot, "UserSettings", "ChievfxMcpCategorySelection.json");
 
         public static string DebugSettingsPath => Path.Combine(ProjectRoot, "UserSettings", "ChievfxMcpDebugSettings.json");
+
+        // Other Unity projects whose MCP server is injected into this project's client configs.
+        // Machine-local absolute paths, so it lives in UserSettings (per user, not committed).
+        public static string SecondaryProjectsPath => Path.Combine(ProjectRoot, "UserSettings", "ChievfxMcpSecondaryProjects.json");
 
         public static void EnsureBridgeStarted()
         {

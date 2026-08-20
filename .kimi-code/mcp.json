@@ -1,15 +1,15 @@
 {
   "mcpServers": {
-    "unity-369f57df": {
-      "command": "/Users/evgeniy_skvortsov/.chievfx-mcp/env/bin/python3",
+    "unity-848e28b8": {
+      "command": "C:\\Users\\chiev\\.chievfx-mcp\\env\\python.exe",
       "args": [
-        "/Users/evgeniy_skvortsov/_code_/chievfx-mcp/Library/ChievfxMcpBridge/launch_server.py",
+        "C:\\_code_\\chievfx-mcp\\Library\\ChievfxMcpBridge\\launch_server.py",
         "--transport",
         "stdio",
         "--project-root",
-        "/Users/evgeniy_skvortsov/_code_/chievfx-mcp",
+        "C:\\_code_\\chievfx-mcp",
         "--bridge-dir",
-        "/Users/evgeniy_skvortsov/_code_/chievfx-mcp/Library/ChievfxMcpBridge",
+        "C:\\_code_\\chievfx-mcp\\Library\\ChievfxMcpBridge",
         "--timeout",
         "10000"
       ]

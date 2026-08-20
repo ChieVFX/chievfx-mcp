@@ -16,7 +16,13 @@ Unity windows under `Window > ChievFX > MCP *` write these files. The Python MCP
 
 Built by `build_initialize_instructions()` in `Tools~/ChievfxMcp/chievfx_mcp_server_parts/initialize_instructions.py` and returned from the MCP `initialize` response in `server_core.py`.
 
-Two layers, both filtered to **enabled** capabilities only:
+Optionally preceded by one **secondary-project label** line, then two layers, both filtered to **enabled** capabilities only:
+
+0. **Secondary-project label** from the `CHIEVFX_MCP_SERVER_LABEL` environment variable
+   - Set by the editor only on the config entry it injects for another Unity project (`ChievfxMcpSecondaryProjects` / **Secondary Projects** in the MCP window); absent for a project's own server, whose instructions are byte-identical to before
+   - Placed above the core-descriptor precondition: with two editors in one session, acting on the wrong one is a silent wrong answer, while a missed precondition only costs a re-read
+   - An environment variable rather than a CLI flag on purpose — the secondary project may run an older package build, where an unknown `--flag` makes `argparse` exit 2 while an unknown env var is ignored
+
 
 1. **Curated blurbs** from `Tools~/ChievfxMcp/chievfx_mcp_initialize_instructions.md`
    - Records keyed by `type` + `id` (`global`, `tool`, `resource`, `resourceTemplate`, `prompt`)

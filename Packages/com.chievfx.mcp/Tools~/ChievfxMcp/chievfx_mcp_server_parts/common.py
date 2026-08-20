@@ -34,6 +34,12 @@ from typing import Any
 
 SERVER_NAME = "unity-mcp-chievfx"
 SERVER_VERSION = "0.1.0"
+# Set by the Unity editor only on the config entry it injects for a SECONDARY project — another
+# project's server exposed alongside the primary one, so a single agent session can drive two
+# editors. Carried as an environment variable rather than a CLI flag because that project may run an
+# older package build, where an unknown --flag makes argparse exit 2 while an unknown env var is
+# simply ignored. Prepended to initialize.instructions so the agent knows which editor it is holding.
+SERVER_LABEL = os.environ.get("CHIEVFX_MCP_SERVER_LABEL", "").strip()
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_ROOT = Path(os.getcwd()).resolve()
 

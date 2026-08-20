@@ -52,7 +52,7 @@ def _installed_server(root):
 
 def _committed_tarball(root):
     hits = []
-    for base in ('Assets', 'Packages'):
+    for base in ('PackagesSource', 'Assets', 'Packages'):
         hits += glob.glob(os.path.join(root, base, '**', 'com.chievfx.mcp-*.tgz'), recursive=True)
     hits = [p for p in hits if os.path.isfile(p)]
     hits.sort(key=os.path.getmtime, reverse=True)
@@ -117,16 +117,23 @@ if __name__ == '__main__':
         {
             try
             {
-                var path = ChievfxMcpToolPolicy.LauncherScriptPath;
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                if (!File.Exists(path) || !string.Equals(File.ReadAllText(path), LauncherContent, StringComparison.Ordinal))
-                {
-                    File.WriteAllText(path, LauncherContent, new UTF8Encoding(false));
-                }
+                WriteLauncherTo(ChievfxMcpToolPolicy.LauncherScriptPath);
             }
             catch (Exception ex)
             {
                 Debug.LogWarning($"ChievFX MCP could not write the server launcher. {ex.Message}");
+            }
+        }
+
+        // Idempotent write of the launcher to an explicit path. The content is project-agnostic (it derives
+        // its project root from its own location), so the same bytes serve a secondary project whose own
+        // Unity has not written one yet. Throws — callers report their own context.
+        public static void WriteLauncherTo(string path)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            if (!File.Exists(path) || !string.Equals(File.ReadAllText(path), LauncherContent, StringComparison.Ordinal))
+            {
+                File.WriteAllText(path, LauncherContent, new UTF8Encoding(false));
             }
         }
     }

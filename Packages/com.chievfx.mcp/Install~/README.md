@@ -17,7 +17,8 @@ Before installing (in **either** mode), the installer removes other existing
 forms of the package from `TO` so only the mode being installed remains:
 
 - embedded/copied sources — `Packages/com.chievfx.mcp/` (and its `.meta`),
-- any `com.chievfx.mcp-*.tgz` (and `.meta`) under `Assets/` or `Packages/`.
+- any `com.chievfx.mcp-*.tgz` (and `.meta`) under `PackagesSource/`, `Assets/`, or
+  `Packages/` (plus the configured destination folder, if different).
 
 The `com.chievfx.mcp` entry in `Packages/manifest.json` is then handled by the
 chosen mode: **copy** mode removes it (an embedded package needs no manifest
@@ -32,8 +33,9 @@ Tick **Install as tarball (.tgz)** to install as a Unity tarball dependency inst
 of copying sources. For each `TO` project the installer:
 
 - removes the other existing installs of the package (see above),
-- builds the tarball into the **Destination folder** (default `Assets/Editor`,
-  editable in the UI), and
+- builds the tarball into the **Destination folder** (default `PackagesSource`
+  at the project root, editable in the UI — kept outside `Assets/` so Unity
+  never imports the tarball as an asset), and
 - sets `"com.chievfx.mcp": "file:<relative-path>.tgz"` in `Packages/manifest.json`
   — if a `com.chievfx.mcp` line already exists it is **substituted in place**
   (keeping its position), otherwise it is **inserted alphabetically** among the

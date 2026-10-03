@@ -437,7 +437,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
         internal static Type? FindType(string fullName)
         {
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            foreach (var assembly in UnityAssemblies.GetLoaded())
             {
                 try
                 {

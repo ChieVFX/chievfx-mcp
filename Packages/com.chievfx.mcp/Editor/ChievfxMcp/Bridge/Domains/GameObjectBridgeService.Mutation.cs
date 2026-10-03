@@ -398,7 +398,7 @@ namespace Chievfx.Mcp.Editor
 
         private static Type ResolveComponentType(string componentType)
         {
-            var matches = AppDomain.CurrentDomain.GetAssemblies()
+            var matches = UnityAssemblies.GetLoaded()
                 .SelectMany(GetLoadableTypes)
                 .Where(type => typeof(Component).IsAssignableFrom(type)
                     && !type.IsAbstract

@@ -739,7 +739,7 @@ namespace Chievfx.Mcp.Extensions.Ecs
 
         private static IEnumerable<Type> GetAllLoadedTypes()
         {
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            foreach (var assembly in UnityAssemblies.GetLoaded())
             {
                 Type[] types;
                 try
@@ -832,13 +832,13 @@ namespace Chievfx.Mcp.Extensions.Ecs
 
         private static Assembly? FindAssembly(string assemblyName)
         {
-            return AppDomain.CurrentDomain.GetAssemblies()
+            return UnityAssemblies.GetLoaded()
                 .FirstOrDefault(assembly => string.Equals(assembly.GetName().Name, assemblyName, StringComparison.Ordinal));
         }
 
         private static Type? FindType(string fullName)
         {
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            foreach (var assembly in UnityAssemblies.GetLoaded())
             {
                 try
                 {

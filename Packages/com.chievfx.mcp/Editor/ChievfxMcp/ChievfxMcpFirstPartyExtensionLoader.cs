@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using Chievfx.Mcp.Editor;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -68,7 +69,7 @@ namespace Chievfx.Mcp.Editor
 
         private static Assembly? FindLoadedAssembly(string assemblyName)
         {
-            return AppDomain.CurrentDomain.GetAssemblies()
+            return UnityAssemblies.GetLoaded()
                 .FirstOrDefault(assembly => string.Equals(assembly.GetName().Name, assemblyName, StringComparison.Ordinal));
         }
 
@@ -2017,7 +2018,7 @@ namespace Chievfx.Mcp.Extensions.Control
 
             private static Type? FindType(string fullName)
             {
-                return AppDomain.CurrentDomain.GetAssemblies()
+                return UnityAssemblies.GetLoaded()
                     .Select(assembly => assembly.GetType(fullName, throwOnError: false))
                     .FirstOrDefault(type => type != null);
             }

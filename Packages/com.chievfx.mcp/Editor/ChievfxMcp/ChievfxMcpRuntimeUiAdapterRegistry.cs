@@ -1388,7 +1388,7 @@ namespace Chievfx.Mcp.Editor
 
         private static Type? FindLoadedType(string fullName)
         {
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            foreach (var assembly in UnityAssemblies.GetLoaded())
             {
                 var type = assembly.GetType(fullName, throwOnError: false);
                 if (type != null)

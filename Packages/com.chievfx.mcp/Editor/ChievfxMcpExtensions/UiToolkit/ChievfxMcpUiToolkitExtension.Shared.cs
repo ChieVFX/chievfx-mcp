@@ -106,7 +106,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
         internal static Type? FindType(string fullName)
         {
-            return AppDomain.CurrentDomain.GetAssemblies()
+            return UnityAssemblies.GetLoaded()
                 .Select(assembly => assembly.GetType(fullName, throwOnError: false))
                 .FirstOrDefault(type => type != null);
         }

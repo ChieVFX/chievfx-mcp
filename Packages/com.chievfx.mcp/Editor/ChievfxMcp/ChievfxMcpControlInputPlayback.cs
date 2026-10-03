@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using Chievfx.Mcp.Editor;
 using UnityEditor;
 using UnityEngine;
 
@@ -363,7 +364,7 @@ namespace Chievfx.Mcp.Extensions.Control
 
         internal static Type? FindType(string fullName)
         {
-            return AppDomain.CurrentDomain.GetAssemblies()
+            return UnityAssemblies.GetLoaded()
                 .Select(assembly => assembly.GetType(fullName, throwOnError: false))
                 .FirstOrDefault(type => type != null);
         }
@@ -721,7 +722,7 @@ namespace Chievfx.Mcp.Extensions.Control
 
         private static Type? FindType(string fullName)
         {
-            return AppDomain.CurrentDomain.GetAssemblies()
+            return UnityAssemblies.GetLoaded()
                 .Select(assembly => assembly.GetType(fullName, throwOnError: false))
                 .FirstOrDefault(type => type != null);
         }

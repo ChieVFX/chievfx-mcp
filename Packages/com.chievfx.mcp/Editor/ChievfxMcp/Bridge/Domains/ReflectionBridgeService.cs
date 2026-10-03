@@ -175,7 +175,7 @@ namespace Chievfx.Mcp.Editor
             var methodNameFilter = ReadString(filter, "methodName") ?? string.Empty;
             var parameterFilter = ReadArray(filter, "inputParameters");
 
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            foreach (var assembly in UnityAssemblies.GetLoaded())
             {
                 Type[] types;
                 try

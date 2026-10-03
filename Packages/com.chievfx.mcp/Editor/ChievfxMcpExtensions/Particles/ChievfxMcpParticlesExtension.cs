@@ -236,7 +236,7 @@ namespace Chievfx.Mcp.Extensions.Particles
 
         internal static Type? FindLoadedType(string fullName)
         {
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            foreach (var assembly in UnityAssemblies.GetLoaded())
             {
                 Type? type;
                 try

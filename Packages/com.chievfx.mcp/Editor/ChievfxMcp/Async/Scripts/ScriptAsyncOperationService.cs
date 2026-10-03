@@ -432,7 +432,7 @@ namespace Chievfx.Mcp.Editor
                 ?? throw new InvalidOperationException("Roslyn returned no emit result.");
             diagnostics = CreateDiagnosticDtos(emitResult);
             var success = Convert.ToBoolean(ReflectionBridgeService.ReadReflectedProperty(emitResult, "Success"), CultureInfo.InvariantCulture);
-            return success ? Assembly.Load(stream.ToArray()) : null;
+            return success ? UnityAssemblies.LoadFromBytes(stream.ToArray()) : null;
         }
 
         private static readonly object roslynLoadLock = new();
@@ -441,7 +441,7 @@ namespace Chievfx.Mcp.Editor
 
         private Assembly LoadRequiredAssembly(string assemblyName)
         {
-            var assembly = AppDomain.CurrentDomain.GetAssemblies()
+            var assembly = UnityAssemblies.GetLoaded()
                 .FirstOrDefault(candidate => string.Equals(candidate.GetName().Name, assemblyName, StringComparison.Ordinal));
             if (assembly != null)
             {
@@ -492,7 +492,7 @@ namespace Chievfx.Mcp.Editor
                 TryLoadAssemblyFrom(path);
             }
 
-            return AppDomain.CurrentDomain.GetAssemblies()
+            return UnityAssemblies.GetLoaded()
                 .FirstOrDefault(candidate => string.Equals(candidate.GetName().Name, assemblyName, StringComparison.Ordinal));
         }
 
@@ -528,7 +528,7 @@ namespace Chievfx.Mcp.Editor
                 return null;
             }
 
-            var loaded = AppDomain.CurrentDomain.GetAssemblies()
+            var loaded = UnityAssemblies.GetLoaded()
                 .FirstOrDefault(candidate => string.Equals(candidate.GetName().Name, simpleName, StringComparison.Ordinal));
             if (loaded != null)
             {
@@ -542,7 +542,7 @@ namespace Chievfx.Mcp.Editor
         {
             try
             {
-                return Assembly.LoadFrom(path);
+                return UnityAssemblies.LoadFromPath(path);
             }
             catch
             {
@@ -690,17 +690,18 @@ namespace Chievfx.Mcp.Editor
 
             var references = new List<object>();
             var seenLocations = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            foreach (var assembly in UnityAssemblies.GetLoaded())
             {
                 string location;
                 try
                 {
-                    if (assembly.IsDynamic || string.IsNullOrWhiteSpace(assembly.Location))
+                    var assemblyLocation = assembly.IsDynamic ? null : UnityAssemblies.GetLocation(assembly);
+                    if (string.IsNullOrWhiteSpace(assemblyLocation))
                     {
                         continue;
                     }
 
-                    location = assembly.Location;
+                    location = assemblyLocation!;
                 }
                 catch (NotSupportedException)
                 {

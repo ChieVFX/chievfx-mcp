@@ -620,7 +620,7 @@ namespace Chievfx.Mcp.Editor
         private static Type ResolveScriptableObjectType(string typeName)
         {
             var type = Type.GetType(typeName, throwOnError: false);
-            type ??= AppDomain.CurrentDomain.GetAssemblies()
+            type ??= UnityAssemblies.GetLoaded()
                 .SelectMany(assembly =>
                 {
                     try

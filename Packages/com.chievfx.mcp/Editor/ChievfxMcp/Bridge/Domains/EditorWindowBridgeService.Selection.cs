@@ -446,7 +446,7 @@ namespace Chievfx.Mcp.Editor
 
         internal static IEnumerable<Type> GetLoadableTypes()
         {
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            foreach (var assembly in UnityAssemblies.GetLoaded())
             {
                 Type[] types;
                 try

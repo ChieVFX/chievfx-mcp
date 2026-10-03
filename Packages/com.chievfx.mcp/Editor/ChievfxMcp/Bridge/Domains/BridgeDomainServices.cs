@@ -1,5 +1,6 @@
 #nullable enable
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
@@ -54,14 +55,24 @@ namespace Chievfx.Mcp.Editor
             "GetInstanceID",
             BindingFlags.Instance | BindingFlags.Public);
 
-        private static readonly MethodInfo? EntityIdToObjectMethod = typeof(EditorUtility).GetMethod(
-            "EntityIdToObject",
-            BindingFlags.Static | BindingFlags.Public);
+        private static readonly MethodInfo? EntityIdToObjectMethod = typeof(EditorUtility)
+            .GetMethods(BindingFlags.Static | BindingFlags.Public)
+            .FirstOrDefault(method => method.Name == "EntityIdToObject"
+                && method.GetParameters().Length == 1
+                && method.GetParameters()[0].ParameterType.Name == "EntityId");
 
         private static readonly MethodInfo? EntityIdFromULongMethod = EntityIdToObjectMethod?
             .GetParameters()[0]
             .ParameterType
             .GetMethod("FromULong", BindingFlags.Static | BindingFlags.Public);
+
+        // Resolved via reflection because newer Unity versions mark it obsolete as an error (CS0619).
+        private static readonly MethodInfo? InstanceIdToObjectMethod = typeof(EditorUtility).GetMethod(
+            "InstanceIDToObject",
+            BindingFlags.Static | BindingFlags.Public,
+            null,
+            new[] { typeof(int) },
+            null);
 
         public static int GetLegacyInstanceId(UnityEngine.Object? unityObject)
         {
@@ -96,9 +107,7 @@ namespace Chievfx.Mcp.Editor
                 return entityId == null ? null : EntityIdToObjectMethod.Invoke(null, new[] { entityId }) as UnityEngine.Object;
             }
 
-#pragma warning disable CS0618
-            return EditorUtility.InstanceIDToObject(instanceId);
-#pragma warning restore CS0618
+            return InstanceIdToObjectMethod?.Invoke(null, new object[] { instanceId }) as UnityEngine.Object;
         }
     }
 }

@@ -36,6 +36,15 @@ namespace Chievfx.Mcp.Editor
         public static List<string> WriteAll()
         {
             var written = new List<string>();
+
+            // On first setup this runs before managed Python has been downloaded; the install re-runs
+            // EnsureAllClientConfigs once Python is in place, so skip quietly instead of warning.
+            if (!ChievfxMcpToolPolicy.UseSystemPython
+                && (ChievfxMcpManagedPython.IsInstallInProgress || !ChievfxMcpManagedPython.TryGetExecutablePath(out _)))
+            {
+                return written;
+            }
+
             if (!TryReadCoreDescriptors(out var body, out var error))
             {
                 Debug.LogWarning($"ChievFX MCP could not generate the {SkillName} skill. {error}");

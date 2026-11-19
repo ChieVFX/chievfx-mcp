@@ -182,6 +182,37 @@ Static resources and prompts are served directly from the MCP server manifest.
 Dynamic resources call back into Unity through the bridge and then into
 `ResourceReader`.
 
+## Tool Result Conventions
+
+An extension cannot ship a Python formatter, so a few reply fields carry the
+shape core tools get from their own formatters. All are optional.
+
+- `summary` (string): printed as the reply's first line, the way a core tool
+  opens with its headline ("tapped Play at (0.5, 0.8)"); the other fields
+  follow below it. In a `tool-batch` result each step starts with its tool's
+  summary, so a batch reads as a log of what was done. `outputFormat:"json"`
+  keeps it as an ordinary field.
+- `waitFor` (string, or a list of strings: any matches): a log substring that
+  marks the end of an action that finishes after the reply (a walk, a drive, a
+  multi-step skill). The caller can pass `awaitMs` to the same call: the server
+  takes the event cursor before calling Unity, waits for an event containing
+  `waitFor`, and appends that event (or how to keep waiting) to the reply. The
+  extension never sees `awaitMs`. Declare `awaitMs` (integer) in the tool's
+  `InputSchema` so callers find it. `completionMarker` works the same way for
+  marker beacons.
+- Without `awaitMs` the caller waits itself with `events-wait`; returning
+  `sinceEventId` (the journal's current id when the action started) lets that
+  wait catch an end that came before it was armed.
+
+Failures: throw from `ToolRunner` (the message is the error the caller sees).
+A normal return counts as success, including in `tool-batch`, which stops or
+keeps going on thrown errors only.
+
+`additionalProperties: true` in a tool's `InputSchema` tells the core the
+extension judges argument names itself (accepts aliases, or rejects unknown
+ones with its own error), so the core does not add its "Unrecognized argument
+... expect no effect" warning. Leave it out to get that warning for free.
+
 ## Manifest Fields
 
 At runtime, Unity serves extension capabilities to the MCP server through the

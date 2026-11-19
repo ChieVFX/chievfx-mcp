@@ -175,9 +175,10 @@ namespace Chievfx.Mcp.Editor
             {
                 pending.Value = pending.Method!.Invoke(null, pending.Values);
                 var truncated = false;
-                pending.ReturnValueType = pending.Value?.GetType().FullName ?? pending.Method!.ReturnType.FullName ?? "System.Void";
-                pending.SerializedReturnValue = ReflectionBridgeService.SerializeReturnValue(pending.Value, ref truncated);
+                pending.ReturnValueType = DescribeReturnType(pending.Value?.GetType() ?? pending.Method!.ReturnType);
+                pending.SerializedReturnValue = ReflectionBridgeService.SerializeReturnValue(pending.Value, ref truncated, MaxScriptReturnValueChars, out var fullText);
                 pending.ReturnValueTruncated = truncated;
+                pending.FullValuePath = fullText == null ? null : WriteFullReturnValue(fullText);
             }
             catch (TargetInvocationException ex)
             {
@@ -195,6 +196,44 @@ namespace Chievfx.Mcp.Editor
                     pending.Completion.Set();
                     CleanupCompletedScriptRequestsLocked();
                 }
+            }
+        }
+
+        // C#-style names: an anonymous object's FullName repeats every argument's assembly-qualified name and
+        // costs more tokens than the value it describes.
+        private static string DescribeReturnType(Type type)
+        {
+            if (type.Name.StartsWith("<>f__AnonymousType", StringComparison.Ordinal))
+            {
+                return "anonymous";
+            }
+
+            if (!type.IsGenericType)
+            {
+                return type.FullName ?? type.Name;
+            }
+
+            var name = type.Name;
+            var tick = name.IndexOf('`');
+            var arguments = string.Join(", ", type.GetGenericArguments().Select(DescribeReturnType));
+            return (type.Namespace == null ? string.Empty : type.Namespace + ".") + (tick < 0 ? name : name.Substring(0, tick)) + "<" + arguments + ">";
+        }
+
+        // The whole return value of a call whose reply had to cut it; the agent opens the file with its own reader.
+        private static string? WriteFullReturnValue(string fullText)
+        {
+            try
+            {
+                var directory = Path.Combine(ChievfxMcpToolPolicy.ProjectRoot, "Temp", "ChievfxMcp", "script-output");
+                Directory.CreateDirectory(directory);
+                var path = Path.Combine(directory, DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture) + ".txt");
+                File.WriteAllText(path, fullText);
+                return path;
+            }
+            catch (Exception)
+            {
+                // The trimmed value still goes back; a missing file only loses the tail.
+                return null;
             }
         }
 
@@ -236,7 +275,13 @@ namespace Chievfx.Mcp.Editor
             var parameters = ReadScriptParameters(args);
             try
             {
-                var assembly = CompileScriptAssembly(csharpCode, out var diagnostics);
+                var notes = new List<string>();
+                var assembly = CompileScriptAssembly(csharpCode, allowNonPublic: false, lineOffset: 0, out var diagnostics);
+                if (assembly == null && HasMissingNameErrors(diagnostics))
+                {
+                    assembly = CompileWithProjectAccess(csharpCode, notes, ref diagnostics);
+                }
+
                 if (assembly == null)
                 {
                     return CreateScriptExecutionFailure(
@@ -248,7 +293,8 @@ namespace Chievfx.Mcp.Editor
                         logType,
                         startedUtc,
                         timeoutMs,
-                        null);
+                        null,
+                        notes: notes);
                 }
 
                 var method = ResolveScriptMethod(assembly, className, methodName, parameters is JArray paramsArray ? paramsArray.Count : 0);
@@ -289,7 +335,8 @@ namespace Chievfx.Mcp.Editor
                             logType,
                             startedUtc,
                             timeoutMs,
-                            invocation.Exception);
+                            invocation.Exception,
+                            notes: notes);
                     }
 
                     return CreateScriptExecutionSuccess(
@@ -300,7 +347,8 @@ namespace Chievfx.Mcp.Editor
                         includeLogs,
                         logType,
                         startedUtc,
-                        timeoutMs);
+                        timeoutMs,
+                        notes);
                 }
                 catch (TargetInvocationException ex)
                 {
@@ -367,7 +415,8 @@ namespace Chievfx.Mcp.Editor
                             Exception = pending.Exception,
                             ReturnValueType = pending.ReturnValueType,
                             SerializedReturnValue = pending.SerializedReturnValue,
-                            ReturnValueTruncated = pending.ReturnValueTruncated
+                            ReturnValueTruncated = pending.ReturnValueTruncated,
+                            FullValuePath = pending.FullValuePath
                         };
                     }
                 }
@@ -385,7 +434,7 @@ namespace Chievfx.Mcp.Editor
             return ReadArray(args, "inputParameters");
         }
 
-        private Assembly? CompileScriptAssembly(string csharpCode, out Dictionary<string, object?>[] diagnostics)
+        private Assembly? CompileScriptAssembly(string csharpCode, bool allowNonPublic, int lineOffset, out Dictionary<string, object?>[] diagnostics)
         {
             var assemblyName = "ChievfxMcpScript_" + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
             var codeAnalysisAssembly = LoadRequiredAssembly(BridgeRuntimeState.RoslynAssemblyName);
@@ -403,10 +452,19 @@ namespace Chievfx.Mcp.Editor
             var outputKindType = codeAnalysisAssembly.GetType("Microsoft.CodeAnalysis.OutputKind")
                 ?? throw new NotSupportedException("Roslyn OutputKind type is unavailable.");
 
-            var syntaxTree = ReflectionBridgeService.InvokeWithOptionalParameters(FindParseTextMethod(csharpSyntaxTreeType), null, csharpCode)
+            var parseText = FindParseTextMethod(csharpSyntaxTreeType);
+            var syntaxTree = ReflectionBridgeService.InvokeWithOptionalParameters(parseText, null, csharpCode)
                 ?? throw new InvalidOperationException("Roslyn returned no syntax tree.");
-            var syntaxTrees = Array.CreateInstance(syntaxTreeType, 1);
+            var syntaxTrees = Array.CreateInstance(syntaxTreeType, allowNonPublic ? 2 : 1);
             syntaxTrees.SetValue(syntaxTree, 0);
+            if (allowNonPublic)
+            {
+                // A tree of its own: in the caller's file an assembly attribute would have to sit after its usings.
+                syntaxTrees.SetValue(
+                    ReflectionBridgeService.InvokeWithOptionalParameters(parseText, null, SkipVerificationSource)
+                    ?? throw new InvalidOperationException("Roslyn returned no syntax tree."),
+                    1);
+            }
 
             var references = CreateMetadataReferences(metadataReferenceType);
             var outputKind = Enum.Parse(outputKindType, "DynamicallyLinkedLibrary");
@@ -417,7 +475,13 @@ namespace Chievfx.Mcp.Editor
                     return parameters.Length > 0 && parameters[0].ParameterType == outputKindType;
                 })
                 ?? throw new NotSupportedException("Roslyn CSharpCompilationOptions constructor is unavailable.");
-            var options = ReflectionBridgeService.InvokeWithOptionalParameters(optionsConstructor, null, outputKind);
+            var options = ReflectionBridgeService.InvokeWithOptionalParameters(optionsConstructor, null, outputKind)
+                ?? throw new InvalidOperationException("Roslyn returned no compilation options.");
+            if (allowNonPublic)
+            {
+                options = AllowNonPublicAccess(options, compilationOptionsType, codeAnalysisAssembly, csharpAssembly);
+            }
+
             var compilation = ReflectionBridgeService.InvokeWithOptionalParameters(
                     FindCompilationCreateMethod(compilationType),
                     null,
@@ -430,7 +494,7 @@ namespace Chievfx.Mcp.Editor
             using var stream = new MemoryStream();
             var emitResult = ReflectionBridgeService.InvokeWithOptionalParameters(FindEmitMethod(compilationType), compilation, stream)
                 ?? throw new InvalidOperationException("Roslyn returned no emit result.");
-            diagnostics = CreateDiagnosticDtos(emitResult);
+            diagnostics = CreateDiagnosticDtos(emitResult, lineOffset);
             var success = Convert.ToBoolean(ReflectionBridgeService.ReadReflectedProperty(emitResult, "Success"), CultureInfo.InvariantCulture);
             return success ? UnityAssemblies.LoadFromBytes(stream.ToArray()) : null;
         }
@@ -674,6 +738,123 @@ namespace Chievfx.Mcp.Editor
                 ?? throw new NotSupportedException("Roslyn Compilation.Emit(Stream) is unavailable.");
         }
 
+        // Errors a missing using or an inaccessible member produces. Scripts probe project code, where most of what
+        // a caller needs is internal or private, and forgetting System.Linq is the commonest compile error there is.
+        private static readonly HashSet<string> MissingNameErrorIds = new(StringComparer.Ordinal)
+        {
+            "CS0103", "CS0117", "CS0122", "CS0234", "CS0246", "CS0271", "CS0272", "CS0426", "CS1061",
+        };
+
+        private static readonly string[] DefaultScriptUsings =
+        {
+            "System", "System.Collections.Generic", "System.Linq", "UnityEngine", "UnityEditor",
+        };
+
+        private static bool HasMissingNameErrors(Dictionary<string, object?>[] diagnostics)
+        {
+            return diagnostics.Any(diagnostic =>
+                string.Equals(diagnostic["severity"] as string, "Error", StringComparison.Ordinal)
+                && diagnostic["id"] is string id
+                && MissingNameErrorIds.Contains(id));
+        }
+
+        // One retry with the usings the code lacks and with internal/private members bound. It runs only after a
+        // failure, so code that already compiles never changes meaning (an added using can make a name ambiguous).
+        private Assembly? CompileWithProjectAccess(string csharpCode, List<string> notes, ref Dictionary<string, object?>[] diagnostics)
+        {
+            var addedUsings = DefaultScriptUsings
+                .Where(name => !Regex.IsMatch(csharpCode, @"^\s*using\s+" + Regex.Escape(name) + @"\s*;", RegexOptions.Multiline))
+                .ToArray();
+            var prefix = string.Concat(addedUsings.Select(name => "using " + name + ";\n"));
+            var assembly = CompileScriptAssembly(prefix + csharpCode, allowNonPublic: true, lineOffset: addedUsings.Length, out var retryDiagnostics);
+            var tried = addedUsings.Length > 0
+                ? "the missing usings (" + string.Join(", ", addedUsings) + ") and internal/private member access"
+                : "internal/private member access";
+            if (assembly == null)
+            {
+                notes.Add("Also tried " + tried + ": that did not compile either. Errors below are from your code as sent.");
+                return null;
+            }
+
+            diagnostics = retryDiagnostics;
+            notes.Add("Compiled after adding " + tried + ". Write those usings yourself next time; non-public members of loaded assemblies are reachable directly.");
+            return assembly;
+        }
+
+        // Roslyn binding internal/private members is half of it: Mono's JIT checks access again and throws
+        // FieldAccessException/MethodAccessException, ignoring IgnoresAccessChecksTo. It skips those checks for an
+        // assembly that requests SkipVerification, the permission unsafe code asks for.
+        private const string SkipVerificationSource =
+            "#pragma warning disable 618\n"
+            + "[assembly: System.Security.Permissions.SecurityPermission(System.Security.Permissions.SecurityAction.RequestMinimum, SkipVerification = true)]\n";
+
+        // IgnoreAccessibility and MetadataImportOptions.All are what the C# REPL uses to see private members; both
+        // live behind Roslyn internals, so a Roslyn without them just keeps normal accessibility.
+        private static object AllowNonPublicAccess(object options, Type compilationOptionsType, Assembly codeAnalysisAssembly, Assembly csharpAssembly)
+        {
+            try
+            {
+                var importOptionsType = codeAnalysisAssembly.GetType("Microsoft.CodeAnalysis.MetadataImportOptions");
+                var withImportOptions = importOptionsType == null ? null : compilationOptionsType.GetMethod("WithMetadataImportOptions", new[] { importOptionsType });
+                if (importOptionsType != null && withImportOptions != null)
+                {
+                    options = withImportOptions.Invoke(options, new[] { Enum.Parse(importOptionsType, "All") }) ?? options;
+                }
+
+                var binderFlagsType = csharpAssembly.GetType("Microsoft.CodeAnalysis.CSharp.BinderFlags");
+                var withBinderFlags = binderFlagsType == null
+                    ? null
+                    : compilationOptionsType.GetMethod("WithTopLevelBinderFlags", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new[] { binderFlagsType }, null);
+                if (binderFlagsType != null && withBinderFlags != null)
+                {
+                    options = withBinderFlags.Invoke(options, new[] { Enum.Parse(binderFlagsType, "IgnoreAccessibility") }) ?? options;
+                }
+            }
+            catch (Exception)
+            {
+                // Normal accessibility: the retry still adds the missing usings.
+            }
+
+            return options;
+        }
+
+        // GetMessage takes an optional IFormatProvider, so a parameterless lookup misses it and ToString() would
+        // repeat the position ("(5,1): error CS0103: ...") counted with the retry's added lines.
+        private static string ReadDiagnosticMessage(object diagnostic)
+        {
+            var getMessage = diagnostic.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                .FirstOrDefault(method => method.Name == "GetMessage" && method.GetParameters().Length <= 1);
+            var message = getMessage == null ? null : ReflectionBridgeService.InvokeWithOptionalParameters(getMessage, diagnostic) as string;
+            return message ?? diagnostic.ToString() ?? string.Empty;
+        }
+
+        // "line:column" in the caller's own code; lines of usings added by the retry are not counted.
+        private static string? DescribeDiagnosticLocation(object? location, int lineOffset)
+        {
+            if (location == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                var lineSpan = location.GetType().GetMethod("GetLineSpan", Type.EmptyTypes)?.Invoke(location, null);
+                var start = lineSpan == null ? null : ReflectionBridgeService.ReadReflectedProperty(lineSpan, "StartLinePosition");
+                if (start != null)
+                {
+                    var line = Convert.ToInt32(ReflectionBridgeService.ReadReflectedProperty(start, "Line"), CultureInfo.InvariantCulture) - lineOffset + 1;
+                    var column = Convert.ToInt32(ReflectionBridgeService.ReadReflectedProperty(start, "Character"), CultureInfo.InvariantCulture) + 1;
+                    return line >= 1 ? line + ":" + column : "added using";
+                }
+            }
+            catch (Exception)
+            {
+                // Fall through to Roslyn's own text.
+            }
+
+            return location.ToString();
+        }
+
         private Array CreateMetadataReferences(Type metadataReferenceType)
         {
             var createFromFile = metadataReferenceType
@@ -726,7 +907,7 @@ namespace Chievfx.Mcp.Editor
             return array;
         }
 
-        private Dictionary<string, object?>[] CreateDiagnosticDtos(object emitResult)
+        private Dictionary<string, object?>[] CreateDiagnosticDtos(object emitResult, int lineOffset)
         {
             var diagnostics = ReflectionBridgeService.ReadReflectedProperty(emitResult, "Diagnostics") as IEnumerable;
             if (diagnostics == null)
@@ -742,14 +923,21 @@ namespace Chievfx.Mcp.Editor
                     continue;
                 }
 
-                var message = ReflectionBridgeService.InvokeReflectedStringMethod(diagnostic, "GetMessage") ?? diagnostic.ToString() ?? string.Empty;
+                var severity = Convert.ToString(ReflectionBridgeService.ReadReflectedProperty(diagnostic, "Severity"), CultureInfo.InvariantCulture);
+                // Hidden ones ("unnecessary using") are IDE fades, not something a caller acts on.
+                if (string.Equals(severity, "Hidden", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var message = ReadDiagnosticMessage(diagnostic);
                 var location = ReflectionBridgeService.ReadReflectedProperty(diagnostic, "Location");
                 results.Add(new Dictionary<string, object?>
                 {
                     ["id"] = ReflectionBridgeService.ReadReflectedStringProperty(diagnostic, "Id"),
-                    ["severity"] = Convert.ToString(ReflectionBridgeService.ReadReflectedProperty(diagnostic, "Severity"), CultureInfo.InvariantCulture),
+                    ["severity"] = severity,
                     ["message"] = message,
-                    ["location"] = location?.ToString()
+                    ["location"] = DescribeDiagnosticLocation(location, lineOffset)
                 });
 
                 if (results.Count >= MaxScriptDiagnostics)
@@ -914,18 +1102,21 @@ namespace Chievfx.Mcp.Editor
             bool includeLogs,
             string? logType,
             DateTime startedUtc,
-            int timeoutMs)
+            int timeoutMs,
+            List<string> notes)
         {
             return new
             {
                 success = true,
                 stage = "completed",
                 method = $"{method.DeclaringType?.FullName}.{method.Name}",
+                notes = notes.Count > 0 ? notes : null,
                 result = new
                 {
                     type = invocation.ReturnValueType ?? method.ReturnType.FullName ?? "System.Void",
                     value = invocation.SerializedReturnValue,
-                    truncated = invocation.ReturnValueTruncated
+                    truncated = invocation.ReturnValueTruncated,
+                    fullValuePath = invocation.FullValuePath
                 },
                 diagnostics,
                 logs = ConsoleLogBridgeService.CreateLogOutputs(logStartIndex, includeLogs, logType, includeStackTrace: false, DefaultScriptLogEntries),
@@ -944,7 +1135,8 @@ namespace Chievfx.Mcp.Editor
             DateTime startedUtc,
             int timeoutMs,
             Exception? exception,
-            bool stillRunning = false)
+            bool stillRunning = false,
+            List<string>? notes = null)
         {
             return new
             {
@@ -956,6 +1148,7 @@ namespace Chievfx.Mcp.Editor
                     type = exception?.GetType().FullName,
                     stack = exception == null ? null : TrimExceptionStack(exception)
                 },
+                notes = notes is { Count: > 0 } ? notes : null,
                 diagnostics,
                 logs = ConsoleLogBridgeService.CreateLogOutputs(logStartIndex, includeLogs, logType, includeStackTrace: false, DefaultScriptLogEntries),
                 durationMs = (int)Math.Round((DateTime.UtcNow - startedUtc).TotalMilliseconds),

@@ -317,6 +317,13 @@ namespace Chievfx.Mcp.Editor
 
         internal static object? SerializeReturnValue(object? value, ref bool truncated)
         {
+            return SerializeReturnValue(value, ref truncated, MaxReturnValueChars, out _);
+        }
+
+        // fullText is the untrimmed string or JSON whenever the value was cut, so a caller can keep it elsewhere.
+        internal static object? SerializeReturnValue(object? value, ref bool truncated, int maxChars, out string? fullText)
+        {
+            fullText = null;
             if (value == null)
             {
                 return null;
@@ -325,7 +332,9 @@ namespace Chievfx.Mcp.Editor
             var type = value.GetType();
             if (type == typeof(string))
             {
-                return TrimText((string)value, MaxReturnValueChars, ref truncated);
+                var text = (string)value;
+                fullText = text.Length > maxChars ? text : null;
+                return TrimText(text, maxChars, ref truncated);
             }
 
             if (type.IsPrimitive || type.IsEnum || type == typeof(decimal))
@@ -345,7 +354,8 @@ namespace Chievfx.Mcp.Editor
             try
             {
                 var rawJson = JsonConvert.SerializeObject(value, type, BridgeRuntimeState.JsonOptions);
-                return TrimText(rawJson, MaxReturnValueChars, ref truncated);
+                fullText = rawJson.Length > maxChars ? rawJson : null;
+                return TrimText(rawJson, maxChars, ref truncated);
             }
             catch (Exception ex)
             {

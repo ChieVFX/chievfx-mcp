@@ -126,6 +126,8 @@ namespace Chievfx.Mcp.Editor
         public object? SerializedReturnValue { get; set; }
 
         public bool ReturnValueTruncated { get; set; }
+
+        public string? FullValuePath { get; set; }
     }
 
     internal sealed class PendingScriptInvocationRequest
@@ -165,6 +167,8 @@ namespace Chievfx.Mcp.Editor
         public object? SerializedReturnValue { get; set; }
 
         public bool ReturnValueTruncated { get; set; }
+
+        public string? FullValuePath { get; set; }
     }
 
     internal sealed class PendingTestRequest

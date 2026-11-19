@@ -1,6 +1,6 @@
 {
   "name": "script-execute",
-  "description": "Last resort: check chievfx://instructions/core-descriptors first \u2014 a purpose-built tool usually exists. Compiles and runs caller-provided C# without writing project files. Entry point convention: a static Main method (any access level, any return type); otherwise pass methodName/className. A script defining exactly one public static method runs it without needing Main.",
+  "description": "Last resort: check chievfx://instructions/core-descriptors for a purpose-built tool first. Compiles and runs C# without writing files; entry: static Main, or methodName/className. Each call is a new assembly (statics reset): keep values in ChievfxMcpScriptState.Set/Get, register undo of handlers/objects with ChievfxMcpScriptState.OnCleanup. Missing usings and private members are retried.",
   "inputSchema": {
     "type": "object",
     "properties": {

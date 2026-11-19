@@ -41,6 +41,10 @@ namespace Chievfx.Mcp.Editor
         public const int MaxSerializedFields = 80;
         public const int MaxSerializedStringChars = 500;
         public const int MaxReturnValueChars = 4000;
+
+        // script-execute is where agents dump state they assembled themselves, so it gets more room than a
+        // reflection call; anything longer goes whole to a file under Temp/ and the reply gives its path.
+        public const int MaxScriptReturnValueChars = 12000;
         public const int DefaultPackageMaxResults = 10;
         public const int HardPackageMaxResults = 50;
         public const int MaxPackageIdChars = 512;

@@ -348,11 +348,57 @@ def format_tool_batch_text(result: dict[str, Any]) -> str:
             continue
         if not row.get("ok"):
             lines.append(f"{number} {row.get('tool')} FAILED: {row.get('error')}")
+            # A tool that replied with its failure: the reply itself says what went wrong.
+            lines.extend("  " + line for line in str(row.get("text") or "").splitlines())
             continue
         text_lines = str(row.get("text") or "").splitlines() or ["(no output)"]
         lines.append(f"{number} {row.get('tool')}: {text_lines[0]}")
         lines.extend("  " + line for line in text_lines[1:])
     return "\n".join(lines)
+
+
+def describe_reported_failure(raw_result: Any) -> str | None:
+    """Why a tool's reply counts as a failed step, or None when it does not.
+
+    Most tools throw on failure, but some answer with it: script-execute success:false (compile or runtime
+    error), input and extension tools ok:false. A batch that reads those as done runs its next steps on a
+    state the failed step never produced.
+    """
+    if not isinstance(raw_result, dict):
+        return None
+    if raw_result.get("success") is False:
+        flag = "success:false"
+    elif raw_result.get("ok") is False:
+        flag = "ok:false"
+    else:
+        return None
+    stage = raw_result.get("stage")
+    detail = f"replied {flag}" + (f" (stage:{stage})" if isinstance(stage, str) and stage else "")
+    errors = raw_result.get("errors")
+    reason = next((item for item in errors if isinstance(item, str) and item), None) if isinstance(errors, list) else None
+    for key in ("error", "message"):
+        if reason is None and isinstance(raw_result.get(key), str) and raw_result.get(key):
+            reason = raw_result[key]
+    return f"{detail}: {compact_event_message(reason)}" if reason else detail
+
+
+def without_wait_advice(raw_result: Any) -> Any:
+    """The reply minus what it offers for waiting by hand: a hint naming awaitMs or events-wait, and its cursor.
+
+    Used when the caller passed awaitMs: the server waits and puts the outcome first, with its own cursor
+    when the end has not come yet, so advice to pass awaitMs next time and a second cursor are noise.
+    """
+    if not isinstance(raw_result, dict):
+        return raw_result
+    advice_keys = [
+        key
+        for key in ("hint", "wait")
+        if isinstance(raw_result.get(key), str) and ("awaitMs" in raw_result[key] or "events-wait" in raw_result[key])
+    ]
+    advice_keys += [key for key in ("sinceEventId", "eventCursorBefore") if key in raw_result]
+    if not advice_keys:
+        return raw_result
+    return {key: value for key, value in raw_result.items() if key not in advice_keys}
 
 
 def format_await_outcome_text(outcome: dict[str, Any], wait_arguments: dict[str, Any]) -> str:
@@ -931,7 +977,8 @@ def attach_result_notice(result: Any, notice: str) -> bool:
         # Only extend a result that already carries text. An image-only result has a shape callers
         # rely on, so leave its content list alone and let structuredContent carry the notice.
         if any(isinstance(block, dict) and block.get("type") == "text" for block in content):
-            content.append({"type": "text", "text": notice})
+            # Some clients join text blocks with nothing between them ("ok:true! awaitMs ignored").
+            content.append({"type": "text", "text": "\n" + notice})
             delivered = True
 
     structured = result.get("structuredContent")
@@ -944,6 +991,32 @@ def attach_result_notice(result: Any, notice: str) -> bool:
         delivered = True
 
     return delivered
+
+
+def prepend_result_headline(result: Any, line: str) -> bool:
+    """Put a line first in a tool result's text, for an outcome that supersedes the reply's own headline.
+
+    awaitMs is the case: the tool's summary was written when the action started ("GoTo#3 running"), and a
+    caller who reads the first line must see how it ended. Falls back to a trailing notice without text.
+    """
+    if not isinstance(result, dict):
+        return False
+    content = result.get("content")
+    text_block = next(
+        (block for block in content if isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str)),
+        None,
+    ) if isinstance(content, list) else None
+    if text_block is None:
+        return attach_result_notice(result, line)
+    text_block["text"] = line + ("\n" + text_block["text"] if text_block["text"] else "")
+    structured = result.get("structuredContent")
+    if isinstance(structured, dict):
+        notices = structured.get("notices")
+        if not isinstance(notices, list):
+            notices = []
+            structured["notices"] = notices
+        notices.insert(0, line)
+    return True
 
 
 def with_unknown_argument_warning(result: Any, name: str, arguments: Any) -> Any:

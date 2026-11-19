@@ -256,7 +256,13 @@ class McpServerCore:
 
         return render_static_prompt(prompt, arguments)
 
-    def call_tool(self, params: dict[str, Any], request_id: Any = None, notify: Any | None = None) -> dict[str, Any]:
+    def call_tool(
+        self,
+        params: dict[str, Any],
+        request_id: Any = None,
+        notify: Any | None = None,
+        raw_sink: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         # Single chokepoint for every tool: dispatch, then surface any argument the tool does not
         # declare. Silently dropping a mistyped argument (outputPath vs savePath) sends the caller
         # hunting for an effect that never happened.
@@ -265,7 +271,9 @@ class McpServerCore:
         # The cursor is taken before the call, so an end logged while the tool is still replying is
         # inside the window: the race that made a separate events-wait miss short actions cannot happen.
         await_cursor = self.event_stream_last_id(self.read_event_stream()) if await_ms is not None else 0
-        raw_sink: dict[str, Any] = {}
+        raw_sink = raw_sink if raw_sink is not None else {}
+        # The reply's own "how to wait" advice is moot once the server waits for the end itself.
+        raw_sink["awaiting"] = await_ms is not None
         result = self._dispatch_tool_call(params, request_id, notify, raw_sink)
         self._remember_async_action(raw_sink.get("result"), await_cursor if await_ms is not None else None)
         if isinstance(name, str):
@@ -302,6 +310,9 @@ class McpServerCore:
                 "(inside a tool-batch step's args), or use events-wait timeoutMs."
             )
         value = arguments.get("awaitMs")
+        # Clients send an argument their copy of the schema lacks as a string ("3000").
+        if isinstance(value, str) and value.strip().isdigit():
+            value = int(value.strip())
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise ToolCallError("awaitMs must be a non-negative integer (milliseconds).")
         stripped = {key: item for key, item in arguments.items() if key != "awaitMs"}
@@ -316,7 +327,7 @@ class McpServerCore:
         cursor: int,
         request_id: Any,
     ) -> dict[str, Any]:
-        """Waits for the end event a tool named in its reply (waitFor, or completionMarker) and appends it."""
+        """Waits for the end event a tool named in its reply (waitFor, or completionMarker); its outcome becomes the first line."""
         wait_for = raw_result.get("waitFor") if isinstance(raw_result, dict) else None
         marker = raw_result.get("completionMarker") if isinstance(raw_result, dict) else None
         has_wait_for = (isinstance(wait_for, str) and bool(wait_for)) or (
@@ -335,7 +346,7 @@ class McpServerCore:
         else:
             wait_arguments["marker"] = marker
         outcome = self.events_wait(wait_arguments, request_id)
-        attach_result_notice(result, format_await_outcome_text(outcome, wait_arguments))
+        prepend_result_headline(result, format_await_outcome_text(outcome, wait_arguments))
         return result
 
     def _with_core_descriptor_reminder(self, result: Any, name: str) -> Any:
@@ -624,6 +635,8 @@ class McpServerCore:
         result = bridge_result.get("result")
         if raw_sink is not None:
             raw_sink["result"] = result
+            if raw_sink.get("awaiting"):
+                result = without_wait_advice(result)
         if force_ui_control_find_json:
             if not isinstance(result, dict):
                 retry_arguments = dict(arguments)
@@ -844,8 +857,9 @@ class McpServerCore:
                 continue
 
             tool_name = step["tool"]
+            step_raw: dict[str, Any] = {}
             try:
-                result = self.call_tool({"name": tool_name, "arguments": dict(step["args"])}, request_id, notify)
+                result = self.call_tool({"name": tool_name, "arguments": dict(step["args"])}, request_id, notify, step_raw)
             except Exception as exc:  # noqa: BLE001 - one step's failure is that step's answer.
                 rows.append({"index": index, "tool": tool_name, "ok": False, "error": str(exc)})
                 if stop_on_error:
@@ -855,14 +869,20 @@ class McpServerCore:
             content = result.get("content") if isinstance(result, dict) else None
             blocks = content if isinstance(content, list) else []
             text = "\n".join(
-                block["text"] for block in blocks if isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str)
+                block["text"].strip("\n") for block in blocks if isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str)
             )
             step_images = [block for block in blocks if isinstance(block, dict) and block.get("type") == "image"]
-            row = {"index": index, "tool": tool_name, "ok": True, "text": text}
+            # A tool that answers instead of throwing (script-execute success:false, input ok:false) still failed.
+            failure = describe_reported_failure(step_raw.get("result"))
+            row = {"index": index, "tool": tool_name, "ok": failure is None, "text": text}
+            if failure is not None:
+                row["error"] = failure
             if step_images:
                 row["imageCount"] = len(step_images)
                 images.extend({"index": index, "block": block} for block in step_images)
             rows.append(row)
+            if failure is not None and stop_on_error:
+                break
 
         failed_count = sum(1 for row in rows if not row["ok"])
         batch = {
@@ -904,7 +924,12 @@ class McpServerCore:
             if not isinstance(raw, dict):
                 problems.append(f"step {index + 1}: must be an object")
                 continue
-            if "waitMs" in raw and "tool" not in raw:
+            if "waitMs" in raw and "tool" in raw:
+                problems.append(
+                    f"step {index + 1}: a pause is a step of its own ({{waitMs}}); to wait for this step's end put awaitMs in its args"
+                )
+                continue
+            if "waitMs" in raw:
                 wait_ms = raw.get("waitMs")
                 if isinstance(wait_ms, bool) or not isinstance(wait_ms, int) or wait_ms < 0:
                     problems.append(f"step {index + 1}: waitMs must be a non-negative integer")

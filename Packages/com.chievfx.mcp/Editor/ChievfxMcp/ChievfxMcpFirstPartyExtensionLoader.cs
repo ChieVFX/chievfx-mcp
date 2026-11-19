@@ -278,10 +278,13 @@ namespace Chievfx.Mcp.Extensions.Control
             var keyName = ReadString(args, "key") ?? ReadString(args, "targetKey") ?? string.Empty;
             var dryRun = ResolveDryRun(args);
             var holdFrames = ReadHoldFrames(args);
+            var holdMs = ReadDouble(args, "durationMs", 0d);
             var errors = new List<string>();
             var warnings = new List<string>();
             var queued = new List<object>();
             if (!OneOf(action, "down", "up", "tap")) errors.Add("action must be one of: down, up, tap.");
+            if (holdMs < 0d || holdMs > 60000d) errors.Add("durationMs must be between 0 and 60000.");
+            if (holdMs > 0d && action != "tap") warnings.Add("durationMs applies to tap only; down/up are single events.");
             if (api.Keyboard == null) errors.Add("Keyboard.current is null; no keyboard device is available.");
             if (!api.TryKey(keyName, out var key, out var keyError)) errors.Add(keyError);
             object? control = null;
@@ -303,7 +306,7 @@ namespace Chievfx.Mcp.Extensions.Control
                         completionMarker = ChievfxMcpControlInputPlayback.Schedule("keyboard-tap", new[]
                         {
                             new ChievfxMcpControlInputPlayback.Step { FrameGapBefore = 0, Dispatch = () => api.QueueKeyboardKey(key!, true, -1d) },
-                            new ChievfxMcpControlInputPlayback.Step { FrameGapBefore = holdFrames, Dispatch = () => api.QueueKeyboardKey(key!, false, -1d) },
+                            new ChievfxMcpControlInputPlayback.Step { FrameGapBefore = holdFrames, SecondsGapBefore = holdMs / 1000d, Dispatch = () => api.QueueKeyboardKey(key!, false, -1d) },
                         });
                     }
                     else
@@ -315,6 +318,15 @@ namespace Chievfx.Mcp.Extensions.Control
 
             var mutated = !dryRun && errors.Count == 0;
             var result = Result("input-control-keyboard-event", "Keyboard", action, dryRun, mutated, queued.ToArray(), warnings.ToArray(), errors.ToArray());
+            if (action == "tap")
+            {
+                result["holdFrames"] = holdFrames;
+                if (holdMs > 0d)
+                {
+                    result["holdMs"] = holdMs;
+                }
+            }
+
             return WithScheduling(result, completionMarker, mutated);
         }
 
@@ -1262,8 +1274,9 @@ namespace Chievfx.Mcp.Extensions.Control
             ["action"] = Enum("Keyboard action. Required (alias: eventType).", "down", "up", "tap"),
             ["eventType"] = Enum("Alias for action.", "down", "up", "tap"),
             ["key"] = Str("Input System Key enum name."),
-            ["durationMs"] = Num("Optional metadata; tap queues down then up."),
+            ["durationMs"] = Num("Tap: hold the key at least this long (ms), as well as holdFrames."),
             ["holdFrames"] = Int("Player frames to hold the key during tap. Default 2, range 1..300."),
+            ["awaitMs"] = AwaitMs(),
             ["dryRun"] = Bool("Report intended events without input mutation. Defaults to !allowStateMutation, so allowStateMutation=true alone performs a real run."),
             ["allowStateMutation"] = Bool("Deprecated and optional; real injection is the default in Play Mode. Set dryRun:true to preview instead."),
         }, "key");
@@ -1279,6 +1292,7 @@ namespace Chievfx.Mcp.Extensions.Control
             },
             ["holdFrames"] = Int("Player frames to hold each key. Default 2."),
             ["gapFrames"] = Int("Player frames between keys. Default 2."),
+            ["awaitMs"] = AwaitMs(),
             ["dryRun"] = Bool("Preview without injecting (default false)."),
             ["allowStateMutation"] = Bool("Deprecated no-op; real injection is the default."),
         });
@@ -1294,6 +1308,7 @@ namespace Chievfx.Mcp.Extensions.Control
             ["y"] = Num("Alias for position.y (pair with x)."),
             ["delta"] = Vector("Relative mouse delta."),
             ["holdFrames"] = Int("Player frames to hold the button during tap. Default 2, range 1..300."),
+            ["awaitMs"] = AwaitMs(),
             ["capturePointer"] = Bool("Route injection through a virtual mouse and disable physical mice so the OS cursor cannot overwrite injected positions. Default true; ends on Play Mode exit or input-control-pointer-capture end."),
             ["dryRun"] = Bool("Report intended events without input mutation. Defaults to !allowStateMutation, so allowStateMutation=true alone performs a real run."),
             ["allowStateMutation"] = Bool("Deprecated and optional; real injection is the default in Play Mode. Set dryRun:true to preview instead."),
@@ -1314,6 +1329,7 @@ namespace Chievfx.Mcp.Extensions.Control
             ["ease"] = Enum("Interpolation curve.", "inout", "in", "out"),
             ["includeDown"] = Bool("Press at the start (default true)."),
             ["includeUp"] = Bool("Release at the end (default true)."),
+            ["awaitMs"] = AwaitMs(),
             ["capturePointer"] = Bool("Route through a virtual mouse so the OS cursor can't overwrite positions (default true)."),
             ["dryRun"] = Bool("Preview without injecting (default false)."),
             ["allowStateMutation"] = Bool("Deprecated no-op; real injection is the default."),
@@ -1330,9 +1346,13 @@ namespace Chievfx.Mcp.Extensions.Control
             ["y"] = Num("Alias for position.y (pair with x)."),
             ["delta"] = Vector("Relative touch delta for move/up metadata."),
             ["holdFrames"] = Int("Player frames to hold the touch during tap. Default 2, range 1..300."),
+            ["awaitMs"] = AwaitMs(),
             ["dryRun"] = Bool("Report intended events without input mutation. Defaults to !allowStateMutation, so allowStateMutation=true alone performs a real run."),
             ["allowStateMutation"] = Bool("Deprecated and optional; real injection is the default in Play Mode. Set dryRun:true to preview instead."),
         });
+
+        // Taken off the call by the ChievFX server, which waits for this tool's completionMarker and appends the end.
+        private static JObject AwaitMs() => Int("Wait up to this many ms for the input to finish; the end comes in this reply.");
 
         private static JObject PointerCaptureSchema() => Schema(new JObject
         {

@@ -23,6 +23,8 @@ namespace Chievfx.Mcp.Extensions.Control
         internal sealed class Step
         {
             public int FrameGapBefore;
+            // Real time since the previous step, on top of FrameGapBefore: a hold the caller asked for in ms.
+            public double SecondsGapBefore;
             public Action Dispatch = () => { };
         }
 
@@ -54,6 +56,7 @@ namespace Chievfx.Mcp.Extensions.Control
         private static long sequenceCounter;
         private static long updateCounter;
         private static long lastDispatchUpdate = -1_000_000L;
+        private static double lastDispatchTime;
         private static PropertyInfo? currentUpdateTypeProperty;
         private static MethodInfo? changeStateMethod;
 
@@ -309,7 +312,13 @@ namespace Chievfx.Mcp.Extensions.Control
                 return;
             }
 
+            if (EditorApplication.timeSinceStartup - lastDispatchTime < step.SecondsGapBefore)
+            {
+                return;
+            }
+
             lastDispatchUpdate = updateCounter;
+            lastDispatchTime = EditorApplication.timeSinceStartup;
             try
             {
                 step.Dispatch();

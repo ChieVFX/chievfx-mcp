@@ -149,9 +149,13 @@ class ExtensionResultTests(unittest.TestCase):
         result = self.call("demo-act", {"target": "home", "awaitMs": 2000})
 
         text = self.text_of(result)
-        self.assertTrue(text.startswith("Driving"), text)
-        self.assertIn("awaited", text)
-        self.assertIn("#2 [demo][task] Drive#3 done arrived", text)
+        # The end comes first: the summary was written when the action started.
+        lines = text.splitlines()
+        self.assertTrue(lines[0].startswith("awaited"), text)
+        self.assertIn("#2 [demo][task] Drive#3 done arrived", lines[0])
+        self.assertEqual(lines[1], "Driving")
+        # One cursor only: the reply's own is for waiting by hand.
+        self.assertNotIn("sinceEventId", text)
         # The bridge (and the extension behind it) never sees awaitMs.
         self.assertEqual(self.bridge_calls, [("demo-act", {"target": "home"})])
 
@@ -186,6 +190,60 @@ class ExtensionResultTests(unittest.TestCase):
         with self.assertRaises(mcp.ToolCallError):
             self.call("events-wait", {"contains": "x", "awaitMs": 10})
 
+    def test_await_ms_as_a_numeric_string_is_accepted(self) -> None:
+        # A client whose schema lacks awaitMs sends it as a string.
+        self.fake_bridge({"completionMarker": "tap-7"}, events_during_call=[{**self.log_event(3, "tap done"), "marker": "tap-7"}])
+
+        text = self.text_of(self.call("demo-act", {"awaitMs": "2000"}))
+
+        self.assertIn("awaited", text)
+        self.assertEqual(self.bridge_calls, [("demo-act", {})])
+
+    def test_await_ms_drops_the_replys_own_wait_advice(self) -> None:
+        reply = {
+            "summary": "Driving",
+            "waitFor": "[demo][task] Drive#5",
+            "wait": "pass awaitMs (e.g. 20000) to get the end in the reply",
+            "hint": "Await: pass awaitMs to this call next time, or events-wait marker=x",
+            "target": "home",
+        }
+        self.fake_bridge(dict(reply), events_during_call=[self.log_event(4, "[demo][task] Drive#5 done")])
+
+        awaited = self.text_of(self.call("demo-act", {"awaitMs": 2000}))
+        self.fake_bridge(dict(reply))
+        plain = self.text_of(self.call("demo-act", {}))
+
+        self.assertNotIn("pass awaitMs", awaited)
+        self.assertIn("home", awaited)
+        self.assertIn("pass awaitMs", plain)
+
+    def test_batch_stops_at_a_step_that_replies_with_its_failure(self) -> None:
+        self.fake_bridge({"success": False, "stage": "runtime", "error": "boom-in-step"})
+
+        result = self.call("tool-batch", {"steps": [{"tool": "demo-act", "args": {}}, {"waitMs": 1}]})
+
+        text = self.text_of(result)
+        self.assertTrue(text.startswith("tool-batch: 0 of 2 ok, 1 failed, 1 not run"), text)
+        self.assertIn("1 demo-act FAILED: replied success:false (stage:runtime): boom-in-step", text)
+
+    def test_batch_ok_false_reply_counts_as_failed_but_runs_on_when_asked(self) -> None:
+        self.fake_bridge({"ok": False, "status": "failed", "errors": ["Play Mode required."]})
+
+        result = self.call("tool-batch", {"steps": [{"tool": "demo-act", "args": {}}, {"waitMs": 1}], "stopOnError": False})
+
+        text = self.text_of(result)
+        self.assertTrue(text.startswith("tool-batch: 1 of 2 ok, 1 failed"), text)
+        self.assertIn("FAILED: replied ok:false: Play Mode required.", text)
+
+    def test_batch_step_with_both_tool_and_wait_ms_is_rejected_before_running(self) -> None:
+        self.fake_bridge({"summary": "Driving"})
+
+        with self.assertRaises(mcp.ToolCallError) as caught:
+            self.call("tool-batch", {"steps": [{"tool": "demo-act", "args": {}, "waitMs": 500}]})
+
+        self.assertIn("a pause is a step of its own", str(caught.exception))
+        self.assertEqual(self.bridge_calls, [])
+
     def test_batch_step_with_await_ms_reports_the_end(self) -> None:
         self.write_events([self.log_event(1, "[demo] boot")])
         self.fake_bridge(
@@ -197,7 +255,8 @@ class ExtensionResultTests(unittest.TestCase):
 
         text = self.text_of(result)
         self.assertTrue(text.startswith("tool-batch: 2 of 2 ok"), text)
-        self.assertIn("\n1 demo-act: Driving", text)
+        self.assertIn("\n1 demo-act: awaited", text)
+        self.assertIn("\n  Driving", text)
         self.assertIn("#2 [demo][task] Drive#3 done", text)
 
     def test_batch_carries_step_images(self) -> None:

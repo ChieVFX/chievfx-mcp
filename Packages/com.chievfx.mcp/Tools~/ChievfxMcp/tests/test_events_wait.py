@@ -95,6 +95,46 @@ class EventsWaitTests(unittest.TestCase):
         self.assertEqual(result["firedBeforeWait"]["eventId"], 1)
         self.assertIn("sinceEventId:1", result["hint"])
 
+    def test_fired_before_wait_is_not_handed_back_to_the_next_bare_wait(self) -> None:
+        # An "act, wait" loop without cursors must not get the previous answer again instantly.
+        self.write_events([self.marker_event(1, "just-fired")])
+
+        first = self.server.events_wait({"marker": "just-fired", "timeoutMs": 5000}, request_id="first-wait")
+        second = self.server.events_wait({"marker": "just-fired", "timeoutMs": 20}, request_id="second-wait")
+
+        self.assertEqual(first["firedBeforeWait"]["eventId"], 1)
+        self.assertTrue(second["timedOut"])
+        self.assertNotIn("firedBeforeWait", second)
+
+    def test_matched_event_is_not_reported_as_fired_before_the_next_bare_wait(self) -> None:
+        self.write_events([self.marker_event(1, "older"), self.marker_event(2, "done-marker")])
+
+        matched = self.server.events_wait({"marker": "done-marker", "sinceEventId": 1, "timeoutMs": 200}, request_id="m")
+        bare = self.server.events_wait({"marker": "done-marker", "timeoutMs": 20}, request_id="b")
+
+        self.assertTrue(matched["matched"])
+        self.assertTrue(bare["timedOut"])
+        self.assertNotIn("firedBeforeWait", bare)
+
+    def test_cursor_far_ahead_of_the_journal_is_called_out(self) -> None:
+        # An epoch-millisecond id (once leaked by the verbose status) silently matched nothing.
+        self.write_events([self.marker_event(1, "older")])
+
+        waited = self.server.events_wait({"marker": "x", "sinceEventId": 1795130183483, "timeoutMs": 20}, request_id="ahead")
+        checked = self.server.events_check_since({"sinceEventId": 1795130183483})
+
+        self.assertTrue(waited["diagnostic"]["cursorAhead"])
+        self.assertIn("ahead of the newest event 1", checked["warning"])
+
+    def test_verbose_status_cursor_ignores_operation_records(self) -> None:
+        self.write_events([self.marker_event(7, "older")])
+        mcp.write_json_file_atomic(self.bridge_dir / "state.json", {"lastEventId": 7, "heartbeatUtc": mcp.utc_now_iso()})
+        self.server.write_operation_record("op1", {"operationId": "op1", "toolName": "x", "state": "completed", "eventId": 1795130183483})
+
+        verbose = self.server.get_bridge_status({"verbose": True})
+
+        self.assertEqual(verbose["lastEventId"], 7)
+
     def test_explicit_cursor_skips_the_fired_before_check(self) -> None:
         self.write_events([self.marker_event(1, "just-fired")])
 

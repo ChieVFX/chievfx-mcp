@@ -48,7 +48,7 @@ namespace Chievfx.Mcp.Editor
         // Missing key or another type: default, so a first call can start from scratch with ?? .
         public static T? Get<T>(string key)
         {
-            return Values.TryGetValue(key, out var value) && value is T typed ? typed : default;
+            return TryGet<T>(key, out var value) ? value : default;
         }
 
         public static bool TryGet<T>(string key, out T value)
@@ -59,8 +59,23 @@ namespace Chievfx.Mcp.Editor
                 return true;
             }
 
+            if (stored != null)
+            {
+                WarnTypeMismatch(key, stored.GetType(), typeof(T));
+            }
+
             value = default!;
             return false;
+        }
+
+        // A stored value that is not a T reads as "missing", which hides the commonest slip: a type the script
+        // declared itself, since every call compiles it into a new assembly where it is another type.
+        private static void WarnTypeMismatch(string key, Type storedType, Type requestedType)
+        {
+            var reason = string.Equals(storedType.FullName, requestedType.FullName, StringComparison.Ordinal)
+                ? $"'{storedType.FullName}' was declared by an earlier script; each script-execute call compiles a new copy of it. Store types from loaded assemblies (or read it as object/dynamic)."
+                : $"it holds {storedType.FullName}, not {requestedType.FullName}.";
+            Debug.LogWarning($"[ChievFX MCP] ChievfxMcpScriptState '{key}' read as default: {reason}");
         }
 
         public static bool Remove(string key)

@@ -88,6 +88,29 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
         }
 
         [UnityTest]
+        public IEnumerator KeyboardTapHoldsForDurationMs()
+        {
+            RequireInputSystem();
+            EnsureInputDevice("Keyboard");
+            var probe = Track(new GameObject("InputMcpKeyboardHoldProbe")).AddComponent<KeyboardEdgeProbe>();
+            probe.KeyName = "F8";
+            yield return null;
+
+            var result = RunControlTool("input-control-keyboard-event", "{'action':'tap','key':'F8','durationMs':300}");
+            Assert.AreEqual(true, result["ok"], DescribeRow(result));
+            Assert.AreEqual(300d, Convert.ToDouble(result["holdMs"], CultureInfo.InvariantCulture), DescribeRow(result));
+
+            var deadline = Time.realtimeSinceStartupAsDouble + 3d;
+            while (probe.ReleaseEdges == 0 && Time.realtimeSinceStartupAsDouble < deadline)
+            {
+                yield return null;
+            }
+
+            Assert.AreEqual(1, probe.ReleaseEdges, "The tap should end within a few seconds.");
+            Assert.GreaterOrEqual(probe.ReleaseTime - probe.PressTime, 0.28d, "durationMs should hold the key that long, not just holdFrames.");
+        }
+
+        [UnityTest]
         public IEnumerator KeyboardSequenceProducesFrameVisibleEdgesPerKey()
         {
             RequireInputSystem();
@@ -148,6 +171,8 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
             public int PressEdges;
             public int ReleaseEdges;
             public int HeldFrames;
+            public double PressTime;
+            public double ReleaseTime;
 
             private void Update()
             {
@@ -157,8 +182,18 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
                     return;
                 }
 
-                if (ReadBool(control, "wasPressedThisFrame")) PressEdges++;
-                if (ReadBool(control, "wasReleasedThisFrame")) ReleaseEdges++;
+                if (ReadBool(control, "wasPressedThisFrame"))
+                {
+                    PressEdges++;
+                    PressTime = Time.realtimeSinceStartupAsDouble;
+                }
+
+                if (ReadBool(control, "wasReleasedThisFrame"))
+                {
+                    ReleaseEdges++;
+                    ReleaseTime = Time.realtimeSinceStartupAsDouble;
+                }
+
                 if (ReadBool(control, "isPressed")) HeldFrames++;
             }
 

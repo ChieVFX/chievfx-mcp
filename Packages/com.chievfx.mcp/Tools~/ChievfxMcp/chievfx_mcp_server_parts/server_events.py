@@ -122,11 +122,8 @@ class EventsStatusMixin:
         processing_count = self.count_files(self.request_dir, "*.processing")
         pending_response_count = self.count_files(self.response_dir, "*.json")
         cancellation_count = self.count_files(self.cancel_dir, "*.json")
+        # Only the journal's cursor: an operation record the server itself wrote carries no journal id.
         last_event_id = heartbeat.get("lastEventId") if isinstance(heartbeat.get("lastEventId"), int) else None
-        for row in operations:
-            row_event_id = row.get("eventId")
-            if isinstance(row_event_id, int):
-                last_event_id = row_event_id if last_event_id is None else max(last_event_id, row_event_id)
 
         editor = heartbeat.get("editor") if isinstance(heartbeat.get("editor"), dict) else {}
         busy = heartbeat.get("busy") if isinstance(heartbeat.get("busy"), dict) else {}
@@ -236,7 +233,7 @@ class EventsStatusMixin:
             min_timestamp=since_timestamp,
         )
         limited = matched[:max_entries]
-        return {
+        result = {
             "matched": bool(matched),
             "events": limited,
             "count": len(limited),
@@ -246,6 +243,24 @@ class EventsStatusMixin:
             "lastEventId": self.event_stream_last_id(stream),
             "truncatedBeforeEventId": stream.get("truncatedBeforeEventId", 0),
         }
+        ahead = self.cursor_ahead_hint(since_event_id, stream)
+        if ahead is not None:
+            result["warning"] = ahead
+        return result
+
+    def cursor_ahead_hint(self, since_event_id: int, stream: dict[str, Any]) -> str | None:
+        """A cursor past the newest event (an id from another counter, or from before the journal was reset)
+        can never match anything; say so instead of an empty result that reads as 'nothing happened'.
+
+        A cursor from a reply may run a few ids ahead of events.json until the journal's next flush, hence the slack.
+        """
+        last_event_id = self.event_stream_last_id(stream)
+        if since_event_id <= last_event_id + 1000:
+            return None
+        return (
+            f"sinceEventId {since_event_id} is ahead of the newest event {last_event_id}, so nothing can match. "
+            "Take the cursor from the action's reply (sinceEventId / eventCursorBefore) or bridge-get-status lastEventId."
+        )
 
     def events_wait(self, arguments: dict[str, Any], request_id: Any = None) -> dict[str, Any]:
         timeout_ms = clamp_int(arguments.get("timeoutMs"), DEFAULT_EVENTS_WAIT_TIMEOUT_MS, 0, HARD_EVENTS_WAIT_TIMEOUT_MS)
@@ -271,6 +286,7 @@ class EventsStatusMixin:
         if not explicit_cursor and filters:
             fired = self.find_fired_before_wait(initial_stream, since_event_id, filters, include_data)
             if fired is not None:
+                self.remember_reported_wait_event(fired)
                 return self.build_fired_before_wait_result(fired, since_event_id, started_at_utc, initial_stream)
 
         request_key, cancel_event = self.register_event_wait(
@@ -294,6 +310,7 @@ class EventsStatusMixin:
                     min_timestamp=include_recent_cutoff,
                 )
                 if matched:
+                    self.remember_reported_wait_event(matched[0])
                     return {
                         "matched": True,
                         "timedOut": False,
@@ -339,6 +356,16 @@ class EventsStatusMixin:
         finally:
             self.unregister_event_wait(request_key)
 
+    def remember_reported_wait_event(self, event: dict[str, Any]) -> None:
+        event_id = event.get("eventId")
+        if not isinstance(event_id, int):
+            return
+        reported = getattr(self, "reported_wait_event_ids", None)
+        if not isinstance(reported, set) or len(reported) >= 512:
+            reported = set()
+            self.reported_wait_event_ids = reported
+        reported.add(event_id)
+
     def find_fired_before_wait(
         self,
         stream: dict[str, Any],
@@ -361,12 +388,15 @@ class EventsStatusMixin:
         action_cursor = getattr(self, "last_async_action_cursor", None)
         if isinstance(action_cursor, int) and getattr(self, "last_async_action_at", 0.0) >= cutoff:
             lower_bound = action_cursor
+        # An event a wait already returned is an answer the caller has: handing it back to the next bare wait
+        # turns an "act, wait" loop into one that never waits.
+        reported = getattr(self, "reported_wait_event_ids", set())
         newest: dict[str, Any] | None = None
         for event in stream.get("events", []):
             if not isinstance(event, dict):
                 continue
             event_id = event.get("eventId")
-            if not isinstance(event_id, int) or event_id > since_event_id or event_id <= lower_bound:
+            if not isinstance(event_id, int) or event_id > since_event_id or event_id <= lower_bound or event_id in reported:
                 continue
             timestamp = parse_utc_iso(event.get("timestamp"))
             if timestamp is None or timestamp < cutoff:
@@ -522,6 +552,9 @@ class EventsStatusMixin:
         and is silently skipped. Surface that here so callers can retry with an earlier cursor instead
         of assuming the event never fired. Never flips `matched` (keeps stale-event avoidance intact).
         """
+        ahead = self.cursor_ahead_hint(since_event_id, stream)
+        if ahead is not None:
+            return {"cursorAhead": True, "hint": ahead}
         if not filters:
             return None
 

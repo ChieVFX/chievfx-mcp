@@ -569,7 +569,6 @@ class BridgeTransportMixin:
                 "progressMessage": "Queued for Unity bridge.",
                 "cancellable": True,
                 "timeoutMs": timeout_ms,
-                "eventId": int(time.time() * 1000),
             },
         )
         if jsonrpc_key is not None:
@@ -759,7 +758,6 @@ class BridgeTransportMixin:
         payload = read_json_file(path) or {"operationId": operation_id}
         payload.update(fields)
         payload["updatedAtUtc"] = utc_now_iso()
-        payload["eventId"] = int(time.time() * 1000)
         write_json_file_atomic(path, payload)
 
     def emit_progress(self, progress_token: Any, notify: Any | None, progress: float, message: str) -> None:

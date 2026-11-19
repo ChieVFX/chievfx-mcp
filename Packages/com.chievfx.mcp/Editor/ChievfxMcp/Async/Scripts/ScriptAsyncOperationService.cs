@@ -747,8 +747,56 @@ namespace Chievfx.Mcp.Editor
 
         private static readonly string[] DefaultScriptUsings =
         {
-            "System", "System.Collections.Generic", "System.Linq", "UnityEngine", "UnityEditor",
+            "System", "System.Collections.Generic", "System.IO", "System.Linq", "UnityEngine", "UnityEditor",
         };
+
+        // Names both System and UnityEngine define: once the retry has imported the one the code lacked, a bare
+        // Object or Random would be ambiguous (CS0104), so the retry pins it to the namespace the code already chose.
+        private static readonly string[] SystemUnityEngineSharedNames = { "Object", "Random" };
+
+        // The script-execute description names it without its namespace.
+        private const string ScriptStateAliasDirective = "using ChievfxMcpScriptState = Chievfx.Mcp.Editor.ChievfxMcpScriptState;";
+
+        private static bool ImportsNamespace(string csharpCode, string name)
+        {
+            return Regex.IsMatch(csharpCode, @"(?<![\w.])using\s+" + Regex.Escape(name) + @"\s*;");
+        }
+
+        private static bool DeclaresAlias(string csharpCode, string alias)
+        {
+            return Regex.IsMatch(csharpCode, @"(?<![\w.])using\s+" + Regex.Escape(alias) + @"\s*=");
+        }
+
+        private static bool MentionsName(string csharpCode, string name)
+        {
+            return Regex.IsMatch(csharpCode, @"(?<![\w.])" + Regex.Escape(name) + @"\b");
+        }
+
+        private static List<string> RetryDirectives(string csharpCode)
+        {
+            var directives = DefaultScriptUsings
+                .Where(name => !ImportsNamespace(csharpCode, name))
+                .Select(name => "using " + name + ";")
+                .ToList();
+            var importsSystem = ImportsNamespace(csharpCode, "System");
+            var importsUnityEngine = ImportsNamespace(csharpCode, "UnityEngine");
+            if (!(importsSystem && importsUnityEngine))
+            {
+                var owner = importsSystem ? "System" : "UnityEngine";
+                directives.AddRange(SystemUnityEngineSharedNames
+                    .Where(name => MentionsName(csharpCode, name) && !DeclaresAlias(csharpCode, name))
+                    .Select(name => "using " + name + " = " + owner + "." + name + ";"));
+            }
+
+            if (MentionsName(csharpCode, "ChievfxMcpScriptState")
+                && !ImportsNamespace(csharpCode, "Chievfx.Mcp.Editor")
+                && !DeclaresAlias(csharpCode, "ChievfxMcpScriptState"))
+            {
+                directives.Add(ScriptStateAliasDirective);
+            }
+
+            return directives;
+        }
 
         private static bool HasMissingNameErrors(Dictionary<string, object?>[] diagnostics)
         {
@@ -762,22 +810,30 @@ namespace Chievfx.Mcp.Editor
         // failure, so code that already compiles never changes meaning (an added using can make a name ambiguous).
         private Assembly? CompileWithProjectAccess(string csharpCode, List<string> notes, ref Dictionary<string, object?>[] diagnostics)
         {
-            var addedUsings = DefaultScriptUsings
-                .Where(name => !Regex.IsMatch(csharpCode, @"^\s*using\s+" + Regex.Escape(name) + @"\s*;", RegexOptions.Multiline))
-                .ToArray();
-            var prefix = string.Concat(addedUsings.Select(name => "using " + name + ";\n"));
-            var assembly = CompileScriptAssembly(prefix + csharpCode, allowNonPublic: true, lineOffset: addedUsings.Length, out var retryDiagnostics);
-            var tried = addedUsings.Length > 0
-                ? "the missing usings (" + string.Join(", ", addedUsings) + ") and internal/private member access"
+            var addedDirectives = RetryDirectives(csharpCode);
+            var prefix = string.Concat(addedDirectives.Select(directive => directive + "\n"));
+            var assembly = CompileScriptAssembly(prefix + csharpCode, allowNonPublic: true, lineOffset: addedDirectives.Count, out var retryDiagnostics);
+            var tried = addedDirectives.Count > 0
+                ? "'" + string.Join(" ", addedDirectives) + "' and internal/private member access"
                 : "internal/private member access";
             if (assembly == null)
             {
-                notes.Add("Also tried " + tried + ": that did not compile either. Errors below are from your code as sent.");
+                // The retry's own errors matter when they differ: an added using can break a name the code relied on.
+                var originalErrors = new HashSet<string>(diagnostics.Select(original => original["id"] + " " + original["message"]), StringComparer.Ordinal);
+                var retryErrors = retryDiagnostics
+                    .Where(diagnostic => string.Equals(diagnostic["severity"] as string, "Error", StringComparison.Ordinal))
+                    .Select(diagnostic => diagnostic["id"] + " " + diagnostic["message"])
+                    .Where(text => !originalErrors.Contains(text))
+                    .Take(2)
+                    .ToArray();
+                notes.Add("Also tried " + tried + ": that did not compile either"
+                    + (retryErrors.Length > 0 ? " (" + string.Join("; ", retryErrors) + ")" : string.Empty)
+                    + ". Errors below are from your code as sent.");
                 return null;
             }
 
             diagnostics = retryDiagnostics;
-            notes.Add("Compiled after adding " + tried + ". Write those usings yourself next time; non-public members of loaded assemblies are reachable directly.");
+            notes.Add("Compiled after adding " + tried + ". Next time write the usings yourself; non-public members of loaded assemblies are reachable directly.");
             return assembly;
         }
 
@@ -1114,9 +1170,10 @@ namespace Chievfx.Mcp.Editor
                 result = new
                 {
                     type = invocation.ReturnValueType ?? method.ReturnType.FullName ?? "System.Void",
-                    value = invocation.SerializedReturnValue,
+                    // Ahead of the preview: a cut value is read from the file, and the path should not sit after 12 KB.
                     truncated = invocation.ReturnValueTruncated,
-                    fullValuePath = invocation.FullValuePath
+                    fullValuePath = invocation.FullValuePath,
+                    value = invocation.SerializedReturnValue
                 },
                 diagnostics,
                 logs = ConsoleLogBridgeService.CreateLogOutputs(logStartIndex, includeLogs, logType, includeStackTrace: false, DefaultScriptLogEntries),

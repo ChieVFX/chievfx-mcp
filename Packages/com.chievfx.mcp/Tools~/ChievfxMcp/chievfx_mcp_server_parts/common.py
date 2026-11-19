@@ -154,6 +154,11 @@ HARD_SCRIPT_EXECUTE_TIMEOUT_MS = 300000
 HARD_REFLECTION_METHOD_CALL_TIMEOUT_MS = 300000
 HARD_TESTS_RUN_TIMEOUT_MS = 300000
 EVENTS_WAIT_POLL_SECONDS = 0.05
+# How far back a bare events-wait looks for a match that beat it (the gap between an action's reply and
+# the agent's next call). Longer than a model's think time, short enough not to pick up older history.
+EVENTS_WAIT_FIRED_BEFORE_WINDOW_MS = 30000
+# Pause between tool-batch steps of the form {"waitMs": N}; capped so a typo cannot park the server.
+HARD_TOOL_BATCH_WAIT_MS = 60000
 
 MAX_ACTIVE_EVENT_WAITS = 32
 EVENT_WAIT_HIGH_WATERMARK = 24
@@ -300,7 +305,7 @@ TOOL_SHORT_SUMMARIES: dict[str, str] = {
     "ui-runtime-clear-focus": "Clear UI focus (Play Mode)",
     "ui-runtime-set-control-value": "Set UI control value: slider, toggle, dropdown, field",
     "ui-runtime-type-text": "Type text into the focused UI control",
-    "tool-batch": "Run one tool over many inputs",
+    "tool-batch": "Run several tool calls in one request",
     "reflection-method-call": "Call one loaded C# method",
     "reflection-method-find": "Find loaded C# methods",
     "reflection-method-find-single": "Full info for one found method",

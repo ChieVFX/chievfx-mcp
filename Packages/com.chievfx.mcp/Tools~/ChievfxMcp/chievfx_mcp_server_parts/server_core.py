@@ -257,11 +257,65 @@ class McpServerCore:
         # Single chokepoint for every tool: dispatch, then surface any argument the tool does not
         # declare. Silently dropping a mistyped argument (outputPath vs savePath) sends the caller
         # hunting for an effect that never happened.
-        result = self._dispatch_tool_call(params, request_id, notify)
         name = params.get("name")
+        await_ms, params = self._take_await_argument(params)
+        # The cursor is taken before the call, so an end logged while the tool is still replying is
+        # inside the window: the race that made a separate events-wait miss short actions cannot happen.
+        await_cursor = self.event_stream_last_id(self.read_event_stream()) if await_ms is not None else 0
+        raw_sink: dict[str, Any] = {}
+        result = self._dispatch_tool_call(params, request_id, notify, raw_sink)
         if isinstance(name, str):
             result = with_unknown_argument_warning(result, name, params.get("arguments") or {})
+            if await_ms is not None:
+                result = self._await_tool_completion(result, name, raw_sink.get("result"), await_ms, await_cursor, request_id)
             result = self._with_core_descriptor_reminder(result, name)
+        return result
+
+    def _take_await_argument(self, params: dict[str, Any]) -> tuple[int | None, dict[str, Any]]:
+        """Pops awaitMs off the call so neither the bridge nor an extension ever sees it."""
+        arguments = params.get("arguments")
+        if not isinstance(arguments, dict) or "awaitMs" not in arguments:
+            return None, params
+        if params.get("name") in AWAIT_IGNORING_TOOL_IDS:
+            raise ToolCallError(
+                f"awaitMs does not apply to {params.get('name')}: pass it to the action tool "
+                "(inside a tool-batch step's args), or use events-wait timeoutMs."
+            )
+        value = arguments.get("awaitMs")
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ToolCallError("awaitMs must be a non-negative integer (milliseconds).")
+        stripped = {key: item for key, item in arguments.items() if key != "awaitMs"}
+        return min(value, HARD_EVENTS_WAIT_TIMEOUT_MS), {**params, "arguments": stripped}
+
+    def _await_tool_completion(
+        self,
+        result: dict[str, Any],
+        name: str,
+        raw_result: Any,
+        await_ms: int,
+        cursor: int,
+        request_id: Any,
+    ) -> dict[str, Any]:
+        """Waits for the end event a tool named in its reply (waitFor, or completionMarker) and appends it."""
+        wait_for = raw_result.get("waitFor") if isinstance(raw_result, dict) else None
+        marker = raw_result.get("completionMarker") if isinstance(raw_result, dict) else None
+        has_wait_for = (isinstance(wait_for, str) and bool(wait_for)) or (
+            isinstance(wait_for, list) and bool(wait_for) and all(isinstance(item, str) for item in wait_for)
+        )
+        if not has_wait_for and not (isinstance(marker, str) and marker):
+            attach_result_notice(
+                result,
+                f"! awaitMs ignored: {name} returned nothing to wait for (no waitFor or completionMarker in its reply).",
+            )
+            return result
+
+        wait_arguments: dict[str, Any] = {"sinceEventId": cursor, "timeoutMs": await_ms}
+        if has_wait_for:
+            wait_arguments["contains"] = wait_for
+        else:
+            wait_arguments["marker"] = marker
+        outcome = self.events_wait(wait_arguments, request_id)
+        attach_result_notice(result, format_await_outcome_text(outcome, wait_arguments))
         return result
 
     def _with_core_descriptor_reminder(self, result: Any, name: str) -> Any:
@@ -290,7 +344,13 @@ class McpServerCore:
             self.core_descriptor_reminder_sent = True
         return result
 
-    def _dispatch_tool_call(self, params: dict[str, Any], request_id: Any = None, notify: Any | None = None) -> dict[str, Any]:
+    def _dispatch_tool_call(
+        self,
+        params: dict[str, Any],
+        request_id: Any = None,
+        notify: Any | None = None,
+        raw_sink: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         name = params.get("name")
         arguments = params.get("arguments") or {}
         if not isinstance(name, str):
@@ -436,17 +496,17 @@ class McpServerCore:
 
         if name == "tool-batch":
             result = self.tool_batch(arguments, request_id, notify)
+            images = result.pop("_images", [])
             if arguments.get("outputFormat") == "json":
-                return self.text_tool_result(result, arguments)
-            return {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": format_tool_batch_text(result),
-                    }
-                ],
-                "isError": False,
-            }
+                content = self.text_tool_result(result, arguments)["content"]
+            else:
+                content = [{"type": "text", "text": format_tool_batch_text(result)}]
+            # A screenshot step is often the point of the batch (tap -> wait -> look), so its image travels
+            # with the result instead of being reduced to a line of metadata.
+            for image in images:
+                content.append({"type": "text", "text": f"step {image['index'] + 1} image:"})
+                content.append(image["block"])
+            return {"content": content, "isError": False}
 
         progress_token = self.get_progress_token(params)
         if name == "recompile":
@@ -542,6 +602,8 @@ class McpServerCore:
             return result
 
         result = bridge_result.get("result")
+        if raw_sink is not None:
+            raw_sink["result"] = result
         if force_ui_control_find_json:
             if not isinstance(result, dict):
                 retry_arguments = dict(arguments)
@@ -742,46 +804,110 @@ class McpServerCore:
         }
 
     def tool_batch(self, arguments: dict[str, Any], request_id: Any = None, notify: Any | None = None) -> dict[str, Any]:
-        tool_name = arguments.get("tool")
-        items = arguments.get("items")
-        stop_on_error = bool(arguments.get("stopOnError", False))
-        if not isinstance(tool_name, str) or not tool_name:
-            raise ToolCallError("tool-batch requires string 'tool'.")
-        if tool_name == "tool-batch":
-            raise ToolCallError("tool-batch cannot batch itself.")
-        if not isinstance(items, list) or not items:
-            raise ToolCallError("tool-batch requires non-empty array 'items'.")
+        """Runs steps in order and keeps each step's output.
 
-        known_tool_ids = {tool["name"] for tool in all_tools()}
-        if tool_name not in known_tool_ids:
-            raise ToolCallError(f"Unknown ChievFX MCP tool '{tool_name}'.")
-        if tool_name not in load_enabled_tool_ids():
-            raise ToolCallError(f"ChievFX MCP tool '{tool_name}' is disabled.")
+        Two shapes: steps:[{tool, args} | {waitMs}] for a sequence of different tools (stops at the first
+        failure by default, since later steps usually depend on earlier ones), and the original
+        tool + items for one tool over many argument sets (keeps going by default).
+        """
+        steps, legacy_tool = self.read_tool_batch_steps(arguments)
+        stop_on_error = arguments.get("stopOnError")
+        stop_on_error = (legacy_tool is None) if not isinstance(stop_on_error, bool) else stop_on_error
 
-        failures: list[dict[str, Any]] = []
-        success_count = 0
-        for index, item in enumerate(items):
-            if not isinstance(item, dict):
-                failures.append({"index": index, "error": "item must be object"})
+        rows: list[dict[str, Any]] = []
+        images: list[dict[str, Any]] = []
+        for index, step in enumerate(steps):
+            if "waitMs" in step:
+                wait_ms = min(step["waitMs"], HARD_TOOL_BATCH_WAIT_MS)
+                time.sleep(wait_ms / 1000)
+                rows.append({"index": index, "waitMs": wait_ms, "ok": True})
+                continue
+
+            tool_name = step["tool"]
+            try:
+                result = self.call_tool({"name": tool_name, "arguments": dict(step["args"])}, request_id, notify)
+            except Exception as exc:  # noqa: BLE001 - one step's failure is that step's answer.
+                rows.append({"index": index, "tool": tool_name, "ok": False, "error": str(exc)})
                 if stop_on_error:
                     break
                 continue
-            try:
-                self.call_tool({"name": tool_name, "arguments": dict(item)}, request_id, notify)
-                success_count += 1
-            except Exception as exc:
-                failures.append({"index": index, "error": str(exc)})
-                if stop_on_error:
-                    break
 
-        return {
-            "tool": tool_name,
-            "success": len(failures) == 0,
-            "successCount": success_count,
-            "failedCount": len(failures),
-            "totalCount": len(items),
-            "failures": failures,
+            content = result.get("content") if isinstance(result, dict) else None
+            blocks = content if isinstance(content, list) else []
+            text = "\n".join(
+                block["text"] for block in blocks if isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str)
+            )
+            step_images = [block for block in blocks if isinstance(block, dict) and block.get("type") == "image"]
+            row = {"index": index, "tool": tool_name, "ok": True, "text": text}
+            if step_images:
+                row["imageCount"] = len(step_images)
+                images.extend({"index": index, "block": block} for block in step_images)
+            rows.append(row)
+
+        failed_count = sum(1 for row in rows if not row["ok"])
+        batch = {
+            "success": failed_count == 0 and len(rows) == len(steps),
+            "okCount": len(rows) - failed_count,
+            "failedCount": failed_count,
+            "notRunCount": len(steps) - len(rows),
+            "totalCount": len(steps),
+            "steps": rows,
         }
+        if legacy_tool is not None:
+            batch["tool"] = legacy_tool
+        # Image blocks cannot ride inside the text; the caller turns them into content blocks.
+        batch["_images"] = images
+        return batch
+
+    def read_tool_batch_steps(self, arguments: dict[str, Any]) -> tuple[list[dict[str, Any]], str | None]:
+        raw_steps = arguments.get("steps")
+        legacy_tool = arguments.get("tool")
+        if raw_steps is not None and legacy_tool is not None:
+            raise ToolCallError("tool-batch takes either 'steps' or 'tool' + 'items', not both.")
+
+        if raw_steps is None:
+            items = arguments.get("items")
+            if not isinstance(legacy_tool, str) or not legacy_tool:
+                raise ToolCallError("tool-batch requires 'steps' ([{tool, args}]) or string 'tool' with 'items'.")
+            if not isinstance(items, list) or not items:
+                raise ToolCallError("tool-batch requires non-empty array 'items'.")
+            raw_steps = [{"tool": legacy_tool, "args": item} for item in items]
+        elif not isinstance(raw_steps, list) or not raw_steps:
+            raise ToolCallError("tool-batch requires non-empty array 'steps'.")
+
+        known_tool_ids = {tool["name"] for tool in all_tools()}
+        enabled_tool_ids = load_enabled_tool_ids()
+        steps: list[dict[str, Any]] = []
+        problems: list[str] = []
+        # Every step is checked before the first one runs: a typo in step 5 must not leave steps 1-4 done.
+        for index, raw in enumerate(raw_steps):
+            if not isinstance(raw, dict):
+                problems.append(f"step {index + 1}: must be an object")
+                continue
+            if "waitMs" in raw and "tool" not in raw:
+                wait_ms = raw.get("waitMs")
+                if isinstance(wait_ms, bool) or not isinstance(wait_ms, int) or wait_ms < 0:
+                    problems.append(f"step {index + 1}: waitMs must be a non-negative integer")
+                    continue
+                steps.append({"waitMs": wait_ms})
+                continue
+            tool_name = raw.get("tool")
+            args = raw.get("args", raw.get("arguments", {}))
+            if not isinstance(tool_name, str) or not tool_name:
+                problems.append(f"step {index + 1}: needs string 'tool' (or 'waitMs' for a pause)")
+            elif tool_name == "tool-batch":
+                problems.append(f"step {index + 1}: tool-batch cannot batch itself")
+            elif tool_name not in known_tool_ids:
+                problems.append(f"step {index + 1}: unknown tool '{tool_name}'")
+            elif tool_name not in enabled_tool_ids:
+                problems.append(f"step {index + 1}: tool '{tool_name}' is disabled")
+            elif not isinstance(args, dict):
+                problems.append(f"step {index + 1}: args must be an object")
+            else:
+                steps.append({"tool": tool_name, "args": args})
+        if problems:
+            raise ToolCallError("tool-batch did not run: " + "; ".join(problems) + ".")
+        return steps, legacy_tool if isinstance(legacy_tool, str) else None
 
     def read_resource(self, params: dict[str, Any], request_id: Any = None) -> dict[str, Any]:
         uri = params.get("uri")

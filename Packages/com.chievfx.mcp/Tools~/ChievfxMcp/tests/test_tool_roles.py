@@ -177,7 +177,10 @@ class ToolRoleTests(unittest.TestCase):
             },
         )["result"]["content"][0]["text"]
 
-        self.assertEqual(text, "tool:tools-get-role success:true successCount:2 failedCount:0 totalCount:2")
+        # Each item's output is kept: the batch used to return only counts.
+        self.assertTrue(text.startswith("tool-batch tools-get-role: 2 of 2 ok\n"), text)
+        self.assertIn("\n1 tools-get-role: Role 1:", text)
+        self.assertIn("\n2 tools-get-role: Role 2:", text)
 
     def test_tool_batch_reports_item_failures_compactly(self) -> None:
         text = self.call_tool(
@@ -188,9 +191,39 @@ class ToolRoleTests(unittest.TestCase):
             },
         )["result"]["content"][0]["text"]
 
-        self.assertIn("tool:tools-get-role success:false successCount:1 failedCount:1 totalCount:2", text)
-        self.assertIn("index:1", text)
-        self.assertIn("error:", text)
+        # tool + items keeps going past a failure, as before.
+        self.assertTrue(text.startswith("tool-batch tools-get-role: 1 of 2 ok, 1 failed\n"), text)
+        self.assertIn("\n2 tools-get-role FAILED: Unknown ChievFX MCP role index 999", text)
+
+    def test_tool_batch_steps_mix_tools_pause_and_stop_at_the_first_failure(self) -> None:
+        self.enable_autonomous_tools()
+        text = self.call_tool(
+            "tool-batch",
+            {
+                "steps": [
+                    {"tool": "tools-get-role", "args": {"roleIndex": 1}},
+                    {"waitMs": 5},
+                    {"tool": "tools-get-role", "args": {"roleIndex": 999}},
+                    {"tool": "tools-get-roles", "args": {}},
+                ],
+            },
+        )["result"]["content"][0]["text"]
+
+        self.assertTrue(text.startswith("tool-batch: 2 of 4 ok, 1 failed, 1 not run"), text)
+        self.assertIn("\n1 tools-get-role: Role 1:", text)
+        self.assertIn("\n2 waited 5 ms", text)
+        self.assertIn("\n3 tools-get-role FAILED:", text)
+        self.assertNotIn("\n4 ", text)
+
+    def test_tool_batch_checks_every_step_before_running_any(self) -> None:
+        self.enable_autonomous_tools()
+        response = self.call_tool(
+            "tool-batch",
+            {"steps": [{"tool": "tools-set-role", "args": {"roleIndex": 1}}, {"tool": "no-such-tool"}]},
+        )
+
+        self.assertIn("error", response)
+        self.assertIn("step 2: unknown tool 'no-such-tool'", response["error"]["message"])
 
     def test_tools_list_categories_can_include_disabled(self) -> None:
         self.call_tool("tools-set-enabled-state", {"category": "profiler", "enabled": False})

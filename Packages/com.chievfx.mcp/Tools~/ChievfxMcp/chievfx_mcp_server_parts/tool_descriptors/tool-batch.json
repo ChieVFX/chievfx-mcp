@@ -1,11 +1,29 @@
 {
   "name": "tool-batch",
-  "description": "Runs one enabled tool for many item argument objects. One tool only, no mixed operations.",
+  "description": "Runs tool calls in order in one request; returns each step's output, images included. steps:[{tool, args}] may mix tools; {waitMs} pauses; awaitMs in a step's args waits for that action's end. Stops at the first failure unless stopOnError:false. tool + items: one tool, many argument sets.",
   "inputSchema": {
     "type": "object",
     "properties": {
       "outputFormat": {
         "$chievfxSchema": "outputFormat"
+      },
+      "steps": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "tool": {
+              "type": "string"
+            },
+            "args": {
+              "type": "object"
+            },
+            "waitMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
       },
       "tool": {
         "type": "string"
@@ -19,10 +37,6 @@
       "stopOnError": {
         "type": "boolean"
       }
-    },
-    "required": [
-      "tool",
-      "items"
-    ]
+    }
   }
 }

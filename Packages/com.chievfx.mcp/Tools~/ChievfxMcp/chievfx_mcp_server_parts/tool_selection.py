@@ -327,22 +327,49 @@ def read_include_disabled(arguments: dict[str, Any]) -> bool:
 
 
 def format_tool_batch_text(result: dict[str, Any]) -> str:
-    lines = [
-        "tool:{tool} success:{success} successCount:{successCount} failedCount:{failedCount} totalCount:{totalCount}".format(
-            tool=format_toon_atom(result.get("tool")),
-            success=format_toon_atom(result.get("success")),
-            successCount=format_toon_atom(result.get("successCount")),
-            failedCount=format_toon_atom(result.get("failedCount")),
-            totalCount=format_toon_atom(result.get("totalCount")),
-        )
-    ]
-    failures = result.get("failures")
-    if isinstance(failures, list) and failures:
-        lines.append("failures:")
-        for failure in failures:
-            if isinstance(failure, dict):
-                lines.append(f"- index:{format_toon_atom(failure.get('index'))} error:{format_toon_atom(failure.get('error'))}")
+    """One headline, then each step numbered from 1 with its own output indented under it.
+
+    A step's first line is its tool's headline (an extension's summary), so the list reads like a log
+    of what was done: "1 gameai-ui-tap: tapped Play", "2 waited 1000 ms", "3 gameai-read: ...".
+    """
+    total = result.get("totalCount", 0)
+    headline = f"tool-batch{' ' + str(result['tool']) if result.get('tool') else ''}: {result.get('okCount', 0)} of {total} ok"
+    if result.get("failedCount"):
+        headline += f", {result['failedCount']} failed"
+    if result.get("notRunCount"):
+        headline += f", {result['notRunCount']} not run (stopped at the first failure; stopOnError:false runs the rest)"
+    lines = [headline]
+    for row in result.get("steps") or []:
+        if not isinstance(row, dict):
+            continue
+        number = int(row.get("index", 0)) + 1
+        if "waitMs" in row:
+            lines.append(f"{number} waited {row['waitMs']} ms")
+            continue
+        if not row.get("ok"):
+            lines.append(f"{number} {row.get('tool')} FAILED: {row.get('error')}")
+            continue
+        text_lines = str(row.get("text") or "").splitlines() or ["(no output)"]
+        lines.append(f"{number} {row.get('tool')}: {text_lines[0]}")
+        lines.extend("  " + line for line in text_lines[1:])
     return "\n".join(lines)
+
+
+def format_await_outcome_text(outcome: dict[str, Any], wait_arguments: dict[str, Any]) -> str:
+    """The line awaitMs appends to a tool's reply: how its end event came out."""
+    target = wait_arguments.get("contains") or f"marker {wait_arguments.get('marker')}"
+    target_text = " | ".join(target) if isinstance(target, list) else str(target)
+    if outcome.get("matched"):
+        event = outcome.get("event") if isinstance(outcome.get("event"), dict) else {}
+        return f"awaited {outcome.get('elapsedMs')} ms: #{event.get('eventId')} {compact_event_message(event.get('message'))}"
+    if outcome.get("cancelled"):
+        return f"await cancelled after {outcome.get('elapsedMs')} ms (waiting for {target_text})."
+    filter_key = "contains" if wait_arguments.get("contains") else "marker"
+    filter_value = json.dumps(wait_arguments.get(filter_key), ensure_ascii=False)
+    return (
+        f"awaited {outcome.get('elapsedMs')} ms, not ended yet (waiting for {target_text}). Keep waiting with "
+        f"events-wait {filter_key}:{filter_value} sinceEventId:{wait_arguments.get('sinceEventId')}."
+    )
 
 
 def format_tool_categories_text(inventory: dict[str, Any], include_disabled: bool = False) -> str:
@@ -780,8 +807,12 @@ def enabled_tools() -> list[dict[str, Any]]:
 
 
 # Arguments every tool accepts regardless of its own schema: outputFormat is injected into each
-# descriptor, and timeoutMs is honored generically by get_tool_timeout_ms.
-UNIVERSAL_TOOL_ARGUMENT_KEYS = frozenset({"outputFormat", "timeoutMs"})
+# descriptor, timeoutMs is honored generically by get_tool_timeout_ms, and awaitMs is taken off the call
+# by the server, which then waits for the end event the tool names in its reply.
+UNIVERSAL_TOOL_ARGUMENT_KEYS = frozenset({"outputFormat", "timeoutMs", "awaitMs"})
+
+# Tools that wait themselves or wrap other calls; awaitMs on them is a mistake worth an error.
+AWAIT_IGNORING_TOOL_IDS = frozenset({"events-wait", "events-check-since", "tool-batch"})
 
 # Undocumented-but-honored aliases. The editor reads these even though only the canonical name is in
 # the schema, so they must NOT be reported as unrecognized — never tell a caller an argument had no
@@ -807,11 +838,29 @@ TOOL_ARGUMENT_ALIASES: dict[str, frozenset[str]] = {
 }
 
 
+def _find_tool(name: str) -> dict[str, Any] | None:
+    return next((item for item in all_tools() if item.get("name") == name), None)
+
+
 def _tool_schema_properties(name: str) -> dict[str, Any]:
-    tool = next((item for item in all_tools() if item.get("name") == name), None)
+    tool = _find_tool(name)
     schema = tool.get("inputSchema") if isinstance(tool, dict) else None
     properties = schema.get("properties") if isinstance(schema, dict) else None
     return properties if isinstance(properties, dict) else {}
+
+
+def _extension_validates_own_arguments(name: str) -> bool:
+    """An extension tool with an open schema (additionalProperties:true) judges unknown arguments itself.
+
+    It may honor names its schema does not list, or reject them with its own error. Either way the core's
+    "expect no effect" would be a guess about code it cannot see, and a wrong one teaches the caller to
+    distrust the warning everywhere else. Core tools keep the check: their aliases are listed above.
+    """
+    tool = _find_tool(name)
+    if not isinstance(tool, dict) or tool.get("source") != "extension":
+        return False
+    schema = tool.get("inputSchema")
+    return isinstance(schema, dict) and schema.get("additionalProperties") is True
 
 
 def unknown_tool_arguments(name: str, arguments: Any) -> list[str]:
@@ -821,6 +870,8 @@ def unknown_tool_arguments(name: str, arguments: Any) -> list[str]:
     hunting for an effect that never happened, so surface it on the very first call.
     """
     if not isinstance(arguments, dict) or not arguments:
+        return []
+    if _extension_validates_own_arguments(name):
         return []
     properties = _tool_schema_properties(name)
     if not properties:

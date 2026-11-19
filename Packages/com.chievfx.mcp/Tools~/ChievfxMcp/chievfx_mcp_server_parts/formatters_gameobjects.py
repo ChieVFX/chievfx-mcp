@@ -764,7 +764,23 @@ def format_tool_result_text(tool_name: str, result: Any, arguments: dict[str, An
         if isinstance(result, dict):
             return format_ui_runtime_clear_focus_text(result)
 
-    return to_toon(result)
+    return format_summary_first_text(result)
+
+
+def format_summary_first_text(result: Any) -> str:
+    """Generic result text: a string `summary` field becomes the first line, the rest follows as TOON.
+
+    Core tools open with a one-line headline from their own formatters. An extension cannot ship a Python
+    formatter, so this is the extension's way to get the same shape: return `summary` and it reads as the
+    headline instead of one more `summary:"..."` row among the fields.
+    """
+    if not isinstance(result, dict):
+        return to_toon(result)
+    summary = result.get("summary")
+    if not isinstance(summary, str) or not summary.strip():
+        return to_toon(result)
+    rest_text = to_toon({key: value for key, value in result.items() if key != "summary"})
+    return summary + "\n" + rest_text if rest_text.strip() else summary
 
 
 def format_ugui_ui_hierarchy_text(result: dict[str, Any]) -> str:

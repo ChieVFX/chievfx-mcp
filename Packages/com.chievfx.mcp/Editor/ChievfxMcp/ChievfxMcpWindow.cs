@@ -1200,7 +1200,7 @@ namespace Chievfx.Mcp.Editor
                 "screenshot-game-view" => "Capture the current Game View.",
                 "screenshot-camera" => "Capture from a Unity camera.",
                 "screenshot-editor-window" => "Capture Unity tabs like Console/Inspector without OS screenshots.",
-                "tool-batch" => "Run one enabled MCP tool for many argument objects.",
+                "tool-batch" => "Run several tool calls (mixed tools, pauses) in one request and get every output.",
                 "assets-refresh" => "Import non-script assets by path/type after file changes.",
                 "recompile" => "Request Unity script compilation and wait for idle.",
                 "console-clear-logs" => "Clear logs before an isolated run.",

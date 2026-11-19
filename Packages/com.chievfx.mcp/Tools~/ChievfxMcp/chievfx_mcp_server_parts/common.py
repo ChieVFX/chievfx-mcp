@@ -108,6 +108,10 @@ RECOMPILE_WAIT_SECONDS = 300.0
 RECOMPILE_START_GRACE_SECONDS = 1.5
 # Max compile errors/warnings echoed inline in the recompile result (each list capped independently).
 RECOMPILE_MAX_ISSUES = 50
+# Per-message cap for those echoed diagnostics. A compiler diagnostic is one short line, so this only
+# ever bites on something unexpected (a logger that inlines a stack trace into the message it logs) —
+# and then it keeps that one entry from consuming the whole response.
+RECOMPILE_MAX_ISSUE_CHARS = 400
 # editor-playmode-set waitForReady defaults: how long to wait for the play-mode transition, and how
 # long to settle afterwards so initial frames render before returning. Entering is far heavier than
 # exiting — a domain reload + scene load + first frames — and on a large project / slow machine that

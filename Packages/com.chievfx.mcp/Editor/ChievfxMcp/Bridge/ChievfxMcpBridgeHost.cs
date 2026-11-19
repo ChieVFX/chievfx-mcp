@@ -174,7 +174,10 @@ namespace Chievfx.Mcp.Editor
                 // Write the event first so the buffered entry carries its cursor. Without this the
                 // compile message got eventId 0 and console-get-logs sinceEventId (and the recompile
                 // fresh-issue summary) would exclude it — exactly the logs a recompile most needs.
-                var eventId = EventJournal.Write("log", "message", logType.ToString(), text);
+                // Typed "compiler-message" rather than "message" so consumers can tell a real compiler
+                // diagnostic from any other console error that happens to land in the same window (the
+                // recompile summary counted runtime logs as compile errors while it could not).
+                var eventId = EventJournal.Write("log", "compiler-message", logType.ToString(), text);
                 lock (RuntimeState.LogLock)
                 {
                     RuntimeState.LogEntries.Add(new LogEntryDto(logType.ToString(), text, DateTime.UtcNow, string.Empty, eventId));

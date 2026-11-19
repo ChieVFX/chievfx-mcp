@@ -546,7 +546,7 @@ Call tool: `events-wait`.
 {}
 ```
 
-Call tool: `screenshot-game-view`. It defaults to `maxDimension: 960`; raise or lower that single longest-side cap only when useful. If visual timing matters, also start/stop profiler recording around the marker or call `profiler-counters-get`.
+Call tool: `screenshot-game-view`. The PNG's longest side is always 960 px; to inspect one area magnified or compare it between captures, crop with `left`/`top`/`right`/`bottom` (0..1, top-left origin) — the crop is scaled to the same 960 px. A position read off a cropped PNG only maps back to the view when the same four edges are passed to `ui-runtime-click`/`drag`/`probe` together with `space:"screenshot"`. If visual timing matters, also start/stop profiler recording around the marker or call `profiler-counters-get`.
 
 4. Final summary collector runs:
 

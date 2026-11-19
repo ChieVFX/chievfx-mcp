@@ -33,7 +33,7 @@ Expected marker points with the default `PanelSettings` scale:
 4. Capture Game View evidence when verifying UIDocument overlay layout:
 
 ```json
-{"tool":"screenshot-game-view","arguments":{"width":800,"height":600}}
+{"tool":"screenshot-game-view","arguments":{}}
 ```
 
 5. Probe the center marker:

@@ -420,14 +420,13 @@ namespace Chievfx.Mcp.Editor
             }
 
             var maxDimension = Math.Max(128, Math.Min(ReadInt(args, "maxDimension", 4096), 8192));
-            var screenshotArgs = new JObject { ["maxDimension"] = maxDimension };
             var screenshots = new ScreenshotBridgeService();
             var tolerance = Math.Max(0, Math.Min(ReadInt(args, "tolerance", 2), 255)) / 255f;
 
             // Sample the finished frame first: it fixes both the target colour and the capture size the
             // caller's normalized coordinates resolve against.
             SelectFrameDebuggerEventForCapture(window, eventCount.Value - 1, diagnostics);
-            var finalTexture = DecodeCapture(screenshots.CaptureGameView(screenshotArgs));
+            var finalTexture = DecodeCapture(screenshots.CaptureGameView(maxDimension));
             int pixelX, pixelY, captureWidth, captureHeight;
             Color finalColor;
             try
@@ -445,7 +444,7 @@ namespace Chievfx.Mcp.Editor
             Color SampleAtLimit(int eventIndex)
             {
                 SelectFrameDebuggerEventForCapture(window, eventIndex, diagnostics);
-                var texture = DecodeCapture(screenshots.CaptureGameView(screenshotArgs));
+                var texture = DecodeCapture(screenshots.CaptureGameView(maxDimension));
                 try
                 {
                     return texture.GetPixel(pixelX, pixelY);
@@ -593,13 +592,12 @@ namespace Chievfx.Mcp.Editor
             var eventIndex = group.EventIndices[drawCallIndex];
             var beforeEventIndex = eventIndex > 0 ? eventIndex - 1 : eventIndex;
             var maxDimension = Math.Max(128, Math.Min(ReadInt(args, "maxDimension", 960), 4096));
-            var screenshotArgs = new JObject { ["maxDimension"] = maxDimension };
             var screenshots = new ScreenshotBridgeService();
 
             SelectFrameDebuggerEventForCapture(window, beforeEventIndex, diagnostics);
-            var before = screenshots.CaptureGameView(screenshotArgs);
+            var before = screenshots.CaptureGameView(maxDimension);
             SelectFrameDebuggerEventForCapture(window, eventIndex, diagnostics);
-            var after = screenshots.CaptureGameView(screenshotArgs);
+            var after = screenshots.CaptureGameView(maxDimension);
             var combined = StackFrameDebuggerScreenshots(before, after, out var width, out var height);
 
             var frameEvent = CreateFrameDebuggerEventSummary(eventIndex, includeDetails: true, diagnostics);

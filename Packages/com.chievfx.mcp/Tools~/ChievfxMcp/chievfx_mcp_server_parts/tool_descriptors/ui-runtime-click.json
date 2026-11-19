@@ -30,7 +30,31 @@
         "type": "string",
         "enum": ["screen", "screenshot"],
         "default": "screen",
-        "description": "screen (default): x/y in Screen space (see isNormalized). screenshot: x/y are 0..1 from the screenshot-game-view PNG (top-left origin), auto Y-flipped; use only if that screenshot did not report pixelMappingReliable:false."
+        "description": "screen (default): x/y in Screen space (see isNormalized). screenshot: x/y are 0..1 from the screenshot-game-view PNG (top-left origin), auto Y-flipped; if that PNG was cropped, also pass its left/top/right/bottom. Use only if that screenshot did not report pixelMappingReliable:false."
+      },
+      "left": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1,
+        "description": "With space:\"screenshot\" only: the left/top/right/bottom crop (0..1, top-left origin) the screenshot-game-view PNG was taken with, so a position read off a cropped PNG maps back onto the full view. Omit for an uncropped screenshot."
+      },
+      "top": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1,
+        "description": "See left."
+      },
+      "right": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1,
+        "description": "See left."
+      },
+      "bottom": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1,
+        "description": "See left."
       },
       "path": {
         "type": "string",

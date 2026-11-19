@@ -40,7 +40,7 @@ Expected marker points:
 2. Enter Play Mode and capture Game View evidence:
 
 ```json
-{"tool":"screenshot-game-view","arguments":{"width":800,"height":600}}
+{"tool":"screenshot-game-view","arguments":{}}
 ```
 
 3. Probe the center marker:

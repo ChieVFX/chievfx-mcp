@@ -1,6 +1,6 @@
 {
   "name": "events-check-since",
-  "description": "Retro-check for matching events since a prior events-wait cursor: pass its sinceEventId + sinceTimestampUtc and the same contains/marker. Returns all matches in the window, not just the first. Use to recover after a wait timed out.",
+  "description": "Retro-check for matching events after a cursor: pass sinceEventId and the same contains/marker (sinceTimestampUtc optional). Returns all matches, not just the first. Use to recover after a wait timed out.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -10,15 +10,25 @@
       "sinceEventId": {
         "type": "integer",
         "minimum": 0,
-        "description": "Only events after this id (from the prior events-wait)."
+        "description": "Only events after this id (events-wait, a tool reply, or bridge-get-status lastEventId)."
       },
       "sinceTimestampUtc": {
         "type": "string",
-        "description": "startedAtUtc from the prior events-wait; events must be newer than both this and sinceEventId."
+        "description": "Optional: also drop events older than this UTC time."
       },
       "contains": {
-        "type": "string",
-        "description": "Event MESSAGE substring (case-insensitive)."
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Event MESSAGE substring (case-insensitive); a list matches any."
       },
       "marker": {
         "type": "string",
@@ -58,10 +68,6 @@
         "default": false,
         "description": "Include each event's structured data payload in the result."
       }
-    },
-    "required": [
-      "sinceEventId",
-      "sinceTimestampUtc"
-    ]
+    }
   }
 }

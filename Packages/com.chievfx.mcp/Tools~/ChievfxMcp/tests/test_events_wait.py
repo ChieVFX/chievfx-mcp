@@ -68,14 +68,71 @@ class EventsWaitTests(unittest.TestCase):
         return thread
 
     def test_timeout_avoids_stale_marker_by_default(self) -> None:
-        self.write_events([self.marker_event(1, "stale-marker")])
+        stale = self.marker_event(1, "stale-marker")
+        stale["timestamp"] = "2026-01-01T00:00:00Z"
+        self.write_events([stale])
 
         result = self.server.events_wait({"marker": "stale-marker", "timeoutMs": 20}, request_id="stale-wait")
 
         self.assertFalse(result["matched"])
         self.assertTrue(result["timedOut"])
         self.assertIsNone(result["event"])
+        self.assertNotIn("firedBeforeWait", result)
         self.assertEqual(self.server.get_bridge_status({"verbose": True})["activeEventWaitCount"], 0)
+
+    def test_match_fired_just_before_the_wait_returns_at_once_without_matching(self) -> None:
+        # The end of a short action lands between its reply and the agent's events-wait; a bare wait
+        # used to skip it and sit out the whole timeout.
+        self.write_events([self.marker_event(1, "just-fired")])
+
+        started = time.monotonic()
+        result = self.server.events_wait({"marker": "just-fired", "timeoutMs": 5000}, request_id="fired-wait")
+
+        self.assertLess(time.monotonic() - started, 1.0)
+        self.assertFalse(result["matched"])
+        self.assertFalse(result["timedOut"])
+        self.assertIsNone(result["event"])
+        self.assertEqual(result["firedBeforeWait"]["eventId"], 1)
+        self.assertIn("sinceEventId:1", result["hint"])
+
+    def test_explicit_cursor_skips_the_fired_before_check(self) -> None:
+        self.write_events([self.marker_event(1, "just-fired")])
+
+        result = self.server.events_wait(
+            {"marker": "just-fired", "sinceEventId": 1, "timeoutMs": 20}, request_id="cursor-wait"
+        )
+
+        self.assertTrue(result["timedOut"])
+        self.assertNotIn("firedBeforeWait", result)
+
+    def test_contains_list_matches_any_term(self) -> None:
+        failed = self.marker_event(2, "unused")
+        failed["message"] = "[GameAI][task] Drive#3 failed:blocked"
+        self.write_events([self.marker_event(1, "older"), failed])
+
+        result = self.server.events_wait(
+            {"contains": ["Drive#3 done", "Drive#3 failed"], "sinceEventId": 1, "timeoutMs": 200},
+            request_id="any-of-wait",
+        )
+
+        self.assertTrue(result["matched"])
+        self.assertEqual(result["event"]["eventId"], 2)
+
+    def test_contains_list_rejects_non_strings(self) -> None:
+        with self.assertRaises(ValueError):
+            self.server.events_wait({"contains": ["ok", 3], "timeoutMs": 20}, request_id="bad-list")
+
+    def test_events_check_since_needs_only_an_event_id(self) -> None:
+        self.write_events([self.marker_event(1, "a"), self.marker_event(2, "b")])
+
+        result = self.server.events_check_since({"sinceEventId": 1})
+
+        self.assertEqual([event["eventId"] for event in result["events"]], [2])
+        self.assertIsNone(result["sinceTimestampUtc"])
+
+    def test_events_check_since_without_any_cursor_is_an_error(self) -> None:
+        with self.assertRaises(ValueError):
+            self.server.events_check_since({"contains": "x"})
 
     def test_schema_accepts_1000_second_waits(self) -> None:
         wait_tool = next(tool for tool in mcp.TOOLS if tool["name"] == "events-wait")

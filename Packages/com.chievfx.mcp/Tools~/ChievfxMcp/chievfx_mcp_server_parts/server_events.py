@@ -7,7 +7,7 @@ class EventsStatusMixin:
     def register_event_wait(
         self,
         request_id: Any,
-        filters: dict[str, str],
+        filters: dict[str, Any],
         since_event_id: int,
         timeout_ms: int,
         include_recent_ms: Any,
@@ -219,6 +219,13 @@ class EventsStatusMixin:
         max_entries = clamp_int(arguments.get("maxEntries"), DEFAULT_EVENTS_CHECK_MAX_ENTRIES, 1, HARD_EVENTS_MAX_ENTRIES)
         since_event_id = self.read_since_event_id(arguments, default=0)
         since_timestamp_utc, since_timestamp = self.read_since_timestamp(arguments)
+        # Event ids only grow, so either cursor alone is a complete window; asking for both made a caller
+        # holding just an id (from a tool reply or bridge-get-status) invent a timestamp.
+        if since_timestamp is None and not isinstance(arguments.get("sinceEventId"), int):
+            raise ValueError(
+                "events-check-since requires 'sinceEventId' (from events-wait, a tool reply, or "
+                "bridge-get-status lastEventId) or 'sinceTimestampUtc'."
+            )
         filters = self.read_event_filters(arguments)
         stream = self.read_event_stream()
         matched = self.filter_events(
@@ -260,6 +267,12 @@ class EventsStatusMixin:
         started = time.monotonic()
         started_at_utc = utc_now_iso()
         deadline = started + (timeout_ms / 1000)
+        explicit_cursor = isinstance(arguments.get("sinceEventId"), int) or include_recent_cutoff is not None
+        if not explicit_cursor and filters:
+            fired = self.find_fired_before_wait(initial_stream, since_event_id, filters, include_data)
+            if fired is not None:
+                return self.build_fired_before_wait_result(fired, since_event_id, started_at_utc, initial_stream)
+
         request_key, cancel_event = self.register_event_wait(
             request_id,
             filters,
@@ -326,6 +339,64 @@ class EventsStatusMixin:
         finally:
             self.unregister_event_wait(request_key)
 
+    def find_fired_before_wait(
+        self,
+        stream: dict[str, Any],
+        since_event_id: int,
+        filters: dict[str, Any],
+        include_data: bool,
+    ) -> dict[str, Any] | None:
+        """The newest match at or below the default cursor that is younger than the look-back window.
+
+        A bare wait starts after the last event, so the end of a short action — logged in the seconds
+        between the action's reply and this call — sits below the cursor and the wait runs to its full
+        timeout (minutes, when the caller asked for minutes). Reporting it up front costs a caller who
+        wanted the next occurrence one more call with sinceEventId; missing it cost the whole timeout.
+        """
+        cutoff = time.time() - EVENTS_WAIT_FIRED_BEFORE_WINDOW_MS / 1000
+        newest: dict[str, Any] | None = None
+        for event in stream.get("events", []):
+            if not isinstance(event, dict):
+                continue
+            event_id = event.get("eventId")
+            if not isinstance(event_id, int) or event_id > since_event_id:
+                continue
+            timestamp = parse_utc_iso(event.get("timestamp"))
+            if timestamp is None or timestamp < cutoff:
+                continue
+            if not self.event_matches_filters(event, filters):
+                continue
+            if newest is None or event_id > newest["eventId"]:
+                newest = event
+        return self.copy_event(newest, include_data) if newest is not None else None
+
+    def build_fired_before_wait_result(
+        self,
+        fired: dict[str, Any],
+        since_event_id: int,
+        started_at_utc: str,
+        stream: dict[str, Any],
+    ) -> dict[str, Any]:
+        timestamp = parse_utc_iso(fired.get("timestamp"))
+        fired_ago_ms = int(max(0.0, time.time() - timestamp) * 1000) if timestamp is not None else None
+        return {
+            "matched": False,
+            "timedOut": False,
+            "event": None,
+            "firedBeforeWait": fired,
+            "firedAgoMs": fired_ago_ms,
+            "hint": (
+                f"A matching event fired {fired_ago_ms} ms before this wait started (eventId {fired.get('eventId')}): "
+                "most likely the end of the action you just started. If you need a newer one, wait again with "
+                f"sinceEventId:{since_event_id}. Next time pass the action's sinceEventId, or awaitMs to the action itself."
+            ),
+            "sinceEventId": since_event_id,
+            "startedAtUtc": started_at_utc,
+            "lastEventId": self.event_stream_last_id(stream),
+            "elapsedMs": 0,
+            "bridgeState": self.get_bridge_status({}),
+        }
+
     def read_event_stream(self) -> dict[str, Any]:
         payload = read_json_file(self.event_path) or {}
         events = payload.get("events")
@@ -364,33 +435,54 @@ class EventsStatusMixin:
         return default
 
     @staticmethod
-    def read_since_timestamp(arguments: dict[str, Any]) -> tuple[str, float]:
+    def read_since_timestamp(arguments: dict[str, Any]) -> tuple[str | None, float | None]:
         value = arguments.get("sinceTimestampUtc", arguments.get("startedAtUtc"))
-        if not isinstance(value, str) or not value:
-            raise ValueError("events-check-since requires 'sinceTimestampUtc' from events-wait startedAtUtc.")
+        if value is None or value == "":
+            return None, None
+        if not isinstance(value, str):
+            raise ValueError("events-check-since 'sinceTimestampUtc' must be a UTC ISO timestamp string.")
         parsed = parse_utc_iso(value)
         if parsed is None:
             raise ValueError("events-check-since 'sinceTimestampUtc' must be a UTC ISO timestamp.")
         return value, parsed
 
-    def read_event_filters(self, arguments: dict[str, Any]) -> dict[str, str]:
-        filters: dict[str, str] = {}
+    def read_event_filters(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        filters: dict[str, Any] = {}
         for key in ("source", "type", "level", "contains", "marker"):
             value = arguments.get(key)
             if value is None:
                 continue
+            # contains alone takes a list: the first of several outcomes ("done" or "failed") ends a wait.
+            if key == "contains" and isinstance(value, list):
+                if not value or not all(isinstance(item, str) for item in value):
+                    raise ValueError("events filter 'contains' must be a string or a non-empty array of strings.")
+                for item in value:
+                    self.validate_event_filter_text(key, item)
+                filters[key] = list(value)
+                continue
             if not isinstance(value, str):
                 raise ValueError(f"events filter '{key}' must be a string.")
-            if len(value) > MAX_EVENT_FILTER_TEXT or any(character in value for character in "\r\n\0"):
-                raise ValueError(f"events filter '{key}' must be <= {MAX_EVENT_FILTER_TEXT} chars without newlines.")
+            self.validate_event_filter_text(key, value)
             filters[key] = value
         return filters
+
+    @staticmethod
+    def validate_event_filter_text(key: str, value: str) -> None:
+        if len(value) > MAX_EVENT_FILTER_TEXT or any(character in value for character in "\r\n\0"):
+            raise ValueError(f"events filter '{key}' must be <= {MAX_EVENT_FILTER_TEXT} chars without newlines.")
+
+    @staticmethod
+    def contains_terms(filters: dict[str, Any]) -> list[str]:
+        contains = filters.get("contains")
+        if isinstance(contains, str):
+            return [contains]
+        return list(contains) if isinstance(contains, list) else []
 
     def filter_events(
         self,
         events: list[Any],
         since_event_id: int,
-        filters: dict[str, str],
+        filters: dict[str, Any],
         include_data: bool,
         min_timestamp: float | None = None,
     ) -> list[dict[str, Any]]:
@@ -414,7 +506,7 @@ class EventsStatusMixin:
         self,
         stream: dict[str, Any],
         since_event_id: int,
-        filters: dict[str, str],
+        filters: dict[str, Any],
     ) -> dict[str, Any] | None:
         """Explain a timeout when the wanted event likely fired below the cursor or was evicted.
 
@@ -452,8 +544,8 @@ class EventsStatusMixin:
                 ),
             }
 
-        contains = filters.get("contains")
-        if contains and not contains.isascii():
+        contains = next((term for term in self.contains_terms(filters) if not term.isascii()), None)
+        if contains:
             return {
                 "nonAsciiContains": contains,
                 "hint": (
@@ -479,15 +571,18 @@ class EventsStatusMixin:
         return None
 
     @staticmethod
-    def event_matches_filters(event: dict[str, Any], filters: dict[str, str]) -> bool:
+    def event_matches_filters(event: dict[str, Any], filters: dict[str, Any]) -> bool:
         for key in ("source", "type", "level"):
             expected = filters.get(key)
             if expected is not None and str(event.get(key, "")).lower() != expected.lower():
                 return False
 
         contains = filters.get("contains")
-        if contains is not None and contains.lower() not in str(event.get("message", "")).lower():
-            return False
+        if contains is not None:
+            message = str(event.get("message", "")).lower()
+            terms = [contains] if isinstance(contains, str) else contains
+            if not any(term.lower() in message for term in terms):
+                return False
 
         marker = filters.get("marker")
         if marker is not None and str(event.get("marker", "")) != marker:

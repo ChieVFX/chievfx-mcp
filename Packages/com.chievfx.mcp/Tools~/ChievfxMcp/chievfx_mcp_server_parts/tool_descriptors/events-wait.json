@@ -1,6 +1,6 @@
 {
   "name": "events-wait",
-  "description": "Long-poll for the NEXT matching Unity event. Match by contains (case-insensitive log substring) or marker (exact planted-beacon name). Waits for FUTURE events by default; events that fire DURING a trigger (Play-mode enter, recompile, script-execute) are skipped unless you capture sinceEventId before the trigger (e.g. bridge-get-status lastEventId) or pass includeRecentMs. timedOut:true is a normal branch, not a failure: read result.diagnostic and recover with events-check-since.",
+  "description": "Long-poll for the NEXT matching Unity event, by contains (log substring; a list matches any) or marker (exact beacon name). Earlier events are skipped unless you pass sinceEventId taken before the trigger (tool reply, bridge-get-status lastEventId); a match fired just before the wait returns at once as firedBeforeWait. A tool whose reply has waitFor can wait itself: pass it awaitMs. timedOut:true is normal: read diagnostic, recover with events-check-since.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -8,8 +8,18 @@
         "$chievfxSchema": "outputFormat"
       },
       "contains": {
-        "type": "string",
-        "description": "Event MESSAGE substring (case-insensitive)."
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Message substring (case-insensitive); a list matches any."
       },
       "marker": {
         "type": "string",
@@ -44,15 +54,15 @@
           "editor",
           "structured"
         ],
-        "description": "Advanced: restrict to one event origin. Defaults to any source."
+        "description": "Advanced: one event origin (default any)."
       },
       "type": {
         "type": "string",
-        "description": "Advanced: restrict to one internal event type."
+        "description": "Advanced: one internal event type."
       },
       "level": {
         "type": "string",
-        "description": "Advanced: restrict by severity (e.g. Error, Warning, Log)."
+        "description": "Advanced: severity (Error, Warning, Log)."
       },
       "includeData": {
         "type": "boolean",

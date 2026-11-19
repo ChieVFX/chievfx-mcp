@@ -73,6 +73,7 @@
     "frame-debugger-drawcall-screenshot",
     "frame-debugger-pick-pixel",
     "frame-debugger-events-list",
-    "frame-debugger-event-get"
+    "frame-debugger-event-get",
+    "remote-cmd"
   ]
 }

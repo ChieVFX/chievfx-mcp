@@ -1,0 +1,37 @@
+{
+  "name": "remote-cmd",
+  "required": true,
+  "description": "Runs a command line on the machine hosting this MCP server (the one running Unity), which is NOT the machine you run on. Use it for host CLI work Unity's own tools do not cover: adb, git, Unity batchmode/CLI, build and packaging scripts. The host operator configures what is allowed: when a program filter is set, only single-line invocations of matching programs are accepted and pipes, redirects, chaining and multi-line input are refused (the error names the active pattern); when no filter is set, arbitrary shell input including multi-line scripts runs through the host's default shell. Returns exit code, duration, stdout and stderr, truncated to the host's configured output cap. stdin is closed, so never call an interactive command; a command exceeding the timeout is killed with its whole process tree. Not a Unity tool: reading or changing the project/scene still goes through the Unity tools, which report editor state this cannot see.",
+  "inputSchema": {
+    "type": "object",
+    "required": ["command"],
+    "properties": {
+      "command": {
+        "type": "string",
+        "description": "The command line to run, e.g. 'adb devices -l'. One program invocation while the host's program filter is on; any shell input, multi-line included, when it is off."
+      },
+      "workingDirectory": {
+        "type": "string",
+        "description": "Directory to run in. Relative paths resolve against the host's Unity project root, which is also the default."
+      },
+      "timeoutMs": {
+        "type": "integer",
+        "minimum": 1000,
+        "description": "Kill the command (and its children) after this long. Defaults to the host's configured timeout, which is also the maximum: a larger value is clamped down to it."
+      },
+      "maxOutputBytes": {
+        "type": "integer",
+        "minimum": 1024,
+        "description": "Cap for stdout and for stderr, each. Output past the cap is cut and the result flags it as truncated. Use it to keep a chatty command (adb logcat, a full build log) from filling the response. The host's configured cap is the maximum; a larger value is clamped down to it."
+      },
+      "shell": {
+        "type": "string",
+        "enum": ["default", "bash", "zsh", "sh", "cmd", "powershell", "pwsh"],
+        "description": "Which interpreter runs the command when the host has no program filter set. Ignored while a filter is on, because a filtered call is spawned directly with no shell at all."
+      },
+      "outputFormat": {
+        "$chievfxSchema": "outputFormat"
+      }
+    }
+  }
+}

@@ -9,6 +9,9 @@ Short reference for how agent-facing MCP text is assembled and how it respects t
 | Tools | `UserSettings/ChievfxMcpToolSelection.json` | Essentials + policy-required tools |
 | Resources / templates | `UserSettings/ChievfxMcpResourceSelection.json` | none required |
 | Prompts | `UserSettings/ChievfxMcpPromptSelection.json` | policy-required prompts |
+| `remote-cmd` arming | `UserSettings/ChievfxMcpRemoteCmd.json` | off; the tool is absent entirely |
+
+`remote-cmd` is deliberately **outside** the selection model: `all_tools()` omits it unless that file arms it, so no preset, role, category "enable all", or saved selection can expose a tool that runs host commands. See `remote_cmd.py` and **Remote Command Pass-through** in `instruction.md`.
 
 Unity windows under `Window > ChievFX > MCP *` write these files. The Python MCP server reads them at runtime.
 
@@ -23,6 +26,11 @@ Optionally preceded by one **secondary-project label** line, then two layers, bo
    - Placed above the core-descriptor precondition: with two editors in one session, acting on the wrong one is a silent wrong answer, while a missed precondition only costs a re-read
    - An environment variable rather than a CLI flag on purpose — the secondary project may run an older package build, where an unknown `--flag` makes `argparse` exit 2 while an unknown env var is ignored
 
+
+0b. **Host-shell banner** from `remote_cmd_instruction_banner()`
+   - Present only while `remote-cmd` is armed, and empty (costing no budget) otherwise
+   - Placed above the curated `global` records, because an agent that does not know the host shell is reachable reports the task impossible ("I cannot run adb from here") instead of hunting for the tool in a truncated list
+   - States what the active program filter allows, so the agent does not spend calls discovering it by rejection
 
 1. **Curated blurbs** from `Tools~/ChievfxMcp/chievfx_mcp_initialize_instructions.md`
    - Records keyed by `type` + `id` (`global`, `tool`, `resource`, `resourceTemplate`, `prompt`)

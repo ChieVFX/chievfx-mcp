@@ -13,10 +13,16 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import hmac
+import ipaddress
 import json
 import math
 import os
 import re
+import shlex
+import shutil
+import signal
+import subprocess
 import sys
 import threading
 import time
@@ -73,6 +79,10 @@ EXTENSION_CAPABILITY_MANIFEST_PATH = PROJECT_ROOT / "Library" / "ChievfxMcpBridg
 DEBUG_SETTINGS_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpDebugSettings.json"
 DEBUG_INSTRUCTIONS_PATH = PROJECT_ROOT / ".temp" / "debug_instructions.md"
 DEBUG_DESCRIPTORS_DIR = PROJECT_ROOT / ".temp" / "descriptors"
+# Mirror of the Connection tab's remote-command settings. Absent file = feature off, which is why
+# every read below treats a missing/corrupt file as "disabled" rather than as defaults.
+REMOTE_CMD_SETTINGS_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpRemoteCmd.json"
+REMOTE_CMD_AUDIT_PATH = PROJECT_ROOT / "Library" / "ChievfxMcpBridge" / "remote-cmd-audit.log"
 DEBUG_SETTINGS_SCHEMA_VERSION = 1
 TOOL_SELECTION_SCHEMA_VERSION = 1
 RESOURCE_SELECTION_SCHEMA_VERSION = 1
@@ -164,6 +174,8 @@ def configure_project_root(project_root: str | os.PathLike[str] | None) -> None:
     global DEBUG_SETTINGS_PATH
     global DEBUG_INSTRUCTIONS_PATH
     global DEBUG_DESCRIPTORS_DIR
+    global REMOTE_CMD_SETTINGS_PATH
+    global REMOTE_CMD_AUDIT_PATH
 
     if project_root is None:
         return
@@ -181,6 +193,25 @@ def configure_project_root(project_root: str | os.PathLike[str] | None) -> None:
     DEBUG_SETTINGS_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpDebugSettings.json"
     DEBUG_INSTRUCTIONS_PATH = PROJECT_ROOT / ".temp" / "debug_instructions.md"
     DEBUG_DESCRIPTORS_DIR = PROJECT_ROOT / ".temp" / "descriptors"
+    REMOTE_CMD_SETTINGS_PATH = PROJECT_ROOT / "UserSettings" / "ChievfxMcpRemoteCmd.json"
+    REMOTE_CMD_AUDIT_PATH = PROJECT_ROOT / "Library" / "ChievfxMcpBridge" / "remote-cmd-audit.log"
+
+
+# The transport and bind address this process actually runs on, set from parsed CLI args in main().
+# remote-cmd refuses to exist under stdio (where the client already owns a shell on this machine),
+# and the HTTP handler compares the Host header against the address it really bound.
+ACTIVE_TRANSPORT = "stdio"
+ACTIVE_BIND_HOST = "127.0.0.1"
+ACTIVE_PORT = 27247
+
+
+def configure_active_transport(transport: str, host: str, port: int) -> None:
+    global ACTIVE_TRANSPORT
+    global ACTIVE_BIND_HOST
+    global ACTIVE_PORT
+    ACTIVE_TRANSPORT = transport
+    ACTIVE_BIND_HOST = host
+    ACTIVE_PORT = port
 
 
 DEFAULT_REQUIRED_TOOL_IDS = {
@@ -290,9 +321,11 @@ TOOL_SHORT_SUMMARIES: dict[str, str] = {
     "gameobject-component-update-or-create": "Set component values, add it if missing",
     "gameobject-transform-get": "Read position, rotation, scale",
     "gameobject-transform-update": "Set position, rotation, scale",
+    "remote-cmd": "Run a shell command on the machine hosting this MCP server",
 }
 
 TOOL_CATEGORIES = {
+    "remote-cmd": "remote-shell",
     "screenshot-game-view": "essentials",
     "screenshot-camera": "essentials",
     "screenshot-editor-window": "editor-window",
@@ -391,6 +424,7 @@ TOOL_CATEGORY_DESCRIPTIONS = {
     "ugui-design": "Author uGUI at edit time: Canvas, RectTransform, images, layout, TMP, sprites.",
     "ugui-runtime-control": "Drive uGUI in Play Mode: clicks, drags, selection, control values.",
     "obsolete": "Deprecated compatibility tools. Only enable explicitly; bulk enable skips this category.",
+    "remote-shell": "Runs commands on the machine hosting this MCP server. Absent unless armed in Window > ChievFX > MCP (Connection tab); never enabled by any preset, role, or bulk enable.",
 }
 DEFAULT_REQUIRED_RESOURCE_IDS: set[str] = {
     "control-status",
@@ -551,6 +585,7 @@ PROMPT_RESPONSE_ESTIMATE_PROFILES: dict[str, dict[str, str]] = {
     },
 }
 RESPONSE_PROFILE_BY_TOOL = {
+    "remote-cmd": "log-list",
     "screenshot-game-view": "image",
     "screenshot-camera": "image",
     "screenshot-editor-window": "image",

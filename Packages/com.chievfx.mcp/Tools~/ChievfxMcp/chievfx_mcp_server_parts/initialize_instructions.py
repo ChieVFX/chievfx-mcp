@@ -72,6 +72,12 @@ def build_initialize_instructions() -> str:
     if SERVER_LABEL.strip():
         lines.append(SERVER_LABEL.strip())
     lines.append(build_core_descriptor_precondition())
+    # Above the global records, because an agent that does not know the host shell is reachable will
+    # report a task impossible ("I cannot run adb from here") rather than look for the tool in a
+    # truncated list. Empty — and costing nothing — whenever remote-cmd is not armed.
+    banner = remote_cmd_instruction_banner()
+    if banner:
+        lines.append(banner)
     lines.extend(records.get("global", []))
 
     enabled_tool_ids = load_enabled_tool_ids()

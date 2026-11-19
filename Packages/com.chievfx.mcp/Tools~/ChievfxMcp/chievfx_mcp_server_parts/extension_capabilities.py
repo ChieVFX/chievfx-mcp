@@ -281,7 +281,23 @@ def collect_extension_capabilities() -> dict[str, Any]:
 
 
 def all_tools() -> list[dict[str, Any]]:
-    return [dict(tool, **core_source_fields()) for tool in TOOLS] + collect_extension_capabilities()["tools"]
+    core = [dict(tool, **core_source_fields()) for tool in TOOLS if _core_tool_is_available(tool["name"])]
+    return core + collect_extension_capabilities()["tools"]
+
+
+def _core_tool_is_available(tool_id: str) -> bool:
+    """One deliberate exception to "every core descriptor is a tool the server has".
+
+    remote-cmd runs arbitrary commands on the host, so it is not allowed to travel through any of the
+    paths that turn tools on in bulk — the expose-all default, "enable all" in a category, a role
+    preset, or a saved selection from before the feature existed. Removing it from all_tools() until
+    it is armed makes those paths structurally unable to reach it, instead of relying on each of them
+    to remember an exclusion. Everything downstream (tools/list, metadata, categories, dispatch)
+    reads this list, so a disarmed remote-cmd simply does not exist.
+    """
+    if tool_id != REMOTE_CMD_TOOL_ID:
+        return True
+    return remote_cmd_armed()
 
 
 def all_resources() -> list[dict[str, Any]]:

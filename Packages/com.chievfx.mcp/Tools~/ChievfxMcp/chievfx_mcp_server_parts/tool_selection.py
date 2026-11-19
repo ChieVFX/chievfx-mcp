@@ -17,7 +17,10 @@ def load_tool_selection_payload() -> dict[str, Any]:
 
 # Categories that "expose all non-hidden" never auto-enables: autonomy/discovery helpers and
 # deprecated tools. Mirrors the C# panel's hidden set and the Tools tab's "Enable All" skip list.
-HIDDEN_TOOL_CATEGORIES = ("autonomous", "obsolete")
+# remote-shell is hidden from every bulk path too — expose-all, first-install defaults, "enable all"
+# in a category, and any role preset. When armed it is added back explicitly in load_enabled_tool_ids,
+# so the Connection tab switch stays the only thing that can expose a command-running tool.
+HIDDEN_TOOL_CATEGORIES = ("autonomous", "obsolete", "remote-shell")
 
 
 def manual_tool_resource_selection_enabled() -> bool:
@@ -36,6 +39,9 @@ def load_enabled_tool_ids() -> set[str]:
     tools = all_tools()
     tool_names = {tool["name"] for tool in tools}
     required_tool_ids = required_tool_ids_for_tools(tools) & tool_names
+    # remote-cmd reaches required_tool_ids through its descriptor's required flag, which is what keeps
+    # the Connection tab switch authoritative: all_tools() only lists it once armed, and then it is
+    # locked enabled rather than needing a second opt-in from a saved selection that predates it.
 
     if not manual_tool_resource_selection_enabled():
         # Expose-all mode (default): every non-hidden tool, regardless of any saved selection.

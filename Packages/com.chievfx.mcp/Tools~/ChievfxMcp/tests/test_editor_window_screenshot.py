@@ -61,12 +61,12 @@ class ScreenshotSavePathTests(unittest.TestCase):
         save_target = Path(self.temp_dir.name) / "shots" / "view.png"
 
         result = server.call_tool(
-            {"name": "screenshot-game-view", "arguments": {"maxDimension": 512, "savePath": str(save_target)}}
+            {"name": "screenshot-game-view", "arguments": {"left": 0.25, "savePath": str(save_target)}}
         )
 
         self.assertFalse(result["isError"])
         # savePath is handled server-side and must never reach the Unity bridge.
-        self.assertEqual(server.calls, [("screenshot-game-view", {"maxDimension": 512})])
+        self.assertEqual(server.calls, [("screenshot-game-view", {"left": 0.25})])
         self.assertTrue(save_target.exists())
         self.assertEqual(save_target.read_bytes(), base64.b64decode(server.base64_data))
         self.assertEqual(result["structuredContent"]["savedPath"], str(save_target.resolve()))
@@ -172,13 +172,29 @@ class editorWindowScreenshotMetadataTests(unittest.TestCase):
         self.assertEqual(mcp.TOOL_CATEGORIES["screenshot-editor-window"], "editor-window")
         self.assertEqual(mcp.RESPONSE_PROFILE_BY_TOOL["screenshot-editor-window"], "image")
 
-    def test_game_view_screenshot_schema_uses_max_dimension(self) -> None:
+    def test_game_view_screenshot_schema_crops_by_region_at_a_fixed_size(self) -> None:
+        # The caller no longer picks a resolution: the PNG's longest side is fixed and zoom comes from
+        # cropping, so maxDimension/width/height must be gone and the four edges advertised instead.
         tool = next(tool for tool in mcp.TOOLS if tool["name"] == "screenshot-game-view")
         properties = tool["inputSchema"]["properties"]
 
-        self.assertEqual(set(properties), {"maxDimension", "savePath"})
-        self.assertEqual(properties["maxDimension"]["default"], 960)
+        self.assertEqual(set(properties), {"left", "top", "right", "bottom", "savePath"})
+        for edge, default in (("left", 0), ("top", 0), ("right", 1), ("bottom", 1)):
+            self.assertEqual(properties[edge]["type"], "number", edge)
+            self.assertEqual(properties[edge]["default"], default, edge)
+            self.assertEqual((properties[edge]["minimum"], properties[edge]["maximum"]), (0, 1), edge)
         self.assertEqual(properties["savePath"]["type"], "string")
+        self.assertIn("960", tool["description"])
+        self.assertIn("left/top/right/bottom", tool["description"])
+
+    def test_screenshot_space_click_tools_advertise_the_crop(self) -> None:
+        # A position read off a cropped PNG only maps back correctly with the crop it was taken with,
+        # so every tool that accepts space:"screenshot" must accept the same four edges.
+        for name in ("ui-runtime-click", "ui-runtime-drag"):
+            tool = next(tool for tool in mcp.TOOLS if tool["name"] == name)
+            properties = tool["inputSchema"]["properties"]
+            self.assertTrue({"left", "top", "right", "bottom"} <= set(properties), name)
+            self.assertIn("left/top/right/bottom", properties["space"]["description"], name)
 
     def test_editor_window_list_formatter_keeps_target_selectors_compact(self) -> None:
         result = {

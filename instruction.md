@@ -112,6 +112,48 @@ Response-size labels are guidance by output profile, not a promise: small scalar
 
 Use `tools-list-categories` to inspect tool categories and `tools-list-category` to inspect tools in one category. Use `tools-set-enabled-state` to enable or disable optional categories or explicit optional tools through the same `UserSettings/ChievfxMcpToolSelection.json` store used by the MCP Tools window. After changing enabled tools, call `reload_cursor_mcp` for `unity-mcp-chievfx` or the full runtime id shown in `SERVER_METADATA.json` before using changed tool descriptors.
 
+## Remote Command Pass-through (`remote-cmd`)
+
+Optional, off by default, and only available on the `http` transport: it exposes a `remote-cmd` tool that runs command lines on **the machine running Unity** for whichever client is connected. It exists for host CLI work the Unity tools do not cover — `adb`, Unity batchmode, build and packaging scripts — from a client on another machine.
+
+Arm it in `Window > ChievFX > MCP` (Connection tab, visible once the transport is `http`). The window mirrors the settings into `UserSettings/ChievfxMcpRemoteCmd.json`, which is what the Python server reads; a missing or unparsable file means the feature is off.
+
+It is outside the normal tool-selection model on purpose. While disarmed the server drops `remote-cmd` from `all_tools()` entirely, so the expose-all default, a role preset, a category "enable all", and any saved selection are all structurally unable to reach it. The Connection tab switch is the only thing that can.
+
+Four preconditions must all hold before the tool is advertised at all:
+
+1. `enabled` is on.
+2. The transport is `http`. Under stdio the client already runs on this machine with its own shell, so the tool would add reach without adding capability.
+3. A non-empty **security key** is set. Every HTTP request must carry it as `X-Chievfx-Key` (or `Authorization: Bearer <key>`); it defaults to this project copy's short SHA — the same suffix as the per-project server name — and the window writes it into the MCP client config for clients whose config supports headers (Cursor, Claude Code, Kimi, Rider; Codex's generated block cannot carry it).
+4. If the program filter is empty, the "I understand" acknowledgement is checked. An accidentally cleared filter fails closed instead of silently becoming unrestricted shell access.
+
+### Program filter
+
+The filter is a regex matched against **the program**, not the argument string: its executable name, or its full path when the pattern itself contains a path separator. Default `^(?:unity|unityhub|adb)$`.
+
+While a filter is set, each call must be one single-line invocation of one program, spawned directly with **no shell**:
+
+- Multi-line input is refused, and the error names the active pattern.
+- Pipes, redirection, chaining (`;`, `&&`, `|`) and command substitution are refused — a regex cannot be trusted to keep a second command out of a string that a shell will parse.
+- Interpreters (`sh`, `bash`, `cmd`, `powershell`, `python`, `env`, `sudo`, …) are refused whatever the pattern says, because allowing one would bypass the filter entirely (`bash -c "<anything>"`).
+
+With an empty filter, arbitrary input — multi-line scripts included — runs through the host's default shell (`$SHELL` / PowerShell / `cmd`). That is full control of the account Unity runs as, which is why it needs the extra acknowledgement.
+
+An allowed program is narrower, not safe: `adb shell`, `adb push`, and Unity's `-executeMethod` all pass a perfect program allowlist and can still do arbitrary damage. The filter limits which programs run, not what they do.
+
+### Network exposure
+
+- **Bind address** defaults to `127.0.0.1`, which is not reachable from other machines. The safest way to use `remote-cmd` from a second machine is an SSH tunnel: `ssh -L 27247:127.0.0.1:27247 <host>`.
+- Any other bind address exposes the port to the network, and then the security key is required on **every** MCP request, not just `remote-cmd` — the same port also serves `script-execute`.
+- **Allowed client IPs** (comma-separated IPs or CIDR ranges) are checked per `remote-cmd` call. Empty means any address that can reach the port, and the window says so.
+- Requests carrying an `Origin` header are refused, as is an unexpected `Host`. No MCP client sends `Origin`; a browser always does, so this is what keeps a web page the user has open from driving the endpoint (and blocks DNS rebinding).
+
+### Per-call limits and audit
+
+`timeoutMs` kills the command with its whole process tree (a plain child kill would orphan `adb logcat` or leave a batchmode build holding the project lock). `maxOutputBytes` caps stdout and stderr independently. stdin is closed, so interactive commands will hang until the timeout.
+
+Every call — accepted or refused, with the reason and the peer address — is appended to `Library/ChievfxMcpBridge/remote-cmd-audit.log` (one JSON object per line, rotated at ~1 MB) and echoed to the server's stderr. "Open Audit Log" in the window reveals it.
+
 ## Tool Roles
 
 Roles are presets above manual category/tool controls. Applying a role enables its category list and explicit tool IDs, disables other optional tools, and keeps required tools locked enabled. Built-in roles live in `Tools/ChievfxMcp/chievfx_mcp_role_presets.json`: `Developer` and `QA`. Fresh installs default to `Developer` until a saved project-local selection exists.
@@ -546,7 +588,7 @@ Call tool: `events-wait`.
 {}
 ```
 
-Call tool: `screenshot-game-view`. It defaults to `maxDimension: 960`; raise or lower that single longest-side cap only when useful. If visual timing matters, also start/stop profiler recording around the marker or call `profiler-counters-get`.
+Call tool: `screenshot-game-view`. The PNG's longest side is always 960 px; to inspect one area magnified or compare it between captures, crop with `left`/`top`/`right`/`bottom` (0..1, top-left origin) — the crop is scaled to the same 960 px. A position read off a cropped PNG only maps back to the view when the same four edges are passed to `ui-runtime-click`/`drag`/`probe` together with `space:"screenshot"`. If visual timing matters, also start/stop profiler recording around the marker or call `profiler-counters-get`.
 
 4. Final summary collector runs:
 

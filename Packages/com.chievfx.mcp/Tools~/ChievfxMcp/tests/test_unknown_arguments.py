@@ -19,9 +19,15 @@ class UnknownArgumentTests(unittest.TestCase):
         self.assertIn("outputPath", message)
         self.assertIn("savePath", message)
 
+    def test_removed_resolution_arguments_are_reported(self) -> None:
+        # maxDimension/width/height used to pick the PNG size; the size is fixed now and zoom comes from
+        # the crop edges, so a caller still passing them must hear that they do nothing.
+        unknown = mcp.unknown_tool_arguments("screenshot-game-view", {"maxDimension": 320, "width": 800, "height": 600})
+        self.assertEqual(unknown, ["height", "maxDimension", "width"])
+
     def test_declared_and_universal_arguments_are_silent(self) -> None:
         for arguments in (
-            {"savePath": "/tmp/x.png", "maxDimension": 320},
+            {"savePath": "/tmp/x.png", "left": 0.5, "top": 0, "right": 1, "bottom": 0.5},
             {"outputFormat": "json"},
             {"timeoutMs": 5000},
             {},
@@ -37,6 +43,7 @@ class UnknownArgumentTests(unittest.TestCase):
             ("ui-control-find", {"query": "Btn"}),
             ("ui-runtime-drag", {"x": 1, "y": 2, "toX": 3, "toY": 4}),
             ("ui-runtime-click", {"normalized": {"x": 0.5, "y": 0.5}}),
+            ("ui-runtime-click", {"x": 0.5, "y": 0.5, "space": "screenshot", "left": 0.5, "top": 0, "right": 1, "bottom": 0.5}),
             ("bridge-get-operation", {"operationId": "abc"}),
         ):
             self.assertEqual(mcp.unknown_tool_arguments(tool, arguments), [], (tool, arguments))

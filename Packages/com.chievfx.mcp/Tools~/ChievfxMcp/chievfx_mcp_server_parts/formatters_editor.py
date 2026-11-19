@@ -37,6 +37,22 @@ def format_recompile_text(result: dict[str, Any]) -> str:
             lines.append(f"- {issue.get('message', '')}")
     if compile_info.get("warningsTruncated"):
         lines.append(f"… +{warning_count - len(warnings)} more warnings")
+
+    # Console output that is not a compiler diagnostic (typically the project's own runtime logs from
+    # the Play Mode stop this recompile performed) is counted, never echoed — one such entry used to
+    # be reported as a compile error and fill the whole response with its stack trace.
+    other_counts = [
+        plural(count, noun)
+        for count, noun in (
+            (compile_info.get("otherErrorCount") or 0, "error"),
+            (compile_info.get("otherWarningCount") or 0, "warning"),
+        )
+        if isinstance(count, int) and count > 0
+    ]
+    if other_counts:
+        since_event_id = compile_info.get("sinceEventId")
+        hint = f" — console-get-logs sinceEventId:{since_event_id}" if isinstance(since_event_id, int) else ""
+        lines.append(f"Also logged, not compile output: {', '.join(other_counts)}{hint}")
     return "\n".join(lines)
 
 

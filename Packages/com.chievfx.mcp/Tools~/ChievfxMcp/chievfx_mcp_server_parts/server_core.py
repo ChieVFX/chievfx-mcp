@@ -298,6 +298,10 @@ class McpServerCore:
 
         core_tool_ids = {tool["name"] for tool in TOOLS}
         known_tool_ids = {tool["name"] for tool in all_tools()}
+        if name == REMOTE_CMD_TOOL_ID and name not in known_tool_ids:
+            # A disarmed remote-cmd is absent from all_tools() by design, and "unknown tool" would send
+            # the agent looking for a typo instead of telling the operator which switch is off.
+            raise RemoteCmdUnavailableError(remote_cmd_gate()["reason"])
         if name not in known_tool_ids:
             raise ToolCallError(f"Unknown ChievFX MCP tool '{name}'.")
 
@@ -388,6 +392,22 @@ class McpServerCore:
                         "text": format_tool_role_set_compact_text(result),
                     }
                 ],
+                "isError": False,
+            }
+
+        if name == REMOTE_CMD_TOOL_ID:
+            result = run_remote_cmd(arguments)
+            if arguments.get("outputFormat") == "json":
+                return self.text_tool_result(result, arguments)
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": format_remote_cmd_text(result),
+                    }
+                ],
+                # A non-zero exit is the command's answer, not a tool failure: the agent needs the
+                # output either way, and isError makes some clients discard it.
                 "isError": False,
             }
 

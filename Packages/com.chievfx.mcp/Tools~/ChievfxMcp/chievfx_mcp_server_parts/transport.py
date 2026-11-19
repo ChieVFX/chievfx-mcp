@@ -46,6 +46,8 @@ def selection_watch_targets() -> dict[str, tuple[str, ...]]:
         # Category selection and live extension capabilities can shift all three lists.
         str(CATEGORY_SELECTION_PATH): ("tools", "resources", "prompts"),
         str(EXTENSION_CAPABILITY_MANIFEST_PATH): ("tools", "resources", "prompts"),
+        # Arming or disarming remote-cmd adds or removes a tool, and the client caches tools/list.
+        str(REMOTE_CMD_SETTINGS_PATH): ("tools",),
     }
 
 
@@ -146,6 +148,61 @@ def run_stdio(server: McpServer) -> None:
         worker.join()
 
 
+LOOPBACK_HOST_NAMES = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+
+
+def http_requires_security_key() -> tuple[bool, str]:
+    """When the shared key must be presented on every request, and what it must equal.
+
+    Two independent reasons: the port is reachable from off the machine, or remote-cmd is armed and a
+    request to this port can run commands. Loopback-only setups without remote-cmd keep working with
+    no header, so enabling this feature is what tightens the endpoint rather than a silent break.
+    """
+    settings = load_remote_cmd_settings()
+    try:
+        bind_is_loopback = ipaddress.ip_address(ACTIVE_BIND_HOST).is_loopback
+    except ValueError:
+        bind_is_loopback = ACTIVE_BIND_HOST in LOOPBACK_HOST_NAMES
+    if not bind_is_loopback or settings["enabled"]:
+        return (True, settings["securityKey"])
+    return (False, settings["securityKey"])
+
+
+def http_presented_key(headers: Any) -> str:
+    key = (headers.get("X-Chievfx-Key") or "").strip()
+    if key:
+        return key
+    authorization = (headers.get("Authorization") or "").strip()
+    if authorization.lower().startswith("bearer "):
+        return authorization[7:].strip()
+    return ""
+
+
+def http_host_header_is_allowed(host_header: str) -> bool:
+    """Reject a Host this server was not reached at, which is what DNS rebinding needs to work.
+
+    A browser cannot be stopped from resolving an attacker-controlled name to 127.0.0.1 and POSTing
+    here, but it always sends that name in Host. IP literals and localhost are accepted; any other
+    hostname is not, because nothing legitimately reaches this port by name.
+    """
+    host = (host_header or "").strip()
+    if not host:
+        return False
+    if host.startswith("["):
+        closing = host.find("]")
+        host = host[: closing + 1] if closing != -1 else host
+    elif ":" in host:
+        host = host.rsplit(":", 1)[0]
+    host = host.strip().lower()
+    if host in LOOPBACK_HOST_NAMES:
+        return True
+    try:
+        ipaddress.ip_address(host.strip("[]"))
+        return True
+    except ValueError:
+        return False
+
+
 def make_http_handler(server: McpServer) -> type[BaseHTTPRequestHandler]:
     def log_stderr(text: str) -> None:
         try:
@@ -158,6 +215,9 @@ def make_http_handler(server: McpServer) -> type[BaseHTTPRequestHandler]:
             log_stderr(format % args)
 
         def do_GET(self) -> None:  # noqa: N802
+            if self.reject_untrusted_request():
+                return
+
             payload = {
                 "name": SERVER_NAME,
                 "version": SERVER_VERSION,
@@ -167,12 +227,49 @@ def make_http_handler(server: McpServer) -> type[BaseHTTPRequestHandler]:
             }
             self.send_json(payload)
 
+        def reject_untrusted_request(self) -> bool:
+            """Refuse anything that is not an MCP client on this port, before parsing a body.
+
+            No MCP client sends Origin; a web page always does, and until this check existed any page
+            the user had open could POST JSON-RPC to the loopback port and drive the editor.
+            """
+            if self.headers.get("Origin"):
+                log_stderr(f"rejected request carrying Origin {self.headers.get('Origin')!r}")
+                self.send_json({"error": "Cross-origin requests are not accepted."}, status=403)
+                return True
+            if not http_host_header_is_allowed(self.headers.get("Host", "")):
+                log_stderr(f"rejected request with Host {self.headers.get('Host')!r}")
+                self.send_json({"error": "Unexpected Host header."}, status=403)
+                return True
+
+            required, expected_key = http_requires_security_key()
+            if not required:
+                return False
+            presented = http_presented_key(self.headers)
+            if not expected_key or not presented or not hmac.compare_digest(presented, expected_key):
+                log_stderr(f"rejected unauthenticated request from {self.client_address[0]}")
+                self.send_json(
+                    {"error": "Missing or invalid X-Chievfx-Key header."},
+                    status=401,
+                )
+                return True
+            return False
+
         def do_POST(self) -> None:  # noqa: N802
+            if self.reject_untrusted_request():
+                return
+
             length = int(self.headers.get("Content-Length", "0"))
             raw_body = self.rfile.read(length).decode("utf-8")
             try:
                 message = json.loads(raw_body)
-                response = server.handle_message(message)
+                # The peer and the key it presented are not part of the JSON-RPC message, and
+                # remote-cmd re-checks both per call, so they are handed down per request thread.
+                set_remote_cmd_request_context(self.client_address[0], http_presented_key(self.headers))
+                try:
+                    response = server.handle_message(message)
+                finally:
+                    clear_remote_cmd_request_context()
                 self.send_json(response if response is not None else {})
             except Exception as exc:  # noqa: BLE001
                 log_stderr(traceback.format_exc())

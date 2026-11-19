@@ -28,9 +28,33 @@ namespace Chievfx.Mcp.Editor
 {
     internal sealed class ScreenshotBridgeService : BridgeDomainServiceBase
     {
+        // The crop the last screenshot-game-view *tool call* applied. ui-runtime-click/drag/probe consult it
+        // only to warn when a space:"screenshot" position arrives without the matching left/top/right/bottom
+        // — never to silently change where a click lands, since several agents may share one editor.
+        internal static ScreenshotRegion? LastGameViewToolRegion { get; private set; }
+
+        // Tool entry point. The PNG's longest side is always DefaultGameViewScreenshotMaxDimension: callers
+        // used to pick a resolution, which made pngWidth/pngHeight vary per call for no gain and still left
+        // small HUD text unreadable. Zoom now comes from left/top/right/bottom instead — a sub-region is
+        // cropped and scaled up to the same fixed size, so the agent sees it magnified and can compare
+        // one isolated area between captures.
         public ImageResult CaptureGameView(JToken args)
         {
-            var maxDimension = ReadGameViewMaxDimension(args);
+            var region = ScreenshotRegion.Read(args);
+            var result = CaptureGameView(region, FitLongestSideExactly(DefaultGameViewScreenshotMaxDimension));
+            LastGameViewToolRegion = region;
+            return result;
+        }
+
+        // Internal callers (frame-debugger pixel picking and draw-call diffs) sample pixels off the whole
+        // frame at a cap of their choosing; they never crop and never upscale.
+        internal ImageResult CaptureGameView(int maxDimension)
+        {
+            return CaptureGameView(ScreenshotRegion.Full, FitWithinLongestSide(ClampInt(maxDimension, 1, MaxScreenshotDimension)));
+        }
+
+        private static ImageResult CaptureGameView(ScreenshotRegion region, Func<int, int, (int Width, int Height)> resolveOutput)
+        {
             var gameViewType = typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");
             var renderTextureAvailable = false;
             if (gameViewType != null)
@@ -41,11 +65,12 @@ namespace Chievfx.Mcp.Editor
                 if (renderTextureField?.GetValue(gameView) is RenderTexture renderTexture && renderTexture.width > 0 && renderTexture.height > 0)
                 {
                     renderTextureAvailable = true;
-                    var dimensions = ResolveGameViewOutputDimensions(args, renderTexture.width, renderTexture.height, maxDimension);
-                    var png = EncodeRenderTexture(renderTexture, dimensions.Width, dimensions.Height, SystemInfo.graphicsUVStartsAtTop);
-                    if (IsRenderTextureProbablyBlank(renderTexture, dimensions.Width, dimensions.Height))
+                    var sourceRect = region.ToPixelRect(renderTexture.width, renderTexture.height);
+                    var dimensions = resolveOutput(sourceRect.width, sourceRect.height);
+                    var png = EncodeRenderTexture(renderTexture, region, dimensions.Width, dimensions.Height, SystemInfo.graphicsUVStartsAtTop);
+                    if (IsRenderTextureProbablyBlank(renderTexture, renderTexture.width, renderTexture.height))
                     {
-                        var fallback = CaptureGameViewCameraFallback(args, includeScreenSpaceOverlayCanvases: true, gameViewRenderTextureAvailable: true);
+                        var fallback = CaptureGameViewCameraFallback(region, resolveOutput, includeScreenSpaceOverlayCanvases: true, gameViewRenderTextureAvailable: true);
                         if (!IsPngProbablyBlank(fallback.Base64))
                         {
                             AddMetadataWarning(fallback, "GameView.m_RenderTexture was present but blank after repaint; screenshot-game-view used camera fallback.");
@@ -59,13 +84,72 @@ namespace Chievfx.Mcp.Editor
                         ["pngWidth"] = dimensions.Width,
                         ["pngHeight"] = dimensions.Height,
                     };
-                    AddInputSpaceMetadata(metadata, dimensions.Width, dimensions.Height);
+                    AddRegionMetadata(metadata, region, renderTexture.width, renderTexture.height);
+                    AddInputSpaceMetadata(metadata, renderTexture.width, renderTexture.height);
                     AddShaderCompileMetadata(metadata);
                     return new ImageResult("image/png", Convert.ToBase64String(png), metadata);
                 }
             }
 
-            return CaptureGameViewCameraFallback(args, includeScreenSpaceOverlayCanvases: true, gameViewRenderTextureAvailable: renderTextureAvailable);
+            return CaptureGameViewCameraFallback(region, resolveOutput, includeScreenSpaceOverlayCanvases: true, gameViewRenderTextureAvailable: renderTextureAvailable);
+        }
+
+        // Output sizing for the tool path: the longest side of the (cropped) source lands exactly on
+        // `longestSide`, scaling up or down, so every PNG has the same footprint and a crop is magnified.
+        private static Func<int, int, (int Width, int Height)> FitLongestSideExactly(int longestSide)
+        {
+            return (sourceWidth, sourceHeight) =>
+            {
+                var safeWidth = Math.Max(1, sourceWidth);
+                var safeHeight = Math.Max(1, sourceHeight);
+                var scale = longestSide / (double)Math.Max(safeWidth, safeHeight);
+                return (
+                    ClampInt((int)Math.Round(safeWidth * scale), 1, MaxScreenshotDimension),
+                    ClampInt((int)Math.Round(safeHeight * scale), 1, MaxScreenshotDimension));
+            };
+        }
+
+        // Output sizing for internal callers: downscale only when the source exceeds the cap.
+        private static Func<int, int, (int Width, int Height)> FitWithinLongestSide(int maxDimension)
+        {
+            return (sourceWidth, sourceHeight) =>
+            {
+                var safeWidth = Math.Max(1, sourceWidth);
+                var safeHeight = Math.Max(1, sourceHeight);
+                var longestSide = Math.Max(safeWidth, safeHeight);
+                if (longestSide <= maxDimension)
+                {
+                    return (safeWidth, safeHeight);
+                }
+
+                var scale = maxDimension / (double)longestSide;
+                return (
+                    Math.Max(1, (int)Math.Round(safeWidth * scale)),
+                    Math.Max(1, (int)Math.Round(safeHeight * scale)));
+            };
+        }
+
+        // Only a cropped capture carries region metadata; the full-view case stays as lean as before.
+        // The note repeats the click recipe because the crop is exactly what makes a bare 0..1 PNG
+        // position map to the wrong spot.
+        private static void AddRegionMetadata(Dictionary<string, object?> metadata, ScreenshotRegion region, int sourceWidth, int sourceHeight)
+        {
+            if (region.IsFull)
+            {
+                return;
+            }
+
+            var sourceRect = region.ToPixelRect(sourceWidth, sourceHeight);
+            metadata["region"] = region.ToMetadata();
+            metadata["regionSourcePixels"] = new Dictionary<string, object?>
+            {
+                ["x"] = sourceRect.x,
+                ["y"] = sourceRect.y,
+                ["width"] = sourceRect.width,
+                ["height"] = sourceRect.height,
+            };
+            metadata["regionNote"] =
+                "The PNG shows only this region of the view (0..1, top-left origin). To click something in it, pass the same left/top/right/bottom together with space:\"screenshot\" to ui-runtime-click/drag/probe.";
         }
 
         // Screenshots are the Game View render (top-left origin); ui-runtime-click/probe/drag map coords
@@ -76,6 +160,8 @@ namespace Chievfx.Mcp.Editor
         // The size has to come from ChievfxMcpRuntimeScreenSize, not Screen.*: on a fixed-resolution Game
         // View, Screen.* read from the editor is the window size, which both mis-scales these numbers and
         // reports a bogus aspect mismatch on a capture that maps perfectly.
+        // captureWidth/captureHeight are the FULL source frame, not the cropped PNG: a crop changes the
+        // aspect by design and must not be mistaken for letterboxing.
         private static void AddInputSpaceMetadata(Dictionary<string, object?> metadata, int captureWidth, int captureHeight)
         {
             var screenSize = ChievfxMcpRuntimeScreenSize.Resolve();
@@ -122,31 +208,56 @@ namespace Chievfx.Mcp.Editor
 
         public ImageResult CaptureCamera(JToken args)
         {
-            return CaptureCamera(args, includeScreenSpaceOverlayCanvases: false, gameViewRenderTextureAvailable: false);
-        }
-
-        private static ImageResult CaptureCamera(JToken args, bool includeScreenSpaceOverlayCanvases, bool gameViewRenderTextureAvailable)
-        {
             var width = ReadInt(args, "width", 1280);
             var height = ReadInt(args, "height", 720);
             ValidateScreenshotDimensions(width, height);
-            return CaptureCameraAtResolution(args, width, height, includeScreenSpaceOverlayCanvases, gameViewRenderTextureAvailable);
+            return CaptureCameraAtResolution(
+                args,
+                width,
+                height,
+                ScreenshotRegion.Full,
+                (width, height),
+                includeScreenSpaceOverlayCanvases: false,
+                gameViewRenderTextureAvailable: false);
         }
 
-        private static ImageResult CaptureGameViewCameraFallback(JToken args, bool includeScreenSpaceOverlayCanvases, bool gameViewRenderTextureAvailable)
+        // Camera fallback renders keep the render target within this many pixels per side: it exists to
+        // approximate the Game View, not to produce print-resolution frames.
+        private const int MaxCameraFallbackRenderDimension = 4096;
+
+        // Without the Game View render texture the camera renders the whole frame itself. Render at the
+        // resolved runtime screen size so the frame has the game's real aspect — the previous fixed 16:9
+        // render flagged every portrait game as letterboxed — then crop and scale exactly like the main
+        // path, so region semantics do not depend on which capture source happened to be available.
+        private static ImageResult CaptureGameViewCameraFallback(
+            ScreenshotRegion region,
+            Func<int, int, (int Width, int Height)> resolveOutput,
+            bool includeScreenSpaceOverlayCanvases,
+            bool gameViewRenderTextureAvailable)
         {
-            var maxDimension = ReadGameViewMaxDimension(args);
-            var dimensions = ResolveGameViewCameraFallbackDimensions(args, maxDimension);
-            var result = CaptureCameraAtResolution(args, dimensions.Width, dimensions.Height, includeScreenSpaceOverlayCanvases, gameViewRenderTextureAvailable);
-            if (result.Metadata != null)
-            {
-                result.Metadata["maxDimension"] = maxDimension;
-            }
-
-            return result;
+            var screenSize = ChievfxMcpRuntimeScreenSize.Resolve();
+            var renderWidth = ClampInt(Mathf.RoundToInt(screenSize.x), 1, MaxCameraFallbackRenderDimension);
+            var renderHeight = ClampInt(Mathf.RoundToInt(screenSize.y), 1, MaxCameraFallbackRenderDimension);
+            var sourceRect = region.ToPixelRect(renderWidth, renderHeight);
+            var output = resolveOutput(sourceRect.width, sourceRect.height);
+            return CaptureCameraAtResolution(
+                new JObject(),
+                renderWidth,
+                renderHeight,
+                region,
+                output,
+                includeScreenSpaceOverlayCanvases,
+                gameViewRenderTextureAvailable);
         }
 
-        private static ImageResult CaptureCameraAtResolution(JToken args, int width, int height, bool includeScreenSpaceOverlayCanvases, bool gameViewRenderTextureAvailable)
+        private static ImageResult CaptureCameraAtResolution(
+            JToken args,
+            int width,
+            int height,
+            ScreenshotRegion region,
+            (int Width, int Height) output,
+            bool includeScreenSpaceOverlayCanvases,
+            bool gameViewRenderTextureAvailable)
         {
             var camera = ResolveCamera(args) ?? throw new InvalidOperationException("No camera found for screenshot capture.");
             var previousTarget = camera.targetTexture;
@@ -165,12 +276,15 @@ namespace Chievfx.Mcp.Editor
 
                 camera.targetTexture = renderTexture;
                 camera.Render();
-                RenderTexture.active = renderTexture;
-                var png = EncodeActiveRenderTexture(width, height, false);
+                // A camera render into a RenderTexture already reads back upright, hence no vertical flip.
+                var png = EncodeRenderTexture(renderTexture, region, output.Width, output.Height, flipVertical: false);
                 var metadata = includeScreenSpaceOverlayCanvases
                     ? CreateGameViewCameraFallbackMetadata(
+                        output.Width,
+                        output.Height,
                         width,
                         height,
+                        region,
                         camera,
                         gameViewRenderTextureAvailable,
                         overlayScope?.CanvasCount ?? 0,
@@ -178,7 +292,7 @@ namespace Chievfx.Mcp.Editor
                             ? "attempted-temporary-screen-space-camera"
                             : "none-detected",
                         warnings)
-                    : CreateCameraCaptureMetadata(camera, width, height);
+                    : CreateCameraCaptureMetadata(camera, output.Width, output.Height);
                 return new ImageResult("image/png", Convert.ToBase64String(png), metadata);
             }
             finally
@@ -420,15 +534,18 @@ namespace Chievfx.Mcp.Editor
         }
 
         private static Dictionary<string, object?> CreateGameViewCameraFallbackMetadata(
-            int width,
-            int height,
+            int pngWidth,
+            int pngHeight,
+            int renderWidth,
+            int renderHeight,
+            ScreenshotRegion region,
             Camera camera,
             bool gameViewRenderTextureAvailable,
             int screenSpaceOverlayCanvasCount,
             string screenSpaceOverlayHandling,
             IEnumerable<string> warnings)
         {
-            var metadata = CreateCameraCaptureMetadata(camera, width, height);
+            var metadata = CreateCameraCaptureMetadata(camera, pngWidth, pngHeight);
             var gameViewTargetSize = TryGetMainGameViewTargetSize();
             if (gameViewTargetSize.HasValue)
             {
@@ -439,7 +556,8 @@ namespace Chievfx.Mcp.Editor
             metadata["renderTextureAvailable"] = gameViewRenderTextureAvailable;
             metadata["screenSpaceOverlayCanvasCount"] = screenSpaceOverlayCanvasCount;
             metadata["screenSpaceOverlayHandling"] = screenSpaceOverlayHandling;
-            AddInputSpaceMetadata(metadata, width, height);
+            AddRegionMetadata(metadata, region, renderWidth, renderHeight);
+            AddInputSpaceMetadata(metadata, renderWidth, renderHeight);
             AddShaderCompileMetadata(metadata);
             var distinctWarnings = warnings.Distinct(StringComparer.Ordinal).ToArray();
             if (distinctWarnings.Length > 0)
@@ -576,15 +694,28 @@ namespace Chievfx.Mcp.Editor
 
         internal static byte[] EncodeRenderTexture(RenderTexture renderTexture, int width, int height, bool flipVertical)
         {
+            return EncodeRenderTexture(renderTexture, ScreenshotRegion.Full, width, height, flipVertical);
+        }
+
+        // Crops `region` out of the source and scales it to width x height in one blit. Blit samples
+        // source uv = dest uv * scale + offset, in the texture's STORED orientation. The region is given
+        // top-left (as read off a PNG); when the source is stored top-first (flipVertical, the Game View
+        // texture on UV-starts-at-top graphics APIs) stored v already runs top-down and `top` is the
+        // offset, otherwise stored v runs bottom-up and the offset is measured from the bottom edge. Get
+        // this wrong and a crop of the HUD returns the ground — while a full-view capture looks fine.
+        internal static byte[] EncodeRenderTexture(RenderTexture renderTexture, ScreenshotRegion region, int width, int height, bool flipVertical)
+        {
             ValidateScreenshotDimensions(width, height);
             var previousActive = RenderTexture.active;
             RenderTexture? scaledTexture = null;
             try
             {
-                if (width != renderTexture.width || height != renderTexture.height)
+                if (!region.IsFull || width != renderTexture.width || height != renderTexture.height)
                 {
                     scaledTexture = RenderTexture.GetTemporary(width, height, 0, renderTexture.format);
-                    Graphics.Blit(renderTexture, scaledTexture);
+                    var scale = new Vector2(region.Width, region.Height);
+                    var offset = new Vector2(region.Left, flipVertical ? region.Top : 1f - region.Bottom);
+                    Graphics.Blit(renderTexture, scaledTexture, scale, offset);
                     RenderTexture.active = scaledTexture;
                 }
                 else
@@ -610,56 +741,6 @@ namespace Chievfx.Mcp.Editor
         private static Vector2? TryGetMainGameViewTargetSize()
         {
             return ChievfxMcpRuntimeScreenSize.TryGetGameViewTargetSize();
-        }
-
-        private static int ReadGameViewMaxDimension(JToken args)
-        {
-            var value = ReadNullableInt(args, "maxDimension")
-                ?? ReadNullableInt(args, "maxSideResolution")
-                ?? ReadNullableInt(args, "max_side_resolution")
-                ?? DefaultGameViewScreenshotMaxDimension;
-            return ClampInt(value, 1, MaxScreenshotDimension);
-        }
-
-        private static (int Width, int Height) ResolveGameViewOutputDimensions(JToken args, int sourceWidth, int sourceHeight, int maxDimension)
-        {
-            var requestedWidth = ReadNullableInt(args, "width");
-            var requestedHeight = ReadNullableInt(args, "height");
-            if (requestedWidth.HasValue && requestedHeight.HasValue)
-            {
-                var width = requestedWidth.Value;
-                var height = requestedHeight.Value;
-                ValidateScreenshotDimensions(width, height);
-                return (width, height);
-            }
-
-            var safeSourceWidth = Math.Max(1, sourceWidth);
-            var safeSourceHeight = Math.Max(1, sourceHeight);
-            var longestSide = Math.Max(safeSourceWidth, safeSourceHeight);
-            if (longestSide <= maxDimension)
-            {
-                return (safeSourceWidth, safeSourceHeight);
-            }
-
-            var scale = maxDimension / (double)longestSide;
-            return (
-                Math.Max(1, (int)Math.Round(safeSourceWidth * scale)),
-                Math.Max(1, (int)Math.Round(safeSourceHeight * scale)));
-        }
-
-        private static (int Width, int Height) ResolveGameViewCameraFallbackDimensions(JToken args, int maxDimension)
-        {
-            var requestedWidth = ReadNullableInt(args, "width");
-            var requestedHeight = ReadNullableInt(args, "height");
-            if (requestedWidth.HasValue && requestedHeight.HasValue)
-            {
-                var width = requestedWidth.Value;
-                var height = requestedHeight.Value;
-                ValidateScreenshotDimensions(width, height);
-                return (width, height);
-            }
-
-            return (maxDimension, Math.Max(1, (int)Math.Round(maxDimension * 9d / 16d)));
         }
 
         private static byte[] EncodeActiveRenderTexture(int width, int height, bool flipVertical)

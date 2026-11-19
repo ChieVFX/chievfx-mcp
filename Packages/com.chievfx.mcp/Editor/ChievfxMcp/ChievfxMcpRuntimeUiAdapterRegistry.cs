@@ -645,10 +645,10 @@ namespace Chievfx.Mcp.Editor
         internal static RuntimeDragScreenGeometry ReadRuntimeDragGeometry(JToken args, List<string> warnings)
         {
             var isNormalized = ReadBool(args, "isNormalized", false);
-            var screenshotSpace = IsScreenshotSpace(args);
+            var screenshotRegion = IsScreenshotSpace(args) ? ReadScreenshotSpaceRegion(args, warnings) : (ScreenshotRegion?)null;
             var screenSize = ChievfxMcpRuntimeScreenSize.Resolve();
             RuntimeScreenPosition start;
-            if (TryReadDragScreenPoint(args, "x", "y", "startScreenPosition", "startNormalized", isNormalized, screenshotSpace, screenSize, out var startScreen))
+            if (TryReadDragScreenPoint(args, "x", "y", "startScreenPosition", "startNormalized", isNormalized, screenshotRegion, screenSize, out var startScreen))
             {
                 start = ToRuntimeScreenPosition(startScreen, screenSize);
             }
@@ -659,7 +659,7 @@ namespace Chievfx.Mcp.Editor
             }
 
             RuntimeScreenPosition end;
-            if (TryReadDragScreenPoint(args, "toX", "toY", "endScreenPosition", "endNormalized", isNormalized, screenshotSpace, screenSize, out var endScreen))
+            if (TryReadDragScreenPoint(args, "toX", "toY", "endScreenPosition", "endNormalized", isNormalized, screenshotRegion, screenSize, out var endScreen))
             {
                 end = ToRuntimeScreenPosition(endScreen, screenSize);
             }
@@ -781,18 +781,18 @@ namespace Chievfx.Mcp.Editor
             string legacyScreenKey,
             string legacyNormalizedKey,
             bool isNormalized,
-            bool screenshotSpace,
+            ScreenshotRegion? screenshotRegion,
             Vector2 screenSize,
             out Vector2 screenPoint)
         {
-            if (screenshotSpace)
+            if (screenshotRegion.HasValue)
             {
                 if (args[xKey] != null && args[yKey] != null)
                 {
-                    // Normalized 0..1 from the screenshot PNG (top-left origin); flip Y to bottom-left Screen space.
-                    var nx = Mathf.Clamp01(ReadFloat(args, xKey, 0f));
-                    var ny = Mathf.Clamp01(ReadFloat(args, yKey, 0f));
-                    screenPoint = new Vector2(nx * screenSize.x, (1f - ny) * screenSize.y);
+                    // Normalized 0..1 from the screenshot PNG (top-left origin), possibly a cropped one:
+                    // map back onto the full view first, then flip Y to bottom-left Screen space.
+                    var full = screenshotRegion.Value.ToFullViewNormalized(ReadFloat(args, xKey, 0f), ReadFloat(args, yKey, 0f));
+                    screenPoint = new Vector2(full.x * screenSize.x, (1f - full.y) * screenSize.y);
                     return true;
                 }
 
@@ -1493,6 +1493,7 @@ namespace Chievfx.Mcp.Editor
             adapterRequest.Remove("isNormalized");
             adapterRequest.Remove("normalized");
             adapterRequest.Remove("space");
+            RemoveScreenshotRegionKeys(adapterRequest);
             adapterRequest["screenPosition"] = new JObject
             {
                 ["x"] = position.ScreenPosition.x,
@@ -1516,6 +1517,7 @@ namespace Chievfx.Mcp.Editor
                 adapterRequest.Remove(key);
             }
 
+            RemoveScreenshotRegionKeys(adapterRequest);
             adapterRequest["x"] = geometry.Start.ScreenPosition.x;
             adapterRequest["y"] = geometry.Start.ScreenPosition.y;
             adapterRequest["toX"] = geometry.End.ScreenPosition.x;
@@ -1532,6 +1534,8 @@ namespace Chievfx.Mcp.Editor
             adapterRequest.Remove("page");
             adapterRequest.Remove("normalized");
             adapterRequest.Remove("maxRows");
+            adapterRequest.Remove("space");
+            RemoveScreenshotRegionKeys(adapterRequest);
             adapterRequest["screenPosition"] = new JObject
             {
                 ["x"] = position.ScreenPosition.x,
@@ -1727,7 +1731,7 @@ namespace Chievfx.Mcp.Editor
             var screenSize = ChievfxMcpRuntimeScreenSize.Resolve();
             if (IsScreenshotSpace(args))
             {
-                return ReadScreenshotSpacePosition(args, screenSize);
+                return ReadScreenshotSpacePosition(args, screenSize, warnings);
             }
 
             var isNormalized = ReadBool(args, "isNormalized", false);
@@ -1768,12 +1772,41 @@ namespace Chievfx.Mcp.Editor
         }
 
         // Screenshot space: x/y are normalized 0..1 against the screenshot-game-view PNG (TOP-LEFT origin).
-        // Flip Y to reach the bottom-left Screen space the runtime uses. Only valid when that screenshot
-        // did not report pixelMappingReliable:false (aspects match); the caller is trusted on that.
+        // If that PNG was a crop (left/top/right/bottom), the same four values map the position back onto
+        // the full view first. Then flip Y to reach the bottom-left Screen space the runtime uses. Only
+        // valid when that screenshot did not report pixelMappingReliable:false (aspects match); the caller
+        // is trusted on that.
         private static bool IsScreenshotSpace(JToken args) =>
             string.Equals((args["space"]?.Value<string>() ?? string.Empty).Trim(), "screenshot", StringComparison.OrdinalIgnoreCase);
 
-        private static RuntimeScreenPosition ReadScreenshotSpacePosition(JToken args, Vector2 screenSize)
+        // The crop is deliberately NOT inherited from the last screenshot: several agents can share one
+        // editor, and a click that silently lands elsewhere is worse than one that asks for the four
+        // values. The last tool crop is consulted only to warn when the two visibly disagree.
+        private static ScreenshotRegion ReadScreenshotSpaceRegion(JToken args, List<string> warnings)
+        {
+            var regionSupplied = ScreenshotRegion.HasAnyArgument(args);
+            var region = ScreenshotRegion.Read(args);
+            var lastCapture = ScreenshotBridgeService.LastGameViewToolRegion;
+            if (!lastCapture.HasValue)
+            {
+                return region;
+            }
+
+            if (!regionSupplied && !lastCapture.Value.IsFull)
+            {
+                warnings.Add(
+                    $"space:\"screenshot\" was mapped against the full view, but the last screenshot-game-view was cropped to {lastCapture.Value}. If this position was read off that cropped PNG, pass the same left/top/right/bottom.");
+            }
+            else if (regionSupplied && !lastCapture.Value.Equals(region))
+            {
+                warnings.Add(
+                    $"left/top/right/bottom ({region}) differ from the last screenshot-game-view crop ({lastCapture.Value}); make sure they describe the PNG this position was read from.");
+            }
+
+            return region;
+        }
+
+        private static RuntimeScreenPosition ReadScreenshotSpacePosition(JToken args, Vector2 screenSize, List<string> warnings)
         {
             if (args["x"] == null || args["y"] == null)
             {
@@ -1787,8 +1820,18 @@ namespace Chievfx.Mcp.Editor
                 throw new ArgumentException("space:\"screenshot\" x/y must be normalized 0..1 — divide the pixel you read by pngWidth/pngHeight.");
             }
 
-            var normalized = new Vector2(Mathf.Clamp01(x), 1f - Mathf.Clamp01(y));
+            var region = ReadScreenshotSpaceRegion(args, warnings);
+            var full = region.ToFullViewNormalized(x, y);
+            var normalized = new Vector2(full.x, 1f - full.y);
             return new RuntimeScreenPosition(new Vector2(normalized.x * screenSize.x, normalized.y * screenSize.y), screenSize, normalized);
+        }
+
+        private static void RemoveScreenshotRegionKeys(JObject request)
+        {
+            foreach (var key in ScreenshotRegion.ArgumentKeys)
+            {
+                request.Remove(key);
+            }
         }
 
         private static RuntimeScreenPosition ReadScreenPosition(JToken args, List<string> warnings)
@@ -1796,7 +1839,7 @@ namespace Chievfx.Mcp.Editor
             var screenSize = ChievfxMcpRuntimeScreenSize.Resolve();
             if (IsScreenshotSpace(args))
             {
-                return ReadScreenshotSpacePosition(args, screenSize);
+                return ReadScreenshotSpacePosition(args, screenSize, warnings);
             }
 
             if (TryReadVector2(args["normalized"], out var normalized))
@@ -1851,8 +1894,12 @@ namespace Chievfx.Mcp.Editor
                         ["type"] = "string",
                         ["enum"] = new JArray("screen", "screenshot"),
                         ["default"] = "screen",
-                        ["description"] = "screen (default): x/y in Screen space (see isNormalized). screenshot: x/y are 0..1 from the screenshot-game-view PNG (top-left origin), auto Y-flipped; use only if that screenshot did not report pixelMappingReliable:false.",
+                        ["description"] = "screen (default): x/y in Screen space (see isNormalized). screenshot: x/y are 0..1 from the screenshot-game-view PNG (top-left origin), auto Y-flipped; if that PNG was cropped, also pass its left/top/right/bottom. Use only if that screenshot did not report pixelMappingReliable:false.",
                     },
+                    ["left"] = NumberSchema("With space:\"screenshot\" only: the left/top/right/bottom crop (0..1, top-left origin) the screenshot-game-view PNG was taken with. Omit for an uncropped screenshot."),
+                    ["top"] = NumberSchema("See left."),
+                    ["right"] = NumberSchema("See left."),
+                    ["bottom"] = NumberSchema("See left."),
                     ["page"] = new JObject
                     {
                         ["type"] = "integer",

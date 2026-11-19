@@ -350,7 +350,14 @@ class BridgeTransportMixin:
         """Gather compile errors/warnings emitted after `since_event_id` from the event stream.
 
         Compiler messages are journaled as source=log events (with cursors), so this survives the
-        domain reload a clean compile triggers, unlike the in-memory console buffer which is wiped."""
+        domain reload a clean compile triggers, unlike the in-memory console buffer which is wiped.
+
+        Only compiler diagnostics are reported as compile issues. The same window also catches
+        ordinary runtime logs — stopping Play Mode to compile puts a project's own shutdown errors
+        right inside it — and echoing one of those announced "1 error" for a compile that had in fact
+        succeeded, with a game logger's inlined stack trace filling the response. Those are counted
+        (so they are not silently dropped) and left for console-get-logs to show in full.
+        """
         stream = self.read_event_stream()
         log_events = self.filter_events(
             stream.get("events", []),
@@ -362,21 +369,37 @@ class BridgeTransportMixin:
         # dedupe by (level, message) keeping the earliest, to show each unique issue once.
         errors: list[dict[str, Any]] = []
         warnings: list[dict[str, Any]] = []
+        other_errors = 0
+        other_warnings = 0
         seen: set[tuple[str, str]] = set()
         for event in log_events:
             level = str(event.get("level", "")).lower()
-            message = event.get("message", "")
+            is_error = level in ("error", "exception", "assert")
+            if not is_error and level != "warning":
+                continue
+            if not is_compiler_diagnostic(event):
+                if is_error:
+                    other_errors += 1
+                else:
+                    other_warnings += 1
+                continue
+            # Clean before deduping: the two journaled copies of one diagnostic can differ in markup.
+            message = clean_console_message(event.get("message"), RECOMPILE_MAX_ISSUE_CHARS)
             key = (level, message)
             if key in seen:
                 continue
             seen.add(key)
             row = {"eventId": event.get("eventId"), "message": message}
-            if level in ("error", "exception", "assert"):
+            if is_error:
                 errors.append(row)
-            elif level == "warning":
+            else:
                 warnings.append(row)
 
-        issues: dict[str, Any] = {"errorCount": len(errors), "warningCount": len(warnings)}
+        issues: dict[str, Any] = {
+            "errorCount": len(errors),
+            "warningCount": len(warnings),
+            "sinceEventId": since_event_id,
+        }
         if errors:
             issues["errors"] = errors[:RECOMPILE_MAX_ISSUES]
             if len(errors) > RECOMPILE_MAX_ISSUES:
@@ -385,6 +408,10 @@ class BridgeTransportMixin:
             issues["warnings"] = warnings[:RECOMPILE_MAX_ISSUES]
             if len(warnings) > RECOMPILE_MAX_ISSUES:
                 issues["warningsTruncated"] = True
+        if other_errors:
+            issues["otherErrorCount"] = other_errors
+        if other_warnings:
+            issues["otherWarningCount"] = other_warnings
         return issues
 
     def discard_timed_out_request(self, request_id: str) -> None:

@@ -22,6 +22,7 @@ _PART_FILES = [
     'category_resources.py',
     'debug_instructions.py',
     'bridge_utils.py',
+    'remote_cmd.py',
     'server_core.py',
     'server_bridge.py',
     'server_events.py',

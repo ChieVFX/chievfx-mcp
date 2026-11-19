@@ -80,6 +80,7 @@ namespace Chievfx.Mcp.Editor
                 "ugui-runtime-control" => "Control Play Mode uGUI elements: clicks, drags, selection, and control values.",
                 "cinemachine-and-timeline" => "Author and inspect Cinemachine cameras, Timeline directors, shots, and camera QA workflows.",
                 "profiler" => "Record and inspect Unity profiler state, counters, and captures.",
+                "remote-shell" => "Runs commands on this machine for HTTP clients. Armed only in the MCP window's Connection tab; these rows are informational and cannot be toggled here.",
                 _ => "General ChievFX MCP tools for Unity automation."
             };
         }
@@ -126,6 +127,9 @@ namespace Chievfx.Mcp.Editor
                 case "script-execution-tests":
                     notice = "High risk: executes local C# code and can run long tests. Enable only for trusted tasks.";
                     return true;
+                case "remote-shell":
+                    notice = "Highest risk: runs commands on this machine for whichever client is connected over HTTP. Configured only in the MCP window's Connection tab (transport http) — it cannot be enabled from here.";
+                    return true;
                 default:
                     notice = string.Empty;
                     return false;
@@ -150,6 +154,7 @@ namespace Chievfx.Mcp.Editor
                 "ugui-design" => 90,
                 "ui-runtime-common" => 90,
                 "ugui-runtime-control" => 91,
+                "remote-shell" => 998,
                 "obsolete" => 999,
                 _ => 100
             };

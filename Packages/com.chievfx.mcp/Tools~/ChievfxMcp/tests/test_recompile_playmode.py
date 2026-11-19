@@ -129,6 +129,167 @@ class RecompilePlaymodeTests(unittest.TestCase):
                 self.server.recompile({"timeoutMs": 1000})
 
 
+class RecompileIssueCollectionTests(unittest.TestCase):
+    """The compile summary must report compiler diagnostics only. recompile stops Play Mode first, so
+    the event window it scans also contains the project's own shutdown logs; one of those used to be
+    counted as "1 error" for a compile that succeeded, and its (logger-inlined) stack trace filled the
+    whole response."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.server = mcp.McpServer("http://127.0.0.1:1", self.temp_dir.name, timeout_ms=1000)
+
+    def _collect(self, events, since_event_id=100):
+        stream = {"events": events, "lastEventId": max((e["eventId"] for e in events), default=0)}
+        with mock.patch.object(self.server, "read_event_stream", return_value=stream):
+            return self.server.collect_recompile_issues(since_event_id)
+
+    @staticmethod
+    def _event(event_id, level, message, event_type="message"):
+        return {
+            "eventId": event_id,
+            "source": "log",
+            "type": event_type,
+            "level": level,
+            "message": message,
+        }
+
+    def test_runtime_error_is_counted_not_reported_as_compile_error(self) -> None:
+        issues = self._collect(
+            [
+                self._event(
+                    101,
+                    "Error",
+                    "<b><color=#E90C7BFF>[UnityLogs] </color></b>FileBlocks_Loader. Fail to stop thread\n"
+                    "at Common.Logging.MadLogger.Error (Assets/Scripts/Common/Logging/MadLogger.cs:52)",
+                ),
+                self._event(102, "Warning", "Some runtime warning"),
+            ]
+        )
+        self.assertEqual(issues["errorCount"], 0)
+        self.assertEqual(issues["warningCount"], 0)
+        self.assertNotIn("errors", issues)
+        self.assertEqual(issues["otherErrorCount"], 1)
+        self.assertEqual(issues["otherWarningCount"], 1)
+
+    def test_compiler_diagnostics_are_reported(self) -> None:
+        issues = self._collect(
+            [
+                self._event(
+                    101,
+                    "Error",
+                    "Assets/Scripts/Foo.cs(12,34): error CS0103: The name 'x' does not exist",
+                    event_type="compiler-message",
+                ),
+                self._event(102, "Warning", "Assets/Scripts/Foo.cs(9,5): warning CS0649: Field never assigned"),
+            ]
+        )
+        self.assertEqual(issues["errorCount"], 1)
+        self.assertEqual(issues["warningCount"], 1)
+        self.assertIn("CS0103", issues["errors"][0]["message"])
+        self.assertIn("CS0649", issues["warnings"][0]["message"])
+        self.assertNotIn("otherErrorCount", issues)
+
+    def test_compiler_message_type_is_trusted_without_a_diagnostic_id(self) -> None:
+        # Not every compiler message carries a CSxxxx id (assembly resolution failures, for one).
+        issues = self._collect(
+            [self._event(101, "Error", "Unable to resolve reference 'Foo'.", event_type="compiler-message")]
+        )
+        self.assertEqual(issues["errorCount"], 1)
+
+    def test_duplicate_journaling_of_one_diagnostic_is_deduped_after_cleanup(self) -> None:
+        # The compilation callback and the log callback each journal the same diagnostic; the console
+        # copy can carry markup the compiler copy does not.
+        issues = self._collect(
+            [
+                self._event(101, "Error", "Assets/Foo.cs(1,1): error CS0246: Missing type", event_type="compiler-message"),
+                self._event(102, "Error", "<b>Assets/Foo.cs(1,1): error CS0246: Missing type</b>"),
+            ]
+        )
+        self.assertEqual(issues["errorCount"], 1)
+
+    def test_shader_diagnostics_are_reported_without_their_boilerplate(self) -> None:
+        # Captured verbatim from Unity 6 (macOS/metal). Shaders compile outside CompilationPipeline, so
+        # there is no compiler-message event and no CSxxxx id — only the console line identifies them.
+        # Unity appends the same ~800-char "Compiling Subshader / Platform defines / Disabled keywords"
+        # block to every one of them, which would otherwise spend the whole per-message budget.
+        message = (
+            "Shader error in 'Hidden/Probe': undeclared identifier 'foo' at "
+            "Assets/Probe.shader(17) (on metal)\n\n"
+            "Compiling Subshader: 0, Pass: <Unnamed Pass 0>, Fragment program with <no keywords>\n"
+            "Platform defines: SHADER_API_DESKTOP UNITY_ENABLE_DETAIL_NORMALMAP\n"
+            "Disabled keywords: SHADER_API_GLES30 UNITY_COLORSPACE_GAMMA"
+        )
+        issues = self._collect(
+            [
+                self._event(101, "Error", message),
+                self._event(102, "Warning", "Shader warning in 'Hidden/Probe': implicit truncation at line 12 (on metal)"),
+            ]
+        )
+        self.assertEqual(issues["errorCount"], 1)
+        self.assertEqual(issues["warningCount"], 1)
+        self.assertEqual(
+            issues["errors"][0]["message"],
+            "Shader error in 'Hidden/Probe': undeclared identifier 'foo' at Assets/Probe.shader(17) (on metal)",
+        )
+
+    def test_shader_runtime_complaints_are_not_compile_output(self) -> None:
+        issues = self._collect(
+            [self._event(101, "Warning", "Shader 'Custom/Water': fallback shader 'Diffuse' not found")]
+        )
+        self.assertEqual(issues["warningCount"], 0)
+        self.assertEqual(issues["otherWarningCount"], 1)
+
+    def test_console_markup_is_stripped_from_reported_diagnostics(self) -> None:
+        issues = self._collect(
+            [
+                self._event(
+                    101,
+                    "Error",
+                    '<b><color=#E90C7BFF>Assets/Foo.cs(1,1)</color></b>: error CS0246: missing '
+                    '<a href="Assets/Foo.cs" line="1">Assets/Foo.cs</a>',
+                )
+            ]
+        )
+        self.assertEqual(
+            issues["errors"][0]["message"],
+            "Assets/Foo.cs(1,1): error CS0246: missing Assets/Foo.cs",
+        )
+
+    def test_long_message_is_capped(self) -> None:
+        issues = self._collect([self._event(101, "Error", "error CS0103: " + "x" * 5000)])
+        message = issues["errors"][0]["message"]
+        self.assertEqual(len(message), mcp.RECOMPILE_MAX_ISSUE_CHARS)
+        self.assertTrue(message.endswith("..."))
+
+
+class RecompileTextFormatTests(unittest.TestCase):
+    def test_non_compile_logs_are_summarized_not_echoed(self) -> None:
+        text = mcp.format_recompile_text(
+            {
+                "completed": True,
+                "exitedPlayMode": True,
+                "compile": {
+                    "errorCount": 0,
+                    "warningCount": 0,
+                    "sinceEventId": 4200,
+                    "otherErrorCount": 2,
+                    "otherWarningCount": 1,
+                },
+            }
+        )
+        self.assertIn("recompile completed — 0 errors, 0 warnings", text)
+        self.assertIn("Also logged, not compile output: 2 errors, 1 warning", text)
+        self.assertIn("sinceEventId:4200", text)
+
+    def test_clean_summary_has_no_extra_line(self) -> None:
+        text = mcp.format_recompile_text(
+            {"completed": True, "compile": {"errorCount": 0, "warningCount": 0, "sinceEventId": 1}}
+        )
+        self.assertEqual(text, "recompile completed — 0 errors, 0 warnings")
+
+
 class CompileBlockedStatusHintTests(unittest.TestCase):
     """bridge-get-status must not present a Play-Mode-held compile as work in progress."""
 

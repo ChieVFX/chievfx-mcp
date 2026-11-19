@@ -7,6 +7,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="unity-mcp-chievfx local MCP server")
     parser.add_argument("--transport", choices=["stdio", "http"], default="stdio")
     parser.add_argument("--port", type=int, default=27247)
+    # Loopback by default. Any other bind makes this port reachable from other machines, so the HTTP
+    # handler then demands the shared key on every request (see http_requires_security_key).
+    parser.add_argument("--host", default="127.0.0.1", help="Address the HTTP transport binds to.")
     parser.add_argument("--unity-url", default="http://127.0.0.1:27248")
     parser.add_argument("--project-root", default=os.getcwd())
     parser.add_argument("--bridge-dir", default=str(Path(os.getcwd()) / "Library" / "ChievfxMcpBridge"))
@@ -53,13 +56,21 @@ def main() -> int:
             sys.stdout.write(str(path) + "\n")
         return 0
 
+    configure_active_transport(args.transport, args.host, args.port)
     server = McpServer(args.unity_url, args.bridge_dir, args.timeout)
 
     if args.transport == "stdio":
         run_stdio(server)
         return 0
 
-    httpd = ThreadingHTTPServer(("127.0.0.1", args.port), make_http_handler(server))
-    print(f"{SERVER_NAME} listening at http://127.0.0.1:{args.port}", file=sys.stderr)
+    httpd = ThreadingHTTPServer((args.host, args.port), make_http_handler(server))
+    print(f"{SERVER_NAME} listening at http://{args.host}:{args.port}", file=sys.stderr)
+    required, key = http_requires_security_key()
+    if required and not key:
+        print(
+            f"{SERVER_NAME}: bound to {args.host} with no security key configured — every request will be "
+            "refused with 401. Set a key in Window > ChievFX > MCP.",
+            file=sys.stderr,
+        )
     httpd.serve_forever()
     return 0

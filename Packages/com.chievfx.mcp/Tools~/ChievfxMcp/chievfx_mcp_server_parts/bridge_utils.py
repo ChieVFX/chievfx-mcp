@@ -254,3 +254,54 @@ def float_attr(element: ET.Element, name: str) -> float:
 
 def format_seconds(seconds: float) -> str:
     return f"{seconds:.3f}".rstrip("0").rstrip(".") + "s"
+
+
+# A compiler diagnostic always names its severity next to a diagnostic id ("error CS0246",
+# "warning CS0649") or carries the file(line,col) prefix Unity's compiler callback writes. Ordinary
+# console logs match neither, which is what keeps them out of the recompile compile summary: stopping
+# Play Mode to compile lands a project's own shutdown errors inside the same event window, and
+# reporting one of those as "1 error" claimed a failure for a compile that actually succeeded.
+COMPILER_DIAGNOSTIC_RE = re.compile(
+    # "error CS0246", "warning CS0649", "error BC1051" (Burst) — severity next to a diagnostic id.
+    r"\b(?:error|warning)\s+[A-Za-z]{1,10}\d{3,5}\b"
+    # "Assets/Foo.cs(12,34): error ..." — the file(line,col) prefix, for diagnostics without an id.
+    r"|\(\d+,\d+\):\s*(?:error|warning)\b"
+    # Shaders compile through a pipeline of their own: no CompilerMessage callback, no diagnostic id,
+    # just "Shader error in 'Foo': ... at line 23 (on metal)". recompile refreshes assets, so an edited
+    # shader is reimported inside its window and its diagnostics belong in the same summary.
+    r"|\bshader\s+(?:error|warning)\s+in\b",
+    re.IGNORECASE,
+)
+
+# Unity marks up console text: style tags plus the <a href=... line=N> link it wraps around file
+# paths. Useful in the Console window, pure noise in a tool response. Zero-width characters ride
+# along in messages from loggers that use them as separators and survive every other cleanup.
+CONSOLE_RICH_TEXT_TAG_RE = re.compile(r"</?(?:b|i|u|a|align|color|size)(?:[=\s][^>]*)?>", re.IGNORECASE)
+CONSOLE_ZERO_WIDTH_RE = re.compile("[\u200b-\u200f\u2060\ufeff]")
+
+# Unity appends the same compilation-context block to every shader diagnostic ("Compiling Subshader:
+# ... / Platform defines: <every define> / Disabled keywords: <every keyword>"). It is identical for
+# every error, says nothing about the error, and runs to ~800 characters — so it is cut rather than
+# allowed to spend the whole per-message budget the actual diagnostic line needs.
+SHADER_DIAGNOSTIC_CONTEXT_RE = re.compile(r"\n\s*Compiling Subshader:.*", re.DOTALL)
+
+
+def is_compiler_diagnostic(event: dict[str, Any]) -> bool:
+    """True for events the C# compiler callback journaled (type=compiler-message), and — so this also
+    works against a project still running an older bridge build — for anything whose text is shaped
+    like a compiler diagnostic."""
+    if str(event.get("type", "")) == "compiler-message":
+        return True
+    return bool(COMPILER_DIAGNOSTIC_RE.search(str(event.get("message", ""))))
+
+
+def clean_console_message(message: Any, max_chars: int) -> str:
+    """Strip Unity's console markup and cap one message, so a single pathological entry cannot crowd
+    out the rest of the summary."""
+    if not isinstance(message, str):
+        return ""
+    text = CONSOLE_ZERO_WIDTH_RE.sub("", CONSOLE_RICH_TEXT_TAG_RE.sub("", message))
+    text = SHADER_DIAGNOSTIC_CONTEXT_RE.sub("", text).strip()
+    if len(text) <= max_chars:
+        return text
+    return text[: max(0, max_chars - 3)].rstrip() + "..."

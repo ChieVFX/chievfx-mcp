@@ -22,6 +22,7 @@ namespace Chievfx.Mcp.Editor
             EditorApplication.delayCall += StartBridgeSafely;
             EditorApplication.delayCall += EnforceExperimentalVisibilitySafely;
             EditorApplication.delayCall += ChievfxMcpToolPolicy.WriteAvailabilitySettings;
+            EditorApplication.delayCall += ChievfxMcpToolPolicy.WriteRemoteCmdSettings;
             EditorApplication.delayCall += EnsureClientConfigsSafely;
         }
 
@@ -254,9 +255,114 @@ namespace Chievfx.Mcp.Editor
         // Dev-only escape hatch to prefer a system interpreter instead.
         public static bool UseSystemPython => EditorPrefs.GetBool(UseSystemPythonKey, false);
 
+        // ---- remote-cmd (host command pass-through over the HTTP transport) ----
+        // Off unless the user arms it here. The Python server drops the tool from every list it
+        // builds while this is off, so no preset, role, category "enable all", or saved selection
+        // can expose a tool that runs commands on this machine.
+        public const string RemoteCmdEnabledKey = ServerName + ".remoteCmd.enabled";
+
+        public const string RemoteCmdAllowPatternKey = ServerName + ".remoteCmd.allowPattern";
+
+        public const string RemoteCmdUnrestrictedAckKey = ServerName + ".remoteCmd.unrestrictedAck";
+
+        public const string RemoteCmdSecurityKeyKey = ServerName + ".remoteCmd.securityKey";
+
+        public const string RemoteCmdAllowedIpsKey = ServerName + ".remoteCmd.allowedIps";
+
+        public const string RemoteCmdBindHostKey = ServerName + ".remoteCmd.bindHost";
+
+        public const string RemoteCmdTimeoutMsKey = ServerName + ".remoteCmd.timeoutMs";
+
+        public const string RemoteCmdMaxOutputBytesKey = ServerName + ".remoteCmd.maxOutputBytes";
+
+        // Matches the executable, not the argument string: Unity's CLI binary is "Unity" on every
+        // platform and adb is "adb". Arguments cannot be filtered meaningfully by pattern (adb's own
+        // `shell` subcommand is a shell), so the filter narrows which programs run, not what they do.
+        public const string DefaultRemoteCmdAllowPattern = @"^(?:unity|unityhub|adb)$";
+
+        public const string RemoteCmdSecurityKeyHeader = "X-Chievfx-Key";
+
+        public const string DefaultRemoteCmdBindHost = "127.0.0.1";
+
+        public const int DefaultRemoteCmdMaxOutputBytes = 200000;
+
+        public static bool RemoteCmdEnabled => EditorPrefs.GetBool(RemoteCmdEnabledKey, false);
+
+        public static string RemoteCmdAllowPattern =>
+            EditorPrefs.GetString(RemoteCmdAllowPatternKey, DefaultRemoteCmdAllowPattern);
+
+        // Only consulted when the allow pattern is empty, i.e. when the tool would accept any command
+        // at all. The Python gate refuses to arm without it, so an accidentally cleared pattern fails
+        // closed instead of silently becoming unrestricted shell access.
+        public static bool RemoteCmdUnrestrictedAck => EditorPrefs.GetBool(RemoteCmdUnrestrictedAckKey, false);
+
+        // Defaults to this project copy's short SHA — the same suffix the per-project server name uses,
+        // so it is distinct per checkout and stable across restarts. It is a shared secret, not an
+        // identifier: the user can replace it, and the HTTP handler compares it in constant time.
+        public static string RemoteCmdSecurityKey
+        {
+            get
+            {
+                var stored = EditorPrefs.GetString(RemoteCmdSecurityKeyKey, string.Empty);
+                return string.IsNullOrWhiteSpace(stored) ? DefaultRemoteCmdSecurityKey : stored.Trim();
+            }
+        }
+
+        public static string DefaultRemoteCmdSecurityKey => ProjectKey;
+
+        // Comma-separated. Empty means any peer that can reach the port, which the window warns about.
+        public static string RemoteCmdAllowedIps => EditorPrefs.GetString(RemoteCmdAllowedIpsKey, string.Empty);
+
+        // The address the HTTP server binds. Loopback keeps the port unreachable from other machines
+        // (reach it over an SSH tunnel); anything else exposes it to the network, and the Python
+        // handler then demands the security key on every request, remote-cmd or not.
+        public static string RemoteCmdBindHost
+        {
+            get
+            {
+                var stored = EditorPrefs.GetString(RemoteCmdBindHostKey, DefaultRemoteCmdBindHost);
+                return string.IsNullOrWhiteSpace(stored) ? DefaultRemoteCmdBindHost : stored.Trim();
+            }
+        }
+
+        public static int RemoteCmdTimeoutMs => Math.Max(1000, EditorPrefs.GetInt(RemoteCmdTimeoutMsKey, DefaultTimeoutMs));
+
+        public static int RemoteCmdMaxOutputBytes =>
+            Math.Max(1024, EditorPrefs.GetInt(RemoteCmdMaxOutputBytesKey, DefaultRemoteCmdMaxOutputBytes));
+
+        public static bool RemoteCmdBindHostIsLoopback => IsLoopbackHost(RemoteCmdBindHost);
+
+        public static bool IsLoopbackHost(string host)
+        {
+            var value = (host ?? string.Empty).Trim().Trim('[', ']');
+            return value.Length == 0
+                || string.Equals(value, "127.0.0.1", StringComparison.Ordinal)
+                || string.Equals(value, "::1", StringComparison.Ordinal)
+                || string.Equals(value, "localhost", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Whether MCP clients must send the shared key with every request: either the port is
+        // reachable from off this machine, or an armed remote-cmd makes reaching it enough to run
+        // commands. Mirrors http_requires_security_key() on the Python side.
+        public static bool RemoteCmdRequiresClientKey => RemoteCmdEnabled || !RemoteCmdBindHostIsLoopback;
+
+        public static string[] ParseRemoteCmdAllowedIps(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return Array.Empty<string>();
+            }
+
+            return raw.Split(new[] { ',', ';', ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        }
+
         public static string BridgeUrl => $"http://127.0.0.1:{DefaultBridgePort}";
 
         public static string ProjectRoot => Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+
+        // The per-project short SHA, also used as the default remote-cmd security key so two checkouts
+        // of the same project never share one.
+        public static string ProjectKey => ProjectKeySuffix(ProjectRoot);
 
         private static string ProjectKeySuffix()
         {
@@ -321,6 +427,44 @@ namespace Chievfx.Mcp.Editor
             catch (Exception ex)
             {
                 Debug.LogWarning($"ChievFX MCP could not write availability settings. {ex.Message}");
+            }
+        }
+
+        // Mirror of the Connection tab's remote-command settings for the Python server, which cannot read
+        // EditorPrefs. The Python side treats a missing or unparsable file as "feature off", so a failed
+        // write leaves the tool unavailable rather than running with defaults.
+        public static string RemoteCmdSettingsPath => Path.Combine(ProjectRoot, "UserSettings", "ChievfxMcpRemoteCmd.json");
+
+        public static void WriteRemoteCmdSettings()
+        {
+            try
+            {
+                var payload = new JObject
+                {
+                    ["schemaVersion"] = 1,
+                    ["enabled"] = RemoteCmdEnabled,
+                    ["allowPattern"] = RemoteCmdAllowPattern,
+                    ["unrestrictedAck"] = RemoteCmdUnrestrictedAck,
+                    ["securityKey"] = RemoteCmdSecurityKey,
+                    ["allowedIps"] = new JArray(ParseRemoteCmdAllowedIps(RemoteCmdAllowedIps)),
+                    ["bindHost"] = RemoteCmdBindHost,
+                    ["timeoutMs"] = RemoteCmdTimeoutMs,
+                    ["maxOutputBytes"] = RemoteCmdMaxOutputBytes,
+                    ["workingDirectory"] = string.Empty
+                };
+                var content = payload.ToString(Newtonsoft.Json.Formatting.Indented) + "\n";
+                var path = RemoteCmdSettingsPath;
+                if (File.Exists(path) && string.Equals(File.ReadAllText(path), content, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllText(path, content, new UTF8Encoding(false));
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"ChievFX MCP could not write remote-cmd settings. {ex.Message}");
             }
         }
 

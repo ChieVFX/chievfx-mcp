@@ -357,7 +357,9 @@ Use `events-check-since` for focused recovery after a wait window:
 }
 ```
 
-`events-check-since` returns `matched`, `events`, `count`, `hasMore`, `sinceEventId`, `sinceTimestampUtc`, `lastEventId`, and `truncatedBeforeEventId`. Events must be newer than both the supplied cursor and timestamp, so stale markers/logs from before the original wait window do not match.
+`events-check-since` returns `matched`, `events`, `count`, `hasMore`, `sinceEventId`, `sinceTimestampUtc`, `lastEventId`, and `truncatedBeforeEventId`. `sinceEventId` alone is a complete window (event ids only grow); `sinceTimestampUtc` is optional and, when given, also drops events older than it. `contains` takes a string or a list (any of its strings matches), on `events-wait` too.
+
+A bare `events-wait` (no `sinceEventId`, no `includeRecentMs`) that finds a match fired within the last 30 s — after the last action whose reply named a `waitFor`/`completionMarker` — returns at once with `firedBeforeWait` instead of waiting out its timeout. Tools whose reply carries `waitFor` or `completionMarker` also accept `awaitMs`: the server takes the event cursor before the call, waits for that end event itself, and appends it to the reply.
 
 Use `events-wait` as a subscription-like wait for the next matching event:
 
@@ -503,7 +505,7 @@ Exact event filters for common watchers:
 { "source": "editor", "type": "domain-reload-after", "timeoutMs": 1000000 }
 ```
 
-The same filters work with `events-check-since`; add `sinceEventId`, `sinceTimestampUtc`, and `maxEntries` when checking a previous wait window instead of waiting.
+The same filters work with `events-check-since`; add `sinceEventId` (and optionally `sinceTimestampUtc`) and `maxEntries` when checking a previous wait window instead of waiting.
 
 Current `events-wait` supports waits up to `1000000` ms. Prefer one long wait for a watcher that truly owns the wait; otherwise use 60 second chunks so the subagent can periodically inspect `bridge-get-status`, report liveness, and stop cleanly if the main agent cancels the run. In both modes, treat `timedOut: true` as a normal branch: record it, refresh status, decide whether to re-arm, collect summary, or fail the scenario.
 

@@ -252,7 +252,9 @@ namespace Chievfx.Mcp.Editor
                     return true;
                 }
 
-                var parent = Path.GetDirectoryName(current.TrimEnd('/', '\\'));
+                // A root ("/", "C:\") has a null parent. Trimming "/" first would leave "", and
+                // GetDirectoryName("") throws on Mono.
+                var parent = Path.GetDirectoryName(current);
                 if (string.IsNullOrEmpty(parent) || IsSamePath(parent!, current))
                 {
                     break;

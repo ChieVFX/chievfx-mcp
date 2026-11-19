@@ -895,7 +895,7 @@ namespace Chievfx.Mcp.Extensions.Control
             result["status"] = "scheduled";
             result["completionMarker"] = completionMarker;
             result["eventCursorBefore"] = eventCursorBefore;
-            result["hint"] = "Await: events-wait marker=" + completionMarker + " sinceEventId=" + eventCursorBefore;
+            result["hint"] = "Await: pass awaitMs to this call next time, or events-wait marker=" + completionMarker + " sinceEventId=" + eventCursorBefore;
             return result;
         }
 

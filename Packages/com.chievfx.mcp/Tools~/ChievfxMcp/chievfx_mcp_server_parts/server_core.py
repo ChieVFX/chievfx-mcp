@@ -21,6 +21,9 @@ class McpServerCore:
         self.wait_cancellation_lock = threading.Lock()
         self.active_event_waits: dict[str, dict[str, Any]] = {}
         self.active_event_wait_lock = threading.Lock()
+        # Event cursor and time of the last tool reply that named an end to wait for (see _remember_async_action).
+        self.last_async_action_cursor: int | None = None
+        self.last_async_action_at = 0.0
         # Whether this session read the full tool list, and whether the one-shot nudge already went out.
         self.core_descriptor_read_marker_path = self.bridge_dir / CORE_DESCRIPTOR_READ_MARKER_FILENAME
         self.core_descriptors_read = self.read_core_descriptor_marker()
@@ -264,12 +267,29 @@ class McpServerCore:
         await_cursor = self.event_stream_last_id(self.read_event_stream()) if await_ms is not None else 0
         raw_sink: dict[str, Any] = {}
         result = self._dispatch_tool_call(params, request_id, notify, raw_sink)
+        self._remember_async_action(raw_sink.get("result"), await_cursor if await_ms is not None else None)
         if isinstance(name, str):
             result = with_unknown_argument_warning(result, name, params.get("arguments") or {})
             if await_ms is not None:
                 result = self._await_tool_completion(result, name, raw_sink.get("result"), await_ms, await_cursor, request_id)
             result = self._with_core_descriptor_reminder(result, name)
         return result
+
+    def _remember_async_action(self, raw_result: Any, cursor_before: int | None) -> None:
+        """Keeps where the last action that ends later (waitFor / completionMarker) started in the event stream.
+
+        events-wait uses it to tell the end of that action, logged before the wait was armed, from an older
+        event with the same text: only matches after this cursor count as firedBeforeWait.
+        """
+        if not isinstance(raw_result, dict) or not (raw_result.get("waitFor") or raw_result.get("completionMarker")):
+            return
+        cursor = cursor_before
+        for key in ("eventCursorBefore", "sinceEventId"):
+            value = raw_result.get(key)
+            if cursor is None and isinstance(value, int) and not isinstance(value, bool):
+                cursor = value
+        self.last_async_action_cursor = cursor
+        self.last_async_action_at = time.time()
 
     def _take_await_argument(self, params: dict[str, Any]) -> tuple[int | None, dict[str, Any]]:
         """Pops awaitMs off the call so neither the bridge nor an extension ever sees it."""

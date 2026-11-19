@@ -122,6 +122,40 @@ class EventsWaitTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.server.events_wait({"contains": ["ok", 3], "timeoutMs": 20}, request_id="bad-list")
 
+    def test_fired_before_wait_ignores_events_older_than_the_last_action(self) -> None:
+        # The previous run's end has the same text as the one just started; it must not answer the wait.
+        previous_end = self.marker_event(5, "unused")
+        previous_end["message"] = "[GameAI][skill-check] #39 done ok:1"
+        self.write_events([previous_end])
+        self.server._remember_async_action({"waitFor": "[GameAI][skill-check] #40 ", "sinceEventId": 5}, None)
+
+        result = self.server.events_wait({"contains": "[GameAI][skill-check]", "timeoutMs": 20}, request_id="older-wait")
+
+        self.assertTrue(result["timedOut"])
+        self.assertNotIn("firedBeforeWait", result)
+
+    def test_fired_before_wait_reports_the_end_of_the_last_action(self) -> None:
+        end = self.marker_event(6, "unused")
+        end["message"] = "[GameAI][skill-check] #40 done ok:1"
+        self.write_events([self.marker_event(5, "older"), end])
+        self.server._remember_async_action({"waitFor": "[GameAI][skill-check] #40 ", "sinceEventId": 5}, None)
+
+        result = self.server.events_wait({"contains": "[GameAI][skill-check]", "timeoutMs": 2000}, request_id="end-wait")
+
+        self.assertEqual(result["firedBeforeWait"]["eventId"], 6)
+
+    def test_rich_text_tags_are_dropped_from_rows_and_ignored_by_contains(self) -> None:
+        tagged = self.marker_event(2, "unused")
+        tagged["message"] = "<b><color=#B06400FF>[Net] </color></b>[GameAI][task] Drive#3 done"
+        self.write_events([self.marker_event(1, "older"), tagged])
+
+        result = self.server.events_wait(
+            {"contains": "[Net] [GameAI][task] Drive#3", "sinceEventId": 1, "timeoutMs": 200}, request_id="rich-wait"
+        )
+
+        self.assertTrue(result["matched"])
+        self.assertEqual(result["event"]["message"], "[Net] [GameAI][task] Drive#3 done")
+
     def test_events_check_since_needs_only_an_event_id(self) -> None:
         self.write_events([self.marker_event(1, "a"), self.marker_event(2, "b")])
 

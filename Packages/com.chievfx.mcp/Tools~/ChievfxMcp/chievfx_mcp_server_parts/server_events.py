@@ -353,13 +353,20 @@ class EventsStatusMixin:
         timeout (minutes, when the caller asked for minutes). Reporting it up front costs a caller who
         wanted the next occurrence one more call with sinceEventId; missing it cost the whole timeout.
         """
-        cutoff = time.time() - EVENTS_WAIT_FIRED_BEFORE_WINDOW_MS / 1000
+        now = time.time()
+        cutoff = now - EVENTS_WAIT_FIRED_BEFORE_WINDOW_MS / 1000
+        # After a recent action that named its end, only events from that action on count: an older event with
+        # the same text (the previous run's end) is history, not the result the caller is waiting for.
+        lower_bound = 0
+        action_cursor = getattr(self, "last_async_action_cursor", None)
+        if isinstance(action_cursor, int) and getattr(self, "last_async_action_at", 0.0) >= cutoff:
+            lower_bound = action_cursor
         newest: dict[str, Any] | None = None
         for event in stream.get("events", []):
             if not isinstance(event, dict):
                 continue
             event_id = event.get("eventId")
-            if not isinstance(event_id, int) or event_id > since_event_id:
+            if not isinstance(event_id, int) or event_id > since_event_id or event_id <= lower_bound:
                 continue
             timestamp = parse_utc_iso(event.get("timestamp"))
             if timestamp is None or timestamp < cutoff:
@@ -579,9 +586,11 @@ class EventsStatusMixin:
 
         contains = filters.get("contains")
         if contains is not None:
-            message = str(event.get("message", "")).lower()
+            raw_message = str(event.get("message", "")).lower()
+            # Rows show the message without rich-text tags, so a term copied from them matches either form.
+            message = strip_rich_text(raw_message)
             terms = [contains] if isinstance(contains, str) else contains
-            if not any(term.lower() in message for term in terms):
+            if not any(term.lower() in message or term.lower() in raw_message for term in terms):
                 return False
 
         marker = filters.get("marker")
@@ -597,6 +606,8 @@ class EventsStatusMixin:
             for key in ("eventId", "timestamp", "source", "type", "level", "message", "marker", "operationId")
             if event.get(key) is not None
         }
+        if isinstance(copied.get("message"), str):
+            copied["message"] = strip_rich_text(copied["message"])
         if include_data and isinstance(event.get("data"), dict):
             copied["data"] = event["data"]
         return copied

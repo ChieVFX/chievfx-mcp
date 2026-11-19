@@ -160,6 +160,14 @@ EVENTS_WAIT_FIRED_BEFORE_WINDOW_MS = 30000
 # Pause between tool-batch steps of the form {"waitMs": N}; capped so a typo cannot park the server.
 HARD_TOOL_BATCH_WAIT_MS = 60000
 
+# Unity rich-text tags that projects wrap log prefixes in ("<b><color=#B06400FF>[Net] </color></b>"). They cost
+# tokens in every event row and break a contains filter copied across a tag boundary.
+_RICH_TEXT_TAG_RE = re.compile(r"</?(?:b|i|u|s|color|size)(?:=[^>]*)?>", re.IGNORECASE)
+
+
+def strip_rich_text(text: str) -> str:
+    return _RICH_TEXT_TAG_RE.sub("", text)
+
 MAX_ACTIVE_EVENT_WAITS = 32
 EVENT_WAIT_HIGH_WATERMARK = 24
 MAX_EVENT_FILTER_TEXT = 256

@@ -88,12 +88,12 @@ namespace Chievfx.Mcp.Editor
 
         internal static string FormatTargetNotFoundMessage(JToken args, string frameworkId)
         {
-            return $"No {frameworkId} control found at {DescribeExplicitTarget(args)}.";
+            return $"No {frameworkId} object exists at {DescribeExplicitTarget(args)}.";
         }
 
         internal static string FormatCrossFrameworkTargetNotFoundMessage(JToken args)
         {
-            return $"No runtime UI control found at {DescribeExplicitTarget(args)}. "
+            return $"Nothing exists at {DescribeExplicitTarget(args)}: no uGUI GameObject (loaded scenes and DontDestroyOnLoad) and no UI Toolkit element. "
                 + "Provide a valid uGUI path/instanceId, UI Toolkit path/visualElementRef/name, or x/y screen coordinates.";
         }
 

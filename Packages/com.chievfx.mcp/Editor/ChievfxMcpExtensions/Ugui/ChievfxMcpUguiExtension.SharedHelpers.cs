@@ -200,7 +200,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
             try
             {
-                var context = GameObjectBridgeService.GetGameObjectQueryContext();
+                var context = GameObjectBridgeService.GetPlayAwareQueryContext();
                 return context.Roots
                     .SelectMany(root => GetComponentsInChildren(root, status.CanvasType, includeInactive))
                     .ToArray();
@@ -247,7 +247,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 return null;
             }
 
-            foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects())
+            foreach (var root in GetPathResolutionRoots())
             {
                 if (string.Equals(root.name, path, StringComparison.Ordinal)
                     || string.Equals(GetTransformPath(root.transform), path, StringComparison.Ordinal))
@@ -263,6 +263,25 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             return GameObject.Find(path);
+        }
+
+        // Edit Mode resolves paths in the active scene, as authoring always has. Play Mode also walks the other
+        // loaded scenes and DontDestroyOnLoad (active scene first, so an ambiguous path keeps resolving the same
+        // way), so an inactive object there can be targeted too; GameObject.Find only sees active objects.
+        internal static IEnumerable<GameObject> GetPathResolutionRoots()
+        {
+            var activeScene = SceneManager.GetActiveScene();
+            var activeRoots = activeScene.IsValid() && activeScene.isLoaded
+                ? activeScene.GetRootGameObjects()
+                : Array.Empty<GameObject>();
+            if (!Application.isPlaying)
+            {
+                return activeRoots;
+            }
+
+            return activeRoots.Concat(SceneBridgeService.GetLoadedScenes()
+                .Where(scene => scene != activeScene)
+                .SelectMany(scene => scene.GetRootGameObjects()));
         }
 
         internal static Transform? FindChildByPath(Transform root, string path)

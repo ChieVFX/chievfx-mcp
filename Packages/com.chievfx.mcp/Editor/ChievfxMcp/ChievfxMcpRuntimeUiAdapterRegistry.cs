@@ -251,21 +251,11 @@ namespace Chievfx.Mcp.Editor
                 attempts.Add(new Dictionary<string, object?> { ["framework"] = registered.Adapter.FrameworkId, ["resolved"] = false, ["detail"] = result });
             }
 
-            return new Dictionary<string, object?>
-            {
-                ["uri"] = uri,
-                ["resolved"] = false,
-                ["framework"] = null,
-                ["warnings"] = new[]
-                {
-                    ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(request)
-                        ? ChievfxMcpRuntimeUiInteractionInput.FormatCrossFrameworkTargetNotFoundMessage(request)
-                        : "No uGUI or UI Toolkit text field resolved from the supplied screen position. Provide path/instanceId/name/visualElementRef or x/y over a focusable text field, or set framework explicitly.",
-                },
-                ["attempts"] = ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(request)
-                    ? Array.Empty<Dictionary<string, object?>>()
-                    : attempts.ToArray(),
-            };
+            return CreateUnresolvedInteractionResult(
+                uri,
+                request,
+                attempts,
+                "No uGUI or UI Toolkit text field resolved from the supplied screen position. Provide path/instanceId/name/visualElementRef or x/y over a focusable text field, or set framework explicitly.");
         }
 
         private static Dictionary<string, object?> WrapTypeTextResult(string uri, IChievfxMcpRuntimeUiAdapter adapter, object? result)
@@ -343,18 +333,50 @@ namespace Chievfx.Mcp.Editor
                 attempts.Add(new Dictionary<string, object?> { ["framework"] = registered.Adapter.FrameworkId, ["resolved"] = false, ["detail"] = result });
             }
 
+            return CreateUnresolvedInteractionResult(
+                "tool://" + SetControlValueToolName,
+                request,
+                attempts,
+                "No uGUI or UI Toolkit settable control resolved from the supplied screen position. Provide path/instanceId or x/y over a Slider, Toggle, Dropdown, or other writable control, or set framework explicitly.");
+        }
+
+        // "Nothing at that path" and "the object is there but has no control this tool can drive" need different
+        // fixes, and both used to collapse into one generic "no runtime UI control found". When an adapter found
+        // the object, its own explanation (which controls it looked for, which components are there) is the
+        // answer; only when no adapter found anything is the path itself wrong.
+        private static Dictionary<string, object?> CreateUnresolvedInteractionResult(
+            string uri,
+            JObject request,
+            List<Dictionary<string, object?>> attempts,
+            string positionMissMessage)
+        {
+            var explicitTarget = ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(request);
+            string[] warnings;
+            if (!explicitTarget)
+            {
+                warnings = new[] { positionMissMessage };
+            }
+            else
+            {
+                var foundTargetWarnings = attempts
+                    .Select(attempt => attempt.TryGetValue("detail", out var detail) && TryReadDictionary(detail, out var row) ? row : null)
+                    .Where(row => row != null && row.TryGetValue("target", out var target) && target != null)
+                    .SelectMany(row => ChievfxMcpRuntimeUiProbeCompact.ReadStringArray(row!.TryGetValue("warnings", out var rowWarnings) ? rowWarnings : null))
+                    .Distinct()
+                    .ToArray();
+                warnings = foundTargetWarnings.Length > 0
+                    ? foundTargetWarnings
+                    : new[] { ChievfxMcpRuntimeUiInteractionInput.FormatCrossFrameworkTargetNotFoundMessage(request) };
+            }
+
             return new Dictionary<string, object?>
             {
-                ["uri"] = "tool://" + SetControlValueToolName,
+                ["uri"] = uri,
+                ["playMode"] = EditorApplication.isPlaying || Application.isPlaying,
                 ["resolved"] = false,
                 ["framework"] = null,
-                ["warnings"] = new[]
-                {
-                    ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(request)
-                        ? ChievfxMcpRuntimeUiInteractionInput.FormatCrossFrameworkTargetNotFoundMessage(request)
-                        : "No uGUI or UI Toolkit settable control resolved from the supplied screen position. Provide path/instanceId or x/y over a Slider, Toggle, Dropdown, or other writable control, or set framework explicitly.",
-                },
-                ["attempts"] = ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(request)
+                ["warnings"] = warnings,
+                ["attempts"] = explicitTarget
                     ? Array.Empty<Dictionary<string, object?>>()
                     : attempts.ToArray(),
             };
@@ -724,10 +746,17 @@ namespace Chievfx.Mcp.Editor
                 }
 
                 var resolved = ReadResolvedFlag(dragDetail);
-                var dragged = resolved;
+                // An adapter that reports handlerInvoked separates "hit something" from "something dragged";
+                // one that does not keeps the older meaning, where a resolved target counts as dragged.
+                var dragged = resolved
+                    && (dragDetail == null || !dragDetail.ContainsKey("handlerInvoked") || ReadHandlerInvokedFlag(dragDetail));
                 if (resolved)
                 {
                     anyResolved = true;
+                }
+
+                if (dragged)
+                {
                     anyDragged = true;
                 }
 
@@ -894,9 +923,24 @@ namespace Chievfx.Mcp.Editor
                 section["handler"] = handler;
             }
 
+            if (detail.TryGetValue("handlerObject", out var handlerObject))
+            {
+                section["handlerObject"] = handlerObject;
+            }
+
+            if (detail.TryGetValue("handlerInvoked", out var handlerInvoked))
+            {
+                section["handlerInvoked"] = handlerInvoked;
+            }
+
             if (detail.TryGetValue("dispatchedEvents", out var events))
             {
                 section["events"] = events;
+            }
+
+            if (detail.TryGetValue("pointerEvents", out var pointerEvents))
+            {
+                section["pointerEvents"] = pointerEvents;
             }
 
             if (detail.TryGetValue("selectedObjectAfter", out var selectedAfter))
@@ -1096,6 +1140,11 @@ namespace Chievfx.Mcp.Editor
             if (detail.TryGetValue("dispatchedEvents", out var events))
             {
                 section["events"] = events;
+            }
+
+            if (detail.TryGetValue("pointerEvents", out var pointerEvents))
+            {
+                section["pointerEvents"] = pointerEvents;
             }
 
             if (detail.TryGetValue("selectedObjectAfter", out var selectedAfter))

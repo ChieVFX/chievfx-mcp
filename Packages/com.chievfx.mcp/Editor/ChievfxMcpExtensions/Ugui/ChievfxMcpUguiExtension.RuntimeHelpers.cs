@@ -49,6 +49,10 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return EditorApplication.isPlaying || Application.isPlaying;
         }
 
+        // Only the conditions that break every runtime interaction. Per-canvas facts (closed screens, HUD
+        // canvases without a raycaster) are normal in a real game: a shipping UI produced 70+ of them on every
+        // call, including successful ones. They are reported by AddCanvasMissWarnings, and only when nothing
+        // was hit, scoped to the canvases under that point.
         internal static void AddRuntimeWarnings(UguiDependencyStatus status, List<string> warnings)
         {
             if (GetCurrentEventSystem(status) == null)
@@ -64,28 +68,63 @@ namespace Chievfx.Mcp.Extensions.Ugui
             {
                 warnings.Add("No GraphicRaycaster found on runtime canvases; screen probes will not hit uGUI Graphics.");
             }
+        }
 
-            foreach (var canvas in canvases)
+        // Why an EventSystem raycast at this point can come back empty: a canvas covering it is inactive, has no
+        // GraphicRaycaster of its own (graphics register with their nearest Canvas, so a nested canvas needs
+        // one too), or is world-space with no camera to raycast from.
+        internal static void AddCanvasMissWarnings(UguiDependencyStatus status, List<string> warnings, Vector2 screenPosition)
+        {
+            foreach (var canvas in FindRuntimeCanvases(status))
             {
+                var renderMode = Convert.ToString(GetPropertyValue(canvas, "renderMode"), CultureInfo.InvariantCulture) ?? string.Empty;
+                var isWorldSpace = string.Equals(renderMode, "WorldSpace", StringComparison.Ordinal);
+                var eventCamera = ResolveCanvasEventCamera(canvas, renderMode);
+                if (isWorldSpace && eventCamera == null)
+                {
+                    if (canvas.gameObject.activeInHierarchy && IsEnabledComponent(canvas))
+                    {
+                        warnings.Add($"Canvas '{GetTransformPath(canvas.transform)}' uses WorldSpace without worldCamera/event camera.");
+                    }
+
+                    continue;
+                }
+
+                if (canvas.transform is not RectTransform canvasRect
+                    || !RectTransformUtility.RectangleContainsScreenPoint(canvasRect, screenPosition, eventCamera))
+                {
+                    continue;
+                }
+
                 if (!canvas.gameObject.activeInHierarchy || !IsEnabledComponent(canvas))
                 {
                     warnings.Add($"Inactive canvas '{GetTransformPath(canvas.transform)}' will not receive runtime raycasts.");
+                    continue;
                 }
 
                 if (!HasComponent(canvas.gameObject, status.GraphicRaycasterType))
                 {
                     warnings.Add($"Canvas '{GetTransformPath(canvas.transform)}' has no GraphicRaycaster.");
                 }
-
-                var renderMode = Convert.ToString(GetPropertyValue(canvas, "renderMode"), CultureInfo.InvariantCulture) ?? string.Empty;
-                var hasCamera = GetPropertyValue(canvas, "worldCamera") != null;
-                if ((string.Equals(renderMode, "ScreenSpaceCamera", StringComparison.Ordinal)
-                        || string.Equals(renderMode, "WorldSpace", StringComparison.Ordinal))
-                    && !hasCamera)
-                {
-                    warnings.Add($"Canvas '{GetTransformPath(canvas.transform)}' uses {renderMode} without worldCamera/event camera.");
-                }
             }
+        }
+
+        internal static Camera? ResolveCanvasEventCamera(Component canvas, string renderMode)
+        {
+            if (string.Equals(renderMode, "ScreenSpaceOverlay", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            var worldCamera = GetPropertyValue(canvas, "worldCamera") as Camera;
+            if (worldCamera != null)
+            {
+                return worldCamera;
+            }
+
+            // A Screen Space - Camera canvas without a camera renders and raycasts as an overlay; a world-space
+            // one falls back to Camera.main, as GraphicRaycaster.eventCamera does.
+            return string.Equals(renderMode, "WorldSpace", StringComparison.Ordinal) ? Camera.main : null;
         }
 
         internal static Component? GetCurrentEventSystem(UguiDependencyStatus status)
@@ -139,52 +178,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             return eventSystem;
-        }
-
-        // A real pointer event carries the raycast that produced it, and handlers read it —
-        // eventData.pointerCurrentRaycast.gameObject to identify what was hit, .worldPosition to place
-        // something in the world. A hand-built event leaves those default, so such a handler sees null or
-        // (0,0,0) and takes the wrong branch while the click itself looks like it worked. Fill them from the
-        // same EventSystem raycast the real input module would have run at this position.
-        internal static PointerEventData CreatePointerEventData(EventSystem eventSystem, Vector2 position)
-        {
-            var pointer = new PointerEventData(eventSystem)
-            {
-                button = PointerEventData.InputButton.Left,
-                clickCount = 1,
-                eligibleForClick = true,
-                pressPosition = position,
-                position = position,
-                delta = Vector2.zero,
-            };
-
-            var results = new List<RaycastResult>();
-            try
-            {
-                eventSystem.RaycastAll(pointer, results);
-            }
-            catch (Exception)
-            {
-                // A raycaster that throws must not take the interaction down with it; the event still
-                // dispatches, just without raycast detail.
-                results.Clear();
-            }
-
-            if (results.Count > 0)
-            {
-                pointer.pointerCurrentRaycast = results[0];
-                pointer.pointerPressRaycast = results[0];
-            }
-
-            return pointer;
-        }
-
-        // pointerPress/rawPointerPress are what a handler reads to ask "which object is this press on?"
-        // (drag handlers especially). The real input module sets them when the press is dispatched.
-        internal static void AssignPointerPressTarget(PointerEventData pointer, GameObject? dispatchTarget, GameObject? rawTarget)
-        {
-            pointer.pointerPress = dispatchTarget;
-            pointer.rawPointerPress = rawTarget ?? dispatchTarget;
         }
 
         // Pooled UI makes a hierarchy path ambiguous: a shop list can hold 177 objects all named
@@ -255,13 +248,20 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 .ToArray();
         }
 
+        internal enum RuntimeHitPurpose
+        {
+            Click,
+            Drag,
+        }
+
         internal static GameObject? ResolveRuntimeInteractionTarget(
             JToken args,
             UguiDependencyStatus status,
             EventSystem? eventSystem,
             Vector2 screenPosition,
             List<string> warnings,
-            out Dictionary<string, object?>[] stack)
+            out Dictionary<string, object?>[] stack,
+            RuntimeHitPurpose purpose = RuntimeHitPurpose.Click)
         {
             var explicitTarget = ResolveRuntimeTargetFromArgs(args, "path", "instanceId", warnings)
                 ?? ResolveRuntimeTargetFromArgs(args, "targetPath", "instanceId", warnings);
@@ -294,9 +294,17 @@ namespace Chievfx.Mcp.Extensions.Ugui
             if (raycastResults.Length > 0)
             {
                 stack = raycastResults.Select((raycastResult, index) => CreateRuntimeStackRow(raycastResult, index, status)).ToArray();
-                return ResolveClickableTargetFromRaycastHits(raycastResults, status);
+                var hits = raycastResults
+                    .Select(raycastResult => GetMemberValue(raycastResult, "gameObject") as GameObject)
+                    .Where(hit => hit != null)
+                    .Cast<GameObject>()
+                    .ToArray();
+                return ResolveTargetFromHits(hits, status, purpose, warnings);
             }
 
+            // Nothing a real pointer could hit is here. Say why, then fall back to what merely overlaps the point,
+            // and say that too: a target picked this way is one the player cannot reach by tapping.
+            AddCanvasMissWarnings(status, warnings, screenPosition);
             var rectHits = FindRuntimeRectHits(screenPosition, status).ToArray();
             stack = rectHits.Select((rect, index) =>
             {
@@ -310,25 +318,41 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 row["clickableHandlerTarget"] = CreateClickableHandlerTargetRow(rect.gameObject, status);
                 return row;
             }).ToArray();
-            return PromoteToClickableControlTarget(
-                rectHits
-                    .Select(rect => rect.gameObject)
-                    .FirstOrDefault(target => IsRuntimeInteractionCandidate(target, status)),
-                status);
-        }
-
-        internal static GameObject? ResolveClickableTargetFromRaycastHits(object[] raycastResults, UguiDependencyStatus status)
-        {
-            foreach (var raycastResult in raycastResults)
+            var overlapTarget = ResolveTargetFromHits(rectHits.Select(rect => rect.gameObject).ToArray(), status, purpose, warnings);
+            if (overlapTarget != null)
             {
-                if (GetMemberValue(raycastResult, "gameObject") is GameObject target
-                    && IsRuntimeInteractionCandidate(target, status))
-                {
-                    return PromoteToClickableControlTarget(target, status);
-                }
+                warnings.Add($"The EventSystem raycast hit nothing at this point; '{GetTransformPath(overlapTarget.transform)}' was picked because its RectTransform overlaps it, so a real tap would not reach it.");
             }
 
-            return null;
+            return overlapTarget;
+        }
+
+        // Click: the first hit that reacts to a press or click, promoted to its control (a label inside a
+        // Button resolves to the Button). Drag: the first hit with a drag handler above it, or else the top hit,
+        // so "hit but nothing drags here" is reported rather than "nothing hit". Raycast plumbing objects
+        // (UI Toolkit's PanelRaycaster) are skipped; a real blocker above the chosen target is called out.
+        private static GameObject? ResolveTargetFromHits(GameObject[] hits, UguiDependencyStatus status, RuntimeHitPurpose purpose, List<string> warnings)
+        {
+            var chosenIndex = Array.FindIndex(hits, hit => purpose == RuntimeHitPurpose.Drag
+                ? hit.activeInHierarchy && ExecuteEvents.GetEventHandler<IDragHandler>(hit) != null
+                : IsRuntimeInteractionCandidate(hit, status));
+            if (chosenIndex < 0)
+            {
+                return purpose == RuntimeHitPurpose.Drag
+                    ? hits.FirstOrDefault(hit => hit.activeInHierarchy && !IsRaycastInfrastructureTarget(hit, status))
+                    : null;
+            }
+
+            var chosen = purpose == RuntimeHitPurpose.Drag ? hits[chosenIndex] : PromoteToClickableControlTarget(hits[chosenIndex], status)!;
+            var blocker = hits
+                .Take(chosenIndex)
+                .FirstOrDefault(hit => !IsRaycastInfrastructureTarget(hit, status) && !hit.transform.IsChildOf(chosen.transform));
+            if (blocker != null)
+            {
+                warnings.Add($"'{GetTransformPath(blocker.transform)}' is above '{GetTransformPath(chosen.transform)}' at this point and would catch a real tap; the tool went past it because it does not handle this interaction.");
+            }
+
+            return chosen;
         }
 
         internal static GameObject? PromoteToClickableControlTarget(GameObject? hit, UguiDependencyStatus status)
@@ -371,7 +395,10 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 return false;
             }
 
-            return ExecuteEvents.GetEventHandler<IPointerClickHandler>(target) != null;
+            // A press handler takes the tap too: the input module sends PointerDown up the hierarchy whether or
+            // not anything handles PointerClick.
+            return ExecuteEvents.GetEventHandler<IPointerClickHandler>(target) != null
+                || ExecuteEvents.GetEventHandler<IPointerDownHandler>(target) != null;
         }
 
         internal static bool IsRaycastInfrastructureTarget(GameObject target, UguiDependencyStatus status)
@@ -408,11 +435,14 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 || string.Equals(typeName, "GraphicRaycaster", StringComparison.Ordinal);
         }
 
+        // A nested Canvas is listed both on its own and inside its parent canvas's children, so without Distinct
+        // every element under it appeared twice in the hit stack.
         internal static IEnumerable<RectTransform> FindRuntimeRectHits(Vector2 screenPosition, UguiDependencyStatus status)
         {
             return FindRuntimeCanvases(status)
                 .Where(canvas => canvas.gameObject.activeInHierarchy && IsEnabledComponent(canvas))
                 .SelectMany(canvas => canvas.GetComponentsInChildren<RectTransform>(false))
+                .Distinct()
                 .Where(rect => rect.gameObject != null
                     && rect.gameObject.activeInHierarchy
                     && IsRuntimeVisibleUiElement(rect.gameObject, status)
@@ -463,7 +493,11 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 }
             }
 
-            return results.Cast<object>().ToArray();
+            // Two raycasters on one canvas each report the same Graphic; one row per hit object is the stack.
+            var seen = new HashSet<GameObject>();
+            return results.Cast<object>()
+                .Where(raycastResult => GetMemberValue(raycastResult, "gameObject") is not GameObject hit || seen.Add(hit))
+                .ToArray();
         }
 
         internal static object[] GraphicRaycastAll(UguiDependencyStatus status, object pointerEventData, Type listType)
@@ -502,17 +536,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
         internal static Dictionary<string, object?>[] CreateRuntimeRectHitStack(Vector2 screenPosition, UguiDependencyStatus status)
         {
-            var hits = FindRuntimeCanvases(status)
-                .Where(canvas => canvas.gameObject.activeInHierarchy && IsEnabledComponent(canvas))
-                .SelectMany(canvas => canvas.GetComponentsInChildren<RectTransform>(false))
-                .Where(rect => rect.gameObject != null
-                    && rect.gameObject.activeInHierarchy
-                    && IsRuntimeVisibleUiElement(rect.gameObject, status)
-                    && IsRuntimeProbeHitElement(rect.gameObject, status)
-                    && RectTransformUtility.RectangleContainsScreenPoint(rect, screenPosition, null))
-                .OrderByDescending(rect => GetCanvasSortingOrder(FindParentCanvas(rect.gameObject, status)))
-                .ThenByDescending(GetTransformSiblingSortKey, StringComparer.Ordinal)
-                .Take(256)
+            var hits = FindRuntimeRectHits(screenPosition, status)
                 .Select((rect, index) =>
                 {
                     var row = CreateRuntimeElementRow(rect.gameObject, status);
@@ -720,7 +744,14 @@ namespace Chievfx.Mcp.Extensions.Ugui
         {
             var row = CreateGameObjectRow(canvas.gameObject);
             row["enabled"] = IsEnabledComponent(canvas);
-            row["canvas"] = CreateCanvasReferenceRow(canvas.gameObject, status);
+            // The canvas reference row of a Canvas is the canvas itself, so it only repeated path, render mode
+            // and sorting. A nested canvas names its parent canvas instead.
+            var parentCanvas = canvas.transform.parent == null ? null : FindParentCanvas(canvas.transform.parent.gameObject, status);
+            if (parentCanvas != null)
+            {
+                row["parentCanvas"] = GetTransformPath(parentCanvas.transform);
+            }
+
             row["sorting"] = CreateSortingRow(canvas);
             row["renderMode"] = Convert.ToString(GetPropertyValue(canvas, "renderMode"), CultureInfo.InvariantCulture);
             row["worldCamera"] = CreateObjectReferenceRow(GetPropertyValue(canvas, "worldCamera") as UnityEngine.Object);
@@ -744,7 +775,11 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 return true;
             }
 
-            return GetFirstPropertyValue(target, "raycastTarget", status.GraphicType, status.ImageType, status.TmpTextType) is true;
+            // A disabled Graphic keeps raycastTarget set but is unregistered from raycasting, so it cannot be hit.
+            return status.GraphicType != null
+                && target.GetComponents(status.GraphicType)
+                    .OfType<Behaviour>()
+                    .Any(graphic => graphic.enabled && GetPropertyValue(graphic, "raycastTarget") is true);
         }
 
         // "enabled" used to mean "every Behaviour on this GameObject is enabled", so a single unrelated
@@ -989,7 +1024,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             var lines = new List<string>();
-            foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects()
+            foreach (var root in GetPathResolutionRoots()
                 .Select(root => root.transform)
                 .Where(included.Contains)
                 .OrderBy(transform => transform.GetSiblingIndex()))

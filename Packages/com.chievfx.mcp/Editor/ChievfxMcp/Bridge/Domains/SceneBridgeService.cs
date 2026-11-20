@@ -226,6 +226,57 @@ namespace Chievfx.Mcp.Editor
             }
         }
 
+        // Every loaded scene, plus the DontDestroyOnLoad scene while it holds objects in Play Mode.
+        // SceneManager.sceneCount never lists DontDestroyOnLoad, yet that is where a running game keeps its
+        // persistent UI (screen managers, debug consoles), so searches built on GetOpenScenes alone were blind
+        // to it. Searches go through here; scene management (save, open, close) keeps using GetOpenScenes.
+        internal static IEnumerable<Scene> GetLoadedScenes()
+        {
+            foreach (var scene in GetOpenScenes())
+            {
+                if (scene.IsValid() && scene.isLoaded)
+                {
+                    yield return scene;
+                }
+            }
+
+            if (TryGetDontDestroyOnLoadScene(out var dontDestroyOnLoadScene) && dontDestroyOnLoadScene.rootCount > 0)
+            {
+                yield return dontDestroyOnLoadScene;
+            }
+        }
+
+        private static readonly MethodInfo? GetDontDestroyOnLoadSceneMethod = typeof(EditorSceneManager).GetMethod(
+            "GetDontDestroyOnLoadScene",
+            BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
+            null,
+            Type.EmptyTypes,
+            null);
+
+        internal static bool TryGetDontDestroyOnLoadScene(out Scene scene)
+        {
+            scene = default;
+            if (!Application.isPlaying)
+            {
+                return false;
+            }
+
+            if (GetDontDestroyOnLoadSceneMethod?.Invoke(null, null) is Scene internalScene)
+            {
+                scene = internalScene;
+            }
+            else
+            {
+                // No public API exposes this scene; moving a probe object into it is the known workaround.
+                var probe = new GameObject("ChievfxMcpDontDestroyOnLoadProbe") { hideFlags = HideFlags.HideAndDontSave };
+                Object.DontDestroyOnLoad(probe);
+                scene = probe.scene;
+                Object.DestroyImmediate(probe);
+            }
+
+            return scene.IsValid() && scene.isLoaded;
+        }
+
         private static object SceneToDto(Scene scene)
         {
             var name = string.IsNullOrWhiteSpace(scene.name) ? "<untitled>" : scene.name;

@@ -626,18 +626,22 @@ namespace Chievfx.Mcp.Extensions.Ugui
             var roots = ResolveExplicitUiTargets(args);
             var maxResults = Math.Max(1, Math.Min(ReadInt(args, "maxResults", ReadInt(args, "maxElements", 64)), 256));
             var maxDepth = Math.Max(0, Math.Min(ReadInt(args, "maxDepth", 6), 24));
-            var includeInactive = ReadBool(args, "includeInactive", true);
+            var includeInactive = ResolveIncludeInactive(args, hasExplicitTargets: roots.Length > 0);
             var includeComponents = ReadBool(args, "includeComponents", false);
             var result = CreateToolEnvelope("ugui-ui-hierarchy");
+            result["includeInactive"] = includeInactive;
             result["maxResults"] = maxResults;
             // With explicit paths, root the tree at the resolved objects directly (matching how
             // ui-runtime-click / ugui-ui-find resolve paths). Previously this filtered to Canvas
             // components in the subtree, so a valid non-Canvas leaf path (e.g. .../Wife_1) returned
             // count:0 even though the same path worked in the click tools. Without paths, default to
-            // the scene canvases.
+            // the scene's root canvases; a nested canvas is already inside its parent's tree.
             var rootObjects = roots.Length > 0
                 ? roots
-                : FindCanvases(status, includeInactive).Select(canvas => canvas.gameObject).ToArray();
+                : FindCanvases(status, includeInactive)
+                    .Where(canvas => canvas.transform.parent == null || FindParentCanvas(canvas.transform.parent.gameObject, status) == null)
+                    .Select(canvas => canvas.gameObject)
+                    .ToArray();
             var emitted = 0;
             var truncated = false;
             var depthLimited = false;
@@ -665,6 +669,25 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return result;
         }
 
+        // Edit Mode lists inactive elements by default: authoring hidden panels is normal work. Play Mode asks
+        // about the running UI, where every pooled template and closed screen is inactive, so a search lists
+        // only active elements unless includeInactive is passed. Explicit paths/instanceIds are always
+        // returned (with their active flags) unless includeInactive:false is passed.
+        private static bool ResolveIncludeInactive(JToken args, bool hasExplicitTargets)
+        {
+            if (IsIncludeInactiveSpecified(args))
+            {
+                return ReadBool(args, "includeInactive", true);
+            }
+
+            return hasExplicitTargets || !Application.isPlaying;
+        }
+
+        private static bool IsIncludeInactiveSpecified(JToken args)
+        {
+            return args["includeInactive"] is JToken token && token.Type != JTokenType.Null;
+        }
+
         private static readonly string[] UiFindKnownArguments =
         {
             "paths", "instanceIds", "name", "nameContains", "namePattern", "componentType",
@@ -688,7 +711,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 }
             }
 
-            var includeInactive = ReadBool(args, "includeInactive", true);
             var includeDetails = ReadBool(args, "includeDetails", true);
             var normalizedCoords = ReadBool(args, "normalizedCoords", false);
             var maxResults = Math.Max(1, Math.Min(ReadInt(args, "maxResults", 16), 64));
@@ -698,24 +720,40 @@ namespace Chievfx.Mcp.Extensions.Ugui
             var namePattern = ReadString(args, "namePattern");
             var componentType = ReadString(args, "componentType");
             var hasExplicitTarget = explicitTargets.Length > 0;
-            var source = hasExplicitTarget
-                ? explicitTargets
-                : FindCanvases(status, includeInactive)
-                    .SelectMany(canvas => canvas.GetComponentsInChildren<RectTransform>(includeInactive).Select(rect => rect.gameObject))
-                    .Distinct()
+            var includeInactive = ResolveIncludeInactive(args, hasExplicitTarget);
+
+            GameObject[] FindMatches(bool withInactive)
+            {
+                var source = hasExplicitTarget
+                    ? explicitTargets
+                    : FindCanvases(status, withInactive)
+                        .SelectMany(canvas => canvas.GetComponentsInChildren<RectTransform>(withInactive).Select(rect => rect.gameObject))
+                        .Distinct()
+                        .ToArray();
+                return source
+                    .Where(target => withInactive || target.activeInHierarchy)
+                    .Where(target => string.IsNullOrWhiteSpace(name) || string.Equals(target.name, name, StringComparison.Ordinal))
+                    .Where(target => string.IsNullOrWhiteSpace(nameContains) || target.name.IndexOf(nameContains!, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .Where(target => string.IsNullOrWhiteSpace(namePattern) || GameObjectBridgeService.WildcardMatches(target.name, namePattern!))
+                    .Where(target => string.IsNullOrWhiteSpace(componentType) || HasComponentNamed(target, componentType!))
                     .ToArray();
-            var matches = source
-                .Where(target => includeInactive || target.activeInHierarchy)
-                .Where(target => string.IsNullOrWhiteSpace(name) || string.Equals(target.name, name, StringComparison.Ordinal))
-                .Where(target => string.IsNullOrWhiteSpace(nameContains) || target.name.IndexOf(nameContains!, StringComparison.OrdinalIgnoreCase) >= 0)
-                .Where(target => string.IsNullOrWhiteSpace(namePattern) || GameObjectBridgeService.WildcardMatches(target.name, namePattern!))
-                .Where(target => string.IsNullOrWhiteSpace(componentType) || HasComponentNamed(target, componentType!))
-                .ToArray();
+            }
+
+            var matches = FindMatches(includeInactive);
             var hasFilter = hasExplicitTarget
                 || !string.IsNullOrWhiteSpace(name)
                 || !string.IsNullOrWhiteSpace(nameContains)
                 || !string.IsNullOrWhiteSpace(namePattern)
                 || !string.IsNullOrWhiteSpace(componentType);
+            if (!includeInactive && !IsIncludeInactiveSpecified(args))
+            {
+                var hiddenInactive = FindMatches(withInactive: true).Length - matches.Length;
+                if (hiddenInactive > 0)
+                {
+                    warnings.Add($"{hiddenInactive} inactive match(es) not shown: in Play Mode only active elements are listed by default. Pass includeInactive:true to include them.");
+                }
+            }
+
             if (hasFilter && matches.Length == 0)
             {
                 warnings.Add("No uGUI elements matched the filters.");
@@ -730,6 +768,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             result["totalMatches"] = matches.Length;
             result["matched"] = !hasFilter || matches.Length > 0;
             result["maxResults"] = maxResults;
+            result["includeInactive"] = includeInactive;
             result["includeDetails"] = includeDetails;
             result["normalizedCoords"] = normalizedCoords;
             result["truncated"] = matches.Length > selected.Length;

@@ -212,8 +212,8 @@ namespace Chievfx.Mcp.Extensions.Ugui
             descriptor.Tools.Add(CreateTool("ugui-image-set", "Set uGUI Image sprite, tint, raycast, aspect, type.", ImageSetSchema()));
             descriptor.Tools.Add(CreateTool("ugui-image-primitive-create", "Create generated Sprite primitive uGUI Image.", ImagePrimitiveCreateSchema()));
             descriptor.Tools.Add(CreateTool("ugui-sprite-configure", "Configure texture as uGUI Sprite/9-slice.", SpriteConfigureSchema()));
-            descriptor.Tools.Add(CreateTool("ugui-ui-hierarchy", "Returns a compact uGUI RectTransform hierarchy for active-scene Canvases or a target root.", UiHierarchySchema()));
-            descriptor.Tools.Add(CreateTool("ugui-ui-find", "Finds uGUI elements by path, name (exact), nameContains, namePattern (wildcards * ?), component type, or instance id, with optional detail data. totalMatches counts only elements passing the filters; unsupported arguments are reported in warnings instead of silently matching everything.", UiFindSchema()));
+            descriptor.Tools.Add(CreateTool("ugui-ui-hierarchy", "Returns a compact uGUI RectTransform hierarchy for the scene's root Canvases (in Play Mode: all loaded scenes and DontDestroyOnLoad) or a target root. In Play Mode inactive elements are left out unless includeInactive:true.", UiHierarchySchema()));
+            descriptor.Tools.Add(CreateTool("ugui-ui-find", "Finds uGUI elements by path, name (exact), nameContains, namePattern (wildcards * ?), component type, or instance id, with optional detail data. In Play Mode searches all loaded scenes and DontDestroyOnLoad and lists only active elements unless includeInactive:true (Edit Mode includes inactive). totalMatches counts only elements passing the filters; unsupported arguments are reported in warnings instead of silently matching everything.", UiFindSchema()));
 
             return descriptor;
         }

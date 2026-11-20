@@ -99,7 +99,7 @@ namespace Chievfx.Mcp.Editor
 
             try
             {
-                var context = GameObjectBridgeService.GetGameObjectQueryContext();
+                var context = GameObjectBridgeService.GetPlayAwareQueryContext();
                 var count = 0;
                 foreach (var root in context.Roots)
                 {

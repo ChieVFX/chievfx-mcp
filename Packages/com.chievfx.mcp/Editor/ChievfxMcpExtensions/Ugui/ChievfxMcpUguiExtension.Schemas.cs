@@ -368,7 +368,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             {
                 ["paths"] = new JObject { ["type"] = "array", ["items"] = new JObject { ["type"] = "string" }, ["description"] = "Optional Canvas/root paths to inspect. One element is valid." },
                 ["instanceIds"] = new JObject { ["type"] = "array", ["items"] = new JObject { ["type"] = "integer" }, ["description"] = "Optional Canvas/root instance ids to inspect. One element is valid." },
-                ["includeInactive"] = BoolProperty("Include inactive uGUI elements."),
+                ["includeInactive"] = BoolProperty("Include inactive uGUI elements. Default: true in Edit Mode and for explicit paths/instanceIds; false for searches in Play Mode, where the scene is full of inactive templates and closed screens."),
                 ["includeComponents"] = BoolProperty("Include compact component type preview rows. Defaults false."),
                 ["maxDepth"] = IntProperty("Maximum hierarchy depth for overview."),
                 ["maxResults"] = IntProperty("Maximum hierarchy elements to emit."),
@@ -385,7 +385,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 ["nameContains"] = StringProperty("Optional case-insensitive substring filter on the GameObject name."),
                 ["namePattern"] = StringProperty("Optional wildcard filter on the GameObject name; use * and ?."),
                 ["componentType"] = StringProperty("Optional component type name filter, e.g. Image, Button, TextMeshProUGUI."),
-                ["includeInactive"] = BoolProperty("Include inactive uGUI elements."),
+                ["includeInactive"] = BoolProperty("Include inactive uGUI elements. Default: true in Edit Mode and for explicit paths/instanceIds; false for searches in Play Mode, where the scene is full of inactive templates and closed screens."),
                 ["includeDetails"] = BoolProperty("Include RectTransform/Image/TMP details. Defaults true."),
                 ["normalizedCoords"] = BoolProperty("Output screenRect in normalized 0..1 screen coordinates instead of pixels."),
                 ["maxResults"] = IntProperty("Maximum matching elements to emit."),

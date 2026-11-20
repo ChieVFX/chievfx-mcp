@@ -329,7 +329,7 @@ namespace Chievfx.Mcp.Editor
 
         private static GameObjectQueryContext GetSceneContextByPathOrName(string sceneRef)
         {
-            var scene = SceneBridgeService.GetOpenScenes()
+            var scene = SceneBridgeService.GetLoadedScenes()
                 .FirstOrDefault(candidate => candidate.IsValid()
                     && candidate.isLoaded
                     && (string.Equals(candidate.path, sceneRef, StringComparison.Ordinal)

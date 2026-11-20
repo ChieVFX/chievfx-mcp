@@ -65,13 +65,24 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
             status.CanvasType?.GetMethod("ForceUpdateCanvases", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
             var raycastResults = RaycastAll(status, eventSystem, position.ScreenPosition, warnings);
-            var stack = raycastResults.Length == 0
-                ? CreateRuntimeRectHitStack(position.ScreenPosition, status)
+            Dictionary<string, object?>[] stack;
+            if (raycastResults.Length == 0)
+            {
+                stack = CreateRuntimeRectHitStack(position.ScreenPosition, status)
                     .Select(CompactRectHitStackRow)
-                    .ToArray()
-                : raycastResults
+                    .ToArray();
+                AddCanvasMissWarnings(status, warnings, position.ScreenPosition);
+                if (stack.Length > 0)
+                {
+                    warnings.Add("The EventSystem raycast hit nothing here; the rows are elements whose RectTransform overlaps the point, not raycast hits, and a real tap would not reach them.");
+                }
+            }
+            else
+            {
+                stack = raycastResults
                     .Select((raycastResult, index) => CreateCompactProbeStackRow(raycastResult, index, status))
                     .ToArray();
+            }
             var truncated = stack.Length > maxRows;
             if (truncated)
             {
@@ -139,6 +150,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
             else
             {
+                UguiRuntimeReachability.AddPlayerReachabilityWarnings(target, status, warnings);
                 if (handler == "submit")
                 {
                     var submitHandlerObject = ExecuteEvents.GetEventHandler<ISubmitHandler>(target);
@@ -147,29 +159,23 @@ namespace Chievfx.Mcp.Extensions.Ugui
                     var submitHandled = ExecuteEvents.Execute(submitTarget, new BaseEventData(eventSystem), ExecuteEvents.submitHandler);
                     handlerInvoked = submitHandled && submitHandlerObject != null;
                     handlerObject = handlerInvoked ? submitTarget : null;
+                    if (!handlerInvoked)
+                    {
+                        warnings.Add($"Submit dispatched at '{GetTransformPath(target.transform)}' but nothing there or above it handles submit.");
+                    }
                 }
                 else
                 {
-                    // GetEventHandler<IPointerClickHandler> walks up to the first GameObject that can
-                    // actually handle a click; when null the target is a raycast catcher with no click
-                    // handler. We still dispatch enter/down/up so controls that only respond to those
-                    // (Slider, Scrollbar) register, and treat "handler invoked" as any of the action
-                    // events being handled — not merely that a raycast target was resolved.
-                    var clickHandlerObject = ExecuteEvents.GetEventHandler<IPointerClickHandler>(target);
-                    var clickTarget = clickHandlerObject ?? target;
-                    var pointer = CreatePointerEventData(eventSystem, position.ScreenPosition);
-                    AssignPointerPressTarget(pointer, clickTarget, target);
-                    ExecuteEvents.Execute(clickTarget, pointer, ExecuteEvents.pointerEnterHandler);
-                    var downHandled = ExecuteEvents.Execute(clickTarget, pointer, ExecuteEvents.pointerDownHandler);
-                    var upHandled = ExecuteEvents.Execute(clickTarget, pointer, ExecuteEvents.pointerUpHandler);
-                    var clickHandled = ExecuteEvents.Execute(clickTarget, pointer, ExecuteEvents.pointerClickHandler);
-                    handlerInvoked = downHandled || upHandled || clickHandled;
-                    handlerObject = handlerInvoked ? clickTarget : null;
-                }
-
-                if (!handlerInvoked)
-                {
-                    warnings.Add($"Click dispatched at '{GetTransformPath(target.transform)}' but no recognized uGUI handler responded; the target is a raycast catcher (background, panel, label) with no click/submit handler, so nothing was triggered.");
+                    var targetFromScreenPosition = includeCoordinateInfo && !ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args);
+                    var pressPosition = includeCoordinateInfo || !TryGetTargetScreenCenter(target, status, out var targetCenter)
+                        ? position.ScreenPosition
+                        : targetCenter;
+                    var report = UguiRuntimePointerDispatch.DispatchTap(eventSystem, target, pressPosition, targetFromScreenPosition);
+                    handlerInvoked = report.Clicked;
+                    handlerObject = report.Responder;
+                    result["dispatchedEvents"] = report.Events.ToArray();
+                    result["pointerEvents"] = report.Details.ToArray();
+                    warnings.AddRange(report.Warnings);
                 }
             }
 
@@ -179,6 +185,24 @@ namespace Chievfx.Mcp.Extensions.Ugui
             result["targetStateAfter"] = target == null ? null : CreateControlStateRow(target, status);
             result["warnings"] = warnings.ToArray();
             return result;
+        }
+
+        // A target reached by path is pressed at its centre, where a player would tap it, rather than at the
+        // screen centre the coordinate reader falls back to.
+        private static bool TryGetTargetScreenCenter(GameObject target, UguiDependencyStatus status, out Vector2 center)
+        {
+            center = default;
+            if (target.transform is not RectTransform rect)
+            {
+                return false;
+            }
+
+            var canvas = FindParentCanvas(target, status) as Canvas;
+            var rootCanvas = canvas == null ? null : canvas.rootCanvas;
+            var renderMode = rootCanvas == null ? "ScreenSpaceOverlay" : rootCanvas.renderMode.ToString();
+            var eventCamera = rootCanvas == null ? null : ResolveCanvasEventCamera(rootCanvas, renderMode);
+            center = RectTransformUtility.WorldToScreenPoint(eventCamera, rect.TransformPoint(rect.rect.center));
+            return true;
         }
 
         internal static Dictionary<string, object?> RuntimeDragAtPosition(JToken args, UguiDependencyStatus status)
@@ -207,12 +231,13 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
             var eventSystem = RequireRuntimeEventSystem(status, warnings, dryRun: false);
             result["eventSystem"] = eventSystem == null ? null : CreateGameObjectRow(eventSystem.gameObject);
-            var target = ResolveRuntimeInteractionTarget(args, status, eventSystem, geometry.Start.ScreenPosition, warnings, out var stack);
+            var target = ResolveRuntimeInteractionTarget(args, status, eventSystem, geometry.Start.ScreenPosition, warnings, out var stack, RuntimeHitPurpose.Drag);
             result["stack"] = stack;
             result["target"] = target == null ? null : CreateRuntimeElementRow(target, status);
             result["targetStateBefore"] = target == null ? null : CreateControlStateRow(target, status);
             result["intendedHandler"] = target == null ? null : CreateDragHandlerRow(target);
 
+            var handlerInvoked = false;
             if (target == null)
             {
                 if (!ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args))
@@ -230,18 +255,22 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
             else
             {
-                var dragTarget = ExecuteEvents.GetEventHandler<IDragHandler>(target) ?? target;
-                var pointer = CreatePointerEventData(eventSystem, geometry.Start.ScreenPosition);
-                AssignPointerPressTarget(pointer, dragTarget, target);
-                pointer.pointerDrag = dragTarget;
-                ExecuteEvents.Execute(dragTarget, pointer, ExecuteEvents.initializePotentialDrag);
-                ExecuteEvents.Execute(dragTarget, pointer, ExecuteEvents.beginDragHandler);
-                pointer.delta = geometry.ScreenDelta;
-                pointer.position = geometry.End.ScreenPosition;
-                ExecuteEvents.Execute(dragTarget, pointer, ExecuteEvents.dragHandler);
-                ExecuteEvents.Execute(dragTarget, pointer, ExecuteEvents.endDragHandler);
+                UguiRuntimeReachability.AddPlayerReachabilityWarnings(target, status, warnings);
+                var targetFromScreenPosition = !ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args);
+                var report = UguiRuntimePointerDispatch.DispatchDrag(
+                    eventSystem,
+                    target,
+                    geometry.Start.ScreenPosition,
+                    geometry.End.ScreenPosition,
+                    targetFromScreenPosition);
+                handlerInvoked = report.DragResponder != null;
+                result["handlerObject"] = report.DragResponder == null ? null : CreateRuntimeElementRow(report.DragResponder, status);
+                result["dispatchedEvents"] = report.Events.ToArray();
+                result["pointerEvents"] = report.Details.ToArray();
+                warnings.AddRange(report.Warnings);
             }
 
+            result["handlerInvoked"] = handlerInvoked;
             result["selectedObjectAfter"] = CreateSelectedObjectRow(status);
             result["targetStateAfter"] = target == null ? null : CreateControlStateRow(target, status);
             result["warnings"] = warnings.ToArray();
@@ -301,6 +330,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 throw new InvalidOperationException("Runtime uGUI focus requires an active EventSystem.");
             }
 
+            UguiRuntimeReachability.AddPlayerReachabilityWarnings(target!, status, warnings);
             eventSystem.SetSelectedGameObject(target, new BaseEventData(eventSystem));
             result["selectedObjectAfter"] = CreateSelectedObjectRow(status);
             result["targetStateAfter"] = CreateControlStateRow(target!, status);
@@ -368,27 +398,34 @@ namespace Chievfx.Mcp.Extensions.Ugui
             var target = ResolveRuntimeInteractionTarget(args, status, eventSystem, position.ScreenPosition, warnings, out var stack);
             result["stack"] = stack;
             result["target"] = target == null ? null : CreateRuntimeElementRow(target, status);
-            var control = target == null ? null : ResolveSettableControl(target, status);
+            var descendantCandidates = Array.Empty<Component>();
+            var control = target == null ? null : ResolveSettableControl(target, status, out descendantCandidates);
+            var controlObject = control == null ? target : control.gameObject;
             var resolved = control != null;
             result["resolved"] = resolved;
-            result["targetStateBefore"] = target == null ? null : CreateControlStateRow(target, status);
+            result["targetStateBefore"] = controlObject == null ? null : CreateControlStateRow(controlObject, status);
             result["intendedHandler"] = control == null
                 ? null
                 : new Dictionary<string, object?>
                 {
                     ["controlType"] = control.GetType().Name,
-                    ["path"] = GetTransformPath(target!.transform),
+                    ["path"] = GetTransformPath(control.transform),
                     ["operation"] = ResolveSetControlOperation(control, args),
                 };
 
             if (!resolved)
             {
+                var miss = target == null
+                    ? "No runtime uGUI settable control resolved."
+                    : DescribeSettableControlMiss(target, descendantCandidates);
                 if (requireTarget)
                 {
-                    throw new ArgumentException("ui-runtime-set-control-value could not resolve a settable uGUI control from path, instanceId, or screen position.");
+                    throw new ArgumentException(target == null
+                        ? "ui-runtime-set-control-value could not resolve a uGUI object from path, instanceId, or screen position."
+                        : miss);
                 }
 
-                warnings.Add("No runtime uGUI settable control resolved.");
+                warnings.Add(miss);
                 result["warnings"] = warnings.ToArray();
                 return result;
             }
@@ -398,9 +435,15 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 throw new InvalidOperationException("Runtime uGUI set-control-value requires Play Mode. Enter Play Mode before mutating controls.");
             }
 
+            if (controlObject != target)
+            {
+                warnings.Add($"'{GetTransformPath(target!.transform)}' has no settable control of its own; set the {control!.GetType().Name} at '{GetTransformPath(control.transform)}' below it.");
+            }
+
+            UguiRuntimeReachability.AddPlayerReachabilityWarnings(controlObject!, status, warnings);
             ApplyRuntimeControlValue(control!, valueToken, invokeCallbacks: true, status);
             result["selectedObjectAfter"] = CreateSelectedObjectRow(status);
-            result["targetStateAfter"] = CreateControlStateRow(target!, status);
+            result["targetStateAfter"] = CreateControlStateRow(controlObject!, status);
             result["warnings"] = warnings.ToArray();
             return result;
         }
@@ -447,6 +490,11 @@ namespace Chievfx.Mcp.Extensions.Ugui
                         : $"Target '{GetTransformPath(target!.transform)}' has no uGUI InputField or TMP_InputField.");
                 }
 
+                if (target != null)
+                {
+                    warnings.Add($"'{GetTransformPath(target.transform)}' exists but has no uGUI InputField or TMP_InputField.");
+                }
+
                 result["warnings"] = warnings.Distinct().ToArray();
                 return result;
             }
@@ -454,6 +502,12 @@ namespace Chievfx.Mcp.Extensions.Ugui
             if (!IsRuntimePlayModeActive())
             {
                 throw new InvalidOperationException("ui-runtime-type-text requires Play Mode. Enter Play Mode before typing into runtime text fields.");
+            }
+
+            UguiRuntimeReachability.AddPlayerReachabilityWarnings(target!, status, warnings);
+            if (inputField is Selectable selectable && !selectable.interactable)
+            {
+                warnings.Add($"'{GetTransformPath(target!.transform)}' has interactable off, so a player cannot focus it or type into it; the text was set directly.");
             }
 
             var controlType = inputField!.GetType().Name;
@@ -626,14 +680,20 @@ namespace Chievfx.Mcp.Extensions.Ugui
             result["canvases"] = canvases.Select(canvas =>
             {
                 var row = CreateRuntimeCanvasRow(canvas, status);
-                var elements = canvas.GetComponentsInChildren<RectTransform>(false)
-                    .Where(rect => rect.gameObject != canvas.gameObject && IsRuntimeVisibleUiElement(rect.gameObject, status))
+                // Elements under a nested canvas belong to that canvas's own row; listing them here as well
+                // printed every one of them twice.
+                var visible = canvas.GetComponentsInChildren<RectTransform>(false)
+                    .Where(rect => rect.gameObject != canvas.gameObject
+                        && FindParentCanvas(rect.gameObject, status) == canvas
+                        && IsRuntimeVisibleUiElement(rect.gameObject, status))
+                    .ToArray();
+                var elements = visible
                     .Take(256)
                     .Select(rect => CreateRuntimeElementRow(rect.gameObject, status))
                     .ToArray();
                 row["elements"] = elements;
                 row["elementCount"] = elements.Length;
-                row["truncated"] = canvas.GetComponentsInChildren<RectTransform>(false).Count(rect => rect.gameObject != canvas.gameObject) > elements.Length;
+                row["truncated"] = visible.Length > elements.Length;
                 return row;
             }).ToArray();
             result["warnings"] = warnings.ToArray();

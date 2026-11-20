@@ -40,10 +40,18 @@ namespace Chievfx.Mcp.Editor
             return BuildGameObjectQueryContext(SceneFilterActive);
         }
 
+        // Edit Mode: the active scene (or prefab stage), where authoring tools create and look up objects.
+        // Play Mode: every loaded scene plus DontDestroyOnLoad, because a running game spreads its live UI
+        // across them and a search limited to the active scene finds only inactive templates.
+        internal static GameObjectQueryContext GetPlayAwareQueryContext()
+        {
+            return BuildGameObjectQueryContext(Application.isPlaying ? SceneFilterAll : SceneFilterActive);
+        }
+
         /// <summary>
-        /// Builds a query context for the requested scene scope: "all" (every loaded scene, default),
-        /// "active" (active scene only), or a loaded scene name/path. While a prefab stage is open the
-        /// prefab contents are always used and the scene filter is ignored.
+        /// Builds a query context for the requested scene scope: "all" (every loaded scene, default, plus
+        /// DontDestroyOnLoad in Play Mode), "active" (active scene only), or a loaded scene name/path. While a
+        /// prefab stage is open the prefab contents are always used and the scene filter is ignored.
         /// </summary>
         internal static GameObjectQueryContext GetGameObjectQueryContext(string? sceneFilter)
         {
@@ -72,9 +80,7 @@ namespace Chievfx.Mcp.Editor
                 };
             }
 
-            var openScenes = SceneBridgeService.GetOpenScenes()
-                .Where(scene => scene.IsValid() && scene.isLoaded)
-                .ToArray();
+            var openScenes = SceneBridgeService.GetLoadedScenes().ToArray();
             if (openScenes.Length == 0)
             {
                 throw new InvalidOperationException("No valid loaded scene is available for GameObject queries.");

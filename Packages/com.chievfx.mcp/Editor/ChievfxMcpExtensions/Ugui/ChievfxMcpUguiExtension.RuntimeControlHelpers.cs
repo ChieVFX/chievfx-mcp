@@ -265,8 +265,13 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 .Name;
         }
 
-        internal static Component? ResolveSettableControl(GameObject target, UguiDependencyStatus status)
+        // The target itself, then its parents (a Handle inside a Slider), then the one active settable control
+        // below it: games wrap controls in their own components ("settings slider" on the row, the real Slider
+        // two levels down), and the row is what a caller finds and targets. Several controls below is ambiguous
+        // and resolves nothing; they come back in descendantCandidates so the caller can name them.
+        internal static Component? ResolveSettableControl(GameObject target, UguiDependencyStatus status, out Component[] descendantCandidates)
         {
+            descendantCandidates = Array.Empty<Component>();
             for (var current = target.transform; current != null; current = current.parent)
             {
                 var control = ResolveSettableControlOnGameObject(current.gameObject, status);
@@ -276,7 +281,33 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 }
             }
 
-            return null;
+            descendantCandidates = target.GetComponentsInChildren<Transform>(includeInactive: false)
+                .Where(child => child != target.transform)
+                .Select(child => ResolveSettableControlOnGameObject(child.gameObject, status))
+                .Where(control => control != null)
+                .Cast<Component>()
+                .ToArray();
+            return descendantCandidates.Length == 1 ? descendantCandidates[0] : null;
+        }
+
+        internal static string DescribeSettableControlMiss(GameObject target, Component[] descendantCandidates)
+        {
+            var path = GetTransformPath(target.transform);
+            if (descendantCandidates.Length > 1)
+            {
+                return $"'{path}' has no settable control of its own and {descendantCandidates.Length} below it; target one by path: "
+                    + string.Join(", ", descendantCandidates.Take(8).Select(control => $"'{GetTransformPath(control.transform)}' ({control.GetType().Name})"))
+                    + (descendantCandidates.Length > 8 ? ", ..." : string.Empty) + ".";
+            }
+
+            var components = target.GetComponents<Component>()
+                .Where(component => component != null && component is not Transform)
+                .Select(component => component.GetType().Name)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            return $"'{path}' exists but has no control this tool can set (Slider, Scrollbar, Toggle, Dropdown, InputField, TMP_InputField, TMP_Dropdown) on itself, its parents or its children. "
+                + $"Its components: {(components.Length == 0 ? "none" : string.Join(", ", components))}. "
+                + "A custom control has to be driven through its own API, or by ui-runtime-click/ui-runtime-drag on its parts.";
         }
 
         internal static Component? ResolveSettableControlOnGameObject(GameObject target, UguiDependencyStatus status)

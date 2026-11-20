@@ -12,13 +12,22 @@ namespace Chievfx.Mcp.Editor
 {
     internal sealed class LogEntryDto
     {
-        public LogEntryDto(string logType, string message, DateTime timestamp, string stackTrace, long eventId = 0)
+        public LogEntryDto(
+            string logType,
+            string message,
+            DateTime timestamp,
+            string stackTrace,
+            long eventId = 0,
+            string? sourceId = null,
+            bool hasTimestamp = true)
         {
             LogType = logType;
             Message = message;
             Timestamp = timestamp;
             StackTrace = stackTrace;
             EventId = eventId;
+            SourceId = sourceId;
+            HasTimestamp = hasTimestamp;
         }
 
         public string LogType { get; }
@@ -32,6 +41,13 @@ namespace Chievfx.Mcp.Editor
         // Event-journal cursor assigned when this entry was captured by the bridge (0 when it came from
         // the live Unity Console or Editor.log rather than the in-memory capture, which carry no cursor).
         public long EventId { get; }
+
+        // Identity within its source for entries without an event cursor: the Unity Console line index or the
+        // Editor.log line number.
+        public string? SourceId { get; }
+
+        // False when the source records no time (Unity Console, Editor.log) and Timestamp is just the read time.
+        public bool HasTimestamp { get; }
     }
 
     internal enum StackTraceMode

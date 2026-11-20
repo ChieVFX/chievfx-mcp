@@ -276,11 +276,7 @@ namespace Chievfx.Mcp.Editor
             try
             {
                 var notes = new List<string>();
-                var assembly = CompileScriptAssembly(csharpCode, allowNonPublic: false, lineOffset: 0, out var diagnostics);
-                if (assembly == null && HasMissingNameErrors(diagnostics))
-                {
-                    assembly = CompileWithProjectAccess(csharpCode, notes, ref diagnostics);
-                }
+                var assembly = CompileScript(csharpCode, notes, out var diagnostics, out var originalDiagnostics);
 
                 if (assembly == null)
                 {
@@ -294,7 +290,8 @@ namespace Chievfx.Mcp.Editor
                         startedUtc,
                         timeoutMs,
                         null,
-                        notes: notes);
+                        notes: notes,
+                        originalDiagnostics: originalDiagnostics);
                 }
 
                 var method = ResolveScriptMethod(assembly, className, methodName, parameters is JArray paramsArray ? paramsArray.Count : 0);
@@ -806,35 +803,91 @@ namespace Chievfx.Mcp.Editor
                 && MissingNameErrorIds.Contains(id));
         }
 
-        // One retry with the usings the code lacks and with internal/private members bound. It runs only after a
-        // failure, so code that already compiles never changes meaning (an added using can make a name ambiguous).
-        private Assembly? CompileWithProjectAccess(string csharpCode, List<string> notes, ref Dictionary<string, object?>[] diagnostics)
+        internal Assembly? CompileScript(
+            string csharpCode,
+            List<string> notes,
+            out Dictionary<string, object?>[] diagnostics,
+            out Dictionary<string, object?>[]? originalDiagnostics)
         {
+            originalDiagnostics = null;
+            var assembly = CompileScriptAssembly(csharpCode, allowNonPublic: false, lineOffset: 0, out diagnostics);
+            if (assembly == null && HasMissingNameErrors(diagnostics))
+            {
+                assembly = CompileWithProjectAccess(csharpCode, notes, ref diagnostics, out originalDiagnostics);
+            }
+
+            return assembly;
+        }
+
+        // A retry with internal/private members bound, then, if that is not enough, with the usings the code lacks
+        // as well. It runs only after a failure, so code that already compiles never changes meaning (an added using
+        // can make a name ambiguous), and the usings are only added when they turn out to be needed, so the note can
+        // say which of the two the code was missing.
+        private Assembly? CompileWithProjectAccess(
+            string csharpCode,
+            List<string> notes,
+            ref Dictionary<string, object?>[] diagnostics,
+            out Dictionary<string, object?>[]? originalDiagnostics)
+        {
+            originalDiagnostics = null;
             var addedDirectives = RetryDirectives(csharpCode);
+            Dictionary<string, object?>[] retryDiagnostics;
+            if (addedDirectives.Count > 0)
+            {
+                var accessOnly = CompileScriptAssembly(csharpCode, allowNonPublic: true, lineOffset: 0, out retryDiagnostics);
+                if (accessOnly != null)
+                {
+                    diagnostics = retryDiagnostics;
+                    notes.Add("Compiled with internal/private member access: non-public members of loaded assemblies are reachable directly.");
+                    return accessOnly;
+                }
+            }
+
             var prefix = string.Concat(addedDirectives.Select(directive => directive + "\n"));
-            var assembly = CompileScriptAssembly(prefix + csharpCode, allowNonPublic: true, lineOffset: addedDirectives.Count, out var retryDiagnostics);
+            var assembly = CompileScriptAssembly(prefix + csharpCode, allowNonPublic: true, lineOffset: addedDirectives.Count, out retryDiagnostics);
             var tried = addedDirectives.Count > 0
                 ? "'" + string.Join(" ", addedDirectives) + "' and internal/private member access"
                 : "internal/private member access";
-            if (assembly == null)
+            if (assembly != null)
             {
-                // The retry's own errors matter when they differ: an added using can break a name the code relied on.
-                var originalErrors = new HashSet<string>(diagnostics.Select(original => original["id"] + " " + original["message"]), StringComparer.Ordinal);
-                var retryErrors = retryDiagnostics
-                    .Where(diagnostic => string.Equals(diagnostic["severity"] as string, "Error", StringComparison.Ordinal))
-                    .Select(diagnostic => diagnostic["id"] + " " + diagnostic["message"])
-                    .Where(text => !originalErrors.Contains(text))
-                    .Take(2)
-                    .ToArray();
-                notes.Add("Also tried " + tried + ": that did not compile either"
-                    + (retryErrors.Length > 0 ? " (" + string.Join("; ", retryErrors) + ")" : string.Empty)
-                    + ". Errors below are from your code as sent.");
+                diagnostics = retryDiagnostics;
+                notes.Add(addedDirectives.Count > 0
+                    ? "Compiled after adding " + tried + ". Next time write the usings yourself; non-public members of loaded assemblies are reachable directly."
+                    : "Compiled with internal/private member access: non-public members of loaded assemblies are reachable directly.");
+                return assembly;
+            }
+
+            var originalErrors = ErrorTexts(diagnostics);
+            var retryErrors = ErrorTexts(retryDiagnostics);
+            var resolved = originalErrors.Where(error => !retryErrors.Contains(error)).ToArray();
+            if (resolved.Length > 0)
+            {
+                // The retry got further: the errors that still stop it are the ones to fix, while the originals it
+                // cleared are what the caller's code lacked. Leading with the originals would bury the error that still blocks it.
+                originalDiagnostics = diagnostics;
+                diagnostics = retryDiagnostics;
+                notes.Add("With " + tried + " your code got past " + string.Join("; ", resolved.Take(3))
+                    + (resolved.Length > 3 ? $" (+{resolved.Length - 3} more)" : string.Empty)
+                    + ", and failed on the errors below. originalDiagnostics are the errors of the code as sent.");
                 return null;
             }
 
-            diagnostics = retryDiagnostics;
-            notes.Add("Compiled after adding " + tried + ". Next time write the usings yourself; non-public members of loaded assemblies are reachable directly.");
-            return assembly;
+            // The retry cleared nothing, so the code as sent is the better report; an added using may still have
+            // broken a name the code relied on, which is worth a mention.
+            var newErrors = retryErrors.Where(error => !originalErrors.Contains(error)).Take(2).ToArray();
+            notes.Add("Also tried " + tried + ": that did not compile either"
+                + (newErrors.Length > 0 ? " (" + string.Join("; ", newErrors) + ")" : string.Empty)
+                + ". Errors below are from your code as sent.");
+            return null;
+        }
+
+        private static HashSet<string> ErrorTexts(IEnumerable<Dictionary<string, object?>> diagnostics)
+        {
+            return new HashSet<string>(
+                diagnostics
+                    .Where(diagnostic => string.Equals(diagnostic["severity"] as string, "Error", StringComparison.Ordinal))
+                    .Select(diagnostic => diagnostic["id"] + " " + diagnostic["message"]),
+                StringComparer.Ordinal);
         }
 
         // Roslyn binding internal/private members is half of it: Mono's JIT checks access again and throws
@@ -1193,7 +1246,8 @@ namespace Chievfx.Mcp.Editor
             int timeoutMs,
             Exception? exception,
             bool stillRunning = false,
-            List<string>? notes = null)
+            List<string>? notes = null,
+            Dictionary<string, object?>[]? originalDiagnostics = null)
         {
             return new
             {
@@ -1207,6 +1261,7 @@ namespace Chievfx.Mcp.Editor
                 },
                 notes = notes is { Count: > 0 } ? notes : null,
                 diagnostics,
+                originalDiagnostics,
                 logs = ConsoleLogBridgeService.CreateLogOutputs(logStartIndex, includeLogs, logType, includeStackTrace: false, DefaultScriptLogEntries),
                 durationMs = (int)Math.Round((DateTime.UtcNow - startedUtc).TotalMilliseconds),
                 timeoutMs,

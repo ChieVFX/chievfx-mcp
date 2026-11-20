@@ -225,10 +225,19 @@ namespace Chievfx.Mcp.Editor
             var output = new Dictionary<string, object>
             {
                 ["id"] = ComputeLogEntryId(entry),
-                ["time"] = entry.Timestamp.ToString("o", CultureInfo.InvariantCulture),
-                ["level"] = entry.LogType,
-                ["msg"] = trimMessage ? TrimText(message, MaxLogMessageChars, ref truncated) : message,
             };
+            if (entry.HasTimestamp)
+            {
+                output["time"] = entry.Timestamp.ToString("o", CultureInfo.InvariantCulture);
+            }
+
+            if (entry.EventId > 0)
+            {
+                output["eventId"] = entry.EventId;
+            }
+
+            output["level"] = entry.LogType;
+            output["msg"] = trimMessage ? TrimText(message, MaxLogMessageChars, ref truncated) : message;
 
             var importHint = TryDecodeImportError(entry.Message);
             if (importHint != null)
@@ -245,8 +254,8 @@ namespace Chievfx.Mcp.Editor
             return output;
         }
 
-        // Compact-mode row: id (and optional repeats) come first for fast scanning, then level + first-line msg.
-        // Drops `time` and any embedded stack-trace lines (Unity Console reflection inlines them into Message).
+        // Compact-mode row: id (and optional repeats) come first for fast scanning, then the time and event cursor
+        // of the latest occurrence (UTC, only when the source records them), then level + first-line msg.
         private static Dictionary<string, object> CreateCompactEntryOutput(LogEntryDto entry, int repeats, bool stripStyleTags, bool includeStack, ref bool truncated)
         {
             var output = new Dictionary<string, object>
@@ -256,6 +265,16 @@ namespace Chievfx.Mcp.Editor
             if (repeats > 1)
             {
                 output["repeats"] = repeats;
+            }
+
+            if (entry.HasTimestamp)
+            {
+                output["time"] = entry.Timestamp.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture);
+            }
+
+            if (entry.EventId > 0)
+            {
+                output["eventId"] = entry.EventId;
             }
 
             var message = stripStyleTags ? StripStyleTags(entry.Message) : entry.Message;
@@ -314,9 +333,23 @@ namespace Chievfx.Mcp.Editor
             return string.Empty;
         }
 
-        // Stable id: first 5 SHA-1 bytes of (level|msg|stack). Same content collapses to same id,
-        // which doubles as the group key for compact stacking and as the lookup key for get-logs-single.
+        // Id of one entry, not of its text: two identical "popup_closed" logs are two entries, and
+        // console-get-logs-single must return the one that was listed. Bridge-captured entries use their event
+        // cursor, Unity Console and Editor.log entries their line in that source; only an entry with neither falls
+        // back to a content hash.
         private static string ComputeLogEntryId(LogEntryDto entry)
+        {
+            if (entry.EventId > 0)
+            {
+                return "e" + entry.EventId.ToString(CultureInfo.InvariantCulture);
+            }
+
+            return entry.SourceId ?? ComputeContentHash(entry);
+        }
+
+        // First 5 SHA-1 bytes of (level|msg|stack): the id format before ids were per entry, still accepted by
+        // console-get-logs-single so an id from an older listing keeps resolving to the latest matching entry.
+        private static string ComputeContentHash(LogEntryDto entry)
         {
             using var sha1 = System.Security.Cryptography.SHA1.Create();
             var seed = (entry.LogType ?? string.Empty) + "\0" + (entry.Message ?? string.Empty) + "\0" + (entry.StackTrace ?? string.Empty);
@@ -327,6 +360,25 @@ namespace Chievfx.Mcp.Editor
                 sb.Append(bytes[i].ToString("x2", CultureInfo.InvariantCulture));
             }
             return sb.ToString();
+        }
+
+        private static readonly Regex HexNumberRegex = new(@"0x[0-9a-fA-F]+", RegexOptions.Compiled);
+        private static readonly Regex NumberRegex = new(@"\d+", RegexOptions.Compiled);
+
+        // Repeats of one error differ in numbers a logger appends to the text ("Stack generation time: total:
+        // 412 ms" against "360 ms") and in line offsets of the trace. Grouping on the exact headline plus the rest
+        // with numbers masked collapses those, while different errors keep apart: the headline must match exactly,
+        // and two NullReferenceExceptions from different call sites still differ in the method names of their
+        // traces.
+        internal static string ComputeDuplicateGroupKey(LogEntryDto entry)
+        {
+            var message = entry.Message ?? string.Empty;
+            var headline = ExtractFirstNonEmptyLine(message);
+            var headlineEnd = message.IndexOf(headline, StringComparison.Ordinal) + headline.Length;
+            var rest = (headlineEnd < message.Length ? message.Substring(headlineEnd) : string.Empty)
+                + "\n" + (entry.StackTrace ?? string.Empty);
+            var maskedRest = NumberRegex.Replace(HexNumberRegex.Replace(rest, "0x#"), "#");
+            return (entry.LogType ?? string.Empty) + "\0" + headline + "\0" + maskedRest.Trim();
         }
 
         private static string FormatStackTrace(string stackTrace, StackTraceMode mode, ref bool truncated)
@@ -419,17 +471,16 @@ namespace Chievfx.Mcp.Editor
 
             var entries = new List<Dictionary<string, object>>();
             var dropped = groupCount - selected.Count;
-            var truncated = dropped > 0;
+            var textTruncated = false;
             var textBudget = MaxToolTextChars;
 
             foreach (var (entry, repeats) in selected)
             {
-                var output = CreateCompactEntryOutput(entry, repeats, stripStyleTags, includeStack, ref truncated);
+                var output = CreateCompactEntryOutput(entry, repeats, stripStyleTags, includeStack, ref textTruncated);
                 var estimatedSize = EstimateTextSize(output);
                 if (estimatedSize > textBudget)
                 {
                     dropped++;
-                    truncated = true;
                     continue;
                 }
 
@@ -443,7 +494,9 @@ namespace Chievfx.Mcp.Editor
                 matched,
                 groups = groupCount,
                 dropped,
-                truncated,
+                // truncated: rows were left out (see dropped); textTruncated: a listed message or stack was shortened.
+                truncated = dropped > 0,
+                textTruncated,
                 // Current high-water event cursor. Pass it back as sinceEventId next call to fetch only newer logs.
                 lastEventId = EventJournal.CurrentEventId(),
                 filterNote = notes.Count > 0 ? string.Join(" ", notes) : (string?)null,
@@ -520,15 +573,9 @@ namespace Chievfx.Mcp.Editor
                 out _,
                 out _,
                 out _);
-            // Match latest occurrence so repeated logs return the most recent context.
-            LogEntryDto? match = null;
-            foreach (var candidate in snapshot)
-            {
-                if (string.Equals(ComputeLogEntryId(candidate), id, StringComparison.OrdinalIgnoreCase))
-                {
-                    match = candidate;
-                }
-            }
+            // An id names one entry; a content-hash id (older listings) resolves to the latest entry with that text.
+            var match = snapshot.LastOrDefault(candidate => string.Equals(ComputeLogEntryId(candidate), id, StringComparison.OrdinalIgnoreCase))
+                ?? snapshot.LastOrDefault(candidate => string.Equals(ComputeContentHash(candidate), id, StringComparison.OrdinalIgnoreCase));
 
             if (match == null)
             {
@@ -540,17 +587,17 @@ namespace Chievfx.Mcp.Editor
                 };
             }
 
-            var truncated = false;
+            var textTruncated = false;
             var entry = CreateLogEntryOutput(
                 match,
                 StackTraceMode.Full,
                 trimMessage: false,
                 stripStyleTags: ChievfxMcpToolPolicy.StripStyleTagsFromConsoleLogs,
-                ref truncated);
+                ref textTruncated);
             return new
             {
                 found = true,
-                truncated,
+                textTruncated,
                 entry
             };
         }
@@ -570,37 +617,30 @@ namespace Chievfx.Mcp.Editor
 
             return snapshot
                 .Where(entry => entry.Timestamp >= cutoff)
-                .Where(entry => !sinceTimestamp.HasValue || entry.Timestamp >= sinceTimestamp.Value)
+                .Where(entry => !sinceTimestamp.HasValue || (entry.HasTimestamp && entry.Timestamp >= sinceTimestamp.Value))
                 .Where(entry => !sinceEventId.HasValue || entry.EventId > sinceEventId.Value)
                 .Where(entry => levels.Contains(entry.LogType))
                 .Where(entry => string.IsNullOrEmpty(contains) || entry.Message.IndexOf(contains!, comparison) >= 0)
                 .ToList();
         }
 
-        private static List<(LogEntryDto entry, int repeats)> CollapseDuplicates(List<LogEntryDto> entries)
+        // One row per duplicate group (ComputeDuplicateGroupKey), placed at its latest occurrence and carrying that
+        // occurrence's id, time and cursor, so rows read in chronological order of their last appearance.
+        internal static List<(LogEntryDto entry, int repeats)> CollapseDuplicates(List<LogEntryDto> entries)
         {
-            // Preserve first-seen order so chronology stays stable; carry latest representative for each id.
-            var firstIndex = new Dictionary<string, int>(StringComparer.Ordinal);
-            var representative = new Dictionary<string, LogEntryDto>(StringComparer.Ordinal);
+            var lastIndex = new Dictionary<string, int>(StringComparer.Ordinal);
             var counts = new Dictionary<string, int>(StringComparer.Ordinal);
 
             for (var i = 0; i < entries.Count; i++)
             {
-                var entry = entries[i];
-                var id = ComputeLogEntryId(entry);
-                if (!firstIndex.ContainsKey(id))
-                {
-                    firstIndex[id] = i;
-                    counts[id] = 0;
-                }
-
-                representative[id] = entry;
-                counts[id]++;
+                var key = ComputeDuplicateGroupKey(entries[i]);
+                lastIndex[key] = i;
+                counts[key] = counts.TryGetValue(key, out var count) ? count + 1 : 1;
             }
 
-            return firstIndex
+            return lastIndex
                 .OrderBy(pair => pair.Value)
-                .Select(pair => (representative[pair.Key], counts[pair.Key]))
+                .Select(pair => (entries[pair.Value], counts[pair.Key]))
                 .ToList();
         }
 
@@ -631,7 +671,7 @@ namespace Chievfx.Mcp.Editor
             {
                 var unityConsoleEntries = ReadUnityConsoleEntries().ToArray();
                 unityConsoleCount = unityConsoleEntries.Length;
-                snapshot.AddRange(unityConsoleEntries);
+                snapshot = ExcludeCapturedConsoleEntries(unityConsoleEntries, snapshot).Concat(snapshot).ToList();
             }
 
             if (includeEditorLog)
@@ -642,6 +682,36 @@ namespace Chievfx.Mcp.Editor
             }
 
             return snapshot;
+        }
+
+        // The Unity Console also holds every log the bridge captured, so reading both listed each such log twice:
+        // once with its cursor and time, once as a console row without either. Keep a console row only when no
+        // captured entry accounts for it, matching texts newest first, so what remains is what was logged before
+        // capture began (or fell out of the capture buffer); it is placed before the captured entries.
+        internal static List<LogEntryDto> ExcludeCapturedConsoleEntries(IReadOnlyList<LogEntryDto> consoleEntries, List<LogEntryDto> capturedEntries)
+        {
+            var captured = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var entry in capturedEntries)
+            {
+                var key = (entry.Message ?? string.Empty).Trim();
+                captured[key] = captured.TryGetValue(key, out var count) ? count + 1 : 1;
+            }
+
+            var kept = new List<LogEntryDto>();
+            for (var i = consoleEntries.Count - 1; i >= 0; i--)
+            {
+                var key = (consoleEntries[i].Message ?? string.Empty).Trim();
+                if (captured.TryGetValue(key, out var remaining) && remaining > 0)
+                {
+                    captured[key] = remaining - 1;
+                    continue;
+                }
+
+                kept.Add(consoleEntries[i]);
+            }
+
+            kept.Reverse();
+            return kept;
         }
 
         private static IEnumerable<LogEntryDto> ReadUnityConsoleEntries()
@@ -714,10 +784,22 @@ namespace Chievfx.Mcp.Editor
 
                     var logType = ReadUnityConsoleLogType(entry, message);
                     var stackTrace = ReadReflectedString(entry, "stackTrace") ?? ReadReflectedString(entry, "stacktrace") ?? string.Empty;
+                    // Unity 6 keeps the trace inside message and marks where it starts; split it off so the row's
+                    // text matches the captured log and the trace lands in stack, as for captured entries.
+                    var callstackStart = ReadReflectedInt(entry, "callstackTextStartUTF16");
+                    if (string.IsNullOrEmpty(stackTrace) && callstackStart > 0 && callstackStart < message.Length)
+                    {
+                        stackTrace = message.Substring(callstackStart);
+                        message = message.Substring(0, callstackStart).TrimEnd('\r', '\n');
+                    }
+
+                    var lineIndex = ReadReflectedMember(entry, "globalLineIndex") is int globalLineIndex ? globalLineIndex : i;
                     var repeatCount = Math.Max(1, ReadReflectedInt(entry, "count"));
                     for (var repeat = 0; repeat < repeatCount; repeat++)
                     {
-                        entries.Add(new LogEntryDto(logType, message, DateTime.UtcNow, stackTrace));
+                        var sourceId = "c" + lineIndex.ToString(CultureInfo.InvariantCulture)
+                            + (repeat > 0 ? "." + repeat.ToString(CultureInfo.InvariantCulture) : string.Empty);
+                        entries.Add(new LogEntryDto(logType, message, DateTime.UtcNow, stackTrace, sourceId: sourceId, hasTimestamp: false));
                     }
                 }
             }
@@ -745,9 +827,11 @@ namespace Chievfx.Mcp.Editor
             {
                 var latestBlock = new List<LogEntryDto>();
                 var currentBlock = new List<LogEntryDto>();
+                var lineNumber = 0;
                 foreach (var line in File.ReadLines(logPath))
                 {
-                    var entry = TryParseEditorLogLine(line);
+                    lineNumber++;
+                    var entry = TryParseEditorLogLine(line, lineNumber);
                     if (entry == null)
                     {
                         if (currentBlock.Count > 0)
@@ -789,7 +873,7 @@ namespace Chievfx.Mcp.Editor
             return Path.Combine(home, "Library", "Logs", "Unity", "Editor.log");
         }
 
-        private static LogEntryDto? TryParseEditorLogLine(string line)
+        private static LogEntryDto? TryParseEditorLogLine(string line, int lineNumber)
         {
             if (string.IsNullOrWhiteSpace(line))
             {
@@ -802,7 +886,13 @@ namespace Chievfx.Mcp.Editor
                 return null;
             }
 
-            return new LogEntryDto(level, line, DateTime.UtcNow, string.Empty);
+            return new LogEntryDto(
+                level,
+                line,
+                DateTime.UtcNow,
+                string.Empty,
+                sourceId: "l" + lineNumber.ToString(CultureInfo.InvariantCulture),
+                hasTimestamp: false);
         }
 
         private static string? TryClassifyEditorLogLine(string line)
@@ -862,14 +952,10 @@ namespace Chievfx.Mcp.Editor
             }
         }
 
+        // The console row's mode flags say what Unity logged it as. The text is only a fallback: a Debug.Log that
+        // mentions "error" is still a log, and a plain Debug.Log must stay inside a levels:["Log"] filter.
         private static string ReadUnityConsoleLogType(object entry, string message)
         {
-            var messageLevel = TryClassifyEditorLogLine(message);
-            if (messageLevel != null)
-            {
-                return messageLevel;
-            }
-
             var typeValue = ReadReflectedMember(entry, "type") ?? ReadReflectedMember(entry, "logType");
             if (typeValue is LogType logType)
             {
@@ -890,34 +976,54 @@ namespace Chievfx.Mcp.Editor
             }
 
             var modeValue = ReadReflectedMember(entry, "mode");
-            if (modeValue == null)
+            if (modeValue != null)
             {
-                return LogType.Warning.ToString();
+                var modeTextLogType = ReadUnityConsoleLogTypeName(Convert.ToString(modeValue, CultureInfo.InvariantCulture));
+                if (modeTextLogType != null)
+                {
+                    return modeTextLogType;
+                }
+
+                var modeLogType = ClassifyConsoleMode(Convert.ToInt32(modeValue, CultureInfo.InvariantCulture));
+                if (modeLogType != null)
+                {
+                    return modeLogType;
+                }
             }
 
-            var modeTextLogType = ReadUnityConsoleLogTypeName(Convert.ToString(modeValue, CultureInfo.InvariantCulture));
-            if (modeTextLogType != null)
+            return TryClassifyEditorLogLine(message) ?? LogType.Log.ToString();
+        }
+
+        // UnityEditor.ConsoleWindow.Mode bits.
+        private const int ConsoleModeExceptionBits = 1 << 17;
+        private const int ConsoleModeAssertBits = (1 << 1) | (1 << 21);
+        private const int ConsoleModeErrorBits = 1 | (1 << 4) | (1 << 6) | (1 << 8) | (1 << 11) | (1 << 20) | (1 << 22);
+        private const int ConsoleModeWarningBits = (1 << 7) | (1 << 9) | (1 << 12);
+        private const int ConsoleModeLogBits = (1 << 2) | (1 << 10);
+
+        internal static string? ClassifyConsoleMode(int mode)
+        {
+            if ((mode & ConsoleModeExceptionBits) != 0)
             {
-                return modeTextLogType;
+                return LogType.Exception.ToString();
             }
 
-            var mode = Convert.ToInt32(modeValue, CultureInfo.InvariantCulture);
-            if ((mode & (1 | 16 | 64 | 256 | 2048 | 1048576 | 4194304)) != 0)
-            {
-                return LogType.Error.ToString();
-            }
-
-            if ((mode & 2) != 0)
+            if ((mode & ConsoleModeAssertBits) != 0)
             {
                 return LogType.Assert.ToString();
             }
 
-            if ((mode & (128 | 512 | 4096)) != 0)
+            if ((mode & ConsoleModeErrorBits) != 0)
+            {
+                return LogType.Error.ToString();
+            }
+
+            if ((mode & ConsoleModeWarningBits) != 0)
             {
                 return LogType.Warning.ToString();
             }
 
-            return LogType.Warning.ToString();
+            return (mode & ConsoleModeLogBits) != 0 ? LogType.Log.ToString() : null;
         }
 
         private static string? ReadUnityConsoleLogTypeName(string? value)

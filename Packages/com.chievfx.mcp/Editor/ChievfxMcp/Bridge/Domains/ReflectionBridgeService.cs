@@ -30,7 +30,7 @@ namespace Chievfx.Mcp.Editor
     {
         public object FindMethods(JToken args)
         {
-            var query = ReadFindQuery(args);
+            var query = ReadFindQuery(args, "reflection-method-find");
             var methods = ReadPagedMethods(query);
             var truncated = methods.Length > query.MaxResults;
 
@@ -51,7 +51,7 @@ namespace Chievfx.Mcp.Editor
 
         public object FindSingleMethod(JToken args)
         {
-            var query = ReadFindQuery(args);
+            var query = ReadFindQuery(args, "reflection-method-find-single");
             var index = ClampInt(ReadInt(args, "index", 0), 0, query.MaxResults - 1);
             var methods = ReadPagedMethods(query)
                 .Take(query.MaxResults)
@@ -87,9 +87,43 @@ namespace Chievfx.Mcp.Editor
             return !string.IsNullOrEmpty(ReadString(filter, "namespace"));
         }
 
-        private static ReflectionFindQuery ReadFindQuery(JToken args)
+        private static readonly string[] MethodFilterKeys = { "namespace", "typeName", "methodName", "inputParameters" };
+
+        // An empty filter value matches anything, so an unrecognized key (filter:{name:...}) or a filter without
+        // any name would list every loaded method, System.Object.Finalize first, and read like an answer. Refuse
+        // both and name the keys that do something.
+        private static JToken ReadMethodFilter(JToken args, string toolName)
         {
-            var filter = ReadObject(args, "filter");
+            if (ReadProperty(args, "filter") is not JObject filter)
+            {
+                throw new ArgumentException($"{toolName} requires filter:{{typeName, methodName, namespace?, inputParameters?}}.");
+            }
+
+            var unknown = filter.Properties()
+                .Select(property => property.Name)
+                .Where(name => !MethodFilterKeys.Contains(name, StringComparer.OrdinalIgnoreCase))
+                .ToArray();
+            if (unknown.Length > 0)
+            {
+                throw new ArgumentException(
+                    $"{toolName}: unknown filter key(s) {string.Join(", ", unknown.Select(name => "'" + name + "'"))}. "
+                    + "Filter keys are typeName, methodName, namespace and inputParameters (e.g. filter:{methodName:'GetFirstUser'}).");
+            }
+
+            if (string.IsNullOrWhiteSpace(ReadString(filter, "typeName"))
+                && string.IsNullOrWhiteSpace(ReadString(filter, "methodName"))
+                && string.IsNullOrWhiteSpace(ReadString(filter, "namespace")))
+            {
+                throw new ArgumentException(
+                    $"{toolName}: filter needs typeName, methodName or namespace; without one it matches every loaded method.");
+            }
+
+            return filter;
+        }
+
+        private static ReflectionFindQuery ReadFindQuery(JToken args, string toolName)
+        {
+            var filter = ReadMethodFilter(args, toolName);
             var maxResults = ClampInt(ReadInt(args, "maxResults", DefaultReflectionMaxResults), 1, HardReflectionMaxResults);
             var matchLevel = ReadFindMatchLevel(args);
             return new ReflectionFindQuery
@@ -134,7 +168,7 @@ namespace Chievfx.Mcp.Editor
         {
             var inputParameters = ReadArray(args, "inputParameters");
             var method = FindMatchingMethods(
-                    ReadObject(args, "filter"),
+                    ReadMethodFilter(args, "reflection-method-call"),
                     ReadBool(args, "knownNamespace", false),
                     ReadInt(args, "typeNameMatchLevel", 1),
                     ReadInt(args, "methodNameMatchLevel", 1),

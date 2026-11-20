@@ -615,8 +615,11 @@ class McpServerCore:
 
         # savePath is handled server-side (we already hold the resulting PNG bytes);
         # strip it so the Unity bridge never receives an argument it does not use.
+        # An extension that declares savePath itself gets it untouched.
         raw_save_path = arguments.get("savePath")
         save_path = raw_save_path.strip() if isinstance(raw_save_path, str) else None
+        if save_path and extension_owns_save_path(name):
+            save_path = None
         if save_path:
             if bridge_arguments is arguments:
                 bridge_arguments = dict(arguments)

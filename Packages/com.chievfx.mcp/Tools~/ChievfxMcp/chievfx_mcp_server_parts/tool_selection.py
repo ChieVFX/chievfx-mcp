@@ -949,6 +949,16 @@ def _extension_validates_own_arguments(name: str) -> bool:
     return isinstance(schema, dict) and schema.get("additionalProperties") is True
 
 
+def extension_owns_save_path(name: str) -> bool:
+    """An extension tool that lists savePath in its schema writes its own file (a video, a report).
+
+    The server keeps savePath only for the image a core tool returns: taking it from such an extension
+    left the call "successful" with the file never written where the caller asked.
+    """
+    tool = _find_tool(name)
+    return isinstance(tool, dict) and tool.get("source") == "extension" and "savePath" in _tool_schema_properties(name)
+
+
 def unknown_tool_arguments(name: str, arguments: Any) -> list[str]:
     """Argument names the caller passed that this tool does not declare and does not alias.
 

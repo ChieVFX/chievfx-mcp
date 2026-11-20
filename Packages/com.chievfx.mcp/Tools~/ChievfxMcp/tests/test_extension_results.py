@@ -22,6 +22,12 @@ DEMO_EXTENSION = {
             "inputSchema": {"type": "object", "properties": {"target": {"type": "string"}}, "additionalProperties": True},
         },
         {
+            "name": "demo-record",
+            "description": "Writes its own file.",
+            "category": "demo",
+            "inputSchema": {"type": "object", "properties": {"savePath": {"type": "string"}}, "additionalProperties": True},
+        },
+        {
             "name": "demo-closed",
             "description": "Closed schema.",
             "category": "demo",
@@ -344,6 +350,28 @@ class ExtensionResultTests(unittest.TestCase):
         kinds = [block["type"] for block in result["content"]]
         self.assertEqual(kinds, ["text", "text", "image"])
         self.assertEqual(result["content"][1]["text"], "step 1 image:")
+
+    def test_extension_that_declares_save_path_receives_it(self) -> None:
+        self.fake_bridge({"summary": "Recorded", "ok": True})
+
+        text = self.text_of(self.call("demo-record", {"savePath": "/tmp/clip.mp4"}))
+
+        self.assertEqual(self.bridge_calls, [("demo-record", {"savePath": "/tmp/clip.mp4"})])
+        self.assertNotIn("savePathError", text)
+
+    def test_server_keeps_save_path_of_an_image_from_an_extension_that_does_not_declare_it(self) -> None:
+        def call(name: str, arguments: dict[str, Any], *args: Any, **kwargs: Any) -> dict[str, Any]:
+            self.bridge_calls.append((name, dict(arguments)))
+            return {"contentType": "image", "base64": "iVBORw0KGgo=", "mimeType": "image/png", "metadata": {"pngWidth": 1}}
+
+        self.server.call_unity_bridge = call  # type: ignore[method-assign]
+        target = Path(self.temp_dir.name) / "shot.png"
+
+        result = self.call("demo-act", {"savePath": str(target)})
+
+        self.assertEqual(self.bridge_calls, [("demo-act", {})])
+        self.assertTrue(target.exists())
+        self.assertEqual(result["structuredContent"]["savedPath"], str(target.resolve()))
 
 
 if __name__ == "__main__":

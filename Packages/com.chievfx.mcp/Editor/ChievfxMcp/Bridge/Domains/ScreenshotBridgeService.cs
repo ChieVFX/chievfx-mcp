@@ -59,7 +59,7 @@ namespace Chievfx.Mcp.Editor
             var renderTextureAvailable = false;
             if (gameViewType != null)
             {
-                var gameView = EditorWindow.GetWindow(gameViewType);
+                var gameView = ResolveGameViewWithoutFocus(gameViewType);
                 RequestGameViewRenderRefresh(gameView);
                 var renderTextureField = gameViewType.GetField("m_RenderTexture", BindingFlags.Instance | BindingFlags.NonPublic);
                 if (renderTextureField?.GetValue(gameView) is RenderTexture renderTexture && renderTexture.width > 0 && renderTexture.height > 0)
@@ -92,6 +92,52 @@ namespace Chievfx.Mcp.Editor
             }
 
             return CaptureGameViewCameraFallback(region, resolveOutput, includeScreenSpaceOverlayCanvases: true, gameViewRenderTextureAvailable: renderTextureAvailable);
+        }
+
+        // EditorWindow.GetWindow focuses the window and with it the whole editor, which pulls Unity over the
+        // user's windows on every screenshot (several editors on one machine made that constant). An open
+        // Game view is used as it is; a hidden docked one only becomes the selected tab so it renders.
+        // GetWindow stays for the case with no Game view at all.
+        internal static EditorWindow ResolveGameViewWithoutFocus(Type gameViewType)
+        {
+            var gameView = FindOpenGameView(gameViewType);
+            if (gameView == null)
+            {
+                return EditorWindow.GetWindow(gameViewType);
+            }
+
+            EditorWindowBridgeService.PrepareEditorWindowForScreenshot(gameView, selectDockedTab: true, new List<string>());
+            return gameView;
+        }
+
+        // The main play-mode view is the one the game renders into; with several Game views open the
+        // first one found may be a stale secondary display.
+        private static EditorWindow? FindOpenGameView(Type gameViewType)
+        {
+            const BindingFlags staticFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+            try
+            {
+                var playModeViewType = typeof(EditorWindow).Assembly.GetType("UnityEditor.PlayModeView");
+                var mainView = playModeViewType?.GetMethod("GetMainPlayModeView", staticFlags, null, Type.EmptyTypes, null)?.Invoke(null, null) as EditorWindow;
+                if (mainView != null && gameViewType.IsInstanceOfType(mainView) && EditorWindowBridgeService.GetEditorWindowHostView(mainView) != null)
+                {
+                    return mainView;
+                }
+            }
+            catch
+            {
+                // Internal API probe only; the plain search below still finds an open Game view.
+            }
+
+            foreach (var window in Resources.FindObjectsOfTypeAll(gameViewType))
+            {
+                if (window is EditorWindow editorWindow && editorWindow != null && EditorWindowBridgeService.GetEditorWindowHostView(editorWindow) != null)
+                {
+                    return editorWindow;
+                }
+            }
+
+            return null;
         }
 
         // Output sizing for the tool path: the longest side of the (cropped) source lands exactly on

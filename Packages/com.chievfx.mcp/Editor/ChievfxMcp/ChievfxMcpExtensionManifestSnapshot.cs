@@ -1,4 +1,7 @@
 #nullable enable
+using System;
+using UnityEditor;
+using UnityEngine;
 
 namespace Chievfx.Mcp.Editor
 {
@@ -16,6 +19,27 @@ namespace Chievfx.Mcp.Editor
             lock (SyncRoot)
             {
                 ChievfxMcpExtensionRegistry.ExportManifest(ChievfxMcpToolPolicy.ExtensionCapabilitySnapshotPath);
+            }
+        }
+
+        // After a domain reload a recompile may have changed an extension's tools or arguments. The MCP server watches
+        // this file: when it changes, the server rereads extension schemas and sends tools/list_changed to its clients.
+        // The first editor tick, not delayCall: every [InitializeOnLoad] extension has registered by then.
+        public static void RefreshAfterDomainReload()
+        {
+            EditorApplication.update += RefreshOnFirstUpdate;
+        }
+
+        private static void RefreshOnFirstUpdate()
+        {
+            EditorApplication.update -= RefreshOnFirstUpdate;
+            try
+            {
+                Refresh();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"ChievFX MCP could not refresh the extension capability snapshot. {ex.Message}");
             }
         }
     }

@@ -220,11 +220,25 @@ namespace Chievfx.Mcp.Editor
             return BuildManifest();
         }
 
+        // Left alone when the manifest did not change: every rewrite of the snapshot makes the MCP server tell its
+        // clients that the tool list changed.
         public static void ExportManifest(string path)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ChievfxMcpToolPolicy.BridgeDirectory);
-            var json = JsonConvert.SerializeObject(GetManifest(), Formatting.Indented);
-            WriteAllTextAtomic(path, json + Environment.NewLine);
+            var contents = JsonConvert.SerializeObject(GetManifest(), Formatting.Indented) + Environment.NewLine;
+            try
+            {
+                if (File.Exists(path) && string.Equals(File.ReadAllText(path), contents, StringComparison.Ordinal))
+                {
+                    return;
+                }
+            }
+            catch (IOException)
+            {
+                // Unreadable right now: write it anyway.
+            }
+
+            WriteAllTextAtomic(path, contents);
         }
 
         internal static void RegisterExtension(ChievfxMcpExtensionDescriptor descriptor, Assembly sourceAssembly)

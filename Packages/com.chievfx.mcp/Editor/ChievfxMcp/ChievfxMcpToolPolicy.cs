@@ -19,6 +19,7 @@ namespace Chievfx.Mcp.Editor
             EditorApplication.quitting += StopLocalProcessesSafely;
             ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();
             ChievfxMcpFirstPartyExtensionLoader.EnsureLoaded();
+            ChievfxMcpExtensionManifestSnapshot.RefreshAfterDomainReload();
             EditorApplication.delayCall += StartBridgeSafely;
             EditorApplication.delayCall += EnforceExperimentalVisibilitySafely;
             EditorApplication.delayCall += ChievfxMcpToolPolicy.WriteAvailabilitySettings;

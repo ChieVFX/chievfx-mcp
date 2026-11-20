@@ -1,6 +1,6 @@
 {
   "name": "profiler-counters-get",
-  "description": "Returns basic Unity profiler memory counters.",
+  "description": "Memory counters; in Play Mode also fps, frameMs, renderMs, drawCalls, setPassCalls, triangles of the last Game view frame (its Stats overlay numbers).",
   "inputSchema": {
     "type": "object",
     "properties": {

@@ -82,15 +82,37 @@ namespace Chievfx.Mcp.Editor
 
         public object Counters()
         {
-            return new
+            var counters = new Dictionary<string, object?>
             {
-                enabled = GetProfilerEnabled(),
-                totalAllocatedMemory = UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong(),
-                totalReservedMemory = UnityEngine.Profiling.Profiler.GetTotalReservedMemoryLong(),
-                monoUsedSize = UnityEngine.Profiling.Profiler.GetMonoUsedSizeLong(),
-                monoHeapSize = UnityEngine.Profiling.Profiler.GetMonoHeapSizeLong()
+                ["enabled"] = GetProfilerEnabled(),
+                ["totalAllocatedMemory"] = UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong(),
+                ["totalReservedMemory"] = UnityEngine.Profiling.Profiler.GetTotalReservedMemoryLong(),
+                ["monoUsedSize"] = UnityEngine.Profiling.Profiler.GetMonoUsedSizeLong(),
+                ["monoHeapSize"] = UnityEngine.Profiling.Profiler.GetMonoHeapSizeLong(),
             };
+            if (!Application.isPlaying)
+            {
+                counters["note"] = "fps, frame time and draw calls are reported in Play Mode only.";
+                return counters;
+            }
+
+            // The last Game view frame, the numbers of its Stats overlay. ProfilerRecorder render counters ("Draw Calls Count")
+            // read 0 in the editor while the Profiler is not recording, so they are not used here.
+            counters["fps"] = Math.Round(1f / Mathf.Max(Time.smoothDeltaTime, MinFrameSeconds), 1);
+            // FrameTimingManager, the suggested replacement, reports nothing in the editor unless frame timing stats are on
+            // in Player Settings; the Stats overlay values work as they are.
+#pragma warning disable CS0618
+            counters["frameMs"] = Math.Round(UnityStats.frameTime * 1000f, 2);
+            counters["renderMs"] = Math.Round(UnityStats.renderTime * 1000f, 2);
+#pragma warning restore CS0618
+            counters["drawCalls"] = UnityStats.drawCalls;
+            counters["setPassCalls"] = UnityStats.setPassCalls;
+            counters["triangles"] = UnityStats.triangles;
+            counters["vertices"] = UnityStats.vertices;
+            return counters;
         }
+
+        private const float MinFrameSeconds = 0.0001f;
 
         private static Type GetProfilerDriverType()
         {

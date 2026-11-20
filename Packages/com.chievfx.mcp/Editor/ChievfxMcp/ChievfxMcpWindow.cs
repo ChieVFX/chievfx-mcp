@@ -1213,7 +1213,7 @@ namespace Chievfx.Mcp.Editor
                 "profiler-get-state" => "Check Unity profiler recording state.",
                 "profiler-start-recording" => "Start a profiler capture.",
                 "profiler-stop-recording" => "Stop and save a profiler capture.",
-                "profiler-counters-get" => "Read memory counters from the profiler.",
+                "profiler-counters-get" => "Read memory counters; in Play Mode also fps, frame time and draw calls.",
                 _ => "Required ChievFX MCP capability."
             };
         }

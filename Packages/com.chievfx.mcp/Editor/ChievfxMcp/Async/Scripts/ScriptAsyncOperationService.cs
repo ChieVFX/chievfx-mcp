@@ -29,6 +29,9 @@ namespace Chievfx.Mcp.Editor
     internal sealed partial class ScriptAsyncOperationService : BridgeDomainServiceBase
     {
         private readonly List<PendingScriptInvocationRequest> pendingRequests = new();
+        // Async scripts whose reply already went out (timed out) but whose awaitable is still running: their end is logged.
+        private readonly List<PendingScriptInvocationRequest> detachedAwaits = new();
+        public const string AsyncEndLogPrefix = "[ChievFX MCP] script-execute async end ";
             private readonly object syncRoot = new();
             private Thread? activeThread;
             private DateTime activeStartedUtc;
@@ -149,6 +152,7 @@ namespace Chievfx.Mcp.Editor
 
         public void ProcessPendingScriptInvocationRequests()
         {
+            FinishAwaitedScripts();
             PendingScriptInvocationRequest? pending = null;
             lock (syncRoot)
             {
@@ -171,14 +175,23 @@ namespace Chievfx.Mcp.Editor
                 return;
             }
 
+            var awaiting = false;
             try
             {
-                pending.Value = pending.Method!.Invoke(null, pending.Values);
-                var truncated = false;
-                pending.ReturnValueType = DescribeReturnType(pending.Value?.GetType() ?? pending.Method!.ReturnType);
-                pending.SerializedReturnValue = ReflectionBridgeService.SerializeReturnValue(pending.Value, ref truncated, MaxScriptReturnValueChars, out var fullText);
-                pending.ReturnValueTruncated = truncated;
-                pending.FullValuePath = fullText == null ? null : WriteFullReturnValue(fullText);
+                var value = pending.Method!.Invoke(null, pending.Values);
+                var declaredType = pending.Method!.ReturnType;
+                var awaiter = ScriptAwaiter.TryCreate(value, declaredType);
+                if (awaiter == null)
+                {
+                    StoreReturnValue(pending, value, value?.GetType() ?? declaredType);
+                }
+                else
+                {
+                    pending.Awaiter = awaiter;
+                    pending.AwaitedType = DescribeReturnType(declaredType.IsInstanceOfType(value) && declaredType != typeof(object) ? declaredType : value!.GetType());
+                    pending.AwaitStartedUtc = DateTime.UtcNow;
+                    awaiting = !TryFinishAwait(pending);
+                }
             }
             catch (TargetInvocationException ex)
             {
@@ -192,11 +205,96 @@ namespace Chievfx.Mcp.Editor
             {
                 lock (syncRoot)
                 {
+                    // The synchronous part ran. An awaited rest does not hold the main thread, so it does not count as a
+                    // running invocation; the reply waits for Completion, which the tick sets when the awaitable ends.
                     pending.InvocationCompleted = true;
-                    pending.Completion.Set();
+                    if (!awaiting)
+                    {
+                        pending.Completion.Set();
+                    }
+
                     CleanupCompletedScriptRequestsLocked();
                 }
             }
+        }
+
+        private void StoreReturnValue(PendingScriptInvocationRequest pending, object? value, Type describedType)
+        {
+            pending.Value = value;
+            var truncated = false;
+            pending.ReturnValueType = DescribeReturnType(describedType);
+            pending.SerializedReturnValue = ReflectionBridgeService.SerializeReturnValue(value, ref truncated, MaxScriptReturnValueChars, out var fullText);
+            pending.ReturnValueTruncated = truncated;
+            pending.FullValuePath = fullText == null ? null : WriteFullReturnValue(fullText);
+        }
+
+        // Main thread only. True once the awaitable ended and its result or exception is stored.
+        private bool TryFinishAwait(PendingScriptInvocationRequest pending)
+        {
+            var awaiter = pending.Awaiter;
+            if (awaiter == null || pending.AwaitFinished)
+            {
+                return true;
+            }
+
+            try
+            {
+                if (!awaiter.IsCompleted)
+                {
+                    return false;
+                }
+
+                var result = awaiter.GetResult();
+                StoreReturnValue(pending, result, awaiter.ReturnsValue ? result?.GetType() ?? typeof(object) : typeof(void));
+            }
+            catch (Exception ex)
+            {
+                pending.Exception = ex is TargetInvocationException invocation ? invocation.InnerException ?? invocation : ex;
+            }
+
+            pending.AwaitFinished = true;
+            pending.AwaitedMs = (int)Math.Round((DateTime.UtcNow - pending.AwaitStartedUtc).TotalMilliseconds);
+            return true;
+        }
+
+        private void FinishAwaitedScripts()
+        {
+            List<PendingScriptInvocationRequest> awaiting;
+            lock (syncRoot)
+            {
+                if (detachedAwaits.Count == 0 && !pendingRequests.Any(candidate => candidate.Awaiter != null && !candidate.AwaitFinished))
+                {
+                    return;
+                }
+
+                awaiting = pendingRequests.Where(candidate => candidate.Awaiter != null && !candidate.AwaitFinished).Concat(detachedAwaits).ToList();
+            }
+
+            foreach (var pending in awaiting)
+            {
+                if (!TryFinishAwait(pending))
+                {
+                    continue;
+                }
+
+                lock (syncRoot)
+                {
+                    pending.Completion.Set();
+                    if (detachedAwaits.Remove(pending))
+                    {
+                        var outcome = pending.Exception == null
+                            ? "done: " + TrimForLog(pending.SerializedReturnValue)
+                            : "failed: " + pending.Exception.GetBaseException().Message;
+                        Debug.Log($"{AsyncEndLogPrefix}{pending.MethodLabel} after {pending.AwaitedMs} ms {outcome}");
+                    }
+                }
+            }
+        }
+
+        private static string TrimForLog(object? value)
+        {
+            var text = value == null ? "null" : value as string ?? JsonConvert.SerializeObject(value);
+            return text.Length <= 300 ? text : text.Substring(0, 300) + "...";
         }
 
         // C#-style names: an anonymous object's FullName repeats every argument's assembly-qualified name and
@@ -239,6 +337,8 @@ namespace Chievfx.Mcp.Editor
 
         private void CleanupCompletedScriptRequestsLocked()
         {
+            detachedAwaits.AddRange(pendingRequests.Where(pending =>
+                pending.ResponseWritten && pending.Awaiter != null && !pending.AwaitFinished && !detachedAwaits.Contains(pending)));
             pendingRequests.RemoveAll(pending =>
                 pending.ResponseWritten && (!pending.InvocationStarted || pending.InvocationCompleted));
             if ((activeThread == null || !activeThread.IsAlive)
@@ -306,6 +406,24 @@ namespace Chievfx.Mcp.Editor
                 try
                 {
                     var invocation = ExecuteScriptMethodWithTimeout(pending, method, values, timeoutMs);
+                    if (invocation.TimedOut && pending.Awaiter != null)
+                    {
+                        var endMarker = AsyncEndLogPrefix + pending.MethodLabel + " ";
+                        return CreateScriptExecutionFailure(
+                            "timeout",
+                            $"The {pending.AwaitedType} returned by {pending.MethodLabel} did not end within {timeoutMs} ms. It keeps running without "
+                            + $"blocking the editor; its end is logged as '{endMarker}after <ms> ms done|failed: ...' (awaitMs or events-wait on waitFor).",
+                            diagnostics,
+                            logStartIndex,
+                            includeLogs,
+                            logType,
+                            startedUtc,
+                            timeoutMs,
+                            null,
+                            notes: notes,
+                            waitFor: endMarker);
+                    }
+
                     if (invocation.TimedOut)
                     {
                         return CreateScriptExecutionFailure(
@@ -334,6 +452,11 @@ namespace Chievfx.Mcp.Editor
                             timeoutMs,
                             invocation.Exception,
                             notes: notes);
+                    }
+
+                    if (invocation.AwaitedType != null)
+                    {
+                        notes.Add($"Awaited the {invocation.AwaitedType} it returned: {invocation.AwaitedMs} ms after the method returned, without blocking the editor.");
                     }
 
                     return CreateScriptExecutionSuccess(
@@ -413,7 +536,9 @@ namespace Chievfx.Mcp.Editor
                             ReturnValueType = pending.ReturnValueType,
                             SerializedReturnValue = pending.SerializedReturnValue,
                             ReturnValueTruncated = pending.ReturnValueTruncated,
-                            FullValuePath = pending.FullValuePath
+                            FullValuePath = pending.FullValuePath,
+                            AwaitedType = pending.AwaitedType,
+                            AwaitedMs = pending.AwaitedMs
                         };
                     }
                 }
@@ -810,6 +935,13 @@ namespace Chievfx.Mcp.Editor
             out Dictionary<string, object?>[]? originalDiagnostics)
         {
             originalDiagnostics = null;
+            var wrapped = WrapTopLevelStatements(csharpCode);
+            if (wrapped != null)
+            {
+                csharpCode = wrapped;
+                notes.Add($"Top-level statements ran as {TopLevelScriptClassName}.Main: a script compiles to a library, which cannot have them (CS8805).");
+            }
+
             var assembly = CompileScriptAssembly(csharpCode, allowNonPublic: false, lineOffset: 0, out diagnostics);
             if (assembly == null && HasMissingNameErrors(diagnostics))
             {
@@ -1247,12 +1379,14 @@ namespace Chievfx.Mcp.Editor
             Exception? exception,
             bool stillRunning = false,
             List<string>? notes = null,
-            Dictionary<string, object?>[]? originalDiagnostics = null)
+            Dictionary<string, object?>[]? originalDiagnostics = null,
+            string? waitFor = null)
         {
             return new
             {
                 success = false,
                 stage,
+                waitFor,
                 error = new
                 {
                     message,
@@ -1276,8 +1410,18 @@ namespace Chievfx.Mcp.Editor
                 return null;
             }
 
+            // An exception from an awaited script is rethrown by the bridge's awaiter: the frames after the rethrow
+            // marker are the bridge's own, the script's are before it.
+            var stack = exception.StackTrace;
+            const string rethrowMarker = "--- End of stack trace from previous location";
+            var rethrowAt = stack.IndexOf(rethrowMarker, StringComparison.Ordinal);
+            if (rethrowAt > 0 && stack.IndexOf(nameof(ScriptAwaiter), rethrowAt, StringComparison.Ordinal) > 0)
+            {
+                stack = stack.Substring(0, rethrowAt).TrimEnd();
+            }
+
             var truncated = false;
-            return TrimText(exception.StackTrace, MaxStackTraceChars, ref truncated);
+            return TrimText(stack, MaxStackTraceChars, ref truncated);
         }
 
     }

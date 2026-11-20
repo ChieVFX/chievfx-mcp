@@ -144,6 +144,11 @@ namespace Chievfx.Mcp.Editor
         public bool ReturnValueTruncated { get; set; }
 
         public string? FullValuePath { get; set; }
+
+        // Set when the method returned an awaitable: its type, and how long its end took after the method returned.
+        public string? AwaitedType { get; set; }
+
+        public int AwaitedMs { get; set; }
     }
 
     internal sealed class PendingScriptInvocationRequest
@@ -185,6 +190,17 @@ namespace Chievfx.Mcp.Editor
         public bool ReturnValueTruncated { get; set; }
 
         public string? FullValuePath { get; set; }
+
+        // The awaitable the method returned, polled on the editor tick until it ends (see ScriptAwaiter).
+        public ScriptAwaiter? Awaiter { get; set; }
+
+        public string? AwaitedType { get; set; }
+
+        public DateTime AwaitStartedUtc { get; set; }
+
+        public int AwaitedMs { get; set; }
+
+        public bool AwaitFinished { get; set; }
     }
 
     internal sealed class PendingTestRequest

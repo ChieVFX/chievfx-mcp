@@ -1,6 +1,6 @@
 {
   "name": "console-get-logs-single",
-  "description": "Fetches one Unity Console entry by id (from console-get-logs) with full message and stack trace.",
+  "description": "Fetches one Unity Console entry by id (from console-get-logs) with full message and stack trace; textTruncated:true when the stack was shortened.",
   "inputSchema": {
     "type": "object",
     "properties": {

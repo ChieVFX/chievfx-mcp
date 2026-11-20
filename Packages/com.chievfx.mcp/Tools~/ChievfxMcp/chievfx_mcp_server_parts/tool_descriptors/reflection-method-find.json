@@ -1,6 +1,6 @@
 {
   "name": "reflection-method-find",
-  "description": "Finds loaded C# methods. filter:{typeName, methodName, namespace?, inputParameters?}; property accessors are not methods here. Exact matching is default; use match:'contains' for fuzzy discovery.",
+  "description": "Finds loaded C# methods. filter:{typeName, methodName, namespace?, inputParameters?}, other keys are errors; property accessors are not methods here. Exact matching is default; use match:'contains' for fuzzy discovery.",
   "inputSchema": {
     "type": "object",
     "properties": {

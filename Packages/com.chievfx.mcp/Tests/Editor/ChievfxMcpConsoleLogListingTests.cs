@@ -148,6 +148,17 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
+        public void AssemblyQualifiersAreDroppedFromFrames()
+        {
+            var frame = "Cysharp.Threading.Tasks.CompilerServices.AsyncUniTask`1[[Menu.Shop+<Fill>d__12, Assembly-CSharp, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null]].Run ()";
+            Assert.AreEqual("Cysharp.Threading.Tasks.CompilerServices.AsyncUniTask`1[[Menu.Shop+<Fill>d__12, Assembly-CSharp]].Run ()",
+                ConsoleLogBridgeService.StripAssemblyQualifiers(frame));
+            Assert.AreEqual("System.String[[x, mscorlib]]",
+                ConsoleLogBridgeService.StripAssemblyQualifiers("System.String[[x, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089]]"));
+            Assert.AreEqual("Foo.Bar () (at Assets/Foo.cs:7)", ConsoleLogBridgeService.StripAssemblyQualifiers("Foo.Bar () (at Assets/Foo.cs:7)"));
+        }
+
+        [Test]
         public void LogsOfACallAreFoundAfterTheBufferIsFull()
         {
             var token = "ChievfxLogListing_" + Guid.NewGuid().ToString("N");

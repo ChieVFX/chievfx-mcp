@@ -64,6 +64,12 @@ namespace Chievfx.Mcp.Editor
 
         private const string UnityConsoleTruncationMark = "<message truncated>";
 
+        // Generic frames of async state machines repeat ", Version=0.0.0.0, Culture=neutral, PublicKeyToken=null" per type
+        // argument: 300-600 characters a frame that say nothing; the assembly name before them stays.
+        private static readonly Regex AssemblyQualifierRegex = new(
+            @",\s*Version=[0-9.]+,\s*Culture=[^,\]]+,\s*PublicKeyToken=(?:null|[0-9a-fA-F]+)",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
         private static readonly Regex SourceLinkRegex = new(
             "<a href=\"([^\"]*)\" line=\"(\\d+)\">[^<]*</a>(?::\\d+)?",
             RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -227,7 +233,7 @@ namespace Chievfx.Mcp.Editor
 
         private static Dictionary<string, object> CreateLogEntryOutput(LogEntryDto entry, StackTraceMode stackTraceMode, bool trimMessage, bool stripStyleTags, ref bool truncated)
         {
-            var message = StripSourceLinks((stripStyleTags ? StripStyleTags(entry.Message) : entry.Message) ?? string.Empty);
+            var message = StripAssemblyQualifiers(StripSourceLinks((stripStyleTags ? StripStyleTags(entry.Message) : entry.Message) ?? string.Empty));
             // The Unity Console cuts very long entries itself and marks the cut; the text below is then not the whole entry.
             if (message.Contains(UnityConsoleTruncationMark, StringComparison.Ordinal)
                 || (entry.StackTrace?.Contains(UnityConsoleTruncationMark, StringComparison.Ordinal) ?? false))
@@ -258,13 +264,23 @@ namespace Chievfx.Mcp.Editor
                 output["hint"] = importHint;
             }
 
-            var stack = FormatStackTrace(StripSourceLinks(entry.StackTrace), stackTraceMode, ref truncated);
+            var stack = FormatStackTrace(StripAssemblyQualifiers(StripSourceLinks(entry.StackTrace)), stackTraceMode, ref truncated);
             if (!string.IsNullOrEmpty(stack))
             {
                 output["stack"] = stack;
             }
 
             return output;
+        }
+
+        internal static string StripAssemblyQualifiers(string? text)
+        {
+            if (string.IsNullOrEmpty(text) || text!.IndexOf("PublicKeyToken=", StringComparison.Ordinal) < 0)
+            {
+                return text ?? string.Empty;
+            }
+
+            return AssemblyQualifierRegex.Replace(text, string.Empty);
         }
 
         // Unity Console stack lines carry clickable links: (<a href="Assets/X.cs" line="7">Assets/X.cs</a>:7). The path
@@ -319,7 +335,7 @@ namespace Chievfx.Mcp.Editor
             // whose id can be evicted by a per-frame exception before the follow-up call lands.
             if (includeStack)
             {
-                var stack = FormatStackTrace(entry.StackTrace, StackTraceMode.Full, ref truncated);
+                var stack = FormatStackTrace(StripAssemblyQualifiers(entry.StackTrace), StackTraceMode.Full, ref truncated);
                 if (!string.IsNullOrEmpty(stack))
                 {
                     output["stack"] = stack;

@@ -165,6 +165,19 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
+        public void LogsOfACallAreReadOffTheMainThread()
+        {
+            // A timed-out async script's reply, logs included, is built on a worker thread, where EditorPrefs throws.
+            var token = "ChievfxLogListing_" + Guid.NewGuid().ToString("N");
+            var start = ConsoleLogBridgeService.GetLogEntryCount();
+            ConsoleLogBridgeService.CollectLog("<b>" + token + "</b>", string.Empty, LogType.Log);
+
+            var logs = System.Threading.Tasks.Task.Run(() => ConsoleLogBridgeService.CreateLogOutputs(start, true, null, includeStackTrace: false, maxEntries: 10)).Result;
+
+            Assert.IsTrue(logs.Any(log => Newtonsoft.Json.JsonConvert.SerializeObject(log).Contains(token)), "the call's log is in its reply");
+        }
+
+        [Test]
         public void AMultiLineMessageIsListedOnOneLine()
         {
             var token = "ChievfxLogListing_" + Guid.NewGuid().ToString("N");

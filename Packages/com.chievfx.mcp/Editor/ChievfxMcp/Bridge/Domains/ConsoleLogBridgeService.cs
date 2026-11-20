@@ -473,7 +473,7 @@ namespace Chievfx.Mcp.Editor
             var includeEditorLog = ReadBool(args, "includeEditorLog", false);
             var includeStack = ReadBool(args, "includeStack", false);
             var sinceTimestamp = ReadSinceTimestamp(args, out var sinceTimestampUnparseable);
-            var stripStyleTags = ChievfxMcpToolPolicy.StripStyleTagsFromConsoleLogs;
+            var stripStyleTags = ReadStripStyleTags();
             var cutoff = lastMinutes > 0 ? DateTime.UtcNow.AddMinutes(-lastMinutes) : DateTime.MinValue;
 
             var filtered = SnapshotFilteredEntries(
@@ -662,7 +662,7 @@ namespace Chievfx.Mcp.Editor
                 match,
                 StackTraceMode.Full,
                 trimMessage: false,
-                stripStyleTags: ChievfxMcpToolPolicy.StripStyleTagsFromConsoleLogs,
+                stripStyleTags: ReadStripStyleTags(),
                 ref textTruncated);
             return new
             {
@@ -1157,9 +1157,23 @@ namespace Chievfx.Mcp.Editor
                 .Where(entry => levels == null || levels.Contains(entry.LogType))
                 .Take(maxEntries)
                 // Same text as console-get-logs shows: a project logger's <b><color> prefix stripped by the same policy.
-                .Select(entry => CreateLogEntryOutput(entry, stackTraceMode, trimMessage: true, ChievfxMcpToolPolicy.StripStyleTagsFromConsoleLogs, ref truncated))
+                .Select(entry => CreateLogEntryOutput(entry, stackTraceMode, trimMessage: true, ReadStripStyleTags(), ref truncated))
                 .Cast<object>()
                 .ToArray();
+        }
+
+        // The last value read on the main thread: EditorPrefs answers only there, and a timed-out async script's reply
+        // (with its logs) is built on a worker thread.
+        private static volatile bool lastStripStyleTags = true;
+
+        private static bool ReadStripStyleTags()
+        {
+            if (UnityEditorInternal.InternalEditorUtility.CurrentThreadIsMainThread())
+            {
+                lastStripStyleTags = ChievfxMcpToolPolicy.StripStyleTagsFromConsoleLogs;
+            }
+
+            return lastStripStyleTags;
         }
 
 

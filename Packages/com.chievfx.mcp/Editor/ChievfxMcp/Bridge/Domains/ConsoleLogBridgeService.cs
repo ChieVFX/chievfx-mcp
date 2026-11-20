@@ -305,8 +305,10 @@ namespace Chievfx.Mcp.Editor
             var message = stripStyleTags ? StripStyleTags(entry.Message) : entry.Message;
             output["level"] = entry.LogType;
             // The whole message on one line: a log body on later lines ("[OnlineEvents] message: {" + JSON) showed only its
-            // first line while contains matched the rest, and two different bodies looked like the same row.
-            output["msg"] = TrimText(JoinLines(message), MaxLogMessageChars, ref truncated);
+            // first line while contains matched the rest, and two different bodies looked like the same row. A project logger
+            // that writes its stack into the message text would fill the row with frames: those stay in console-get-logs-single.
+            var joined = JoinLinesWithoutStackFrames(StripSourceLinks(message), out var droppedFrames);
+            output["msg"] = TrimText(droppedFrames > 0 ? joined + $" (+{droppedFrames} stack lines: console-get-logs-single)" : joined, MaxLogMessageChars, ref truncated);
             var importHint = TryDecodeImportError(entry.Message);
             if (importHint != null)
             {
@@ -327,15 +329,47 @@ namespace Chievfx.Mcp.Editor
             return output;
         }
 
-        private static string JoinLines(string? text)
+        internal static string JoinLinesWithoutStackFrames(string? text, out int droppedFrames)
         {
+            droppedFrames = 0;
             if (string.IsNullOrEmpty(text))
             {
                 return string.Empty;
             }
 
-            var lines = text!.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            return string.Join(" ", lines.Select(line => line.Trim()).Where(line => line.Length > 0));
+            var kept = new List<string>();
+            foreach (var rawLine in text!.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var line = rawLine.Trim();
+                if (line.Length == 0)
+                {
+                    continue;
+                }
+
+                if (kept.Count > 0 && IsStackFrameLine(line))
+                {
+                    droppedFrames++;
+                    continue;
+                }
+
+                kept.Add(line);
+            }
+
+            // "Log stack:" / "Exception stack:" headers left with nothing after them.
+            while (droppedFrames > 0 && kept.Count > 1 && kept[kept.Count - 1].EndsWith("stack:", StringComparison.OrdinalIgnoreCase) && kept[kept.Count - 1].Length <= 40)
+            {
+                kept.RemoveAt(kept.Count - 1);
+            }
+
+            return string.Join(" ", kept);
+        }
+
+        // .NET frames ("at Ns.Type.Method (...)") and Unity frames ("Ns.Type:Method (...) (at Assets/X.cs:12)").
+        private static bool IsStackFrameLine(string line)
+        {
+            return (line.StartsWith("at ", StringComparison.Ordinal) && line.IndexOf('(') > 0)
+                   || (line.EndsWith(")", StringComparison.Ordinal) && line.IndexOf(" (at ", StringComparison.Ordinal) > 0)
+                   || line.StartsWith("UnityEngine.Debug:", StringComparison.Ordinal);
         }
 
         private static string ExtractFirstNonEmptyLine(string? text)

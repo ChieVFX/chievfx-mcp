@@ -893,6 +893,8 @@ namespace Chievfx.Mcp.Editor
         // The script-execute description names it without its namespace.
         private const string ScriptStateAliasDirective = "using ChievfxMcpScriptState = Chievfx.Mcp.Editor.ChievfxMcpScriptState;";
 
+        private static readonly Regex ShortScriptStateUsingStatic = new(@"(?<![\w.])using\s+static\s+ChievfxMcpScriptState\s*;", RegexOptions.Compiled);
+
         // A bare OnCleanup(...) call, written as if it were a global function, gets the class's members imported.
         private const string ScriptStateStaticDirective = "using static Chievfx.Mcp.Editor.ChievfxMcpScriptState;";
 
@@ -957,6 +959,9 @@ namespace Chievfx.Mcp.Editor
             out Dictionary<string, object?>[]? originalDiagnostics)
         {
             originalDiagnostics = null;
+            // "using static ChievfxMcpScriptState;" as the description names the class: a using directive does not see an alias
+            // the retry adds, so the short name would fail twice (CS0246). Same line on line one, line numbers stay.
+            csharpCode = ShortScriptStateUsingStatic.Replace(csharpCode, "using static Chievfx.Mcp.Editor.ChievfxMcpScriptState;");
             var wrapped = WrapTopLevelStatements(csharpCode);
             // Bare statements are a supported form: the reply names TopLevelScript.Main as the method, a note on every call was noise.
             if (wrapped != null)

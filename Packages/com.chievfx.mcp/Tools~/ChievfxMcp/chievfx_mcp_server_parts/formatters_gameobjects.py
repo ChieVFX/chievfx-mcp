@@ -1041,14 +1041,16 @@ def format_gameobject_transform_get_text(result: dict[str, Any]) -> str:
         return to_toon(result)
 
     space = "world" if result.get("isWorld") is True else "local"
-    return "\n".join(
-        [
-            f"space: {space}",
-            f"position: {format_vector3_inline(transform.get('position'))}",
-            f"rotationEuler: {format_vector3_inline(transform.get('rotationEuler'))}",
-            f"scale: {format_vector3_inline(transform.get('scale'))}",
-        ]
-    )
+    lines = [
+        f"space: {space}",
+        f"position: {format_vector3_inline(transform.get('position'))}",
+        f"rotationEuler: {format_vector3_inline(transform.get('rotationEuler'))}",
+        f"scale: {format_vector3_inline(transform.get('scale'))}",
+    ]
+    note = result.get("note")
+    if isinstance(note, str) and note:
+        lines.append(f"note: {note}")
+    return "\n".join(lines)
 
 
 def format_vector3_inline(value: Any) -> str:

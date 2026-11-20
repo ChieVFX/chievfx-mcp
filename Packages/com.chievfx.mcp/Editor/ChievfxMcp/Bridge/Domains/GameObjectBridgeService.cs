@@ -194,8 +194,34 @@ namespace Chievfx.Mcp.Editor
                 objects = selected,
                 note = underPath > 0
                     ? $"path names this one object; {underPath} more are under it: add name, namePattern or componentType to search them, or use gameobject-hierarchy path:'{path}'."
-                    : null
+                    : filterMatches.Count == 0 && !string.IsNullOrWhiteSpace(componentType)
+                        ? DescribeUnknownComponentType(componentType!)
+                        : null
             };
+        }
+
+        // Zero matches for a type name nothing is called: a typo or a guessed name ("Car") read the same as "no such objects".
+        private static string? DescribeUnknownComponentType(string componentType)
+        {
+            var types = UnityAssemblies.GetLoaded()
+                .SelectMany(GetLoadableTypes)
+                .Where(type => typeof(Component).IsAssignableFrom(type))
+                .ToArray();
+            if (types.Any(type => ComponentTypeMatches(type, componentType)))
+            {
+                return null;
+            }
+
+            var similar = types
+                .Where(type => !type.IsAbstract && type.Name.IndexOf(componentType, StringComparison.OrdinalIgnoreCase) >= 0)
+                .Select(type => type.Name)
+                .Distinct()
+                .OrderBy(typeName => typeName.Length)
+                .ThenBy(typeName => typeName, StringComparer.Ordinal)
+                .Take(6)
+                .ToArray();
+            return $"no loaded Component type is named '{componentType}'"
+                   + (similar.Length > 0 ? $"; types containing it: {string.Join(", ", similar)}." : ": componentType is a class name (as in GetComponent<T>), check the spelling.");
         }
 
         public object GetComponent(JToken args)
@@ -407,8 +433,29 @@ namespace Chievfx.Mcp.Editor
             {
                 success = true,
                 isWorld,
-                transform = CreateTransformDto(transform, isWorld)
+                transform = CreateTransformDto(transform, isWorld),
+                note = DescribeMovingChildBody(gameObject)
             };
+        }
+
+        // A vehicle's root often stays at the origin while physics moves its child body: "where is the car" asked of the
+        // object found by its controller read 0, 0, 0.
+        private static string? DescribeMovingChildBody(GameObject gameObject)
+        {
+            if (!EditorApplication.isPlaying || gameObject.GetComponent<Rigidbody>() != null)
+            {
+                return null;
+            }
+
+            var body = gameObject.GetComponentsInChildren<Rigidbody>(false).FirstOrDefault(rigidbody => !rigidbody.isKinematic);
+            if (body == null || Vector3.Distance(body.position, gameObject.transform.position) < 1f)
+            {
+                return null;
+            }
+
+            var position = body.position;
+            return $"physics moves the child '{body.name}' (instanceId {body.gameObject.GetInstanceID()}, Rigidbody), not this object: it is at "
+                   + $"{position.x.ToString("0.##", CultureInfo.InvariantCulture)}, {position.y.ToString("0.##", CultureInfo.InvariantCulture)}, {position.z.ToString("0.##", CultureInfo.InvariantCulture)} (world).";
         }
 
         public object UpdateTransform(JToken args)

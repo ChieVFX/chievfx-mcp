@@ -381,8 +381,9 @@ def format_editor_playmode_set_text(result: dict[str, Any]) -> str:
     cursor_before = result.get("eventCursorBefore")
     cursor_hint = ""
     if isinstance(cursor_before, int):
-        # Surface the pre-toggle cursor so callers can events-wait from it and catch boot logs.
-        cursor_hint = f" eventCursorBefore:{cursor_before} (use as events-wait sinceEventId to catch boot logs)"
+        # Surface the pre-toggle cursor so callers can events-wait from it and catch the transition's logs.
+        logs_of = "boot logs" if result.get("requestedIsPlaying", is_playing) is not False else "logs of the exit"
+        cursor_hint = f" eventCursorBefore:{cursor_before} (use as events-wait sinceEventId to catch {logs_of})"
     if result.get("status") == "unchanged":
         return f"playmode already {format_toon_atom(is_playing)}{cursor_hint}"
     if result.get("waitedForReady"):

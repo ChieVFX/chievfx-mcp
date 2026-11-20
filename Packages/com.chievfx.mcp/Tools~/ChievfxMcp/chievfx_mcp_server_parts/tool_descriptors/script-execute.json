@@ -1,6 +1,6 @@
 {
   "name": "script-execute",
-  "description": "Last resort: check chievfx://instructions/core-descriptors for a real tool first. C# from csharpCode or a .cs csharpPath: static Main, methodName/className or bare statements; a returned Task/UniTask is awaited. New assembly per call: ChievfxMcpScriptState.Set/Get<T>/Remove keep values, its OnCleanup(name, action) undoes on Play exit. Missing usings retried.",
+  "description": "Last resort: check chievfx://instructions/core-descriptors for a real tool. C# from csharpCode or a .cs csharpPath: static Main, methodName/className or bare statements; returned Task/UniTask awaited. New assembly per call: Chievfx.Mcp.Editor.ChievfxMcpScriptState.Set/Get<T>/Remove keep values, OnCleanup(name, action) undoes on Play exit. Missing usings retried.",
   "inputSchema": {
     "type": "object",
     "properties": {

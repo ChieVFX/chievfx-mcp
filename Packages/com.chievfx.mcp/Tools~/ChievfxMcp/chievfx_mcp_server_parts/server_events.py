@@ -193,8 +193,10 @@ class EventsStatusMixin:
                 slim["editorBusy"] = liveness.get("busySign")
             if liveness.get("processId"):
                 slim["editorProcessId"] = liveness.get("processId")
-        if is_playing:
-            slim["isPlaying"] = True
+        # Printed both ways: a missing isPlaying read as "unknown" next to a printed isCompiling:false.
+        slim["isPlaying"] = is_playing
+        if "isPlayingOrWillChangePlaymode" in editor and bool(editor.get("isPlayingOrWillChangePlaymode")) != is_playing:
+            slim["playModeChanging"] = "exiting" if is_playing else "entering"
         # Surface only non-default busy flags to keep the row short.
         for flag in ("packageBusy", "testBusy", "editorWindowScreenshotBusy", "scriptBusy", "shaderCompiling"):
             if bool(busy.get(flag)):
@@ -719,7 +721,10 @@ class EventsStatusMixin:
             if heartbeat_age is None:
                 hints.append("No Unity heartbeat file. Open Unity or wait for bridge startup.")
             else:
-                hints.append("Unity heartbeat is stale. Editor may be compiling, reloading, closed, or crashed.")
+                hints.append(
+                    "Unity heartbeat is stale. Editor may be compiling, reloading, entering or exiting Play Mode "
+                    "(under memory pressure that takes a minute), closed, or crashed."
+                )
         if stale_processing_files:
             hints.append("Stale .processing files found. Previous Unity bridge work may have crashed mid-request.")
         if pending_response_count:

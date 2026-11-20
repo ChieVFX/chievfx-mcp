@@ -1016,7 +1016,8 @@ class McpServerCore:
             elif tool_name == "tool-batch":
                 problems.append(f"step {index + 1}: tool-batch cannot batch itself")
             elif tool_name not in known_tool_ids:
-                problems.append(f"step {index + 1}: unknown tool '{tool_name}'")
+                similar = difflib.get_close_matches(tool_name, sorted(known_tool_ids), n=2, cutoff=0.8)
+                problems.append(f"step {index + 1}: unknown tool '{tool_name}'" + (f" (did you mean {' or '.join(similar)}?)" if similar else ""))
             elif tool_name not in enabled_tool_ids:
                 problems.append(f"step {index + 1}: tool '{tool_name}' is disabled")
             elif not isinstance(args, dict):

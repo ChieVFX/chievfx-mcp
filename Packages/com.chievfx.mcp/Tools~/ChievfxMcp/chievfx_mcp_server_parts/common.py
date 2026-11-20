@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import difflib
 import hashlib
 import hmac
 import ipaddress

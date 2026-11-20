@@ -225,6 +225,12 @@ class ToolRoleTests(unittest.TestCase):
         self.assertIn("error", response)
         self.assertIn("step 2: unknown tool 'no-such-tool'", response["error"]["message"])
 
+    def test_tool_batch_suggests_the_tool_a_typo_meant(self) -> None:
+        self.enable_autonomous_tools()
+        response = self.call_tool("tool-batch", {"steps": [{"tool": "tools-get-rolee", "args": {}}]})
+
+        self.assertIn("step 1: unknown tool 'tools-get-rolee' (did you mean tools-get-role", response["error"]["message"])
+
     def test_tool_batch_takes_the_client_side_tool_name(self) -> None:
         # Clients show tools to the model as mcp__<server>__<tool>; the model copies that name into a step.
         self.enable_autonomous_tools()

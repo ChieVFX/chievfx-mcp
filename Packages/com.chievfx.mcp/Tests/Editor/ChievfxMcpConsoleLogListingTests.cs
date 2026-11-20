@@ -207,6 +207,19 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
+        public void AListRowDropsTheStackALoggerWroteIntoTheMessage()
+        {
+            var message = "[] Request error[1] timeout\nLog stack:\n"
+                          + "at Common.Logging.Utils.StackTraceUtils.ExtractStackTraceInternal (<a href=\"Assets/Scripts/Common/Logging/Utils/StackTraceUtils.cs\" line=\"107\">Assets/Scripts/Common/Logging/Utils/StackTraceUtils.cs</a>:107)\n"
+                          + "Net.Requests:Send () (at Assets/Scripts/Net/Requests.cs:40)";
+
+            var row = ConsoleLogBridgeService.JoinLinesWithoutStackFrames(ConsoleLogBridgeService.StripSourceLinks(message), out var dropped);
+
+            Assert.AreEqual("[] Request error[1] timeout", row);
+            Assert.AreEqual(2, dropped);
+        }
+
+        [Test]
         public void AMultiLineMessageIsListedOnOneLine()
         {
             var token = "ChievfxLogListing_" + Guid.NewGuid().ToString("N");

@@ -305,11 +305,18 @@ namespace Chievfx.Mcp.Editor
             bool includeScreenSpaceOverlayCanvases,
             bool gameViewRenderTextureAvailable)
         {
-            var camera = ResolveCamera(args) ?? throw new InvalidOperationException("No camera found for screenshot capture.");
+            var warnings = new List<string>();
+            var camera = ResolveCamera(args, warnings) ?? throw new InvalidOperationException("No camera found for screenshot capture.");
+            if (!camera.isActiveAndEnabled)
+            {
+                // A disabled camera renders whatever its settings show, often a single color, and nothing says so in the picture.
+                warnings.Add($"Camera '{GameObjectBridgeService.GetHierarchyPath(camera.gameObject, GameObjectBridgeService.GetGameObjectQueryContext(null))}' is not active and enabled: "
+                             + "nothing renders with it now, so the shot may be empty or one color. Active cameras: gameobject-find componentType:Camera; pass cameraInstanceId.");
+            }
+
             var previousTarget = camera.targetTexture;
             var previousActive = RenderTexture.active;
             var renderTexture = RenderTexture.GetTemporary(width, height, 24, RenderTextureFormat.ARGB32);
-            var warnings = new List<string>();
             TemporaryOverlayCanvasCameraScope? overlayScope = null;
 
             try
@@ -338,7 +345,7 @@ namespace Chievfx.Mcp.Editor
                             ? "attempted-temporary-screen-space-camera"
                             : "none-detected",
                         warnings)
-                    : CreateCameraCaptureMetadata(camera, output.Width, output.Height);
+                    : CreateCameraCaptureMetadata(camera, output.Width, output.Height, warnings);
                 return new ImageResult("image/png", Convert.ToBase64String(png), metadata);
             }
             finally
@@ -613,10 +620,10 @@ namespace Chievfx.Mcp.Editor
             return metadata;
         }
 
-        private static Dictionary<string, object?> CreateCameraCaptureMetadata(Camera camera, int width, int height)
+        private static Dictionary<string, object?> CreateCameraCaptureMetadata(Camera camera, int width, int height, IReadOnlyCollection<string>? warnings = null)
         {
-            var context = GameObjectBridgeService.GetGameObjectQueryContext();
-            return new Dictionary<string, object?>
+            var context = GameObjectBridgeService.GetGameObjectQueryContext(null);
+            var metadata = new Dictionary<string, object?>
             {
                 ["captureSource"] = "camera.render",
                 ["cameraName"] = camera.name,
@@ -626,14 +633,22 @@ namespace Chievfx.Mcp.Editor
                 ["pngWidth"] = width,
                 ["pngHeight"] = height,
             };
+            if (warnings != null && warnings.Count > 0)
+            {
+                metadata["warnings"] = warnings.Distinct(StringComparer.Ordinal).ToArray();
+            }
+
+            return metadata;
         }
 
-        private static Camera? ResolveCamera(JToken args)
+        // Paths resolve over every loaded scene (plus DontDestroyOnLoad in Play Mode), as in gameobject-* tools: a game keeps
+        // its camera in an additive scene, and the active scene alone did not find it.
+        private static Camera? ResolveCamera(JToken args, List<string> warnings)
         {
             var cameraPath = ReadString(args, "cameraPath") ?? ReadString(args, "path");
             var cameraInstanceId = ReadNullableInt(args, "cameraInstanceId") ?? ReadNullableInt(args, "instanceId");
             var cameraName = ReadString(args, "cameraName");
-            var context = GameObjectBridgeService.GetGameObjectQueryContext();
+            var context = GameObjectBridgeService.GetGameObjectQueryContext(null);
 
             Camera? camera = null;
             if (cameraInstanceId.HasValue)
@@ -657,7 +672,7 @@ namespace Chievfx.Mcp.Editor
                 }
             }
 
-            return camera ?? FindCameraByNameOrDefault(cameraName);
+            return camera ?? FindCameraByNameOrDefault(cameraName, context, warnings);
         }
 
         private static Camera ResolveCameraByPath(GameObjectQueryContext context, string cameraPath)
@@ -710,7 +725,9 @@ namespace Chievfx.Mcp.Editor
             return cameraGameObject != null ? cameraGameObject.GetComponent<Camera>() : null;
         }
 
-        private static Camera? FindCameraByNameOrDefault(string? cameraName)
+        // Of several cameras with the name the active and enabled one is taken: a common name like "Camera" also belongs to
+        // disabled helper cameras (UI mock-ups, render-to-texture), and the first one found was often one of those.
+        internal static Camera? FindCameraByNameOrDefault(string? cameraName, GameObjectQueryContext context, List<string> warnings)
         {
             var cameras = Resources.FindObjectsOfTypeAll<Camera>()
                 .Where(camera => camera != null && camera.gameObject.scene.IsValid())
@@ -718,11 +735,23 @@ namespace Chievfx.Mcp.Editor
 
             if (!string.IsNullOrWhiteSpace(cameraName))
             {
-                var namedCamera = cameras.FirstOrDefault(camera => string.Equals(camera.name, cameraName, StringComparison.Ordinal));
-                if (namedCamera != null)
+                var namedCameras = cameras.Where(camera => string.Equals(camera.name, cameraName, StringComparison.Ordinal)).ToArray();
+                if (namedCameras.Length > 0)
                 {
-                    return namedCamera;
+                    var chosen = namedCameras.FirstOrDefault(camera => camera.isActiveAndEnabled) ?? namedCameras[0];
+                    if (namedCameras.Length > 1)
+                    {
+                        var others = namedCameras.Where(camera => camera != chosen).Take(MaxCameraCandidates)
+                            .Select(camera => GameObjectBridgeService.GetHierarchyPath(camera.gameObject, context) + (camera.isActiveAndEnabled ? "" : " (inactive)"));
+                        warnings.Add($"{namedCameras.Length} cameras are named '{cameraName}'; took '{GameObjectBridgeService.GetHierarchyPath(chosen.gameObject, context)}'"
+                                     + (chosen.isActiveAndEnabled ? " (active)" : " (none of them is active)") + ". Others: " + string.Join(", ", others)
+                                     + ". Pass cameraInstanceId or cameraPath to pick another.");
+                    }
+
+                    return chosen;
                 }
+
+                warnings.Add($"No camera is named '{cameraName}': took the default camera instead.");
             }
 
             if (Camera.main != null)
@@ -732,6 +761,8 @@ namespace Chievfx.Mcp.Editor
 
             return cameras.FirstOrDefault(camera => camera.isActiveAndEnabled) ?? cameras.FirstOrDefault();
         }
+
+        private const int MaxCameraCandidates = 4;
 
         internal static byte[] EncodeRenderTexture(RenderTexture renderTexture, bool flipVertical)
         {

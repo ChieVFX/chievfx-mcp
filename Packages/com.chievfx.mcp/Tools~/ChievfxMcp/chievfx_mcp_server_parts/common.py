@@ -122,6 +122,10 @@ RECOMPILE_START_GRACE_SECONDS = 1.5
 # requested compile seconds late. Polled from the event stream file.
 RECOMPILE_START_WAIT_SECONDS = 30.0
 RECOMPILE_START_POLL_SECONDS = 0.25
+# How long recompile waits, after the editor looks idle, for this compile's compile-finish event. The
+# compiler messages are journaled before it, so only then is "0 errors" a fact: once a failed compile was
+# reported as "0 errors" from a journal read that came before its messages.
+RECOMPILE_FINISH_WAIT_SECONDS = 60.0
 # Max compile errors/warnings echoed inline in the recompile result (each list capped independently).
 RECOMPILE_MAX_ISSUES = 50
 # Per-message cap for those echoed diagnostics. A compiler diagnostic is one short line, so this only

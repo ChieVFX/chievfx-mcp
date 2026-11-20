@@ -427,7 +427,25 @@ class BridgeTransportMixin:
             compile_started = self.wait_for_compile_start(since_event_id, start_wait_seconds)
         self.emit_progress(progress_token, notify, 0.5, "Waiting for Unity compilation to finish.")
         ready_after = self.wait_for_bridge_ready(max_wait_seconds=wait_seconds)
+        compile_finished: bool | None = None
+        if compile_started and isinstance(since_event_id, int):
+            compile_finished = self.wait_for_compile_event(
+                since_event_id, min(wait_seconds, RECOMPILE_FINISH_WAIT_SECONDS), ("compile-finish",)
+            )
+            if compile_finished:
+                # A clean compile reloads the domain after compile-finish: wait for the editor once more.
+                ready_after = self.wait_for_bridge_ready(max_wait_seconds=wait_seconds)
         status_after = self.get_bridge_status({})
+        if compile_finished is False:
+            result["compileFinishJournaled"] = False
+            finish_warning = (
+                f"Unity's compile-finish event did not reach the journal within {int(min(wait_seconds, RECOMPILE_FINISH_WAIT_SECONDS))} s, "
+                f"so the errors below may be incomplete: check console-get-logs sinceEventId:{since_event_id} levels:[Error]."
+            )
+            existing_warning = result.get("warning")
+            result["warning"] = (
+                f"{existing_warning} {finish_warning}" if isinstance(existing_warning, str) else finish_warning
+            )
         if compile_started is False:
             result["compileStarted"] = False
             not_started_warning = (
@@ -470,6 +488,10 @@ class BridgeTransportMixin:
 
     def wait_for_compile_start(self, since_event_id: int, timeout_seconds: float) -> bool:
         """True once the bridge journaled compile-start (or compile-finish) after since_event_id."""
+        return self.wait_for_compile_event(since_event_id, timeout_seconds, ("compile-start", "compile-finish"))
+
+    def wait_for_compile_event(self, since_event_id: int, timeout_seconds: float, types: tuple[str, ...]) -> bool:
+        """True once the bridge journaled an editor event of one of types after since_event_id."""
         deadline = time.monotonic() + max(timeout_seconds, 0.0)
         while True:
             for event in self.read_event_stream().get("events", []):
@@ -478,7 +500,7 @@ class BridgeTransportMixin:
                     isinstance(event_id, int)
                     and event_id > since_event_id
                     and event.get("source") == "editor"
-                    and event.get("type") in ("compile-start", "compile-finish")
+                    and event.get("type") in types
                 ):
                     return True
             if time.monotonic() >= deadline:

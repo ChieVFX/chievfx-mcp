@@ -336,10 +336,32 @@ class RecompileWaitsForCompileStartTests(unittest.TestCase):
     def test_waits_until_the_late_compile_start_event(self) -> None:
         old = {"eventId": 90, "source": "editor", "type": "compile-start"}
         late = {"eventId": 105, "source": "editor", "type": "compile-start"}
-        result, stream_mock = self._run([{"events": [old]}, {"events": [old]}, {"events": [old, late]}])
-        self.assertEqual(stream_mock.call_count, 3)
+        finish = {"eventId": 110, "source": "editor", "type": "compile-finish"}
+        result, stream_mock = self._run(
+            [{"events": [old]}, {"events": [old]}, {"events": [old, late]}, {"events": [old, late, finish]}]
+        )
+        self.assertEqual(stream_mock.call_count, 4)
         self.assertNotIn("compileStarted", result)
         self.assertNotIn("warning", result)
+
+    def test_issues_are_read_only_after_this_compile_finished(self) -> None:
+        # The editor looked idle while the compile's messages were not in the journal yet: a failed compile
+        # was reported as "0 errors". The issues are collected only once compile-finish is journaled.
+        start = {"eventId": 105, "source": "editor", "type": "compile-start"}
+        finish = {"eventId": 120, "source": "editor", "type": "compile-finish"}
+        result, stream_mock = self._run(
+            [{"events": [start]}, {"events": [start]}, {"events": [start]}, {"events": [start, finish]}]
+        )
+        self.assertEqual(stream_mock.call_count, 4)
+        self.assertNotIn("compileFinishJournaled", result)
+        self.assertNotIn("warning", result)
+
+    def test_missing_compile_finish_is_flagged(self) -> None:
+        start = {"eventId": 105, "source": "editor", "type": "compile-start"}
+        result, _stream = self._run([{"events": [start]}] * 200)
+        self.assertIs(result["compileFinishJournaled"], False)
+        self.assertIn("errors below may be incomplete", result["warning"])
+        self.assertIn("sinceEventId:100", result["warning"])
 
     def test_compile_that_never_starts_is_flagged(self) -> None:
         result, _stream = self._run([{"events": []}] * 200)

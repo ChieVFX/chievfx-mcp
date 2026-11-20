@@ -110,6 +110,7 @@ namespace Chievfx.Mcp.Editor
             EditorApplication.update += Transport.ProcessRequests;
             ChievfxMcpExternalSceneReloadGuard.Attach(EventJournal);
             Application.logMessageReceivedThreaded += ConsoleLogBridgeService.CollectLog;
+            EditorApplication.update += KeepLogCallbackDefined;
             AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
             AssemblyReloadEvents.afterAssemblyReload += OnAfterAssemblyReload;
             UnityEditor.Compilation.CompilationPipeline.compilationStarted += OnCompilationStarted;
@@ -118,6 +119,38 @@ namespace Chievfx.Mcp.Editor
             EnsureStarted();
             EventJournal.Write("bridge", "started", "info", "ChievFX MCP bridge started.");
             EditorApplication.delayCall += OnBridgeRestoredAfterDomainReload;
+        }
+
+        // Unity can drop its native "a log callback is defined" flag on its own (seen after leaving Play Mode in a project
+        // without domain reload): the handlers stay subscribed, yet no console line reaches them until something subscribes
+        // again, so waits and log listings go silent. Setting the flag again once a second costs nothing.
+        private static double nextLogCallbackCheck;
+        private static readonly MethodInfo? SetLogCallbackDefined = typeof(Application).GetMethod(
+            "SetLogCallbackDefined", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public, null, new[] { typeof(bool) }, null);
+
+        internal static void KeepLogCallbackDefined()
+        {
+            var now = EditorApplication.timeSinceStartup;
+            if (now < nextLogCallbackCheck)
+            {
+                return;
+            }
+
+            nextLogCallbackCheck = now + 1.0;
+            RestoreLogCallbackFlag();
+        }
+
+        internal static void RestoreLogCallbackFlag()
+        {
+            if (SetLogCallbackDefined != null)
+            {
+                SetLogCallbackDefined.Invoke(null, new object[] { true });
+                return;
+            }
+
+            // Subscribing sets the flag too; the extra copy goes at once (Remove takes the last one), with no gap.
+            Application.logMessageReceivedThreaded += ConsoleLogBridgeService.CollectLog;
+            Application.logMessageReceivedThreaded -= ConsoleLogBridgeService.CollectLog;
         }
 
         public void EnsureStarted()

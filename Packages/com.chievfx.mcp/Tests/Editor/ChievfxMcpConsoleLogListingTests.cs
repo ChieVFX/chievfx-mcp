@@ -148,6 +148,35 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
+        public void LogsAreCollectedAgainAfterUnityDropsItsLogCallbackFlag()
+        {
+            var setFlag = typeof(Application).GetMethod("SetLogCallbackDefined",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+            if (setFlag == null)
+            {
+                Assert.Ignore("This Unity has no SetLogCallbackDefined.");
+            }
+
+            var token = "ChievfxLogFlag_" + Guid.NewGuid().ToString("N");
+            var start = ConsoleLogBridgeService.GetLogEntryCount();
+            try
+            {
+                setFlag!.Invoke(null, new object[] { false });
+                Debug.Log(token + " lost");
+                ChievfxMcpBridgeHost.RestoreLogCallbackFlag();
+                Debug.Log(token + " kept");
+            }
+            finally
+            {
+                setFlag!.Invoke(null, new object[] { true });
+            }
+
+            var logs = ConsoleLogBridgeService.CreateLogOutputs(start, true, null, includeStackTrace: false, maxEntries: 10, out _);
+            var text = string.Join("\n", logs.Select(log => JObject.FromObject(log).ToString()));
+            StringAssert.Contains(token + " kept", text);
+        }
+
+        [Test]
         public void AssemblyQualifiersAreDroppedFromFrames()
         {
             var frame = "Cysharp.Threading.Tasks.CompilerServices.AsyncUniTask`1[[Menu.Shop+<Fill>d__12, Assembly-CSharp, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null]].Run ()";

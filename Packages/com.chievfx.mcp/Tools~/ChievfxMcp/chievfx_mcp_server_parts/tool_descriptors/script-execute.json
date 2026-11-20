@@ -1,6 +1,6 @@
 {
   "name": "script-execute",
-  "description": "Last resort: check chievfx://instructions/core-descriptors for a purpose-built tool first. Compiles and runs C# without writing files; entry: static Main, or methodName/className. Each call is a new assembly: keep values of loaded types in ChievfxMcpScriptState.Set/Get<T>/Remove till domain reload, undo via OnCleanup(name, action), run on Play exit. Missing usings and private members are retried.",
+  "description": "Last resort: check chievfx://instructions/core-descriptors for a real tool first. Runs C# (csharpCode, or csharpPath to a .cs file): static Main, methodName/className, or bare statements; returned Task/UniTask is awaited. New assembly per call: keep values in ChievfxMcpScriptState.Set/Get<T>/Remove, undo on Play exit via OnCleanup(name, action). Missing usings and private members are retried.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -9,6 +9,10 @@
       },
       "csharpCode": {
         "type": "string"
+      },
+      "csharpPath": {
+        "type": "string",
+        "description": "Path of a .cs file to run instead of csharpCode: absolute, or relative to the project root."
       },
       "className": {
         "type": "string"
@@ -45,9 +49,6 @@
           "$chievfxConst": "DEFAULT_SCRIPT_EXECUTE_TIMEOUT_MS"
         }
       }
-    },
-    "required": [
-      "csharpCode"
-    ]
+    }
   }
 }

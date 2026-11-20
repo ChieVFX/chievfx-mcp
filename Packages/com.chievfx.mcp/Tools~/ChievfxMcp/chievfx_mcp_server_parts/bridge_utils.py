@@ -158,6 +158,26 @@ def process_is_alive(pid: Any) -> bool | None:
     return True
 
 
+def read_script_source_file(arguments: dict[str, Any]) -> dict[str, Any]:
+    """script-execute csharpPath: the file's text becomes csharpCode, so quotes, backslashes and Cyrillic need no escaping."""
+    raw_path = arguments.get("csharpPath")
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        raise ToolCallError("csharpPath must be a non-empty path to a .cs file.")
+    if isinstance(arguments.get("csharpCode"), str) and arguments["csharpCode"].strip():
+        raise ToolCallError("Pass csharpCode or csharpPath, not both.")
+    path = Path(raw_path.strip()).expanduser()
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    try:
+        code = path.read_text(encoding="utf-8-sig")
+    except FileNotFoundError:
+        raise ToolCallError(f"csharpPath: no file at {path}.") from None
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ToolCallError(f"csharpPath: cannot read {path} as UTF-8 text: {exc}") from None
+    rest = {key: value for key, value in arguments.items() if key not in ("csharpPath", "csharpCode")}
+    return {**rest, "csharpCode": code}
+
+
 def clamp_int(value: Any, default: int, minimum: int, maximum: int) -> int:
     if not isinstance(value, int):
         return default

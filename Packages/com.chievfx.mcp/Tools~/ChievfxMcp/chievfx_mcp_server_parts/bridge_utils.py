@@ -178,6 +178,15 @@ def read_script_source_file(arguments: dict[str, Any]) -> dict[str, Any]:
     return {**rest, "csharpCode": code}
 
 
+def client_session_key() -> str | None:
+    """The MCP client's own session id when it passes one to this server process, else None."""
+    for name in CLIENT_SESSION_ENV_VARS:
+        value = os.environ.get(name, "").strip()
+        if value:
+            return value[:128]
+    return None
+
+
 def clamp_int(value: Any, default: int, minimum: int, maximum: int) -> int:
     if not isinstance(value, int):
         return default

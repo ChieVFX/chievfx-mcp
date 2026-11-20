@@ -39,20 +39,41 @@ class McpServerCore:
             raw = json.loads(self.core_descriptor_read_marker_path.read_text(encoding="utf-8"))
         except Exception:
             return False
+        if not isinstance(raw, dict):
+            return False
 
-        read_at = raw.get("readAtEpochSeconds") if isinstance(raw, dict) else None
+        now = time.time()
+        session = client_session_key()
+        sessions = raw.get("sessions")
+        if session is not None and isinstance(sessions, dict):
+            session_read_at = sessions.get(session)
+            return isinstance(session_read_at, (int, float)) and 0 <= now - float(session_read_at) <= CORE_DESCRIPTOR_SESSION_MARKER_TTL_SECONDS
+
+        # A client that names no session, or a marker written before sessions were kept: the shared window.
+        read_at = raw.get("readAtEpochSeconds")
         if not isinstance(read_at, (int, float)):
             return False
 
-        age = time.time() - float(read_at)
+        age = now - float(read_at)
         return 0 <= age <= CORE_DESCRIPTOR_READ_MARKER_TTL_SECONDS
 
     def write_core_descriptor_marker(self) -> None:
         try:
             self.bridge_dir.mkdir(parents=True, exist_ok=True)
+            now = time.time()
+            previous = read_json_file(self.core_descriptor_read_marker_path) or {}
+            sessions = previous.get("sessions") if isinstance(previous.get("sessions"), dict) else {}
+            sessions = {
+                key: value
+                for key, value in sessions.items()
+                if isinstance(value, (int, float)) and 0 <= now - float(value) <= CORE_DESCRIPTOR_SESSION_MARKER_TTL_SECONDS
+            }
+            session = client_session_key()
+            if session is not None:
+                sessions[session] = now
             write_json_file_atomic(
                 self.core_descriptor_read_marker_path,
-                {"readAtEpochSeconds": time.time(), "uri": CORE_DESCRIPTOR_INSTRUCTIONS_URI},
+                {"readAtEpochSeconds": now, "uri": CORE_DESCRIPTOR_INSTRUCTIONS_URI, "sessions": sessions},
             )
         except Exception:
             # The in-memory flag still covers this process; persistence is an optimization.

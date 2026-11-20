@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -184,6 +185,35 @@ class CoreDescriptorReminderTests(unittest.TestCase):
         self.assertFalse(server.core_descriptors_read)
         out = server._with_core_descriptor_reminder(self._text_result(), self.TEXT_TOOL)
         self.assertTrue(any(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI in b.get("text", "") for b in out["content"]))
+
+    def test_read_is_remembered_for_the_client_session_past_the_shared_window(self) -> None:
+        import tempfile
+        import time as time_module
+        from unittest import mock
+
+        bridge_dir = tempfile.mkdtemp()
+        with mock.patch.dict(os.environ, {"CLAUDE_CODE_SESSION_ID": "session-a"}):
+            mcp.McpServer("http://127.0.0.1:1", bridge_dir, timeout_ms=1000).read_resource({"uri": mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI})
+
+        # Six hours later the same session's server restarts: still read. Another session: not read.
+        later = time_module.time() + 6 * 60 * 60
+        with mock.patch.object(mcp.time, "time", return_value=later):
+            with mock.patch.dict(os.environ, {"CLAUDE_CODE_SESSION_ID": "session-a"}):
+                self.assertTrue(mcp.McpServer("http://127.0.0.1:1", bridge_dir, timeout_ms=1000).core_descriptors_read)
+            with mock.patch.dict(os.environ, {"CLAUDE_CODE_SESSION_ID": "session-b"}):
+                self.assertFalse(mcp.McpServer("http://127.0.0.1:1", bridge_dir, timeout_ms=1000).core_descriptors_read)
+
+    def test_session_entries_are_kept_side_by_side(self) -> None:
+        import tempfile
+        from unittest import mock
+
+        bridge_dir = tempfile.mkdtemp()
+        for session in ("one", "two"):
+            with mock.patch.dict(os.environ, {"CLAUDE_CODE_SESSION_ID": session}):
+                mcp.McpServer("http://127.0.0.1:1", bridge_dir, timeout_ms=1000).read_resource({"uri": mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI})
+
+        with mock.patch.dict(os.environ, {"CLAUDE_CODE_SESSION_ID": "one"}):
+            self.assertTrue(mcp.McpServer("http://127.0.0.1:1", bridge_dir, timeout_ms=1000).core_descriptors_read)
 
     def test_corrupt_read_marker_is_ignored(self) -> None:
         import tempfile

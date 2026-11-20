@@ -697,6 +697,12 @@ CORE_DESCRIPTOR_REMEDY_TOOL_IDS = frozenset({"tools-list-categories", "tools-lis
 # already read the resource. The window is short enough that a genuinely new session still gets nudged.
 CORE_DESCRIPTOR_READ_MARKER_FILENAME = "core-descriptors-read.json"
 CORE_DESCRIPTOR_READ_MARKER_TTL_SECONDS = 4 * 60 * 60
+# When the client names its session (Claude Code passes CLAUDE_CODE_SESSION_ID to the servers it starts), the read
+# is remembered for that session, not for 4 hours: a session outlives the window, its server restarts (an app
+# restart, a reconnect), and the notice came back at an agent that had read the list hours before. Entries older
+# than this are dropped when the marker is written.
+CORE_DESCRIPTOR_SESSION_MARKER_TTL_SECONDS = 30 * 24 * 60 * 60
+CLIENT_SESSION_ENV_VARS = ("CHIEVFX_MCP_CLIENT_SESSION_ID", "CLAUDE_CODE_SESSION_ID")
 
 RESPONSE_PROFILE_BY_RESOURCE = {
     "editor-context": "status",

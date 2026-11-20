@@ -367,13 +367,27 @@ class McpServerCore:
         else:
             wait_arguments["marker"] = marker
         outcome = self.events_wait(wait_arguments, request_id)
+        timed_out = not outcome.get("matched") and not outcome.get("cancelled")
+        # A tool whose end may simply never come (a tap that opens no window) says what silence means.
+        timeout_means = raw_result.get("waitTimeoutMeans") if isinstance(raw_result, dict) else None
+        if not (isinstance(timeout_means, str) and timeout_means):
+            timeout_means = None
+        headline = (
+            f"awaited {outcome.get('elapsedMs')} ms: no end event. {timeout_means}"
+            if timed_out and timeout_means
+            else format_await_outcome_text(outcome, wait_arguments)
+        )
         # The reply below the outcome is the state when the action started ("GoTo#3 running"): say so.
-        prepend_result_headline(result, format_await_outcome_text(outcome, wait_arguments), "at start: ")
+        prepend_result_headline(result, headline, "at start: ")
         failure = describe_awaited_failure(raw_result, outcome)
-        if failure is None and not outcome.get("matched") and not outcome.get("cancelled"):
+        if failure is None and timed_out:
             # A batch step's next steps rely on its end (walk up, then hit): one still running would be cut short
             # by the next action, so a step whose end did not come within awaitMs stops the batch too.
-            failure = f"the awaited end did not come within {await_ms} ms (the action may still be running)"
+            failure = (
+                f"no end event within {await_ms} ms: {timeout_means}"
+                if timeout_means
+                else f"the awaited end did not come within {await_ms} ms (the action may still be running)"
+            )
         if failure is not None and isinstance(raw_result, dict):
             # The reply was written when the action started (ok:true); a tool-batch step judges the action by its end.
             raw_result["ok"] = False
@@ -992,6 +1006,11 @@ class McpServerCore:
                 continue
             tool_name = raw.get("tool")
             args = raw.get("args", raw.get("arguments", {}))
+            # A client names tools to the model as mcp__<server>__<tool>, and that is the name the model copies here.
+            if isinstance(tool_name, str) and tool_name not in known_tool_ids and tool_name.startswith("mcp__"):
+                short_name = tool_name.rsplit("__", 1)[-1]
+                if short_name in known_tool_ids:
+                    tool_name = short_name
             if not isinstance(tool_name, str) or not tool_name:
                 problems.append(f"step {index + 1}: needs string 'tool' (or 'waitMs' for a pause)")
             elif tool_name == "tool-batch":

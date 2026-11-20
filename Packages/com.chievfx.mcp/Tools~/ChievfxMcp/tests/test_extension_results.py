@@ -316,6 +316,22 @@ class ExtensionResultTests(unittest.TestCase):
         self.assertTrue(text.startswith("tool-batch: 0 of 2 ok, 1 failed, 1 not run"), text)
         self.assertIn("FAILED: replied ok:false: the awaited end did not come within 50 ms", text)
 
+    def test_await_ms_timeout_uses_what_the_tool_says_silence_means(self) -> None:
+        # A tap that opens no window has no end event at all: "keep waiting" would send the agent after nothing.
+        self.write_events([self.log_event(1, "[demo] boot")])
+        self.fake_bridge(
+            {"summary": "Tap #3", "ok": True, "waitFor": "[demo][tap] #3 window", "waitTimeoutMeans": "the tap opened or closed no window."},
+            events_during_call=[self.log_event(1, "[demo] boot")],
+        )
+
+        text = self.text_of(self.call("demo-act", {"awaitMs": 30}))
+        self.assertTrue(text.startswith("awaited "), text)
+        self.assertIn("no end event. the tap opened or closed no window.", text.splitlines()[0])
+        self.assertNotIn("Keep waiting", text)
+
+        batch = self.text_of(self.call("tool-batch", {"steps": [{"tool": "demo-act", "args": {"awaitMs": 30}}]}))
+        self.assertIn("FAILED: replied ok:false: no end event within 30 ms: the tap opened or closed no window.", batch)
+
     def test_awaited_end_without_the_failed_marker_stays_a_success(self) -> None:
         self.write_events([self.log_event(1, "[demo] boot")])
         self.fake_bridge(

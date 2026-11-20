@@ -225,6 +225,18 @@ class ToolRoleTests(unittest.TestCase):
         self.assertIn("error", response)
         self.assertIn("step 2: unknown tool 'no-such-tool'", response["error"]["message"])
 
+    def test_tool_batch_takes_the_client_side_tool_name(self) -> None:
+        # Clients show tools to the model as mcp__<server>__<tool>; the model copies that name into a step.
+        self.enable_autonomous_tools()
+        response = self.call_tool(
+            "tool-batch",
+            {"steps": [{"tool": "mcp__unity-1234abcd__tools-get-role", "args": {}}, {"tool": "mcp__unity-1234abcd__no-such-tool"}]},
+        )
+
+        self.assertIn("error", response)
+        self.assertIn("step 2: unknown tool 'mcp__unity-1234abcd__no-such-tool'", response["error"]["message"])
+        self.assertNotIn("step 1", response["error"]["message"])
+
     def test_tools_list_categories_can_include_disabled(self) -> None:
         self.call_tool("tools-set-enabled-state", {"category": "profiler", "enabled": False})
         text = self.call_tool("tools-list-categories", {"includeDisabled": True})["result"]["content"][0]["text"]

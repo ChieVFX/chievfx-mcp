@@ -21,3 +21,7 @@ class ToolCallError(ValueError):
 
 class EditorUnresponsiveError(RuntimeError):
     """Raised at once when the Unity editor is hung or gone, instead of queueing a call for its full timeout."""
+
+
+class PortInUseError(RuntimeError):
+    """Raised when the HTTP transport's port is already bound, typically by a server left over from a restart."""

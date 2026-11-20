@@ -148,6 +148,53 @@ def run_stdio(server: McpServer) -> None:
         worker.join()
 
 
+class ExclusiveThreadingHTTPServer(ThreadingHTTPServer):
+    """An HTTP server that refuses to share its port.
+
+    http.server sets SO_REUSEADDR, which on Windows lets a second process bind a port that is already listening:
+    a restarted server and the stale one it was meant to replace both accepted connections, and requests went to
+    either. SO_EXCLUSIVEADDRUSE makes that bind fail instead. Elsewhere SO_REUSEADDR only reuses a port in TIME_WAIT.
+    """
+
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self) -> None:
+        exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
+        if os.name == "nt" and exclusive is not None:
+            self.socket.setsockopt(socket.SOL_SOCKET, exclusive, 1)
+        super().server_bind()
+
+
+# EADDRINUSE on macOS/Linux, WSAEADDRINUSE and WSAEACCES (an exclusive holder) on Windows.
+PORT_IN_USE_ERRNOS = frozenset({48, 98, 10048, 10013})
+
+
+def describe_port_holder(host: str, port: int) -> str:
+    """Who answers on the port, when it is a ChievFX MCP server (its GET reply names it and its bridge)."""
+    probe_host = "127.0.0.1" if host in ("0.0.0.0", "", "::") else host
+    try:
+        with urllib.request.urlopen(f"http://{probe_host}:{port}/", timeout=1.0) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception:  # noqa: BLE001 - only a hint for the error message
+        return "another process"
+    if isinstance(payload, dict) and payload.get("name") == SERVER_NAME:
+        return f"another {SERVER_NAME} server (bridge {payload.get('bridgeDir')})"
+    return "another process"
+
+
+def bind_http_server(host: str, port: int, handler: type[BaseHTTPRequestHandler]) -> ThreadingHTTPServer:
+    try:
+        return ExclusiveThreadingHTTPServer((host, port), handler)
+    except OSError as exc:
+        if exc.errno not in PORT_IN_USE_ERRNOS and getattr(exc, "winerror", None) not in PORT_IN_USE_ERRNOS:
+            raise
+        raise PortInUseError(
+            f"{SERVER_NAME}: port {port} on {host} is already in use by {describe_port_holder(host, port)}. "
+            "A server left over from a restart keeps answering there with its old tools; stop it (or the process "
+            "holding the port) and start again, or set another port in Window > ChievFX > MCP."
+        ) from exc
+
+
 LOOPBACK_HOST_NAMES = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
 
 

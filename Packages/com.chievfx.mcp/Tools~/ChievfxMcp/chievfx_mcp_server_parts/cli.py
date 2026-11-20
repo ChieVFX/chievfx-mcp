@@ -63,7 +63,14 @@ def main() -> int:
         run_stdio(server)
         return 0
 
-    httpd = ThreadingHTTPServer((args.host, args.port), make_http_handler(server))
+    try:
+        httpd = bind_http_server(args.host, args.port, make_http_handler(server))
+    except PortInUseError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    # No channel to push list_changed over plain HTTP, but the watcher still rereads extension schemas when Unity
+    # rewrites their snapshot, so argument checks and the next tools/list use the recompiled ones.
+    threading.Thread(target=watch_selection_files, args=(lambda payload: None,), daemon=True).start()
     print(f"{SERVER_NAME} listening at http://{args.host}:{args.port}", file=sys.stderr)
     required, key = http_requires_security_key()
     if required and not key:

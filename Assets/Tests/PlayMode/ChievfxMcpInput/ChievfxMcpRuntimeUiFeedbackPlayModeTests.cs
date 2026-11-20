@@ -221,6 +221,7 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
             var indexed = RunRegistry("RuntimeClick", "{'framework':'ugui','path':'" + CanvasName + "/Row[2]'}");
             Assert.AreEqual(1, secondClicks, Describe(indexed));
             Assert.AreEqual(0, firstClicks, Describe(indexed));
+            Assert.AreEqual(CanvasName + "/Row[2]", (Rows(indexed["frameworks"]).Single()["target"] as Dictionary<string, object?>)?["path"], "The reply names the clicked row as ui-control-find does.");
 
             var plain = RunRegistry("RuntimeClick", "{'framework':'ugui','path':'" + CanvasName + "/Row'}");
             Assert.AreEqual(1, firstClicks, Describe(plain));

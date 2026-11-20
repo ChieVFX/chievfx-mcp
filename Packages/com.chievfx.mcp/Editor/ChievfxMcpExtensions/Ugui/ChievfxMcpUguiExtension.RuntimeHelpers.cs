@@ -760,6 +760,8 @@ namespace Chievfx.Mcp.Extensions.Ugui
         internal static Dictionary<string, object?> CreateRuntimeElementRow(GameObject target, UguiDependencyStatus status)
         {
             var row = CreateGameObjectRow(target);
+            // The acted-on object among same-named siblings keeps its [k], as ui-control-find printed it.
+            row["path"] = GetIndexedTransformPath(target.transform);
             row["type"] = "GameObject";
             var controlComponents = GetControlComponents(target, status).Select(component => component.GetType().Name).ToArray();
             row["controlComponents"] = controlComponents;

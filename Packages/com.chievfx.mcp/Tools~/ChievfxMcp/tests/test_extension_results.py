@@ -259,6 +259,42 @@ class ExtensionResultTests(unittest.TestCase):
         self.assertIn("\n  Driving", text)
         self.assertIn("#2 [demo][task] Drive#3 done", text)
 
+    def test_batch_stops_at_a_step_whose_awaited_end_is_a_failure(self) -> None:
+        self.write_events([self.log_event(1, "[demo] boot")])
+        self.fake_bridge(
+            {"summary": "Wait #7 started", "ok": True, "waitFor": "[demo][wait] #7 ", "waitForFailed": "[demo][wait] #7 failed"},
+            events_during_call=[self.log_event(1, "[demo] boot"), self.log_event(2, "[demo][wait] #7 failed:timeout ui not active")],
+        )
+
+        result = self.call("tool-batch", {"steps": [{"tool": "demo-act", "args": {"awaitMs": 2000}}, {"waitMs": 1}]})
+
+        text = self.text_of(result)
+        self.assertTrue(text.startswith("tool-batch: 0 of 2 ok, 1 failed, 1 not run"), text)
+        self.assertIn("1 demo-act FAILED: replied ok:false: the awaited end is a failure: #2 [demo][wait] #7 failed:timeout", text)
+
+    def test_awaited_end_without_the_failed_marker_stays_a_success(self) -> None:
+        self.write_events([self.log_event(1, "[demo] boot")])
+        self.fake_bridge(
+            {"summary": "Wait #8 started", "ok": True, "waitFor": "[demo][wait] #8 ", "waitForFailed": "[demo][wait] #8 failed"},
+            events_during_call=[self.log_event(1, "[demo] boot"), self.log_event(2, "[demo][wait] #8 done 1503")],
+        )
+
+        result = self.call("tool-batch", {"steps": [{"tool": "demo-act", "args": {"awaitMs": 2000}}]})
+
+        self.assertTrue(self.text_of(result).startswith("tool-batch: 1 of 1 ok"))
+
+    def test_extension_tool_keeps_argument_descriptions_in_tools_list(self) -> None:
+        extension = json.loads(json.dumps(DEMO_EXTENSION))
+        extension["tools"][0]["inputSchema"]["properties"]["target"]["description"] = "Where to go."
+        mcp.configure_extension_manifest_bridge_fetcher(
+            lambda: {"schemaVersion": mcp.EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION, "extensions": [extension]}
+        )
+        mcp.invalidate_extension_manifest_cache()
+
+        tool = next(item for item in mcp.enabled_tools() if item["name"] == "demo-act")
+
+        self.assertEqual(tool["inputSchema"]["properties"]["target"]["description"], "Where to go.")
+
     def test_batch_carries_step_images(self) -> None:
         def call(name: str, arguments: dict[str, Any], *args: Any, **kwargs: Any) -> dict[str, Any]:
             return {"contentType": "image", "base64": "iVBORw0KGgo=", "mimeType": "image/png", "metadata": {"pngWidth": 1}}

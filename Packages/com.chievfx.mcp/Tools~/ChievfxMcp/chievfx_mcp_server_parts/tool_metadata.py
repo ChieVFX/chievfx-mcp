@@ -444,7 +444,8 @@ def _build_advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
             properties["filter"] = {"type": "object"}
 
     detail_keys = ADVERTISED_SCHEMA_DETAIL_KEYS
-    if tool_name in ADVERTISED_SCHEMA_DESCRIPTION_TOOLS:
+    # The core descriptors give an extension tool's argument names only: its schema is where they are explained.
+    if tool_name in ADVERTISED_SCHEMA_DESCRIPTION_TOOLS or tool.get("source") == "extension":
         # Keep per-property descriptions for these tools; still drop default/min/max/$defs noise.
         detail_keys = ADVERTISED_SCHEMA_DETAIL_KEYS - {"description"}
     return slim_advertised_schema_detail(schema, detail_keys)

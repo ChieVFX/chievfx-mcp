@@ -401,6 +401,23 @@ def without_wait_advice(raw_result: Any) -> Any:
     return {key: value for key, value in raw_result.items() if key not in advice_keys}
 
 
+def describe_awaited_failure(raw_result: Any, outcome: dict[str, Any]) -> str | None:
+    """Why the awaited end counts as a failure, or None.
+
+    The reply names its failed ends in waitForFailed (a log substring, or a list: any matches); an end event
+    containing one means the action failed, though the reply that started it said ok.
+    """
+    failed_when = raw_result.get("waitForFailed") if isinstance(raw_result, dict) else None
+    markers = [failed_when] if isinstance(failed_when, str) else failed_when if isinstance(failed_when, list) else []
+    event = outcome.get("event") if outcome.get("matched") and isinstance(outcome.get("event"), dict) else None
+    message = event.get("message") if event is not None else None
+    if not isinstance(message, str):
+        return None
+    if not any(isinstance(marker, str) and marker and marker.lower() in message.lower() for marker in markers):
+        return None
+    return f"the awaited end is a failure: #{event.get('eventId')} {compact_event_message(message)}"
+
+
 def format_await_outcome_text(outcome: dict[str, Any], wait_arguments: dict[str, Any]) -> str:
     """The line awaitMs appends to a tool's reply: how its end event came out."""
     target = wait_arguments.get("contains") or f"marker {wait_arguments.get('marker')}"

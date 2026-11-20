@@ -347,6 +347,11 @@ class McpServerCore:
             wait_arguments["marker"] = marker
         outcome = self.events_wait(wait_arguments, request_id)
         prepend_result_headline(result, format_await_outcome_text(outcome, wait_arguments))
+        failure = describe_awaited_failure(raw_result, outcome)
+        if failure is not None and isinstance(raw_result, dict):
+            # The reply was written when the action started (ok:true); a tool-batch step judges the action by its end.
+            raw_result["ok"] = False
+            raw_result["error"] = failure
         return result
 
     def _with_core_descriptor_reminder(self, result: Any, name: str) -> Any:

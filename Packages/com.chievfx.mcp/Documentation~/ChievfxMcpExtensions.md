@@ -200,13 +200,20 @@ shape core tools get from their own formatters. All are optional.
   extension never sees `awaitMs`. Declare `awaitMs` (integer) in the tool's
   `InputSchema` so callers find it. `completionMarker` works the same way for
   marker beacons.
+- `waitForFailed` (string, or a list of strings: any matches): a log substring
+  that marks a failed end, e.g. `waitFor` + `"failed"`. When the awaited end
+  event contains it, the call counts as failed although its reply said ok: a
+  `tool-batch` step stops the batch there, as on a thrown error.
 - Without `awaitMs` the caller waits itself with `events-wait`; returning
   `sinceEventId` (the journal's current id when the action started) lets that
   wait catch an end that came before it was armed.
 
-Failures: throw from `ToolRunner` (the message is the error the caller sees).
-A normal return counts as success, including in `tool-batch`, which stops or
-keeps going on thrown errors only.
+Failures: throw from `ToolRunner` (the message is the error the caller sees),
+or reply with `ok:false` (with `error` or `errors` saying why). Both stop a
+`tool-batch`; any other reply counts as success.
+
+Argument descriptions in `InputSchema` reach the client as written: the core
+descriptors list only the argument names of an extension tool.
 
 `additionalProperties: true` in a tool's `InputSchema` tells the core the
 extension judges argument names itself (accepts aliases, or rejects unknown

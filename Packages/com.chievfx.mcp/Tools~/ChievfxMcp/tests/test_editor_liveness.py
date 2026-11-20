@@ -25,6 +25,11 @@ class EditorLivenessTests(unittest.TestCase):
         patcher = mock.patch.object(mcp, "EDITOR_LIVENESS_CHECK_SECONDS", 0.05)
         patcher.start()
         self.addCleanup(patcher.stop)
+        # The test process stands in for the editor: its own CPU use must not read as an editor at work.
+        self.cpu_seconds: list[float] = []
+        cpu_patcher = mock.patch.object(mcp, "process_cpu_seconds", lambda pid: self.cpu_seconds.pop(0) if self.cpu_seconds else None)
+        cpu_patcher.start()
+        self.addCleanup(cpu_patcher.stop)
         self.write_events([])
 
     def write_heartbeat(self, age_seconds: float, process_id: int | None = None, **editor: Any) -> None:
@@ -173,11 +178,54 @@ class EditorLivenessTests(unittest.TestCase):
         stamp = time.time() - 90
         os.utime(path, (stamp, stamp))
         self.server._editor_liveness_cache = None
+        self.write_operation("script-execute", "running", age_seconds=90)
 
         message = self.server.describe_editor_down(self.server.assess_editor_liveness())
 
         self.assertIn("The last heartbeat shows script-execute running", message)
         self.assertNotIn("Unity heartbeat is stale.", " ".join(self.server.get_bridge_status({})["hints"]))
+
+    def test_script_that_already_returned_is_not_named(self) -> None:
+        # Client.Resolve() from a script: the script returned, the import it started holds the main thread, and the
+        # last heartbeat still carries the script flag.
+        self.write_heartbeat(age_seconds=90, process_id=os.getpid())
+        path = self.bridge_dir / "state.json"
+        payload = mcp.read_json_file(path)
+        payload["busy"] = {"scriptBusy": True}
+        mcp.write_json_file_atomic(path, payload)
+        stamp = time.time() - 90
+        os.utime(path, (stamp, stamp))
+        self.write_operation("script-execute", "completed", age_seconds=91)
+        self.server._editor_liveness_cache = None
+
+        message = self.server.describe_editor_down(self.server.assess_editor_liveness())
+
+        self.assertNotIn("script-execute", message)
+
+    def test_editor_using_cpu_is_waited_for_instead_of_failing(self) -> None:
+        # An import or package resolution started from a script raises no flag in the last heartbeat, but the
+        # process works; a hung, sleeping or modal-blocked editor stays nearly idle.
+        self.write_heartbeat(age_seconds=90, process_id=os.getpid())
+        self.cpu_seconds = [100.0, 100.0 + mcp.EDITOR_CPU_SAMPLE_SECONDS * 0.9]
+
+        liveness = self.server.assess_editor_liveness()
+
+        self.assertEqual(liveness["state"], "busy", liveness)
+        self.assertIn("% CPU", liveness["busySign"])
+        self.assertIsNone(self.server.describe_editor_down(liveness))
+
+        self.cpu_seconds = [200.0, 200.0 + mcp.EDITOR_CPU_SAMPLE_SECONDS * 0.05]
+        self.server._editor_cpu_sample = None
+        self.server._editor_liveness_cache = None
+        self.assertEqual(self.server.assess_editor_liveness()["state"], "unresponsive")
+
+    def write_operation(self, tool_name: str, state: str, age_seconds: float) -> None:
+        operations = self.bridge_dir / "operations"
+        operations.mkdir(exist_ok=True)
+        path = operations / f"{tool_name}-{state}.json"
+        mcp.write_json_file_atomic(path, {"operationId": path.stem, "toolName": tool_name, "state": state})
+        stamp = time.time() - age_seconds
+        os.utime(path, (stamp, stamp))
 
     def test_responsive_editor_adds_nothing_to_status(self) -> None:
         self.write_heartbeat(age_seconds=0, process_id=os.getpid())

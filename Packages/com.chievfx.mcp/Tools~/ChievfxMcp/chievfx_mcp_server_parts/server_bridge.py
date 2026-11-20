@@ -101,7 +101,31 @@ class BridgeTransportMixin:
             if event.get("type") == "domain-reload-before":
                 return "reloading the script domain"
             break
+        cores = self.editor_cpu_cores(editor.get("processId"))
+        if cores is not None and cores >= EDITOR_CPU_BUSY_CORES:
+            return f"working on its main thread ({int(cores * 100)}% CPU: an import, a package resolution or a long computation)"
         return None
+
+    def editor_cpu_cores(self, process_id: Any) -> float | None:
+        """How many cores the editor process has used lately, from two CPU-time readings (None when unknown)."""
+        now_mono = time.monotonic()
+        cpu_seconds = process_cpu_seconds(process_id)
+        if cpu_seconds is None:
+            return None
+        previous = getattr(self, "_editor_cpu_sample", None)
+        if (
+            previous is None
+            or previous[2] != process_id
+            or not EDITOR_CPU_SAMPLE_SECONDS <= now_mono - previous[0] <= EDITOR_CPU_SAMPLE_MAX_AGE_SECONDS
+        ):
+            time.sleep(EDITOR_CPU_SAMPLE_SECONDS)
+            previous = (now_mono, cpu_seconds, process_id)
+            now_mono = time.monotonic()
+            cpu_seconds = process_cpu_seconds(process_id)
+            if cpu_seconds is None:
+                return None
+        self._editor_cpu_sample = (now_mono, cpu_seconds, process_id)
+        return max(0.0, cpu_seconds - previous[1]) / max(now_mono - previous[0], 1e-3)
 
     def assess_editor_liveness(self) -> dict[str, Any]:
         """responsive | stale (briefly, as during a reload) | busy | unresponsive | gone | unknown (no heartbeat yet).
@@ -133,8 +157,26 @@ class BridgeTransportMixin:
         state = ("busy" if busy_sign is not None else "stale") if heartbeat_age < limit else "unresponsive"
         busy = heartbeat.get("busy") if isinstance(heartbeat.get("busy"), dict) else {}
         # The bridge's own work on the main thread (a long synchronous script) stops the heartbeat just as a hang does.
+        # The flag is from the last heartbeat: a script that has since returned (and started an import) is not it.
         own_work = [label for flag, label in (("scriptBusy", "script-execute"), ("editorWindowScreenshotBusy", "an editor window screenshot")) if busy.get(flag)]
+        if "script-execute" in own_work and not self.has_active_operation("script-execute"):
+            own_work.remove("script-execute")
         return {**row, "state": state, "busySign": busy_sign, "unresponsiveAfterSeconds": limit, "runningWhenStopped": own_work}
+
+    def has_active_operation(self, tool_name: str) -> bool:
+        """True when a bridge operation of this tool has not ended (unknown counts as active).
+
+        A running record that stopped updating reads as stale: that is just what a script blocking the main thread
+        looks like, so it counts as active too.
+        """
+        try:
+            rows = self.read_operation_rows(MAX_STATUS_OPERATIONS, time.time())
+        except Exception:  # noqa: BLE001 - a probe, never a reason to fail the call
+            return True
+        return any(
+            row.get("toolName") == tool_name and (row.get("state") not in TERMINAL_OPERATION_STATES or row.get("stale") is True)
+            for row in rows
+        )
 
     @staticmethod
     def describe_editor_down(liveness: dict[str, Any]) -> str | None:

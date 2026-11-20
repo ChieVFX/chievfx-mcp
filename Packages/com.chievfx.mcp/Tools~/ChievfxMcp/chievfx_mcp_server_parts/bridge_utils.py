@@ -158,6 +158,45 @@ def process_is_alive(pid: Any) -> bool | None:
     return True
 
 
+def process_cpu_seconds(pid: Any) -> float | None:
+    """CPU time the process has used so far (user + system, seconds), or None when the OS cannot tell."""
+    if isinstance(pid, bool) or not isinstance(pid, int) or pid <= 0:
+        return None
+    try:
+        if os.name == "nt":
+            import ctypes
+            from ctypes import wintypes
+
+            process_query_limited_information = 0x1000
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            handle = kernel32.OpenProcess(process_query_limited_information, False, pid)
+            if not handle:
+                return None
+            try:
+                creation, exited, kernel, user = (wintypes.FILETIME() for _ in range(4))
+                if not kernel32.GetProcessTimes(handle, ctypes.byref(creation), ctypes.byref(exited), ctypes.byref(kernel), ctypes.byref(user)):
+                    return None
+                ticks = sum((time_value.dwHighDateTime << 32) | time_value.dwLowDateTime for time_value in (kernel, user))
+                return ticks / 10_000_000
+            finally:
+                kernel32.CloseHandle(handle)
+        stat_path = Path(f"/proc/{pid}/stat")
+        if stat_path.exists():
+            fields = stat_path.read_text(encoding="utf-8").rsplit(")", 1)[1].split()
+            return (int(fields[11]) + int(fields[12])) / os.sysconf("SC_CLK_TCK")
+        output = subprocess.run(["ps", "-o", "time=", "-p", str(pid)], capture_output=True, text=True, timeout=2).stdout.strip()
+        if not output:
+            return None
+        # [[dd-]hh:]mm:ss[.ss]; macOS prints minutes past 60 (74:36.26).
+        days, _, clock = output.rpartition("-")
+        seconds = 0.0
+        for part in clock.split(":"):
+            seconds = seconds * 60 + float(part)
+        return seconds + (int(days) * 86400 if days else 0)
+    except Exception:  # noqa: BLE001 - a probe, never a reason to fail the call
+        return None
+
+
 def read_script_source_file(arguments: dict[str, Any]) -> dict[str, Any]:
     """script-execute csharpPath: the file's text becomes csharpCode, so quotes, backslashes and Cyrillic need no escaping."""
     raw_path = arguments.get("csharpPath")

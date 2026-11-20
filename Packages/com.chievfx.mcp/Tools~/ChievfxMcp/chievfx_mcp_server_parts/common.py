@@ -146,6 +146,13 @@ EDITOR_UNRESPONSIVE_SECONDS = 60.0
 EDITOR_BUSY_UNRESPONSIVE_SECONDS = 900.0
 # How often a call waiting for its turn, or for Unity to pick up its request, re-checks that verdict.
 EDITOR_LIVENESS_CHECK_SECONDS = 1.0
+# A stale heartbeat with the editor process using at least this many cores is work, not a hang: an import or a
+# package resolution started from a script holds the main thread without any flag in the last heartbeat, while a
+# hung, sleeping or modal-blocked main thread leaves the process nearly idle.
+EDITOR_CPU_BUSY_CORES = 0.5
+# Two CPU readings this far apart when no recent one is at hand; a reading older than the max is not reused.
+EDITOR_CPU_SAMPLE_SECONDS = 0.3
+EDITOR_CPU_SAMPLE_MAX_AGE_SECONDS = 10.0
 # Journal events that open and close the windows in which a stale heartbeat is expected.
 EDITOR_LIFECYCLE_EVENT_TYPES = frozenset(
     {"compile-start", "compile-finish", "domain-reload-before", "domain-reload-after", "domain-reload-restored"}

@@ -104,7 +104,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
         {
             if (TryFindCover(target, status, out var cover, out var sortingOrder))
             {
-                warnings.Add($"'{GetTransformPath(target.transform)}' is covered at its centre by '{GetTransformPath(cover.transform)}' (sorting order {sortingOrder}): "
+                warnings.Add($"'{GetIndexedTransformPath(target.transform)}' is covered at its centre by '{GetIndexedTransformPath(cover.transform)}' (sorting order {sortingOrder}): "
                     + "a player's tap there lands on that, not on this control. The tool acted on it anyway.");
             }
         }

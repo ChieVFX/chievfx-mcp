@@ -477,13 +477,16 @@ namespace Chievfx.Mcp.Editor
 
             try
             {
-                var rawJson = JsonConvert.SerializeObject(value, type, BridgeRuntimeState.JsonOptions);
+                var rawJson = JsonConvert.SerializeObject(value, type, McpReturnValueJson.Settings);
                 fullText = rawJson.Length > maxChars ? rawJson : null;
                 return TrimText(rawJson, maxChars, ref truncated);
             }
             catch (Exception ex)
             {
-                throw new NotSupportedException($"Return value of type {type.FullName} could not be serialized safely: {ex.GetBaseException().Message}", ex);
+                // The code already ran (side effects happened): a value that JSON cannot hold comes back as text, not as a failed call.
+                var text = $"{value} (as text: {type.FullName} could not be serialized to JSON: {ex.GetBaseException().Message})";
+                fullText = text.Length > maxChars ? text : null;
+                return TrimText(text, maxChars, ref truncated);
             }
         }
 

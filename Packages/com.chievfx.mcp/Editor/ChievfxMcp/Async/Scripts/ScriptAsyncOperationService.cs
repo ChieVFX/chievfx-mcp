@@ -402,7 +402,18 @@ namespace Chievfx.Mcp.Editor
                 var values = new object?[methodParameters.Length];
                 for (var i = 0; i < methodParameters.Length; i++)
                 {
-                    values[i] = ReflectionBridgeService.ConvertJsonValue(parameters, i, methodParameters[i].ParameterType);
+                    try
+                    {
+                        values[i] = ReflectionBridgeService.ConvertJsonValue(parameters, i, methodParameters[i].ParameterType);
+                    }
+                    catch (Exception conversion) when (conversion is FormatException or InvalidCastException or OverflowException or JsonException or ArgumentException)
+                    {
+                        // The script did not run: name the value and the parameter it was for, not the converter's stack.
+                        var supplied = parameters is JArray suppliedValues && i < suppliedValues.Count ? suppliedValues[i].ToString(Formatting.None) : "(none)";
+                        throw new ArgumentException(
+                            $"parameters[{i}] {supplied} does not convert to {methodParameters[i].ParameterType.Name} {methodParameters[i].Name} of "
+                            + $"{DescribeSignature(method)}: {conversion.GetBaseException().Message}");
+                    }
                 }
 
                 try
@@ -947,10 +958,10 @@ namespace Chievfx.Mcp.Editor
         {
             originalDiagnostics = null;
             var wrapped = WrapTopLevelStatements(csharpCode);
+            // Bare statements are a supported form: the reply names TopLevelScript.Main as the method, a note on every call was noise.
             if (wrapped != null)
             {
                 csharpCode = wrapped;
-                notes.Add($"Top-level statements ran as {TopLevelScriptClassName}.Main: a script compiles to a library, which cannot have them (CS8805).");
             }
 
             var assembly = CompileScriptAssembly(csharpCode, allowNonPublic: false, lineOffset: 0, out diagnostics);
@@ -1285,7 +1296,13 @@ namespace Chievfx.Mcp.Editor
             }
 
             throw new InvalidOperationException(
-                $"Static method '{targetType.FullName}.{resolvedMethodName}' has no overload with {suppliedParameterCount} supplied parameters.");
+                $"Static method '{targetType.FullName}.{resolvedMethodName}' has no overload with {suppliedParameterCount} supplied parameters. "
+                + "Overloads: " + string.Join("; ", methods.Select(DescribeSignature)) + ".");
+        }
+
+        private static string DescribeSignature(MethodInfo method)
+        {
+            return method.DeclaringType?.Name + "." + method.Name + "(" + string.Join(", ", method.GetParameters().Select(parameter => parameter.ParameterType.Name + " " + parameter.Name)) + ")";
         }
 
         private MethodInfo? FindSinglePublicStaticMethod(Assembly assembly, string? className, int suppliedParameterCount)
@@ -1441,6 +1458,8 @@ namespace Chievfx.Mcp.Editor
                 success = false,
                 stage,
                 waitFor,
+                // The end line reads "... after <ms> ms done|failed: ...": awaitMs (and a tool-batch step) tells them apart by this.
+                waitForFailed = waitFor == null ? null : " ms failed: ",
                 error = new
                 {
                     message,

@@ -366,9 +366,14 @@ class GameObjectFormattingTests(unittest.TestCase):
             text,
             "Light enabled\n"
             "- m_Type:Enum = Spot\n"
-            "- m_Intensity:Float = 1.5",
+            "- m_Intensity:Float = 1.5\n"
+            "note: serialized values only; runtime state (fields without [SerializeField], properties like Rigidbody.velocity) - read it with script-execute.",
         )
         self.assertNotIn("componentTypes", text)
+
+        result["matchCount"] = 2
+        result["componentIndex"] = 1
+        self.assertIn("note: 2 components match; this is componentIndex 1 (pass componentIndex for another).", mcp.format_gameobject_component_get_text(result))
         self.assertNotIn("scenePath", text)
 
     def test_component_value_formats_rgba_compactly(self) -> None:

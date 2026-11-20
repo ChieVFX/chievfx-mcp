@@ -765,7 +765,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                     // Under a window's backdrop a control is drawn but a player's tap lands on the window, not on it.
                     if (UguiRuntimeReachability.TryFindCover(entry.target, status, out var cover, out _))
                     {
-                        row["coveredBy"] = GetTransformPath(cover.transform);
+                        row["coveredBy"] = GetIndexedTransformPath(cover.transform);
                     }
 
                     return row;

@@ -327,6 +327,31 @@ class ExtensionResultTests(unittest.TestCase):
 
         self.assertTrue(self.text_of(result).startswith("tool-batch: 1 of 1 ok"))
 
+    def test_batch_step_that_timed_out_but_whose_awaited_end_is_done_passes(self) -> None:
+        # script-execute that outran timeoutMs replies success:false stage:timeout; its awaited "done" is what the step did.
+        self.write_events([self.log_event(1, "[demo] boot")])
+        self.fake_bridge(
+            {"success": False, "stage": "timeout", "stillRunning": True, "waitFor": "[demo] async end R8B.Main ", "waitForFailed": " ms failed: "},
+            events_during_call=[self.log_event(1, "[demo] boot"), self.log_event(2, "[demo] async end R8B.Main after 2990 ms done: b-done")],
+        )
+
+        result = self.call("tool-batch", {"steps": [{"tool": "demo-act", "args": {"awaitMs": 2000}}, {"waitMs": 1}]})
+
+        self.assertTrue(self.text_of(result).startswith("tool-batch: 2 of 2 ok"), self.text_of(result))
+
+    def test_batch_step_whose_awaited_script_end_failed_stops(self) -> None:
+        self.write_events([self.log_event(1, "[demo] boot")])
+        self.fake_bridge(
+            {"success": False, "stage": "timeout", "stillRunning": True, "waitFor": "[demo] async end R8C.Main ", "waitForFailed": " ms failed: "},
+            events_during_call=[self.log_event(1, "[demo] boot"), self.log_event(2, "[demo] async end R8C.Main after 120 ms failed: Exception: boom")],
+        )
+
+        result = self.call("tool-batch", {"steps": [{"tool": "demo-act", "args": {"awaitMs": 2000}}, {"waitMs": 1}]})
+
+        text = self.text_of(result)
+        self.assertTrue(text.startswith("tool-batch: 0 of 2 ok, 1 failed, 1 not run"), text)
+        self.assertIn("the awaited end is a failure", text)
+
     def test_extension_tool_keeps_argument_descriptions_in_tools_list(self) -> None:
         extension = json.loads(json.dumps(DEMO_EXTENSION))
         extension["tools"][0]["inputSchema"]["properties"]["target"]["description"] = "Where to go."

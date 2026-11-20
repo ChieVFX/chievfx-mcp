@@ -77,6 +77,10 @@ namespace Chievfx.Mcp.Editor
                     case "prefab":
                         typeNames.Add("Prefab");
                         break;
+                    case "model":
+                    case "fbx":
+                        typeNames.Add("Model");
+                        break;
                     case "scene":
                         typeNames.Add("Scene");
                         break;
@@ -260,7 +264,23 @@ namespace Chievfx.Mcp.Editor
                 : row.TryGetValue("mainType", out var mainType) && mainType is string mainTypeText
                     ? mainTypeText
                     : string.Empty;
-            return filter.TypeNames.Any(typeName => string.Equals(typeName, rowType, StringComparison.OrdinalIgnoreCase));
+            if (filter.TypeNames.Any(typeName => string.Equals(typeName, rowType, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            // t:Prefab and t:Model find assets whose main object is a GameObject: the type to compare is the asset kind.
+            var isMainRow = row.TryGetValue("isMainAsset", out var isMain) && isMain is true;
+            var path = row.TryGetValue("path", out var pathValue) ? pathValue as string : null;
+            if (isMainRow == false || string.IsNullOrEmpty(path))
+            {
+                return false;
+            }
+
+            var isPrefab = string.Equals(Path.GetExtension(path), ".prefab", StringComparison.OrdinalIgnoreCase);
+            var isModel = AssetImporter.GetAtPath(path) is ModelImporter;
+            return filter.TypeNames.Any(typeName => (isPrefab && string.Equals(typeName, "Prefab", StringComparison.OrdinalIgnoreCase))
+                                                    || (isModel && string.Equals(typeName, "Model", StringComparison.OrdinalIgnoreCase)));
         }
 
         private static Dictionary<string, object?> CreateAssetDetail(Object asset, string path, string guid)

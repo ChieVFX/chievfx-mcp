@@ -37,6 +37,21 @@ namespace Chievfx.Mcp.Editor
 
         public List<LogEntryDto> LogEntries { get; } = new();
 
+        // Entries added since the domain loaded. The buffer keeps only the last MaxLogEntries, so a "logs since" start taken
+        // as the buffer count stopped moving once it was full and a script's own logs never reached its reply.
+        public int LogEntriesAdded { get; private set; }
+
+        // Callers hold LogLock.
+        public void AddLogEntry(LogEntryDto entry, int maxEntries)
+        {
+            LogEntries.Add(entry);
+            LogEntriesAdded++;
+            if (LogEntries.Count > maxEntries)
+            {
+                LogEntries.RemoveRange(0, LogEntries.Count - maxEntries);
+            }
+        }
+
         public HashSet<string> DirtyPrefabStageAssetPaths { get; } = new(StringComparer.Ordinal);
 
         public PackageAsyncOperationService PackageOperations { get; } = new();

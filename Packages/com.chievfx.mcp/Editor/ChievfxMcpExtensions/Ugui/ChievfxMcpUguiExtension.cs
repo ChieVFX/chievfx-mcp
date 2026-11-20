@@ -207,7 +207,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             descriptor.Tools.Add(CreateTool("ugui-create-simple", "Create a uGUI RectTransform, optionally with an Image.", SimpleCreateSchema()));
             descriptor.Tools.Add(CreateTool("ugui-create-control", "Create uGUI controls such as button, slider, or progressbar.", ControlCreateSchema()));
             descriptor.Tools.Add(CreateTool("ugui-textmeshpro-hierarchy", "Groups TextMeshProUGUI by style.", TextMeshProHierarchySchema()));
-            descriptor.Tools.Add(CreateTool("ugui-textmeshpro-get", "Gets TextMeshProUGUI style.", TextMeshProGetSchema()));
+            descriptor.Tools.Add(CreateTool("ugui-textmeshpro-get", "Reads TextMeshProUGUI text and style at a path and under it (a button's label too, also in Play Mode).", TextMeshProGetSchema()));
             descriptor.Tools.Add(CreateTool("ugui-textmeshpro-set-or-create", "Sets TextMeshProUGUI style, optionally creating missing components.", TextMeshProSetOrCreateSchema()));
             descriptor.Tools.Add(CreateTool("ugui-image-set", "Set uGUI Image sprite, tint, raycast, aspect, type.", ImageSetSchema()));
             descriptor.Tools.Add(CreateTool("ugui-image-primitive-create", "Create generated Sprite primitive uGUI Image.", ImagePrimitiveCreateSchema()));

@@ -64,6 +64,15 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
+        public void AComponentIdNamesItsGameObject()
+        {
+            var body = Child(root, "Body");
+            var rigidbody = body.AddComponent<Rigidbody>();
+            Assert.AreSame(body, GameObjectBridgeService.ResolveGameObjectByInstanceId(context, UnityObjectIdentity.GetLegacyInstanceId(rigidbody)),
+                "component-get prints references by the component's id; GameObject tools take it as its object.");
+        }
+
+        [Test]
         public void AmbiguousAndMissingPathsAreRefused()
         {
             StringAssert.Contains("is ambiguous", Assert.Throws<InvalidOperationException>(() => GameObjectBridgeService.ResolveGameObjectByPath(context, "PathTestRoot/Item"))!.Message);

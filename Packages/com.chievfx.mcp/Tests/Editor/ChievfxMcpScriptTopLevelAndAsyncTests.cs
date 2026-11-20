@@ -28,7 +28,7 @@ namespace Chievfx.Mcp.Editor.Tests
             var main = CompileMain("using System.Linq;\nvar total = new[] { 1, 2, 3 }.Sum();\nreturn total * 2;", notes, out var diagnostics);
 
             Assert.AreEqual(12, main.Invoke(null, null));
-            StringAssert.Contains("Top-level statements ran as TopLevelScript.Main", notes[0]);
+            Assert.IsEmpty(notes, "Bare statements are a supported form and need no note.");
             Assert.IsEmpty(diagnostics, "A final return gets no unreachable trailing return.");
         }
 

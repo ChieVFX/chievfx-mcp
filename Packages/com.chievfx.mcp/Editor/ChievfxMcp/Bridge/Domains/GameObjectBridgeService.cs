@@ -209,7 +209,8 @@ namespace Chievfx.Mcp.Editor
             var matches = GetMatchingComponents(gameObject, componentType!).ToArray();
             if (matches.Length == 0)
             {
-                throw new InvalidOperationException($"GameObject '{GetHierarchyPath(gameObject, context)}' has no component matching '{componentType}'.");
+                throw new InvalidOperationException($"GameObject '{GetHierarchyPath(gameObject, context)}' has no component matching '{componentType}'."
+                                                    + DescribeComponentElsewhere(gameObject, componentType!, context));
             }
 
             if (componentIndex >= matches.Length)
@@ -231,9 +232,25 @@ namespace Chievfx.Mcp.Editor
                 prefabAssetPath = context.PrefabAssetPath,
                 gameObject = CreateGameObjectRef(gameObject, context),
                 componentIndex,
+                matchCount = matches.Length,
                 component = CreateComponentDetail(matches[componentIndex], includeSerializedData, isDebug, ref serializedTruncated),
                 serializedDataTruncated = serializedTruncated
             };
+        }
+
+        // Where the asked type is instead: on a child (a car's Rigidbody sits on its Body), or which components the object has.
+        private static string DescribeComponentElsewhere(GameObject gameObject, string componentType, GameObjectQueryContext context)
+        {
+            foreach (var child in gameObject.GetComponentsInChildren<Transform>(true))
+            {
+                if (child != gameObject.transform && GetMatchingComponents(child.gameObject, componentType).Any())
+                {
+                    return $" It is on '{GetHierarchyPath(child.gameObject, context)}' (instanceId {GetLegacyInstanceId(child.gameObject)}).";
+                }
+            }
+
+            var names = gameObject.GetComponents<Component>().Where(component => component != null).Select(component => component.GetType().Name);
+            return " Its components: " + string.Join(", ", names) + ".";
         }
 
         public object Update(JToken args)

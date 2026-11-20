@@ -1102,6 +1102,13 @@ def format_gameobject_component_get_text(result: dict[str, Any]) -> str:
             if isinstance(field, dict):
                 lines.append(format_serialized_field_row(field))
 
+    match_count = result.get("matchCount")
+    if isinstance(match_count, int) and match_count > 1:
+        lines.append(
+            f"note: {match_count} components match; this is componentIndex {result.get('componentIndex', 0)} (pass componentIndex for another)."
+        )
+    # Agents looked here for current health or speed: runtime state that is not serialized is not in this list.
+    lines.append("note: serialized values only; runtime state (fields without [SerializeField], properties like Rigidbody.velocity) - read it with script-execute.")
     return "\n".join(lines)
 
 

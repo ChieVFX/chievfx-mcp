@@ -304,7 +304,9 @@ namespace Chievfx.Mcp.Editor
 
             var message = stripStyleTags ? StripStyleTags(entry.Message) : entry.Message;
             output["level"] = entry.LogType;
-            output["msg"] = TrimText(ExtractFirstNonEmptyLine(message), MaxLogMessageChars, ref truncated);
+            // The whole message on one line: a log body on later lines ("[OnlineEvents] message: {" + JSON) showed only its
+            // first line while contains matched the rest, and two different bodies looked like the same row.
+            output["msg"] = TrimText(JoinLines(message), MaxLogMessageChars, ref truncated);
             var importHint = TryDecodeImportError(entry.Message);
             if (importHint != null)
             {
@@ -323,6 +325,17 @@ namespace Chievfx.Mcp.Editor
             }
 
             return output;
+        }
+
+        private static string JoinLines(string? text)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return string.Empty;
+            }
+
+            var lines = text!.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            return string.Join(" ", lines.Select(line => line.Trim()).Where(line => line.Length > 0));
         }
 
         private static string ExtractFirstNonEmptyLine(string? text)
@@ -615,6 +628,13 @@ namespace Chievfx.Mcp.Editor
             if (string.IsNullOrWhiteSpace(id))
             {
                 throw new ArgumentException("'id' is required (obtain it from console-get-logs).", "id");
+            }
+
+            // events-wait prints eventId:834877 and events-check-since #834877; console-get-logs ids are e834877.
+            var bareEventId = id!.Trim().TrimStart('#');
+            if (bareEventId.Length > 0 && bareEventId.All(char.IsDigit))
+            {
+                id = "e" + bareEventId;
             }
 
             var snapshot = ReadConsoleSnapshot(
@@ -1102,11 +1122,12 @@ namespace Chievfx.Mcp.Editor
         }
 
 
+        // A position in the stream of added logs, not in the buffer: it keeps growing after the buffer is full.
         internal static int GetLogEntryCount()
         {
             lock (RuntimeState.LogLock)
             {
-                return RuntimeState.LogEntries.Count;
+                return RuntimeState.LogEntriesAdded;
             }
         }
 
@@ -1114,7 +1135,8 @@ namespace Chievfx.Mcp.Editor
         {
             lock (RuntimeState.LogLock)
             {
-                var safeStartIndex = ClampInt(startIndex, 0, RuntimeState.LogEntries.Count);
+                var firstBufferedIndex = RuntimeState.LogEntriesAdded - RuntimeState.LogEntries.Count;
+                var safeStartIndex = ClampInt(startIndex - firstBufferedIndex, 0, RuntimeState.LogEntries.Count);
                 return RuntimeState.LogEntries.Skip(safeStartIndex).ToArray();
             }
         }
@@ -1157,11 +1179,7 @@ namespace Chievfx.Mcp.Editor
 
             lock (RuntimeState.LogLock)
             {
-                RuntimeState.LogEntries.Add(new LogEntryDto(type.ToString(), condition, DateTime.UtcNow, stackTrace, eventId));
-                if (RuntimeState.LogEntries.Count > MaxLogEntries)
-                {
-                    RuntimeState.LogEntries.RemoveRange(0, RuntimeState.LogEntries.Count - MaxLogEntries);
-                }
+                RuntimeState.AddLogEntry(new LogEntryDto(type.ToString(), condition, DateTime.UtcNow, stackTrace, eventId), MaxLogEntries);
             }
         }
 

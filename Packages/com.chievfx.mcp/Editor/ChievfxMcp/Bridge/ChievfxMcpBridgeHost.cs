@@ -180,11 +180,7 @@ namespace Chievfx.Mcp.Editor
                 var eventId = EventJournal.Write("log", "compiler-message", logType.ToString(), text);
                 lock (RuntimeState.LogLock)
                 {
-                    RuntimeState.LogEntries.Add(new LogEntryDto(logType.ToString(), text, DateTime.UtcNow, string.Empty, eventId));
-                    if (RuntimeState.LogEntries.Count > MaxLogEntries)
-                    {
-                        RuntimeState.LogEntries.RemoveRange(0, RuntimeState.LogEntries.Count - MaxLogEntries);
-                    }
+                    RuntimeState.AddLogEntry(new LogEntryDto(logType.ToString(), text, DateTime.UtcNow, string.Empty, eventId), MaxLogEntries);
                 }
             }
         }

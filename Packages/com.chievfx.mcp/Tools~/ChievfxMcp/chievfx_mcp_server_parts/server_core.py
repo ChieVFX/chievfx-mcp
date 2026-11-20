@@ -378,6 +378,10 @@ class McpServerCore:
             # The reply was written when the action started (ok:true); a tool-batch step judges the action by its end.
             raw_result["ok"] = False
             raw_result["error"] = failure
+        elif outcome.get("matched") and isinstance(raw_result, dict):
+            # The other way round too: script-execute that outran its timeoutMs replied success:false stage:timeout,
+            # and its awaited "done" end is what the step did.
+            raw_result["awaitedEndOk"] = True
         return result
 
     def _with_core_descriptor_reminder(self, result: Any, name: str) -> Any:
@@ -922,7 +926,8 @@ class McpServerCore:
             )
             step_images = [block for block in blocks if isinstance(block, dict) and block.get("type") == "image"]
             # A tool that answers instead of throwing (script-execute success:false, input ok:false) still failed.
-            failure = describe_reported_failure(step_raw.get("result"), tool_name)
+            raw_step_result = step_raw.get("result")
+            failure = None if isinstance(raw_step_result, dict) and raw_step_result.get("awaitedEndOk") else describe_reported_failure(raw_step_result, tool_name)
             row = {"index": index, "tool": tool_name, "ok": failure is None, "text": text}
             if failure is not None:
                 row["error"] = failure

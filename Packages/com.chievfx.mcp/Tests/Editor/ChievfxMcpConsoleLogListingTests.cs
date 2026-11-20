@@ -147,6 +147,53 @@ namespace Chievfx.Mcp.Editor.Tests
             Assert.AreEqual("Foo.Bar () (at Assets/Scripts/Foo.cs:107)", ConsoleLogBridgeService.StripSourceLinks(line));
         }
 
+        [Test]
+        public void LogsOfACallAreFoundAfterTheBufferIsFull()
+        {
+            var token = "ChievfxLogListing_" + Guid.NewGuid().ToString("N");
+            for (var i = 0; i <= McpLimits.MaxLogEntries; i++)
+            {
+                ConsoleLogBridgeService.CollectLog(token + " filler " + i, string.Empty, LogType.Log);
+            }
+
+            var start = ConsoleLogBridgeService.GetLogEntryCount();
+            ConsoleLogBridgeService.CollectLog(token + " mine", string.Empty, LogType.Warning);
+            var logs = ConsoleLogBridgeService.CreateLogOutputs(start, true, null, includeStackTrace: false, maxEntries: 10);
+
+            Assert.AreEqual(1, logs.Length, "script-execute reads its logs from this start: a full buffer kept the count still and lost them.");
+            StringAssert.Contains(token + " mine", Newtonsoft.Json.JsonConvert.SerializeObject(logs[0]));
+        }
+
+        [Test]
+        public void AMultiLineMessageIsListedOnOneLine()
+        {
+            var token = "ChievfxLogListing_" + Guid.NewGuid().ToString("N");
+            ConsoleLogBridgeService.CollectLog("[OnlineEvents] message: {\n\"" + token + "\": true\n}\n", string.Empty, LogType.Log);
+
+            var listed = Entries(service.Get(new JObject
+            {
+                ["contains"] = token,
+                ["levels"] = new JArray("Log"),
+                ["includeUnityConsole"] = false,
+            }));
+
+            Assert.AreEqual("[OnlineEvents] message: { \"" + token + "\": true }", listed.Single()["msg"]);
+        }
+
+        [Test]
+        public void TheSingleEntryTakesAnEventIdAsPrintedByEvents()
+        {
+            var token = "ChievfxLogListing_" + Guid.NewGuid().ToString("N");
+            ConsoleLogBridgeService.CollectLog(token, string.Empty, LogType.Log);
+            var listed = Entries(service.Get(new JObject { ["contains"] = token, ["levels"] = new JArray("Log"), ["includeUnityConsole"] = false }));
+            var eventId = listed.Single()["eventId"].ToString();
+
+            foreach (var id in new[] { eventId, "#" + eventId })
+            {
+                Assert.IsNotNull(Member(service.GetSingle(new JObject { ["id"] = id }), "entry"), id);
+            }
+        }
+
         private static LogEntryDto Entry(string level, string message, string stack)
         {
             return new LogEntryDto(level, message, DateTime.UtcNow, stack);

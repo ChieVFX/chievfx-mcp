@@ -272,6 +272,14 @@ namespace Chievfx.Mcp.Editor
         {
             var gameObject = EnumerateContextGameObjects(context)
                 .FirstOrDefault(candidate => GetLegacyInstanceId(candidate) == instanceId);
+            // A component's id (component-get prints references as {"instanceId", "type":"Rigidbody"}) names its GameObject:
+            // "No GameObject was found" read as "the object is gone".
+            if (gameObject == null)
+            {
+                gameObject = EnumerateContextGameObjects(context)
+                    .FirstOrDefault(candidate => candidate.GetComponents<Component>().Any(component => component != null && GetLegacyInstanceId(component) == instanceId));
+            }
+
             if (gameObject == null)
             {
                 throw new InvalidOperationException($"No GameObject with instanceId {instanceId} was found in current {context.Source}.");

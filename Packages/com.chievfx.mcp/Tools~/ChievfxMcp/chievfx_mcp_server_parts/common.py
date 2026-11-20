@@ -144,6 +144,8 @@ BRIDGE_POST_RECOVERY_RESPONSE_GRACE_SECONDS = 10.0
 EDITOR_UNRESPONSIVE_SECONDS = 60.0
 # The same verdict while one of those is under way: a large project can spend minutes compiling or importing.
 EDITOR_BUSY_UNRESPONSIVE_SECONDS = 900.0
+# How often a stale, CPU-busy editor's main thread is sampled for a modal dialog loop (sample itself takes ~2 s).
+EDITOR_MODAL_CHECK_SECONDS = 15.0
 # How often a call waiting for its turn, or for Unity to pick up its request, re-checks that verdict.
 EDITOR_LIVENESS_CHECK_SECONDS = 1.0
 # A stale heartbeat with the editor process using at least this many cores is work, not a hang: an import or a

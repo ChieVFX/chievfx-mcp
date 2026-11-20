@@ -102,12 +102,34 @@ class BridgeTransportMixin:
                 return "reloading the script domain"
             break
         started_at = getattr(self, "_script_started_editor_work_at", None)
-        if started_at is not None and time.monotonic() - started_at < EDITOR_SCRIPT_STARTED_WORK_SECONDS:
+        is_script_work = started_at is not None and time.monotonic() - started_at < EDITOR_SCRIPT_STARTED_WORK_SECONDS
+        cores = None if is_script_work else self.editor_cpu_cores(editor.get("processId"))
+        if not is_script_work and (cores is None or cores < EDITOR_CPU_BUSY_CORES):
+            return None
+        # Neither sign tells a dialog from work: a modal loop keeps the CPU busy too, and the server waited 900 s on
+        # "Missing Signature" after a package change. The main thread's stack does tell.
+        if self.editor_modal_loop(editor.get("processId")) is not None:
+            return None
+        if is_script_work:
             return f"resolving packages or importing (a script-execute {int(time.monotonic() - started_at)} s ago started it)"
-        cores = self.editor_cpu_cores(editor.get("processId"))
-        if cores is not None and cores >= EDITOR_CPU_BUSY_CORES:
-            return f"working on its main thread ({int(cores * 100)}% CPU: an import, a package resolution or a long computation)"
-        return None
+        return f"working on its main thread ({int((cores or 0) * 100)}% CPU: an import, a package resolution or a long computation)"
+
+    def editor_modal_loop(self, process_id: Any) -> str | None:
+        """The modal-loop frame the editor's main thread is in (sampled at most every EDITOR_MODAL_CHECK_SECONDS), or None."""
+        cached = getattr(self, "_editor_modal_check", None)
+        now_mono = time.monotonic()
+        if cached is not None and cached[0] == process_id and now_mono - cached[1] < EDITOR_MODAL_CHECK_SECONDS:
+            return cached[2]
+        marker = process_modal_loop(process_id)
+        self._editor_modal_check = (process_id, time.monotonic(), marker)
+        return marker
+
+    def recent_editor_modal_loop(self, process_id: Any) -> str | None:
+        """The modal loop the last check found for this editor, if that check is recent."""
+        cached = getattr(self, "_editor_modal_check", None)
+        if cached is None or cached[0] != process_id or time.monotonic() - cached[1] >= EDITOR_MODAL_CHECK_SECONDS * 2:
+            return None
+        return cached[2]
 
     def editor_cpu_cores(self, process_id: Any) -> float | None:
         """How many cores the editor process has used lately, from two CPU-time readings (None when unknown)."""
@@ -158,6 +180,11 @@ class BridgeTransportMixin:
         busy_sign = self.editor_busy_sign(heartbeat)
         limit = EDITOR_BUSY_UNRESPONSIVE_SECONDS if busy_sign is not None else EDITOR_UNRESPONSIVE_SECONDS
         state = ("busy" if busy_sign is not None else "stale") if heartbeat_age < limit else "unresponsive"
+        # A dialog waits for a click, not for time: no point in waiting out the limit.
+        modal_loop = self.recent_editor_modal_loop(process_id) if busy_sign is None else None
+        if modal_loop is not None:
+            row["modalLoop"] = modal_loop
+            state = "unresponsive"
         busy = heartbeat.get("busy") if isinstance(heartbeat.get("busy"), dict) else {}
         # The bridge's own work on the main thread (a long synchronous script) stops the heartbeat just as a hang does.
         # The flag is from the last heartbeat: a script that has since returned (and started an import) is not it.
@@ -202,6 +229,14 @@ class BridgeTransportMixin:
             if busy_sign
             else "shows no compile, domain reload, import or play-mode change under way"
         )
+        modal_loop = liveness.get("modalLoop")
+        if modal_loop:
+            return (
+                f"editor_unresponsive: {editor} has not written a bridge heartbeat for {age_text}: its main thread waits in a "
+                f"modal dialog ({modal_loop} on its stack). After a package change it is usually 'Missing Signature' (press "
+                "Close); a script's EditorUtility.DisplayDialog needs an answer. Calls work again once it is closed "
+                "(unity-dialogs skill, or ask the user). bridge-get-status shows editorState."
+            )
         own_work = liveness.get("runningWhenStopped") or []
         suspect = (
             f" The last heartbeat shows {' and '.join(own_work)} running: it may be what holds the main thread."

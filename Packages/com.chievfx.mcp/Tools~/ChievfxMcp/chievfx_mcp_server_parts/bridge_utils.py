@@ -197,6 +197,31 @@ def process_cpu_seconds(pid: Any) -> float | None:
         return None
 
 
+# Frames of a modal loop on the editor's main thread (a dialog waiting for a click), as /usr/bin/sample names them.
+MODAL_LOOP_STACK_MARKERS = ("ContainerWindow::MakeModal", "runModalForWindow", "runModalSession", "DisplayDialog")
+
+
+def process_modal_loop(pid: Any, timeout_seconds: float = 10.0) -> str | None:
+    """The modal-loop frame the process's main thread sits in, or None (none, or not macOS, or sample failed).
+
+    A dialog (Missing Signature after a package change, a script's DisplayDialog) spins the main thread in a modal
+    session that keeps the CPU as busy as an import does, so CPU time alone cannot tell it from work.
+    """
+    if sys.platform != "darwin" or isinstance(pid, bool) or not isinstance(pid, int) or pid <= 0 or not os.path.exists("/usr/bin/sample"):
+        return None
+    try:
+        # -file /dev/stdout: without it sample also leaves a report file in /tmp on every call.
+        stacks = subprocess.run(
+            ["/usr/bin/sample", str(pid), "1", "-mayDie", "-file", "/dev/stdout"],
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        ).stdout
+    except Exception:  # noqa: BLE001 - a probe, never a reason to fail the call
+        return None
+    return next((marker for marker in MODAL_LOOP_STACK_MARKERS if marker in stacks), None)
+
+
 def read_script_source_file(arguments: dict[str, Any]) -> dict[str, Any]:
     """script-execute csharpPath: the file's text becomes csharpCode, so quotes, backslashes and Cyrillic need no escaping."""
     raw_path = arguments.get("csharpPath")

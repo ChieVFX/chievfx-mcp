@@ -30,6 +30,11 @@ class EditorLivenessTests(unittest.TestCase):
         cpu_patcher = mock.patch.object(mcp, "process_cpu_seconds", lambda pid: self.cpu_seconds.pop(0) if self.cpu_seconds else None)
         cpu_patcher.start()
         self.addCleanup(cpu_patcher.stop)
+        # Nor may its own stack be sampled for a dialog: a test sets the modal loop it wants the editor to be in.
+        self.modal_loop: str | None = None
+        modal_patcher = mock.patch.object(mcp, "process_modal_loop", lambda pid: self.modal_loop)
+        modal_patcher.start()
+        self.addCleanup(modal_patcher.stop)
         self.write_events([])
 
     def write_heartbeat(self, age_seconds: float, process_id: int | None = None, **editor: Any) -> None:
@@ -217,6 +222,25 @@ class EditorLivenessTests(unittest.TestCase):
         self.cpu_seconds = [200.0, 200.0 + mcp.EDITOR_CPU_SAMPLE_SECONDS * 0.05]
         self.server._editor_cpu_sample = None
         self.server._editor_liveness_cache = None
+        self.assertEqual(self.server.assess_editor_liveness()["state"], "unresponsive")
+
+    def test_dialog_that_keeps_the_cpu_busy_fails_at_once_and_says_so(self) -> None:
+        # "Missing Signature" after a package change: its modal loop used 113% CPU, and a recompile waited 900 s for it.
+        self.write_heartbeat(age_seconds=20, process_id=os.getpid())
+        self.cpu_seconds = [100.0, 100.0 + mcp.EDITOR_CPU_SAMPLE_SECONDS * 1.1]
+        self.modal_loop = "runModalSession"
+
+        liveness = self.server.assess_editor_liveness()
+
+        self.assertEqual(liveness["state"], "unresponsive", liveness)
+        message = self.server.describe_editor_down(liveness)
+        self.assertIn("modal dialog (runModalSession on its stack)", message)
+        self.assertIn("Missing Signature", message)
+
+        # A script that started package work does not hide the dialog either.
+        self.server._editor_modal_check = None
+        self.server._editor_liveness_cache = None
+        self.server._script_started_editor_work_at = time.monotonic() - 30
         self.assertEqual(self.server.assess_editor_liveness()["state"], "unresponsive")
 
     def test_editor_work_started_by_a_script_is_waited_for_while_the_editor_idles(self) -> None:

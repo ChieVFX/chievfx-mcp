@@ -1173,6 +1173,15 @@ def format_events_check_since_text(result: dict[str, Any]) -> str:
         lines.append(
             f"... {omitted_count} non-object events omitted. Use outputFormat:\"json\" for raw detail."
         )
+    if any(
+        isinstance(event.get("message"), str)
+        and len(" ".join(event["message"].split())) > DEFAULT_EVENTS_TEXT_MESSAGE_CHARS
+        for event in shown_events
+    ):
+        lines.append(
+            "Rows ending in ... are shortened: the whole line is in console-get-logs contains:<part of it> "
+            "(a log), or outputFormat:\"json\"."
+        )
     return "\n".join(lines)
 
 

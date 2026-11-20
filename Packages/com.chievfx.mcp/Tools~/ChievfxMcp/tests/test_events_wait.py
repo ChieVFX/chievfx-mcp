@@ -313,6 +313,16 @@ class EventsWaitTests(unittest.TestCase):
         self.assertIn("startedAtUtc", result)
         self.assertIsNotNone(mcp.parse_utc_iso(result["startedAtUtc"]))
 
+    def test_events_check_since_text_says_where_a_shortened_row_is_whole(self) -> None:
+        long_message = "[demo][skill-end] boot#4 failed:connect_failed " + "detail=x " * 30 + "hint at the tail"
+        short_result = {"matched": True, "count": 1, "events": [{"eventId": 2, "source": "log", "type": "message", "message": "short"}]}
+        long_result = {"matched": True, "count": 1, "events": [{"eventId": 3, "source": "log", "type": "message", "message": long_message}]}
+
+        self.assertNotIn("shortened", mcp.format_events_check_since_text(short_result))
+        text = mcp.format_events_check_since_text(long_result)
+        self.assertNotIn("hint at the tail", text)
+        self.assertIn("Rows ending in ... are shortened: the whole line is in console-get-logs", text)
+
     def test_events_check_since_matches_only_requested_window(self) -> None:
         self.write_events(
             [

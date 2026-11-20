@@ -714,7 +714,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 .Select(rect => rect.gameObject)
                 .Distinct()
                 .SelectMany(target => GetClickableControlComponents(target, status).Select(control => (target, control)))
-                .Where(pair => IsEnabledClickableControl(pair.target, pair.control))
+                .Where(pair => pair.target.activeInHierarchy && IsEnabledComponent(pair.control))
                 .Select(pair => (pair.target, pair.control, path: GetTransformPath(pair.target.transform)))
                 .Where(entry => ChievfxMcpRuntimeUiControlFind.MatchesWildcards(entry.target.name, entry.path, wildcards))
                 .Select(entry => (entry.target, entry.control, controlType: ChievfxMcpRuntimeUiControlFind.NormalizeControlType(entry.control.GetType())))
@@ -724,6 +724,14 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 .ToArray();
             // "On-screen" is what a player sees: a control under a transparent or raycast-blocking-off CanvasGroup (a hidden
             // debug console) is left out and counted.
+            // A control with interactable off is drawn (often greyed) but ignores taps: counted, so a search for it is not just empty.
+            var notInteractableCount = matches.Count(entry => !IsEnabledClickableControl(entry.target, entry.control));
+            if (notInteractableCount > 0)
+            {
+                matches = matches.Where(entry => IsEnabledClickableControl(entry.target, entry.control)).ToArray();
+                warnings.Add($"{notInteractableCount} control(s) left out: interactable is off (drawn, but taps do nothing); ugui-ui-find lists them.");
+            }
+
             var hiddenCount = matches.Count(entry => UguiRuntimeReachability.IsHiddenFromPlayer(entry.target));
             if (hiddenCount > 0)
             {

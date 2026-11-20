@@ -104,13 +104,15 @@ namespace Chievfx.Mcp.Extensions.Ugui
             Press(eventSystem, pointer, currentOverGo, report);
 
             var dragReceiver = pointer.pointerDrag;
-            pointer.position = end;
-            pointer.delta = end - start;
             if (dragReceiver != null)
             {
+                // BeginDrag sees the gesture's start, as the input module sends it right past the drag threshold:
+                // ScrollRect takes its start cursor there, and with the end position the drag moved the content by zero.
                 RecordEvent(report, "beginDrag", dragReceiver, FindResponders<IBeginDragHandler>(dragReceiver, EventTriggerType.BeginDrag));
                 ExecuteEvents.Execute(dragReceiver, pointer, ExecuteEvents.beginDragHandler);
                 pointer.dragging = true;
+                pointer.position = end;
+                pointer.delta = end - start;
 
                 // Once a drag starts on something other than the pressed object, the input module releases
                 // the press there, so a Button inside a ScrollRect never fires its click.
@@ -132,6 +134,8 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
             else
             {
+                pointer.position = end;
+                pointer.delta = end - start;
                 RecordEvent(report, "drag", null, Array.Empty<Component>());
             }
 

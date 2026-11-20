@@ -48,6 +48,13 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
+        public void ParameterTypeAcceptsTheShortNameFindPrints()
+        {
+            var result = service.CallMethod(AbsCall(new JObject { ["typeName"] = "int", ["value"] = -4 }, topLevel: null));
+            Assert.AreEqual(4, ReturnValue(result), "typeName 'int' (as find prints it) matches System.Int32.");
+        }
+
+        [Test]
         public void CallTakesArgumentValuesFromTheFilterOrTheTopLevelList()
         {
             var fromFilter = service.CallMethod(AbsCall(new JObject { ["typeName"] = "System.Int32", ["value"] = -7 }, topLevel: null));

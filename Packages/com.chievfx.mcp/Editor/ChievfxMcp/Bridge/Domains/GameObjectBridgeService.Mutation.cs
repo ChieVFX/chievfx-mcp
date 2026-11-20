@@ -63,25 +63,22 @@ namespace Chievfx.Mcp.Editor
 
         private static bool TryResolveGameObjectByPath(GameObjectQueryContext context, string path, out GameObject gameObject)
         {
-            var exactMatches = EnumerateContextGameObjects(context)
-                .Where(candidate => string.Equals(GetHierarchyPath(candidate, context), path, StringComparison.Ordinal))
-                .ToArray();
-            if (exactMatches.Length > 0)
+            var segments = SplitHierarchyPath(path);
+            var exactMatches = MatchHierarchyPath(context, segments, isUnindexed: false);
+            if (exactMatches.Count > 0)
             {
                 gameObject = exactMatches[0];
                 return true;
             }
 
-            var unindexedMatches = EnumerateContextGameObjects(context)
-                .Where(candidate => string.Equals(RemoveDuplicateIndexes(GetHierarchyPath(candidate, context)), path, StringComparison.Ordinal))
-                .ToArray();
-            if (unindexedMatches.Length == 1)
+            var unindexedMatches = MatchHierarchyPath(context, segments, isUnindexed: true);
+            if (unindexedMatches.Count == 1)
             {
                 gameObject = unindexedMatches[0];
                 return true;
             }
 
-            if (unindexedMatches.Length > 1)
+            if (unindexedMatches.Count > 1)
             {
                 throw new InvalidOperationException(
                     $"Hierarchy path '{path}' is ambiguous. Use indexed path or instanceId. Candidates: "

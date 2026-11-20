@@ -876,16 +876,23 @@ def format_ugui_textmeshpro_get_text(result: dict[str, Any]) -> str:
     return "\n".join(line for line in lines if line)
 
 
+def format_component_types_preview(game_object: dict[str, Any], component_types: list[Any]) -> str:
+    """components[<total>]: the first types; a cut list says how many are shown, so 12 is not read as all of them."""
+    component_text = ", ".join(str(component) for component in component_types)
+    total = game_object.get("componentCount")
+    if game_object.get("componentTypesTruncated") is True:
+        total_text = str(total) if isinstance(total, int) else f"{len(component_types)}+"
+        return f"components[{total_text}]: {component_text}, ... ({len(component_types)} shown; includeComponents:true lists all)"
+    return f"components[{len(component_types)}]: {component_text}"
+
+
 def format_gameobject_hierarchy_node(game_object: dict[str, Any], depth: int) -> list[str]:
     indent = "  " * depth
     lines = [indent + format_gameobject_hierarchy_row(game_object)]
     component_types = game_object.get("componentTypes")
     components = game_object.get("components")
     if not isinstance(components, list) and isinstance(component_types, list):
-        component_text = ", ".join(str(component) for component in component_types)
-        if game_object.get("componentTypesTruncated") is True:
-            component_text += ", ..."
-        lines.append(indent + f"  components[{len(component_types)}]: {component_text}")
+        lines.append(indent + "  " + format_component_types_preview(game_object, component_types))
     if isinstance(components, list):
         lines.append(indent + "  " + format_gameobject_components_line(components))
     children = game_object.get("children")
@@ -931,10 +938,7 @@ def format_gameobject_find_object_lines(game_object: dict[str, Any]) -> list[str
         lines = [format_gameobject_find_row(game_object)]
     component_types = game_object.get("componentTypes")
     if not isinstance(components, list) and isinstance(component_types, list):
-        component_text = ", ".join(str(component) for component in component_types)
-        if game_object.get("componentTypesTruncated") is True:
-            component_text += ", ..."
-        lines.append(f"  components[{len(component_types)}]: {component_text}")
+        lines.append("  " + format_component_types_preview(game_object, component_types))
     if isinstance(components, list):
         lines.append("  " + format_gameobject_components_line(components))
     screen_rect = format_ugui_screen_rect(game_object.get("screenRect"))

@@ -480,6 +480,13 @@ namespace Chievfx.Mcp.Editor
             if (sinceEventId.HasValue)
             {
                 notes.Add("sinceEventId matches only bridge-captured logs (each carries an event cursor); Unity Console / Editor.log rows without a cursor are excluded.");
+                // A full cache whose oldest log is newer than the cursor has evicted logs right after it: say so instead of
+                // listing from the cache start as if nothing came between.
+                if (TryGetEvictedGap(sinceEventId.Value, out var oldestCachedEventId))
+                {
+                    notes.Add($"The bridge keeps the last {MaxLogEntries} logs and the oldest kept is #{oldestCachedEventId}: logs between sinceEventId {sinceEventId.Value} and it "
+                              + "were dropped from this list (a busy game logs that many in minutes); console-get-logs-single e<eventId> still reads one by id.");
+                }
             }
 
             if (sinceTimestampUnparseable)
@@ -490,9 +497,14 @@ namespace Chievfx.Mcp.Editor
             var matched = filtered.Count;
             var working = dedupe ? CollapseDuplicates(filtered) : filtered.Select(e => (entry: e, repeats: 1)).ToList();
             var groupCount = working.Count;
-            var selected = working
-                .Skip(Math.Max(0, groupCount - maxEntries))
-                .ToList();
+            // With a cursor the rows right after it come first (page forward with the last row's eventId); without one, the newest.
+            var selected = sinceEventId.HasValue
+                ? working.Take(maxEntries).ToList()
+                : working.Skip(Math.Max(0, groupCount - maxEntries)).ToList();
+            if (sinceEventId.HasValue && groupCount > selected.Count)
+            {
+                notes.Add($"The {selected.Count} logs right after the cursor are listed; for the next ones pass sinceEventId: the last row's eventId.");
+            }
 
             var entries = new List<Dictionary<string, object>>();
             var dropped = groupCount - selected.Count;
@@ -527,6 +539,15 @@ namespace Chievfx.Mcp.Editor
                 filterNote = notes.Count > 0 ? string.Join(" ", notes) : (string?)null,
                 entries
             };
+        }
+
+        private static bool TryGetEvictedGap(long sinceEventId, out long oldestCachedEventId)
+        {
+            lock (RuntimeState.LogLock)
+            {
+                oldestCachedEventId = RuntimeState.LogEntries.Count > 0 ? RuntimeState.LogEntries[0].EventId : 0;
+                return RuntimeState.LogEntries.Count >= MaxLogEntries && oldestCachedEventId > sinceEventId + 1;
+            }
         }
 
         private static long? ReadSinceEventId(JToken args)

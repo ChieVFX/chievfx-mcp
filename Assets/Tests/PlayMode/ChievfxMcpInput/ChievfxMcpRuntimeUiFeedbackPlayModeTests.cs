@@ -229,6 +229,31 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
         }
 
         [UnityTest]
+        public IEnumerator DragScrollsScrollRectContent()
+        {
+            var canvas = BuildScene();
+            var viewport = CreateImage(canvas.transform, "ScrollView", Vector2.zero, new Vector2(300f, 200f));
+            viewport.AddComponent<RectMask2D>();
+            var content = CreateRect(viewport.transform, "Content", Vector2.zero, new Vector2(1200f, 200f));
+            var scroll = viewport.AddComponent<ScrollRect>();
+            scroll.viewport = (RectTransform)viewport.transform;
+            scroll.content = (RectTransform)content.transform;
+            scroll.vertical = false;
+            scroll.movementType = ScrollRect.MovementType.Unrestricted;
+            scroll.inertia = false;
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+
+            var before = scroll.content.anchoredPosition.x;
+            var center = RectCenter(viewport);
+            var drag = RunRegistry("RuntimeDrag", "{'framework':'ugui','x':" + F(center.x) + ",'y':" + F(center.y) + ",'deltaX':-100}");
+            yield return null;
+
+            Assert.AreEqual(true, drag["anyDragged"], Describe(drag));
+            Assert.Less(scroll.content.anchoredPosition.x, before - 50f, "BeginDrag takes the gesture start, so the content follows the drag. " + Describe(drag));
+        }
+
+        [UnityTest]
         public IEnumerator TypeTextWarnsWhenThePlayerCannotReachTheField()
         {
             var canvas = BuildScene();

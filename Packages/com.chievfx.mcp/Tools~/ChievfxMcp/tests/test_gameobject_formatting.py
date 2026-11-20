@@ -293,7 +293,10 @@ class GameObjectFormattingTests(unittest.TestCase):
         text = mcp.format_gameobject_find_text(result)
 
         self.assertIn("- Hidden (id: 42, inactiveSelf, inactiveHierarchy)", text)
-        self.assertIn("components[1]: Transform, ...", text)
+        self.assertIn("components[1+]: Transform, ... (1 shown; includeComponents:true lists all)", text)
+
+        result["objects"][0]["componentCount"] = 15
+        self.assertIn("components[15]: Transform, ... (1 shown", mcp.format_gameobject_find_text(result))
 
     def test_gameobject_find_text_names_hidden_inactive_matches(self) -> None:
         text = mcp.format_gameobject_find_text({"count": 0, "totalMatches": 0, "inactiveHidden": 2, "objects": []})

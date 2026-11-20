@@ -288,29 +288,25 @@ namespace Chievfx.Mcp.Editor
                 throw new ArgumentException("path cannot be empty.", nameof(path));
             }
 
-            var allObjects = EnumerateContextGameObjects(context).ToArray();
-            var exactMatches = allObjects
-                .Where(gameObject => string.Equals(GetHierarchyPath(gameObject, context), normalizedPath, StringComparison.Ordinal))
-                .ToArray();
-            if (exactMatches.Length == 1)
+            var segments = SplitHierarchyPath(normalizedPath);
+            var exactMatches = MatchHierarchyPath(context, segments, isUnindexed: false);
+            if (exactMatches.Count == 1)
             {
                 return exactMatches[0];
             }
 
-            if (exactMatches.Length > 1)
+            if (exactMatches.Count > 1)
             {
                 throw new InvalidOperationException($"Hierarchy path '{path}' matched multiple GameObjects: {FormatGameObjectCandidates(exactMatches, context)}.");
             }
 
-            var unindexedMatches = allObjects
-                .Where(gameObject => string.Equals(RemoveDuplicateIndexes(GetHierarchyPath(gameObject, context)), normalizedPath, StringComparison.Ordinal))
-                .ToArray();
-            if (unindexedMatches.Length == 1)
+            var unindexedMatches = MatchHierarchyPath(context, segments, isUnindexed: true);
+            if (unindexedMatches.Count == 1)
             {
                 return unindexedMatches[0];
             }
 
-            if (unindexedMatches.Length > 1)
+            if (unindexedMatches.Count > 1)
             {
                 throw new InvalidOperationException(
                     $"Hierarchy path '{path}' is ambiguous. Use indexed path or instanceId. Candidates: "
@@ -318,6 +314,76 @@ namespace Chievfx.Mcp.Editor
             }
 
             throw new InvalidOperationException($"No GameObject found at hierarchy path '{path}' in current {context.Source}.");
+        }
+
+        // GameObjects whose hierarchy path (GetHierarchyPath) is segments, walked from the roots down: building every object's
+        // path to compare it scanned all siblings at every level of every object and froze the editor for a minute on a Play Mode
+        // world with tens of thousands of objects. isUnindexed compares paths with their [n] duplicate indexes removed.
+        internal static List<GameObject> MatchHierarchyPath(GameObjectQueryContext context, string[] segments, bool isUnindexed)
+        {
+            var level = new List<Transform>();
+            if (segments.Length == 0)
+            {
+                return new List<GameObject>();
+            }
+
+            // Root-level indexes count roots of the same scene, as GetSiblingTransforms does.
+            foreach (var sceneRoots in context.Roots.Where(root => root != null).GroupBy(root => root.scene))
+            {
+                AddPathSegmentMatches(sceneRoots.Select(root => root.transform), segments[0], isUnindexed, level);
+            }
+
+            for (var index = 1; index < segments.Length && level.Count > 0; index++)
+            {
+                var next = new List<Transform>();
+                foreach (var parent in level)
+                {
+                    AddPathSegmentMatches(parent.Cast<Transform>(), segments[index], isUnindexed, next);
+                }
+
+                level = next;
+            }
+
+            return level.Select(transform => transform.gameObject).ToList();
+        }
+
+        // Siblings (children of one parent, or roots of one scene) whose path segment is segment: the escaped name, or name[n]
+        // among same-named siblings (GetPathSegment); with isUnindexed, that segment without its [n].
+        private static void AddPathSegmentMatches(IEnumerable<Transform> siblings, string segment, bool isUnindexed, List<Transform> output)
+        {
+            var sameNameGroups = new Dictionary<string, List<Transform>>(StringComparer.Ordinal);
+            foreach (var sibling in siblings)
+            {
+                var name = EscapePathSegment(sibling.gameObject.name);
+                if (sameNameGroups.TryGetValue(name, out var group) == false)
+                {
+                    group = new List<Transform>();
+                    sameNameGroups[name] = group;
+                }
+
+                group.Add(sibling);
+            }
+
+            foreach (var pair in sameNameGroups)
+            {
+                // Only a name equal to the segment, a prefix of name[n], or a name ending in [n] itself can produce the segment.
+                var canMatch = isUnindexed
+                    ? string.Equals(pair.Key, segment, StringComparison.Ordinal) || pair.Key.EndsWith("]", StringComparison.Ordinal)
+                    : segment.StartsWith(pair.Key, StringComparison.Ordinal);
+                if (canMatch == false)
+                {
+                    continue;
+                }
+
+                for (var index = 0; index < pair.Value.Count; index++)
+                {
+                    var canonical = pair.Value.Count > 1 ? $"{pair.Key}[{index + 1}]" : pair.Key;
+                    if (string.Equals(isUnindexed ? RemoveDuplicateIndexes(canonical) : canonical, segment, StringComparison.Ordinal))
+                    {
+                        output.Add(pair.Value[index]);
+                    }
+                }
+            }
         }
 
         internal static IEnumerable<GameObject> EnumerateContextGameObjects(GameObjectQueryContext context)
@@ -369,6 +435,10 @@ namespace Chievfx.Mcp.Editor
             {
                 output["componentTypes"] = GetComponentTypePreview(gameObject, out var truncated);
                 output["componentTypesTruncated"] = truncated;
+                if (truncated)
+                {
+                    output["componentCount"] = gameObject.GetComponents<Component>().Length;
+                }
             }
 
             return output;

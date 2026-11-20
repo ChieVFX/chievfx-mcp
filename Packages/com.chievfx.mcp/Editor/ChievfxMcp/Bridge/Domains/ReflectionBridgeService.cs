@@ -522,9 +522,12 @@ namespace Chievfx.Mcp.Editor
 
             for (var i = 0; i < methodParameters.Length; i++)
             {
+                // The short names find prints (int, string, float[]) are accepted along with Name and FullName.
                 var typeName = ReadString(parameterArray[i], "typeName") ?? string.Empty;
-                if (!string.Equals(methodParameters[i].ParameterType.FullName, typeName, StringComparison.Ordinal)
-                    && !string.Equals(methodParameters[i].ParameterType.Name, typeName, StringComparison.Ordinal))
+                var parameterType = methodParameters[i].ParameterType;
+                if (!string.Equals(parameterType.FullName, typeName, StringComparison.Ordinal)
+                    && !string.Equals(parameterType.Name, typeName, StringComparison.Ordinal)
+                    && !string.Equals(CompactTypeName(parameterType), typeName, StringComparison.Ordinal))
                 {
                     return false;
                 }

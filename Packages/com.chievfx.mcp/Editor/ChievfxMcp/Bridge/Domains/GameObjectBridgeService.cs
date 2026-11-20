@@ -197,9 +197,28 @@ namespace Chievfx.Mcp.Editor
                     ? $"path names this one object; {underPath} more are under it: add name, namePattern or componentType to search them, or use gameobject-hierarchy path:'{path}'."
                     : filterMatches.Count == 0 && !string.IsNullOrWhiteSpace(componentType)
                         ? DescribeUnknownComponentType(componentType!, searchedObjects)
-                        : null
+                        : filterMatches.Count == 0 && !string.IsNullOrWhiteSpace(namePattern)
+                            ? DescribeWholeNamePattern(namePattern!, searchedObjects)
+                            : null
             };
         }
+
+        // A pattern without * or ? matches the whole name: "Player" found nothing while 55 names contained it, and the reply
+        // read as "no such objects".
+        internal static string? DescribeWholeNamePattern(string namePattern, List<GameObject> searchedObjects)
+        {
+            if (namePattern.IndexOfAny(WildcardCharacters) >= 0)
+            {
+                return null;
+            }
+
+            var containing = searchedObjects.Count(gameObject => gameObject.name.IndexOf(namePattern, StringComparison.OrdinalIgnoreCase) >= 0);
+            return containing > 0
+                ? $"namePattern matches the whole name (wildcards * and ?): {containing} names contain '{namePattern}' - try namePattern:'*{namePattern}*'."
+                : null;
+        }
+
+        private static readonly char[] WildcardCharacters = { '*', '?' };
 
         // Zero matches for a type name nothing is called: a typo or a guessed name ("Car") read the same as "no such objects".
         // Types on the searched objects come first, the ones highest in the hierarchy first: the shortest loaded names

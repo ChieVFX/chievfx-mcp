@@ -170,6 +170,9 @@ DEFAULT_TESTS_RUN_TIMEOUT_MS = 60000
 HARD_SCRIPT_EXECUTE_TIMEOUT_MS = 300000
 HARD_REFLECTION_METHOD_CALL_TIMEOUT_MS = 300000
 HARD_TESTS_RUN_TIMEOUT_MS = 300000
+# script-execute's timeoutMs bounds the run only; compiling and writing the reply come on top of it. Waiting for
+# exactly timeoutMs gave up on a reply that was on its way and left the next script blocked behind it.
+SCRIPT_EXECUTE_REPLY_ALLOWANCE_MS = 30000
 EVENTS_WAIT_POLL_SECONDS = 0.05
 # How far back a bare events-wait looks for a match that beat it (the gap between an action's reply and
 # the agent's next call). Longer than a model's think time, short enough not to pick up older history.

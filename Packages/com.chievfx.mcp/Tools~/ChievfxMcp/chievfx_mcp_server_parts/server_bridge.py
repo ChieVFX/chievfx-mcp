@@ -872,7 +872,7 @@ class BridgeTransportMixin:
                 DEFAULT_SCRIPT_EXECUTE_TIMEOUT_MS,
                 100,
                 HARD_SCRIPT_EXECUTE_TIMEOUT_MS,
-            )
+            ) + SCRIPT_EXECUTE_REPLY_ALLOWANCE_MS
 
         if name == "reflection-method-call":
             return clamp_int(

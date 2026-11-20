@@ -354,10 +354,11 @@ class editorWindowScreenshotMetadataTests(unittest.TestCase):
     def test_long_running_tools_default_to_sixty_seconds(self) -> None:
         server = mcp.McpServer("http://127.0.0.1:1", "", timeout_ms=1000)
 
-        self.assertEqual(server.get_tool_timeout_ms("script-execute", {}), 60000)
+        # script-execute waits its timeoutMs plus the compile and reply allowance: timeoutMs bounds the run only.
+        self.assertEqual(server.get_tool_timeout_ms("script-execute", {}), 60000 + mcp.SCRIPT_EXECUTE_REPLY_ALLOWANCE_MS)
         self.assertEqual(server.get_tool_timeout_ms("reflection-method-call", {}), 60000)
         self.assertEqual(server.get_tool_timeout_ms("tests-run", {}), 60000)
-        self.assertEqual(server.get_tool_timeout_ms("script-execute", {"timeoutMs": 120000}), 120000)
+        self.assertEqual(server.get_tool_timeout_ms("script-execute", {"timeoutMs": 120000}), 120000 + mcp.SCRIPT_EXECUTE_REPLY_ALLOWANCE_MS)
         self.assertEqual(server.get_tool_timeout_ms("reflection-method-call", {"timeoutMs": 120000}), 120000)
         self.assertEqual(server.get_tool_timeout_ms("tests-run", {"timeoutMs": 120000}), 120000)
         self.assertEqual(server.get_tool_timeout_ms("console-get-logs", {}), 1000)

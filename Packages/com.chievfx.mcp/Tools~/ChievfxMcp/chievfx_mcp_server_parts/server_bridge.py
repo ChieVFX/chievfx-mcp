@@ -115,14 +115,25 @@ class BridgeTransportMixin:
         return f"working on its main thread ({int((cores or 0) * 100)}% CPU: an import, a package resolution or a long computation)"
 
     def editor_modal_loop(self, process_id: Any) -> str | None:
-        """The modal-loop frame the editor's main thread is in (sampled at most every EDITOR_MODAL_CHECK_SECONDS), or None."""
+        """The modal-loop frame the editor's main thread is in (sampled at most every EDITOR_MODAL_CHECK_SECONDS), or None.
+
+        Unity's own progress window (entering Play Mode under load, "Hold on") spins the same modal loop for a few
+        seconds, and one sample called that a dialog: a dialog is a modal loop the previous sample saw too.
+        """
         cached = getattr(self, "_editor_modal_check", None)
         now_mono = time.monotonic()
         if cached is not None and cached[0] == process_id and now_mono - cached[1] < EDITOR_MODAL_CHECK_SECONDS:
             return cached[2]
         marker = process_modal_loop(process_id)
-        self._editor_modal_check = (process_id, time.monotonic(), marker)
-        return marker
+        seen_before = (
+            cached is not None
+            and cached[0] == process_id
+            and now_mono - cached[1] < EDITOR_MODAL_CHECK_SECONDS * 3
+            and (cached[3] if len(cached) > 3 else cached[2]) is not None
+        )
+        confirmed = marker if marker is not None and seen_before else None
+        self._editor_modal_check = (process_id, time.monotonic(), confirmed, marker)
+        return confirmed
 
     def recent_editor_modal_loop(self, process_id: Any) -> str | None:
         """The modal loop the last check found for this editor, if that check is recent."""

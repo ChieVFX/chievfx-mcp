@@ -230,6 +230,9 @@ class EditorLivenessTests(unittest.TestCase):
         self.cpu_seconds = [100.0, 100.0 + mcp.EDITOR_CPU_SAMPLE_SECONDS * 1.1]
         self.modal_loop = "runModalSession"
 
+        # The first sample is not enough (a progress window spins the same loop for seconds); the next one confirms.
+        self.assertEqual(self.server.assess_editor_liveness()["state"], "busy")
+        self.age_modal_check()
         liveness = self.server.assess_editor_liveness()
 
         self.assertEqual(liveness["state"], "unresponsive", liveness)
@@ -238,10 +241,28 @@ class EditorLivenessTests(unittest.TestCase):
         self.assertIn("Missing Signature", message)
 
         # A script that started package work does not hide the dialog either.
-        self.server._editor_modal_check = None
-        self.server._editor_liveness_cache = None
+        self.age_modal_check()
         self.server._script_started_editor_work_at = time.monotonic() - 30
         self.assertEqual(self.server.assess_editor_liveness()["state"], "unresponsive")
+
+    def test_progress_window_while_entering_play_is_not_a_dialog(self) -> None:
+        # Entering Play Mode under memory pressure: the heartbeat stopped for 5 s with Unity's "Hold on" window up, and one
+        # sample of its modal loop failed game-args-play with "waits in a modal dialog" while Play went on fine.
+        self.write_heartbeat(age_seconds=20, process_id=os.getpid())
+        self.cpu_seconds = [100.0, 100.0 + mcp.EDITOR_CPU_SAMPLE_SECONDS * 1.1]
+        self.modal_loop = "ContainerWindow::MakeModal"
+
+        self.assertEqual(self.server.assess_editor_liveness()["state"], "busy")
+        self.modal_loop = None
+        self.age_modal_check()
+        self.assertNotEqual(self.server.assess_editor_liveness().get("modalLoop"), "ContainerWindow::MakeModal")
+
+    def age_modal_check(self) -> None:
+        check = self.server._editor_modal_check
+        self.server._editor_modal_check = (check[0], check[1] - mcp.EDITOR_MODAL_CHECK_SECONDS - 1, *check[2:])
+        self.server._editor_liveness_cache = None
+        self.server._editor_cpu_sample = None
+        self.cpu_seconds = [300.0, 300.0 + mcp.EDITOR_CPU_SAMPLE_SECONDS * 1.1]
 
     def test_editor_work_started_by_a_script_is_waited_for_while_the_editor_idles(self) -> None:
         # Client.Resolve() from a script: the Package Manager waits on the network, the editor barely uses CPU,

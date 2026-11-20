@@ -46,6 +46,7 @@ Optionally preceded by one **secondary-project label** line, then two layers, bo
    - Items in a collapsed category (see below) are omitted here and their curated blurbs are skipped
    - Full per-tool descriptor lines (`name`, `description`, compressed `inputSchema` args) remain available per category at `chievfx://categories/<slug>` (readable for any category, advertised in `resources/list` only when collapsed) and in aggregate at `chievfx://instructions/core-descriptors`
    - When a client truncates startup instructions (~400 tokens in some IDEs), agents should read `chievfx://instructions/core-descriptors` for the full `Tools:` through `Extra API capabilities` block. It is a required Essentials catalog resource (always enabled, served locally by the Python MCP server).
+   - Clients with no resource-read tool at all (Claude Code subagents have no `ReadMcpResourceTool`) call the always-enabled `mcp-resource-read` tool with the same `uri`. It runs the `resources/read` path itself, so it serves every resource the selection exposes and reading the core descriptors this way silences the first-call notice. The precondition and that notice both name it as the fallback.
 
 ## Category auto-collapse
 

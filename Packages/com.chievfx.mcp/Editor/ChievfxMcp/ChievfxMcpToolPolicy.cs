@@ -610,7 +610,8 @@ namespace Chievfx.Mcp.Editor
                 "reflection-method-call",
                 "editor-window-list",
                 "editor-window-open",
-                "editor-window-focus"
+                "editor-window-focus",
+                "mcp-resource-read"
             };
         }
     }

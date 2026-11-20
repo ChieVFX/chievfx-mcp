@@ -1209,6 +1209,7 @@ namespace Chievfx.Mcp.Editor
                 "reflection-method-find" => "Discover callable C# methods.",
                 "reflection-method-find-single" => "Fetch full info for one discovered C# method.",
                 "reflection-method-call" => "Invoke discovered C# methods.",
+                "mcp-resource-read" => "Read MCP resources for clients without a resource-read tool (subagents).",
                 "profiler-get-state" => "Check Unity profiler recording state.",
                 "profiler-start-recording" => "Start a profiler capture.",
                 "profiler-stop-recording" => "Stop and save a profiler capture.",

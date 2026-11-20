@@ -33,6 +33,9 @@ class InstructionLayoutTests(unittest.TestCase):
         self.assertIn(f'ReadMcpResourceTool({{ server: "{mcp.CURSOR_SERVER_NAME}"', self.instructions)
         self.assertIn(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI, self.instructions)
         self.assertIn('ToolSearch({ query: "select:ReadMcpResourceTool" })', self.instructions)
+        # Claude Code subagents have no ReadMcpResourceTool at all, so the precondition names the tool fallback.
+        precondition = self.instructions.split("ChievFX Unity MCP is project-local")[0]
+        self.assertIn(mcp.MCP_RESOURCE_READ_TOOL_ID, precondition)
         # Names the read-only calls that do NOT require reading it first.
         for exempt in ("screenshot", "bridge-get-status", "console-get-logs"):
             self.assertIn(exempt, self.instructions.split("Commonly used tools:")[0])

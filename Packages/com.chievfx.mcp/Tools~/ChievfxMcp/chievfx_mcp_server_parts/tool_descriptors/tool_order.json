@@ -16,6 +16,7 @@
     "reflection-method-find",
     "reflection-method-find-single",
     "reflection-method-call",
+    "mcp-resource-read",
     "tools-list-categories",
     "tools-list-category",
     "tools-set-enabled-state",

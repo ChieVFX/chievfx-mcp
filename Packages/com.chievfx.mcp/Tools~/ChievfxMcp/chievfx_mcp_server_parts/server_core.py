@@ -369,7 +369,8 @@ class McpServerCore:
             result,
             f"! First ChievFX tool call this session and {CORE_DESCRIPTOR_INSTRUCTIONS_URI} has not "
             "been read. Read it now: startup instructions are truncated by most clients, so it is "
-            "the only complete list of tools and argument signatures.",
+            "the only complete list of tools and argument signatures. No ReadMcpResourceTool? "
+            f"Call {MCP_RESOURCE_READ_TOOL_ID} with that uri.",
         )
         if delivered:
             self.core_descriptor_reminder_sent = True
@@ -401,6 +402,14 @@ class McpServerCore:
                 f"ChievFX MCP tool '{name}' is disabled. Enable it in Window > ChievFX > MCP Tools, "
                 "then reload MCP tools or restart Cursor."
             )
+
+        if name == MCP_RESOURCE_READ_TOOL_ID:
+            uri = arguments.get("uri")
+            if not isinstance(uri, str) or not uri.strip():
+                raise ToolCallError(f"{name} requires string 'uri', e.g. {CORE_DESCRIPTOR_INSTRUCTIONS_URI}.")
+            # The resources/read path itself, so reading the core descriptors this way counts as having read them.
+            contents = self.read_resource({"uri": uri.strip()}, request_id).get("contents", [])
+            return {"content": [{"type": "text", "text": item.get("text", "")} for item in contents], "isError": False}
 
         if name == "tools-list-categories":
             result = list_tool_categories_for_agents()

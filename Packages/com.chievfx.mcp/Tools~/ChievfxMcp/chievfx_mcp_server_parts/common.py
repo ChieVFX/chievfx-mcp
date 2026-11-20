@@ -252,6 +252,7 @@ DEFAULT_REQUIRED_TOOL_IDS = {
     "editor-window-list",
     "editor-window-open",
     "editor-window-focus",
+    "mcp-resource-read",
 }
 DEFAULT_ENABLED_TOOL_IDS: set[str] = set()
 # Order of the "Commonly used tools" list in initialize.instructions. Reaching-for order beats
@@ -303,6 +304,7 @@ TOOL_SHORT_SUMMARIES: dict[str, str] = {
     "asset-delete": "Delete assets or folders",
     "asset-find": "Find assets by name, type, label, folder",
     "folder-ensure": "Create missing Assets/ folders",
+    "mcp-resource-read": "Read a chievfx:// resource (no ReadMcpResourceTool)",
     "bridge-get-operation": "One bridge operation record by opId",
     "tests-run": "Run Unity tests",
     "shader-status": "Magenta or cyan? Shader errors + compiling state",
@@ -360,6 +362,7 @@ TOOL_CATEGORIES = {
     "reflection-method-find": "essentials",
     "reflection-method-find-single": "essentials",
     "reflection-method-call": "essentials",
+    "mcp-resource-read": "essentials",
     "tools-list-categories": "autonomous",
     "tools-list-category": "autonomous",
     "tools-set-enabled-state": "autonomous",
@@ -615,6 +618,7 @@ RESPONSE_PROFILE_BY_TOOL = {
     "console-get-logs-single": "log-list",
     "reflection-method-find": "log-list",
     "reflection-method-find-single": "row-list",
+    "mcp-resource-read": "row-list",
     "tools-list-categories": "row-list",
     "tools-list-category": "row-list",
     "tools-set-enabled-state": "status",
@@ -661,8 +665,11 @@ CORE_DESCRIPTOR_GRACE_TOOL_IDS = frozenset(
         "console-get-logs-single",
     }
 )
+# The resources/read stand-in for clients without a resource-read tool (Claude Code subagents get no
+# ReadMcpResourceTool). Not "resource-read": that name is the bridge command behind read_resource.
+MCP_RESOURCE_READ_TOOL_ID = "mcp-resource-read"
 # Reading the descriptors is the remedy; these calls constitute reading it, so they never nag.
-CORE_DESCRIPTOR_REMEDY_TOOL_IDS = frozenset({"tools-list-categories", "tools-list-category"})
+CORE_DESCRIPTOR_REMEDY_TOOL_IDS = frozenset({"tools-list-categories", "tools-list-category", MCP_RESOURCE_READ_TOOL_ID})
 
 # The "read the descriptors" state lives in a marker file, not just in memory, because the server
 # process restarts (a Unity reload, a client reconnect) far more often than an agent's context does.

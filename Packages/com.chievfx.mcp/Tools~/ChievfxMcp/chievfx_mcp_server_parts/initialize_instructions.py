@@ -59,7 +59,10 @@ def build_core_descriptor_precondition() -> str:
         "tool names and argument signatures, and calling with guessed args fails.\n"
         f'Read it with: ReadMcpResourceTool({{ server: "{CURSOR_SERVER_NAME}", uri: '
         f'"{CORE_DESCRIPTOR_INSTRUCTIONS_URI}" }}){size_text}\n'
-        'If that tool is not loaded, load it first: ToolSearch({ query: "select:ReadMcpResourceTool" })'
+        'If that tool is not loaded, load it first: ToolSearch({ query: "select:ReadMcpResourceTool" })\n'
+        # Claude Code subagents have no ReadMcpResourceTool at all: ToolSearch finds nothing, and without
+        # this line the agent guesses arguments instead of reading the list.
+        f"If ToolSearch finds no such tool, call this server's {MCP_RESOURCE_READ_TOOL_ID} tool with that uri."
     )
 
 

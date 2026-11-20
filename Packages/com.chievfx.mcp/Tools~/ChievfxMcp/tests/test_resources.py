@@ -640,6 +640,66 @@ class ResourceTests(unittest.TestCase):
 
         self.assertEqual(response["error"]["code"], -32002)
 
+    def read_via_tool(self, arguments: dict[str, object]) -> dict[str, object]:
+        return self.request("tools/call", {"name": mcp.MCP_RESOURCE_READ_TOOL_ID, "arguments": arguments})
+
+    def test_mcp_resource_read_tool_serves_core_descriptors_and_counts_as_read(self) -> None:
+        # Claude Code subagents have no ReadMcpResourceTool, so this tool is their only way to the full
+        # argument reference; reading it this way must stop the first-call notice like resources/read does.
+        uri = mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI
+        self.assertFalse(self.server.core_descriptors_read)
+
+        result = self.read_via_tool({"uri": uri})["result"]
+
+        self.assertFalse(result["isError"])
+        self.assertTrue(self.server.core_descriptors_read)
+        self.assertTrue((self.bridge_dir / mcp.CORE_DESCRIPTOR_READ_MARKER_FILENAME).exists())
+        via_resources_read = self.request("resources/read", {"uri": uri})["result"]["contents"][0]["text"]
+        self.assertEqual([block["text"] for block in result["content"]], [via_resources_read])
+        self.assertIn("Tools:", via_resources_read)
+        self.assertEqual(self.server.calls, [])
+
+    def test_mcp_resource_read_tool_never_carries_the_first_call_notice(self) -> None:
+        # It is the remedy the notice points at; nagging on it would be noise, and must not use up the notice.
+        result = self.read_via_tool({"uri": "chievfx://categories/scene"})["result"]
+
+        self.assertTrue(result["content"][0]["text"])
+        self.assertFalse(any("First ChievFX" in block["text"] for block in result["content"]))
+        self.assertFalse(self.server.core_descriptors_read)
+        self.assertFalse(self.server.core_descriptor_reminder_sent)
+
+    def test_mcp_resource_read_tool_forwards_bridge_resources_under_the_bridge_command(self) -> None:
+        uri = "chievfx://scene/assets%2Fscenes%2FSample.unity/go/Root%2FChild/component/BoxCollider.1"
+
+        result = self.read_via_tool({"uri": uri})["result"]
+
+        self.assertEqual(self.server.calls, [("resource-read", {"uri": uri})])
+        self.assertIn(uri, result["content"][0]["text"])
+
+    def test_mcp_resource_read_tool_reports_bad_uris(self) -> None:
+        missing = self.read_via_tool({"uri": "chievfx://missing"})
+        self.assertEqual(missing["error"]["code"], -32002)
+
+        absent = self.read_via_tool({})
+        self.assertIn("uri", absent["error"]["message"])
+        self.assertIn(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI, absent["error"]["message"])
+        self.assertEqual(self.server.calls, [])
+
+    def test_mcp_resource_read_tool_is_required_and_reserved_in_csharp(self) -> None:
+        name = mcp.MCP_RESOURCE_READ_TOOL_ID
+        self.assertNotEqual(name, "resource-read")  # the bridge command behind read_resource
+        self.assertIn(name, mcp.DEFAULT_REQUIRED_TOOL_IDS)
+        self.assertIn(name, mcp.load_required_tool_ids())
+        self.assertIn(name, {tool["name"] for tool in mcp.enabled_tools()})
+
+        editor_dir = Path(__file__).resolve().parents[3] / "Editor" / "ChievfxMcp"
+        registry = (editor_dir / "ChievfxMcpExtensionRegistry.cs").read_text(encoding="utf-8")
+        core_tool_ids = re.search(r"CoreToolIds = new\(StringComparer\.Ordinal\)\s*\{(.*?)\};", registry, re.S)
+        self.assertIsNotNone(core_tool_ids)
+        # Reserved, so an extension cannot register a tool under the same name.
+        self.assertIn(f'"{name}"', core_tool_ids.group(1))
+        self.assertIn(f'"{name}"', (editor_dir / "ChievfxMcpToolPolicy.cs").read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,16 @@
+{
+  "name": "mcp-resource-read",
+  "description": "Returns the text of a ChievFX MCP resource, same as resources/read. For clients without ReadMcpResourceTool (e.g. subagents).",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "uri": {
+        "type": "string",
+        "description": "Resource URI, e.g. chievfx://instructions/core-descriptors or chievfx://categories/<domain>."
+      }
+    },
+    "required": [
+      "uri"
+    ]
+  }
+}

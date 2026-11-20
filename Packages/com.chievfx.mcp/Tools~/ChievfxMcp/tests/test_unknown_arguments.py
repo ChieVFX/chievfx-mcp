@@ -111,6 +111,8 @@ class CoreDescriptorReminderTests(unittest.TestCase):
         out = self._server()._with_core_descriptor_reminder(self._text_result(), self.TEXT_TOOL)
         blocks = [block.get("text", "") for block in out["content"]]
         self.assertTrue(any(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI in text for text in blocks))
+        # The way to read it for a caller with no ReadMcpResourceTool (Claude Code subagents).
+        self.assertTrue(any(mcp.MCP_RESOURCE_READ_TOOL_ID in text for text in blocks))
         # The original payload must be untouched; the pointer rides in its own block.
         self.assertEqual(out["content"][0]["text"], "captureSource:gameview")
 

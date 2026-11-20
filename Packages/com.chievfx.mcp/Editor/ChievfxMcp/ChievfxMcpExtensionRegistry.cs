@@ -145,6 +145,7 @@ namespace Chievfx.Mcp.Editor
             "gameobject-transform-get",
             "gameobject-transform-update",
             "gameobject-update",
+            "mcp-resource-read",
             "package-add",
             "package-list",
             "package-remove",

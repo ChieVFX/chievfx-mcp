@@ -349,6 +349,10 @@ class McpServerCore:
         # The reply below the outcome is the state when the action started ("GoTo#3 running"): say so.
         prepend_result_headline(result, format_await_outcome_text(outcome, wait_arguments), "at start: ")
         failure = describe_awaited_failure(raw_result, outcome)
+        if failure is None and not outcome.get("matched") and not outcome.get("cancelled"):
+            # A batch step's next steps rely on its end (walk up, then hit): one still running would be cut short
+            # by the next action, so a step whose end did not come within awaitMs stops the batch too.
+            failure = f"the awaited end did not come within {await_ms} ms (the action may still be running)"
         if failure is not None and isinstance(raw_result, dict):
             # The reply was written when the action started (ok:true); a tool-batch step judges the action by its end.
             raw_result["ok"] = False

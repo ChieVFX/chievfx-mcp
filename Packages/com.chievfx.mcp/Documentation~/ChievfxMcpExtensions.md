@@ -203,7 +203,9 @@ shape core tools get from their own formatters. All are optional.
 - `waitForFailed` (string, or a list of strings: any matches): a log substring
   that marks a failed end, e.g. `waitFor` + `"failed"`. When the awaited end
   event contains it, the call counts as failed although its reply said ok: a
-  `tool-batch` step stops the batch there, as on a thrown error.
+  `tool-batch` step stops the batch there, as on a thrown error. So does a
+  step whose end did not come within its `awaitMs`: the next step would act
+  over an action that is still running.
 - Without `awaitMs` the caller waits itself with `events-wait`; returning
   `sinceEventId` (the journal's current id when the action started) lets that
   wait catch an end that came before it was armed.

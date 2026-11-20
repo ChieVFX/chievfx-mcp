@@ -364,12 +364,20 @@ namespace Chievfx.Mcp.Editor
             return string.Join(" ", kept);
         }
 
-        // .NET frames ("at Ns.Type.Method (...)") and Unity frames ("Ns.Type:Method (...) (at Assets/X.cs:12)").
+        // .NET frames ("at Ns.Type.Method (...)", "at Ns.Type.Method in /path:line 5", "at Ns.Type.Method"), Unity frames
+        // ("Ns.Type:Method (...) (at Assets/X.cs:12)") and a project logger's "Stack generation time: ..." footer.
         private static bool IsStackFrameLine(string line)
         {
-            return (line.StartsWith("at ", StringComparison.Ordinal) && line.IndexOf('(') > 0)
-                   || (line.EndsWith(")", StringComparison.Ordinal) && line.IndexOf(" (at ", StringComparison.Ordinal) > 0)
-                   || line.StartsWith("UnityEngine.Debug:", StringComparison.Ordinal);
+            if (line.StartsWith("at ", StringComparison.Ordinal))
+            {
+                var nameEnd = line.IndexOf(' ', 3);
+                var name = nameEnd < 0 ? line.Substring(3) : line.Substring(3, nameEnd - 3);
+                return name.IndexOf('.') > 0;
+            }
+
+            return (line.EndsWith(")", StringComparison.Ordinal) && line.IndexOf(" (at ", StringComparison.Ordinal) > 0)
+                   || line.StartsWith("UnityEngine.Debug:", StringComparison.Ordinal)
+                   || line.StartsWith("Stack generation time:", StringComparison.Ordinal);
         }
 
         private static string ExtractFirstNonEmptyLine(string? text)

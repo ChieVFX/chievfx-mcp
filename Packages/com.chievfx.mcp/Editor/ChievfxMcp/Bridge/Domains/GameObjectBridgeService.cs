@@ -202,7 +202,8 @@ namespace Chievfx.Mcp.Editor
         }
 
         // Zero matches for a type name nothing is called: a typo or a guessed name ("Car") read the same as "no such objects".
-        // Types on the searched objects come first, by count: the shortest loaded names ("CarPh") hid the one in use (CarControl).
+        // Types on the searched objects come first, the ones highest in the hierarchy first: the shortest loaded names
+        // ("CarPh") and the most numerous ones (CarColorSlot on every paint slot) both hid the root's CarControl.
         private static string? DescribeUnknownComponentType(string componentType, List<GameObject> searchedObjects)
         {
             var types = UnityAssemblies.GetLoaded()
@@ -214,23 +215,36 @@ namespace Chievfx.Mcp.Editor
                 return null;
             }
 
-            var inUse = new Dictionary<string, int>(StringComparer.Ordinal);
+            var inUse = new Dictionary<string, (int Count, int Depth)>(StringComparer.Ordinal);
             foreach (var gameObject in searchedObjects)
             {
+                var depth = -1;
                 foreach (var component in gameObject.GetComponents<Component>())
                 {
                     var typeName = component != null ? component.GetType().Name : null;
-                    if (typeName != null && typeName.IndexOf(componentType, StringComparison.OrdinalIgnoreCase) >= 0)
+                    if (typeName == null || typeName.IndexOf(componentType, StringComparison.OrdinalIgnoreCase) < 0)
                     {
-                        inUse[typeName] = inUse.TryGetValue(typeName, out var count) ? count + 1 : 1;
+                        continue;
                     }
+
+                    if (depth < 0)
+                    {
+                        depth = 0;
+                        for (var parent = gameObject.transform.parent; parent != null; parent = parent.parent)
+                        {
+                            depth++;
+                        }
+                    }
+
+                    inUse[typeName] = inUse.TryGetValue(typeName, out var seen) ? (seen.Count + 1, Math.Min(seen.Depth, depth)) : (1, depth);
                 }
             }
 
             var similar = inUse
-                .OrderByDescending(pair => pair.Value)
+                .OrderBy(pair => pair.Value.Depth)
+                .ThenByDescending(pair => pair.Value.Count)
                 .ThenBy(pair => pair.Key, StringComparer.Ordinal)
-                .Select(pair => $"{pair.Key} (on {pair.Value})")
+                .Select(pair => $"{pair.Key} (on {pair.Value.Count})")
                 .Concat(types
                     .Where(type => !type.IsAbstract && !inUse.ContainsKey(type.Name) && type.Name.IndexOf(componentType, StringComparison.OrdinalIgnoreCase) >= 0)
                     .Select(type => type.Name)
@@ -240,7 +254,7 @@ namespace Chievfx.Mcp.Editor
                 .Take(8)
                 .ToArray();
             return $"no loaded Component type is named '{componentType}'"
-                   + (similar.Length > 0 ? $"; types containing it (on N searched objects first): {string.Join(", ", similar)}." : ": componentType is a class name (as in GetComponent<T>), check the spelling.");
+                   + (similar.Length > 0 ? $"; types containing it (those on the searched objects first, highest in the hierarchy first): {string.Join(", ", similar)}." : ": componentType is a class name (as in GetComponent<T>), check the spelling.");
         }
 
         public object GetComponent(JToken args)

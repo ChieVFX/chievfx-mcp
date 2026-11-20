@@ -211,12 +211,16 @@ namespace Chievfx.Mcp.Editor.Tests
         {
             var message = "[] Request error[1] timeout\nLog stack:\n"
                           + "at Common.Logging.Utils.StackTraceUtils.ExtractStackTraceInternal (<a href=\"Assets/Scripts/Common/Logging/Utils/StackTraceUtils.cs\" line=\"107\">Assets/Scripts/Common/Logging/Utils/StackTraceUtils.cs</a>:107)\n"
-                          + "Net.Requests:Send () (at Assets/Scripts/Net/Requests.cs:40)";
+                          + "Net.Requests:Send () (at Assets/Scripts/Net/Requests.cs:40)\n"
+                          + "at UnityEngine.Object.Internal_CloneSingleWithParent_Injected\n"
+                          + "at UnityEngine.Object.Instantiate[ControlHorn] in /Users/bokken/build/UnityEngineObject.bindings.cs:line 668\n"
+                          + "Stack generation time: total: 332 extract: 275 format: 57 us";
 
             var row = ConsoleLogBridgeService.JoinLinesWithoutStackFrames(ConsoleLogBridgeService.StripSourceLinks(message), out var dropped);
 
             Assert.AreEqual("[] Request error[1] timeout", row);
-            Assert.AreEqual(2, dropped);
+            Assert.AreEqual(5, dropped);
+            Assert.AreEqual("we waited at least 3 s", ConsoleLogBridgeService.JoinLinesWithoutStackFrames("we waited\nat least 3 s", out _), "prose that starts with 'at' stays");
         }
 
         [Test]

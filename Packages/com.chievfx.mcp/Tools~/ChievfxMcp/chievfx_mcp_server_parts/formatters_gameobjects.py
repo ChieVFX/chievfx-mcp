@@ -286,8 +286,14 @@ def format_ui_runtime_click_framework_row(section: dict[str, Any]) -> str:
         if handler_ref:
             parts.append("handler:" + handler_ref)
     else:
-        # Hit a raycast target, but no recognized handler responded — nothing was triggered.
-        parts.append("no-handler")
+        # Hit a raycast target, but no recognized click handler responded. press-only: PointerDown/Up reached a
+        # handler (a button that reads the held pointer itself) — a synthetic click does not press it.
+        events = section.get("events")
+        is_press_only = isinstance(events, list) and any(
+            isinstance(event, str) and event.startswith(("pointerDown:", "pointerUp:")) and not event.endswith(":none")
+            for event in events
+        )
+        parts.append("press-only" if is_press_only else "no-handler")
 
     events = section.get("events")
     if isinstance(events, list) and events:
@@ -521,7 +527,8 @@ def format_ui_runtime_type_text_text(result: dict[str, Any]) -> str:
 
     for label, key in (("before", "textBefore"), ("after", "textAfter")):
         value = result.get(key)
-        if not should_omit_toon_value(value):
+        # An empty text is an answer too: after "" is how a caller sees the field was cleared.
+        if isinstance(value, str):
             lines.append(f'{label} "{value}"')
 
     attempts = result.get("attempts")

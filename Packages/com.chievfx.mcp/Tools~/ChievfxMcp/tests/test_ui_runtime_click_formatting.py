@@ -44,6 +44,27 @@ class UiRuntimeClickFormattingTests(unittest.TestCase):
         self.assertIn("- ugui path:Canvas/Screen/BtnTest id:57736 clicked", text)
         self.assertIn("- uitoolkit miss", text)
 
+    def test_press_only_handlers_are_named_apart_from_no_handler(self) -> None:
+        def row(events: list[str]) -> dict:
+            return {
+                "framework": "ugui",
+                "available": True,
+                "resolved": True,
+                "clicked": False,
+                "target": {"path": "Canvas/Smartphone", "instanceId": 7},
+                "events": events,
+            }
+
+        press_only = mcp.format_ui_runtime_click_text(
+            {"playMode": True, "anyResolved": True, "anyClicked": False, "frameworks": [row(["pointerDown:EventTrigger", "pointerUp:EventTrigger", "pointerClick:none"])]}
+        )
+        nothing = mcp.format_ui_runtime_click_text(
+            {"playMode": True, "anyResolved": True, "anyClicked": False, "frameworks": [row(["pointerDown:none", "pointerUp:none", "pointerClick:none"])]}
+        )
+
+        self.assertIn("id:7 press-only", press_only)
+        self.assertIn("id:7 no-handler", nothing)
+
     def test_path_only_click_shows_single_resolved_framework_without_position(self) -> None:
         result = {
             "playMode": True,

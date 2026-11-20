@@ -25,6 +25,14 @@ class UiRuntimeTypeTextFormattingTests(unittest.TestCase):
         self.assertIn("target path:Canvas/Search/Field id:4242", text)
         self.assertIn('after "dark arrow"', text)
 
+    def test_cleared_field_shows_an_empty_after(self) -> None:
+        result = {"playMode": True, "resolved": True, "framework": "ugui", "textBefore": "help", "textAfter": ""}
+
+        text = mcp.format_ui_runtime_type_text_text(result)
+
+        self.assertIn('before "help"', text)
+        self.assertIn('after ""', text)
+
     def test_successful_call_omits_hit_stack_and_target_states(self) -> None:
         # The generic dump used to emit the whole hit stack and both target states on every call —
         # several KB per call in a real UI, none of it needed once the field was found.

@@ -78,8 +78,10 @@ and `*.pyc`/`*.pyo`. The choice and folder are remembered per launcher project.
 Nothing to do. Launching from Unity (**Window > ChievFX > MCP** → **Connection** →
 **Advanced details** → **Launch Python Installer**) uses the **single shared managed
 environment** at `~/.chievfx-mcp/env` — the same interpreter that runs the MCP server —
-and installs `requirements.txt` into it on first use (~25 s once per machine). Every
-project copy reuses that one environment; there is no per-project virtual environment.
+and installs `requirements.txt` into it on first use (~25 s once per machine), and again when a
+requirement is missing. Every project copy reuses that one environment; there is no per-project virtual
+environment. `requirements.txt` also brings Pillow: the installer does not use it, agents do, to crop and
+stitch screenshots with that same interpreter.
 
 If the shared environment cannot be used, the launcher falls back to any interpreter that
 already has PyQt6 (a hand-made `Install~/.venv`, or a system Python) and logs a warning

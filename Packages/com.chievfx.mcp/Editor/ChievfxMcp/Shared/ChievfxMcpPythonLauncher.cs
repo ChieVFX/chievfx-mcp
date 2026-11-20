@@ -84,7 +84,8 @@ namespace Chievfx.Mcp.Editor
             if (ChievfxMcpManagedPython.TryGetExecutablePath(out var managedPython) && File.Exists(managedPython))
             {
                 checkedPythons.Add(managedPython);
-                python = CanImportPyQt6(managedPython)
+                // Every requirement, not just PyQt6: one added later (Pillow) reaches an environment that already has the GUI.
+                python = CanImportModules(managedPython, SharedEnvironmentModules)
                     ? managedPython
                     : (TryProvisionSharedEnvironment(installDirectory, out var provisioned, out provisionError) ? provisioned : null);
             }
@@ -420,7 +421,15 @@ namespace Chievfx.Mcp.Editor
             }
         }
 
+        // Install~/requirements.txt as import names: the installer GUI, and Pillow for agents using the shared environment.
+        private const string SharedEnvironmentModules = "PyQt6, PIL";
+
         private static bool CanImportPyQt6(string python)
+        {
+            return CanImportModules(python, "PyQt6");
+        }
+
+        private static bool CanImportModules(string python, string modules)
         {
             try
             {
@@ -434,7 +443,7 @@ namespace Chievfx.Mcp.Editor
                     StartInfo = new ProcessStartInfo
                     {
                         FileName = python,
-                        Arguments = "-c \"import PyQt6\"",
+                        Arguments = $"-c \"import {modules}\"",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,

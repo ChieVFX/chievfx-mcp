@@ -1,1 +1,4 @@
 PyQt6>=6.7.0
+# Not used by the installer: agents crop and stitch screenshots with the shared environment's Python
+# (~/.chievfx-mcp/env, the one that runs the MCP server), which has no other image library.
+Pillow>=10.0

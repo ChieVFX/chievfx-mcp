@@ -15,6 +15,13 @@ namespace Chievfx.Mcp.Editor
     {
         static ChievfxMcpBootstrap()
         {
+            // An import worker shares Library/ and EditorPrefs with the editor: its bridge, settings files
+            // and quit cleanup (which kills the editor's HTTP server by the stored pid) belong to the editor.
+            if (ChievfxMcpBridge.IsImportWorker)
+            {
+                return;
+            }
+
             AssemblyReloadEvents.beforeAssemblyReload += PrepareForAssemblyReloadSafely;
             EditorApplication.quitting += StopLocalProcessesSafely;
             ChievfxMcpRuntimeUiAdapterRegistry.EnsureRegistered();

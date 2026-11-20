@@ -610,6 +610,8 @@ class McpServerCore:
 
         if name == "script-execute" and "csharpPath" in arguments:
             arguments = read_script_source_file(arguments)
+        if name == "script-execute" and "parameters" in arguments:
+            arguments = parse_script_parameters(arguments)
         bridge_arguments = arguments
         force_ui_control_find_json = name == "ui-control-find" and arguments.get("outputFormat") != "json"
         force_ui_runtime_click_json = name == "ui-runtime-click" and arguments.get("outputFormat") != "json"

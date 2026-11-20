@@ -114,6 +114,16 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 ? pathValue
                 : ReadString(args, "targetPath");
             var targetName = ReadString(args, "name") ?? ReadString(args, "targetName");
+            // ui-control-find shows a UI Toolkit control as (ve:<n>) where a uGUI one has (id: <n>), so the number
+            // naturally comes back as instanceId: read it as that element's ref.
+            if (string.IsNullOrWhiteSpace(targetRef)
+                && string.IsNullOrWhiteSpace(targetPath)
+                && string.IsNullOrWhiteSpace(targetName)
+                && args["instanceId"] is JValue { Type: JTokenType.Integer } instanceId)
+            {
+                targetRef = "ve:" + instanceId.ToString(CultureInfo.InvariantCulture);
+            }
+
             if (string.IsNullOrWhiteSpace(targetRef)
                 && string.IsNullOrWhiteSpace(targetPath)
                 && string.IsNullOrWhiteSpace(targetName))

@@ -282,9 +282,11 @@ namespace Chievfx.Mcp.Editor
                     pending.Completion.Set();
                     if (detachedAwaits.Remove(pending))
                     {
+                        // The exception's type tells an InvalidOperationException from a NullReferenceException, which
+                        // the message alone often does not; a Task/UniTask without a value ends as plain "done".
                         var outcome = pending.Exception == null
-                            ? "done: " + TrimForLog(pending.SerializedReturnValue)
-                            : "failed: " + pending.Exception.GetBaseException().Message;
+                            ? pending.SerializedReturnValue == null ? "done" : "done: " + TrimForLog(pending.SerializedReturnValue)
+                            : "failed: " + pending.Exception.GetBaseException().GetType().Name + ": " + pending.Exception.GetBaseException().Message;
                         Debug.Log($"{AsyncEndLogPrefix}{pending.MethodLabel} after {pending.AwaitedMs} ms {outcome}");
                     }
                 }
@@ -973,10 +975,41 @@ namespace Chievfx.Mcp.Editor
                     notes.Add("Compiled with internal/private member access: non-public members of loaded assemblies are reachable directly.");
                     return accessOnly;
                 }
+
+                // The aliases name exactly what the code mentions (ChievfxMcpScriptState, Object/Random), while the
+                // default namespaces bring in everything: with internal access System.IO adds Mono's internal ToArray
+                // extension, and every LINQ ToArray() became ambiguous (CS0121). The aliases alone come first.
+                var aliases = addedDirectives.Where(directive => directive.Contains(" = ")).ToList();
+                if (aliases.Count > 0 && aliases.Count < addedDirectives.Count)
+                {
+                    var aliasPrefix = string.Concat(aliases.Select(directive => directive + "\n"));
+                    var withAliases = CompileScriptAssembly(aliasPrefix + csharpCode, allowNonPublic: true, lineOffset: aliases.Count, out retryDiagnostics);
+                    if (withAliases != null)
+                    {
+                        diagnostics = retryDiagnostics;
+                        notes.Add("Compiled after adding '" + string.Join(" ", aliases) + "' and internal/private member access. Next time write the usings yourself; non-public members of loaded assemblies are reachable directly.");
+                        return withAliases;
+                    }
+                }
             }
 
             var prefix = string.Concat(addedDirectives.Select(directive => directive + "\n"));
             var assembly = CompileScriptAssembly(prefix + csharpCode, allowNonPublic: true, lineOffset: addedDirectives.Count, out retryDiagnostics);
+            const string systemIoDirective = "using System.IO;";
+            if (assembly == null && addedDirectives.Contains(systemIoDirective) && retryDiagnostics.Any(IsSystemIoAmbiguity))
+            {
+                // Same clash when the code also lacks System.Linq: without System.IO the LINQ call is unambiguous again.
+                var withoutIo = addedDirectives.Where(directive => directive != systemIoDirective).ToList();
+                var withoutIoPrefix = string.Concat(withoutIo.Select(directive => directive + "\n"));
+                var withoutIoAssembly = CompileScriptAssembly(withoutIoPrefix + csharpCode, allowNonPublic: true, lineOffset: withoutIo.Count, out var withoutIoDiagnostics);
+                if (withoutIoAssembly != null || ErrorTexts(withoutIoDiagnostics).Count < ErrorTexts(retryDiagnostics).Count)
+                {
+                    addedDirectives = withoutIo;
+                    assembly = withoutIoAssembly;
+                    retryDiagnostics = withoutIoDiagnostics;
+                }
+            }
+
             var tried = addedDirectives.Count > 0
                 ? "'" + string.Join(" ", addedDirectives) + "' and internal/private member access"
                 : "internal/private member access";
@@ -1011,6 +1044,11 @@ namespace Chievfx.Mcp.Editor
                 + (newErrors.Length > 0 ? " (" + string.Join("; ", newErrors) + ")" : string.Empty)
                 + ". Errors below are from your code as sent.");
             return null;
+        }
+
+        private static bool IsSystemIoAmbiguity(Dictionary<string, object?> diagnostic)
+        {
+            return diagnostic["id"] as string == "CS0121" && diagnostic["message"] is string message && message.Contains("System.IO.");
         }
 
         private static HashSet<string> ErrorTexts(IEnumerable<Dictionary<string, object?>> diagnostics)
@@ -1070,7 +1108,7 @@ namespace Chievfx.Mcp.Editor
         }
 
         // "line:column" in the caller's own code; lines of usings added by the retry are not counted.
-        private static string? DescribeDiagnosticLocation(object? location, int lineOffset)
+        private static string? DescribeDiagnosticLocation(object? location, int lineOffset, (int Line, int Column, int Length)? topLevelHeader)
         {
             if (location == null)
             {
@@ -1084,7 +1122,13 @@ namespace Chievfx.Mcp.Editor
                 if (start != null)
                 {
                     var line = Convert.ToInt32(ReflectionBridgeService.ReadReflectedProperty(start, "Line"), CultureInfo.InvariantCulture) - lineOffset + 1;
-                    var column = Convert.ToInt32(ReflectionBridgeService.ReadReflectedProperty(start, "Character"), CultureInfo.InvariantCulture) + 1;
+                    var character = Convert.ToInt32(ReflectionBridgeService.ReadReflectedProperty(start, "Character"), CultureInfo.InvariantCulture);
+                    if (topLevelHeader is { } header && line - 1 == header.Line && character >= header.Column + header.Length)
+                    {
+                        character -= header.Length;
+                    }
+
+                    var column = character + 1;
                     return line >= 1 ? line + ":" + column : "added using";
                 }
             }
@@ -1178,7 +1222,7 @@ namespace Chievfx.Mcp.Editor
                     ["id"] = ReflectionBridgeService.ReadReflectedStringProperty(diagnostic, "Id"),
                     ["severity"] = severity,
                     ["message"] = message,
-                    ["location"] = DescribeDiagnosticLocation(location, lineOffset)
+                    ["location"] = DescribeDiagnosticLocation(location, lineOffset, _topLevelHeader)
                 });
 
                 if (results.Count >= MaxScriptDiagnostics)

@@ -1,6 +1,9 @@
 #nullable enable
+using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using static Chievfx.Mcp.Extensions.Ugui.UguiRuntimeControlHelpers;
 using static Chievfx.Mcp.Extensions.Ugui.UguiRuntimeHelpers;
 using static Chievfx.Mcp.Extensions.Ugui.UguiSharedHelpers;
@@ -55,6 +58,55 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             return alpha <= 0.001f;
+        }
+
+        // What a tap at the control's centre lands on when that is not the control: a window drawn over it (a modal's
+        // full-screen backdrop). Tools reach a control by path straight through such a window; a player cannot. A hit on
+        // the control's own child, or on anything whose click goes to the same receiver, is the control's own tap.
+        internal static bool TryFindCover(GameObject target, UguiDependencyStatus status, [NotNullWhen(true)] out GameObject? cover, out int sortingOrder)
+        {
+            cover = null;
+            sortingOrder = 0;
+            var eventSystem = EventSystem.current;
+            if (eventSystem == null || !UguiRuntimeTools.TryGetTargetScreenCenter(target, status, out var center))
+            {
+                return false;
+            }
+
+            var results = new List<RaycastResult>();
+            try
+            {
+                UguiTargetSizeRaycast.RaycastAll(eventSystem, new PointerEventData(eventSystem) { position = center }, results);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+
+            if (results.Count == 0 || results[0].gameObject is not GameObject top
+                || top == target || top.transform.IsChildOf(target.transform))
+            {
+                return false;
+            }
+
+            var receiver = ExecuteEvents.GetEventHandler<IPointerClickHandler>(target);
+            if (receiver != null && ExecuteEvents.GetEventHandler<IPointerClickHandler>(top) == receiver)
+            {
+                return false;
+            }
+
+            cover = top;
+            sortingOrder = results[0].sortingOrder;
+            return true;
+        }
+
+        internal static void AddCoverWarning(GameObject target, UguiDependencyStatus status, List<string> warnings)
+        {
+            if (TryFindCover(target, status, out var cover, out var sortingOrder))
+            {
+                warnings.Add($"'{GetTransformPath(target.transform)}' is covered at its centre by '{GetTransformPath(cover.transform)}' (sorting order {sortingOrder}): "
+                    + "a player's tap there lands on that, not on this control. The tool acted on it anyway.");
+            }
         }
 
         internal static void AddPlayerReachabilityWarnings(GameObject target, UguiDependencyStatus status, List<string> warnings)

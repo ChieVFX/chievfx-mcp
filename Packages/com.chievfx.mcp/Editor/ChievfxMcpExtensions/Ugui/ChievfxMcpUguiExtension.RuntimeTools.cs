@@ -167,6 +167,11 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 else
                 {
                     var targetFromScreenPosition = includeCoordinateInfo && !ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args);
+                    if (!targetFromScreenPosition)
+                    {
+                        UguiRuntimeReachability.AddCoverWarning(target, status, warnings);
+                    }
+
                     var pressPosition = includeCoordinateInfo || !TryGetTargetScreenCenter(target, status, out var targetCenter)
                         ? position.ScreenPosition
                         : targetCenter;
@@ -189,7 +194,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
         // A target reached by path is pressed at its centre, where a player would tap it, rather than at the
         // screen centre the coordinate reader falls back to.
-        private static bool TryGetTargetScreenCenter(GameObject target, UguiDependencyStatus status, out Vector2 center)
+        internal static bool TryGetTargetScreenCenter(GameObject target, UguiDependencyStatus status, out Vector2 center)
         {
             center = default;
             if (target.transform is not RectTransform rect)
@@ -743,7 +748,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 .Select(entry =>
                 {
                     TryGetUguiScreenZone(entry.target, status, screenSize, out var zone);
-                    return new Dictionary<string, object?>
+                    var row = new Dictionary<string, object?>
                     {
                         ["framework"] = "ugui",
                         ["path"] = GetTransformPath(entry.target.transform),
@@ -751,6 +756,13 @@ namespace Chievfx.Mcp.Extensions.Ugui
                         ["controlType"] = entry.controlType,
                         ["zone"] = zone,
                     };
+                    // Under a window's backdrop a control is drawn but a player's tap lands on the window, not on it.
+                    if (UguiRuntimeReachability.TryFindCover(entry.target, status, out var cover, out _))
+                    {
+                        row["coveredBy"] = GetTransformPath(cover.transform);
+                    }
+
+                    return row;
                 })
                 .ToArray();
 

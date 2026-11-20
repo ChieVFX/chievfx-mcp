@@ -72,6 +72,41 @@ namespace Chievfx.Mcp.Editor.Tests
             StringAssert.Contains("filter.inputParameters[0].value", error.Message);
         }
 
+        [Test]
+        public void CallMatchesNamesExactlyAndNamesTheMethodItCalled()
+        {
+            var result = (System.Collections.Generic.Dictionary<string, object?>)service.CallMethod(AbsCall(new JObject { ["typeName"] = "int", ["value"] = -3 }, topLevel: null));
+            Assert.AreEqual("System.Math.Abs(Int32 value)", result["called"]);
+
+            // Mathf.Clamp has no one-float overload: a substring match used to run Clamp01 instead and say nothing.
+            var clamp = new JObject
+            {
+                ["filter"] = new JObject
+                {
+                    ["typeName"] = "Mathf",
+                    ["methodName"] = "Clamp",
+                    ["inputParameters"] = new JArray(new JObject { ["typeName"] = "float", ["value"] = 5.5 }),
+                },
+            };
+            var error = Assert.Throws<InvalidOperationException>(() => service.CallMethod(clamp))!;
+            StringAssert.Contains("No overload takes the given inputParameters", error.Message);
+            StringAssert.Contains("UnityEngine.Mathf.Clamp(Single value, Single min, Single max)", error.Message);
+            StringAssert.DoesNotContain("Clamp01", error.Message);
+        }
+
+        [Test]
+        public void MisspeltNameIsRefusedWithCloseNamesAndContainsStillCallsBySubstring()
+        {
+            var misspelt = AbsCall(new JObject { ["typeName"] = "int", ["value"] = -2 }, topLevel: null);
+            misspelt["filter"]!["methodName"] = "Ab";
+            var error = Assert.Throws<InvalidOperationException>(() => service.CallMethod(misspelt))!;
+            StringAssert.Contains("Close names: ", error.Message);
+            StringAssert.Contains(".Abs(", error.Message);
+
+            misspelt["match"] = "contains";
+            Assert.AreEqual(2, ReturnValue(service.CallMethod(misspelt)), "match:'contains' calls the first substring match.");
+        }
+
         private static JObject AbsCall(JObject parameter, JArray? topLevel)
         {
             var args = new JObject

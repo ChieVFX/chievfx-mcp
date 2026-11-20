@@ -173,6 +173,38 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
         }
 
         [UnityTest]
+        public IEnumerator ClickByPathUnderAWindowSaysWhatCoversTheControl()
+        {
+            // A modal's full-screen backdrop on a higher canvas: the tool reaches the button by path, a player cannot.
+            var canvas = BuildScene();
+            var clicks = 0;
+            var button = CreateImage(canvas.transform, "CoveredButton", new Vector2(0f, 0f), new Vector2(160f, 60f)).AddComponent<Button>();
+            button.onClick.AddListener(() => clicks++);
+            var label = CreateImage(button.transform, "Label", Vector2.zero, new Vector2(100f, 30f));
+            yield return null;
+
+            var uncovered = RunRegistry("RuntimeClick", "{'framework':'ugui','path':'" + CanvasName + "/CoveredButton'}");
+            Assert.IsFalse(Strings(uncovered["warnings"]).Any(warning => warning.Contains("is covered")), "Its own child label is not a cover. " + Describe(uncovered));
+            var openRows = Rows(RunRegistry("ControlFind", "{'framework':'ugui','wildcards':'*CoveredButton*'}")["controls"]);
+            Assert.IsFalse(openRows.Single().ContainsKey("coveredBy"), Describe(openRows.Single()));
+
+            var window = CreateCanvas("FeedbackWindowCanvas", sortingOrder: 500, withRaycaster: true);
+            var backdrop = CreateImage(window.transform, "Backdrop", Vector2.zero, new Vector2(4000f, 4000f));
+            yield return null;
+
+            var covered = RunRegistry("RuntimeClick", "{'framework':'ugui','path':'" + CanvasName + "/CoveredButton'}");
+            Assert.AreEqual(2, clicks, "The tool still clicks by path. " + Describe(covered));
+            var warning = Strings(covered["warnings"]).Single(text => text.Contains("is covered"));
+            StringAssert.Contains("FeedbackWindowCanvas/Backdrop", warning);
+            StringAssert.Contains("sorting order 500", warning);
+
+            var coveredRows = Rows(RunRegistry("ControlFind", "{'framework':'ugui','wildcards':'*CoveredButton*'}")["controls"]);
+            Assert.AreEqual("FeedbackWindowCanvas/Backdrop", coveredRows.Single()["coveredBy"], Describe(coveredRows.Single()));
+            Assert.IsNotNull(label);
+            Assert.IsNotNull(backdrop);
+        }
+
+        [UnityTest]
         public IEnumerator SetControlValueReachesWrappedSliderAndExplainsMisses()
         {
             var canvas = BuildScene();

@@ -32,7 +32,7 @@
       "sinceEventId": {
         "type": "integer",
         "minimum": 0,
-        "description": "Only logs after this event cursor; capture lastEventId before a compile/reimport. Bridge-captured logs only."
+        "description": "Only logs after this event cursor (e.g. lastEventId before a compile). Bridge-captured logs only."
       },
       "sinceTimestampUtc": {
         "type": "string",
@@ -41,7 +41,7 @@
       "dedupe": {
         "type": "boolean",
         "default": true,
-        "description": "Collapse duplicates into one row with repeats. Default on."
+        "description": "Duplicates as one row with repeats. Default on; off with sinceEventId."
       },
       "includeStack": {
         "type": "boolean",

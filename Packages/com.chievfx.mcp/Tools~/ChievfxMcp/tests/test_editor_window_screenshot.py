@@ -305,7 +305,7 @@ class editorWindowScreenshotMetadataTests(unittest.TestCase):
             "events-wait": {"includeData", "level", "source", "type"},
             "profiler-window-control": {"moduleIdentifier", "selectedModuleIdentifier", "stayOnLatestFrame"},
             "reflection-method-call": {"executeInMainThread", "inputParameters"},
-            "script-execute": {"includeLogs", "logType", "parameters"},
+            "script-execute": {"includeLogs", "logType"},
             "tests-run": {
                 "includeLogs",
                 "includeLogsStacktrace",

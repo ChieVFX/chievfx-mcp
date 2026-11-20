@@ -681,6 +681,9 @@ def format_ui_control_find_row(
     )
     if zone_text:
         line += f"; zone:{zone_text}"
+    covered_by = control.get("coveredBy")
+    if not should_omit_toon_value(covered_by):
+        line += f"; covered by {format_gameobject_text_value(covered_by)} (a player's tap lands there)"
     return line
 
 
@@ -876,13 +879,17 @@ def format_ugui_textmeshpro_get_text(result: dict[str, Any]) -> str:
     return "\n".join(line for line in lines if line)
 
 
-def format_component_types_preview(game_object: dict[str, Any], component_types: list[Any]) -> str:
+def format_component_types_preview(
+    game_object: dict[str, Any],
+    component_types: list[Any],
+    full_list_hint: str = "includeComponents:true lists all",
+) -> str:
     """components[<total>]: the first types; a cut list says how many are shown, so 12 is not read as all of them."""
     component_text = ", ".join(str(component) for component in component_types)
     total = game_object.get("componentCount")
     if game_object.get("componentTypesTruncated") is True:
         total_text = str(total) if isinstance(total, int) else f"{len(component_types)}+"
-        return f"components[{total_text}]: {component_text}, ... ({len(component_types)} shown; includeComponents:true lists all)"
+        return f"components[{total_text}]: {component_text}, ... ({len(component_types)} shown; {full_list_hint})"
     return f"components[{len(component_types)}]: {component_text}"
 
 
@@ -892,7 +899,10 @@ def format_gameobject_hierarchy_node(game_object: dict[str, Any], depth: int) ->
     component_types = game_object.get("componentTypes")
     components = game_object.get("components")
     if not isinstance(components, list) and isinstance(component_types, list):
-        lines.append(indent + "  " + format_component_types_preview(game_object, component_types))
+        # The hierarchy keeps a preview even with includeComponents:true; one object's full list is gameobject-find's.
+        lines.append(indent + "  " + format_component_types_preview(
+            game_object, component_types, "gameobject-find instanceId:<id> includeComponents:true lists all"
+        ))
     if isinstance(components, list):
         lines.append(indent + "  " + format_gameobject_components_line(components))
     children = game_object.get("children")

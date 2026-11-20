@@ -1,6 +1,6 @@
 {
   "name": "tool-batch",
-  "description": "Runs tool calls in order, returns each step's output and images. steps:[{tool, args}] of any tools; {waitMs} pauses; awaitMs in a step's args waits for its end. Stops at the first failure (error, ok:false, failed end, awaitMs timeout) unless stopOnError:false. tool + items: one tool, many arg sets.",
+  "description": "Runs tool calls in order, returns each step's output and images. steps:[{tool, args}] of any tools; {waitMs} pauses; awaitMs in step args waits for its end. Stops at first failure (error, ok:false, failed end, awaitMs timeout) unless stopOnError:false; tool + items: one tool, many arg sets, runs all.",
   "inputSchema": {
     "type": "object",
     "properties": {

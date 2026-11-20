@@ -274,6 +274,26 @@ class GameObjectFormattingTests(unittest.TestCase):
 
         self.assertEqual(text, "unavailable package:com.unity.cinemachine reason:\"package missing\"")
 
+    def test_hierarchy_preview_points_to_gameobject_find_for_the_full_list(self) -> None:
+        # The hierarchy previews components even with includeComponents:true, so that is not the advice to give.
+        result = {
+            "count": 1,
+            "roots": [
+                {
+                    "path": "Car",
+                    "name": "Car",
+                    "instanceId": 42,
+                    "componentTypes": ["Transform"],
+                    "componentCount": 14,
+                    "componentTypesTruncated": True,
+                }
+            ],
+        }
+
+        text = mcp.format_gameobject_hierarchy_text(result)
+
+        self.assertIn("(1 shown; gameobject-find instanceId:<id> includeComponents:true lists all)", text)
+
     def test_gameobject_find_text_marks_inactive_and_truncated_components(self) -> None:
         result = {
             "source": "activeScene",

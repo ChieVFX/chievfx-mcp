@@ -178,6 +178,24 @@ def read_script_source_file(arguments: dict[str, Any]) -> dict[str, Any]:
     return {**rest, "csharpCode": code}
 
 
+def parse_script_parameters(arguments: dict[str, Any]) -> dict[str, Any]:
+    """script-execute parameters that arrived as JSON text become a list.
+
+    A client that does not know the property's type sends the array as a string, and the editor read it as no
+    parameters at all ("no overload with 0 supplied parameters"). A bare value list is wrapped as [{value}].
+    """
+    raw = arguments.get("parameters")
+    if not isinstance(raw, str):
+        return arguments
+    try:
+        parsed = json.loads(raw)
+    except ValueError:
+        raise ToolCallError('parameters must be a JSON array, e.g. [{"value": "text"}, {"value": 2}].') from None
+    if not isinstance(parsed, list):
+        raise ToolCallError('parameters must be a JSON array, e.g. [{"value": "text"}, {"value": 2}].')
+    return {**arguments, "parameters": parsed}
+
+
 def client_session_key() -> str | None:
     """The MCP client's own session id when it passes one to this server process, else None."""
     for name in CLIENT_SESSION_ENV_VARS:

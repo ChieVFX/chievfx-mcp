@@ -171,15 +171,22 @@ namespace Chievfx.Mcp.Editor
             // (the shape callers see in the schema); a parameter with neither used to get default(T) silently.
             var inputParameters = ReadArray(args, "inputParameters");
             var filterParameters = ReadArray(filter, "inputParameters");
+            // Names match exactly, as in reflection-method-find: a substring match called whatever came first
+            // (Mathf.Clamp with one float ran Clamp01, a misspelt name ran its neighbour) and said nothing about it.
+            var matchLevel = ReadFindMatchLevel(args);
+            var typeNameMatchLevel = HasProperty(args, "typeNameMatchLevel") ? ReadInt(args, "typeNameMatchLevel", matchLevel) : matchLevel;
+            var methodNameMatchLevel = HasProperty(args, "methodNameMatchLevel") ? ReadInt(args, "methodNameMatchLevel", matchLevel) : matchLevel;
+            var knownNamespace = ReadBool(args, "knownNamespace", false);
+            var includeSpecialNames = ReadBool(args, "includeSpecialNames", false);
             var method = FindMatchingMethods(
                     filter,
-                    ReadBool(args, "knownNamespace", false),
-                    ReadInt(args, "typeNameMatchLevel", 1),
-                    ReadInt(args, "methodNameMatchLevel", 1),
+                    knownNamespace,
+                    typeNameMatchLevel,
+                    methodNameMatchLevel,
                     ReadInt(args, "parametersMatchLevel", 2),
-                    ReadBool(args, "includeSpecialNames", false))
+                    includeSpecialNames)
                 .FirstOrDefault()
-                ?? throw new InvalidOperationException("No matching method found.");
+                ?? throw new InvalidOperationException(DescribeNoCallMatch(filter, knownNamespace, typeNameMatchLevel, methodNameMatchLevel, includeSpecialNames));
 
             ValidateCallableMethod(method);
 
@@ -211,7 +218,47 @@ namespace Chievfx.Mcp.Editor
             }
 
             var value = method.Invoke(target, values);
-            return SerializeMethodReturn(method, value);
+            var result = SerializeMethodReturn(method, value);
+            result["called"] = DescribeSignature(method);
+            return result;
+        }
+
+        private const int NoMatchCandidates = 5;
+
+        // Why nothing was called: overloads with the same names but other parameters, or, for exact names, the
+        // close names a substring search finds. Each saves a reflection-method-find round trip.
+        private static string DescribeNoCallMatch(JToken filter, bool knownNamespace, int typeNameMatchLevel, int methodNameMatchLevel, bool includeSpecialNames)
+        {
+            var overloads = FindMatchingMethods(filter, knownNamespace, typeNameMatchLevel, methodNameMatchLevel, 0, includeSpecialNames)
+                .Take(NoMatchCandidates + 1)
+                .ToArray();
+            if (overloads.Length > 0)
+            {
+                return "No overload takes the given inputParameters (their count, or typeName when set). Overloads: "
+                    + string.Join("; ", overloads.Take(NoMatchCandidates).Select(DescribeSignature))
+                    + (overloads.Length > NoMatchCandidates ? "; ..." : string.Empty)
+                    + ". Set filter.inputParameters[i].typeName to pick one.";
+            }
+
+            var isExact = typeNameMatchLevel >= 5 || methodNameMatchLevel >= 5;
+            var close = isExact
+                ? FindMatchingMethods(filter, knownNamespace, 1, 1, 0, includeSpecialNames).Take(NoMatchCandidates + 1).ToArray()
+                : Array.Empty<MethodInfo>();
+            if (close.Length > 0)
+            {
+                return "No method matches typeName/methodName exactly. Close names: "
+                    + string.Join("; ", close.Take(NoMatchCandidates).Select(DescribeSignature))
+                    + (close.Length > NoMatchCandidates ? "; ..." : string.Empty)
+                    + ". Pass the exact names (match:'contains' calls the first substring match).";
+            }
+
+            return "No matching method found.";
+        }
+
+        private static string DescribeSignature(MethodInfo method)
+        {
+            return (method.DeclaringType?.FullName ?? "?") + "." + method.Name
+                + "(" + string.Join(", ", method.GetParameters().Select(parameter => parameter.ParameterType.Name + " " + parameter.Name)) + ")";
         }
 
         private static IEnumerable<MethodInfo> FindMatchingMethods(

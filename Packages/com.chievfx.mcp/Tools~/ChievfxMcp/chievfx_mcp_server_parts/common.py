@@ -802,7 +802,7 @@ ADVERTISED_PROPERTY_OMISSIONS: dict[str, set[str]] = {
     },
     "profiler-window-control": {"moduleIdentifier", "selectedModuleIdentifier", "stayOnLatestFrame"},
     "reflection-method-call": {"executeInMainThread", "inputParameters"},
-    "script-execute": {"includeLogs", "logType", "parameters"},
+    "script-execute": {"includeLogs", "logType"},
     "screenshot-editor-window": {
         "captureArea",
         "delayFrames",

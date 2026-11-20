@@ -14,12 +14,17 @@ namespace Chievfx.Mcp.Editor
         private static readonly Regex ReturnsValuePattern = new(@"\breturn\s+[^;\s]", RegexOptions.Compiled);
         private static readonly Regex AwaitPattern = new(@"\bawait\b", RegexOptions.Compiled);
 
+        // Where the wrapper's header sits in the caller's code (0-based line, column it starts at, its length): it shares
+        // the first statement's line, so columns after it on that line are moved back by its length in diagnostics.
+        private (int Line, int Column, int Length)? _topLevelHeader;
+
         // A script compiles to a library, and a library cannot have top-level statements (CS8805). Statements written
         // at the top of the file become the body of TopLevelScript.Main; usings stay above it and types declared after
         // the statements stay where they are. The wrapper is spliced into the statements' own lines, so compile errors
         // still point at the caller's line numbers.
         private string? WrapTopLevelStatements(string csharpCode)
         {
+            _topLevelHeader = null;
             if (!TryFindTopLevelStatements(csharpCode, out var start, out var end, out var endsWithReturn))
             {
                 return null;
@@ -36,6 +41,8 @@ namespace Chievfx.Mcp.Editor
                 _ => "void",
             };
             var header = $"public static class {TopLevelScriptClassName} {{ public static {returnType} Main() {{ ";
+            var lineStart = start == 0 ? 0 : csharpCode.LastIndexOf('\n', start - 1) + 1;
+            _topLevelHeader = (csharpCode.Take(start).Count(character => character == '\n'), start - lineStart, header.Length);
             // A trailing return null after the code's own final return would only add an unreachable-code warning.
             var footer = returnsValue && !endsWithReturn ? " return null; } }" : " } }";
             return csharpCode.Substring(0, start) + header + body + footer + csharpCode.Substring(end);

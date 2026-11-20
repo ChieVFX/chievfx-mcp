@@ -19,6 +19,28 @@ class UiControlFindFormattingTests(unittest.TestCase):
         self.assertEqual(properties["page"]["type"], "integer")
         self.assertEqual(properties["normalizeCoords"]["type"], "boolean")
 
+    def test_covered_control_names_what_covers_it(self) -> None:
+        # Under a window's backdrop a control is drawn, but a player's tap lands on the window.
+        result = {
+            "page": 1,
+            "totalPages": 1,
+            "total": 1,
+            "controls": [
+                {
+                    "framework": "ugui",
+                    "path": "Touches/Shop_Button",
+                    "instanceId": 7,
+                    "controlType": "button",
+                    "coveredBy": "Popup/Background_Image",
+                }
+            ],
+        }
+
+        text = mcp.format_ui_control_find_text(result)
+
+        self.assertIn("- Touches/Shop_Button (id: 7)", text)
+        self.assertIn("covered by Popup/Background_Image (a player's tap lands there)", text)
+
     def test_renders_page_header_and_compact_rows(self) -> None:
         result = {
             "page": 1,

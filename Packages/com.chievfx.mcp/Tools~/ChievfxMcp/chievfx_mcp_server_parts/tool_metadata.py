@@ -442,6 +442,10 @@ def _build_advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
             properties.pop(property_name, None)
         if str(tool_name).startswith("reflection-method-") and "filter" in properties:
             properties["filter"] = {"type": "object"}
+        # Declared at all so a client sends a real array (an undeclared one arrived as a string and was read as no
+        # parameters); the {value} item shape is in the full schema and the server instructions.
+        if tool_name == "script-execute" and "parameters" in properties:
+            properties["parameters"] = {"type": "array"}
 
     detail_keys = ADVERTISED_SCHEMA_DETAIL_KEYS
     # The core descriptors give an extension tool's argument names only: its schema is where they are explained.

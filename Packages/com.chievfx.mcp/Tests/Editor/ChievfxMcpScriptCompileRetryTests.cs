@@ -64,6 +64,34 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
+        public void ScriptStateWithLinqToArrayCompilesWithTheAliasAlone()
+        {
+            // With internal access, the default System.IO using brings Mono's internal ToArray extension, and
+            // every LINQ ToArray() was ambiguous (CS0121) once ChievfxMcpScriptState made the retry run.
+            var notes = new List<string>();
+            var assembly = service.CompileScript(
+                "using System.Linq;\nChievfxMcpScriptState.Set(\"retry.alias\", 5);\nvar items = new[] { 3, 1, 2 }.Where(x => x > 1).ToArray();\nreturn items.Length;",
+                notes,
+                out var diagnostics,
+                out _);
+
+            Assert.IsNotNull(assembly, string.Join(" | ", notes) + " | " + string.Join(" | ", diagnostics.Select(diagnostic => diagnostic["message"])));
+            StringAssert.Contains("using ChievfxMcpScriptState = Chievfx.Mcp.Editor.ChievfxMcpScriptState;", notes.Last());
+            StringAssert.DoesNotContain("System.IO", notes.Last());
+        }
+
+        [Test]
+        public void ColumnOnTheFirstStatementLineIsTheCallersOwn()
+        {
+            // The TopLevelScript.Main header shares the first statement's line; its length is not the caller's column.
+            var notes = new List<string>();
+            var assembly = service.CompileScript("var value = NoSuchNameHere;\nreturn value;", notes, out var diagnostics, out _);
+
+            Assert.IsNull(assembly);
+            Assert.AreEqual("1:13", diagnostics.First(diagnostic => (string?)diagnostic["id"] == "CS0103")["location"]);
+        }
+
+        [Test]
         public void RetryThatClearsNothingKeepsTheOriginalErrors()
         {
             var notes = new List<string>();

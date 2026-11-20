@@ -451,12 +451,14 @@ namespace Chievfx.Mcp.Editor
             var lastMinutes = Math.Max(0, ReadInt(args, "lastMinutes", DefaultLogLastMinutes));
             var (levels, contains, filterNote) = ResolveLogFilters(args);
             var caseSensitive = ReadBool(args, "caseSensitive", false);
-            // `dedupe` is the current name for duplicate collapsing; `stack` is the legacy alias. Default on.
-            var dedupe = ReadBool(args, "dedupe", ReadBool(args, "stack", true));
+            var sinceEventId = ReadSinceEventId(args);
+            // `dedupe` is the current name for duplicate collapsing; `stack` is the legacy alias. Default on, except when
+            // paging from a cursor: a collapsed group sits at its latest repeat, so the logs right after the cursor
+            // were not the first rows and paging by the last row's eventId skipped the rest.
+            var dedupe = ReadBool(args, "dedupe", ReadBool(args, "stack", !sinceEventId.HasValue));
             var includeUnityConsole = ReadBool(args, "includeUnityConsole", true);
             var includeEditorLog = ReadBool(args, "includeEditorLog", false);
             var includeStack = ReadBool(args, "includeStack", false);
-            var sinceEventId = ReadSinceEventId(args);
             var sinceTimestamp = ReadSinceTimestamp(args, out var sinceTimestampUnparseable);
             var stripStyleTags = ChievfxMcpToolPolicy.StripStyleTagsFromConsoleLogs;
             var cutoff = lastMinutes > 0 ? DateTime.UtcNow.AddMinutes(-lastMinutes) : DateTime.MinValue;
@@ -503,7 +505,9 @@ namespace Chievfx.Mcp.Editor
                 : working.Skip(Math.Max(0, groupCount - maxEntries)).ToList();
             if (sinceEventId.HasValue && groupCount > selected.Count)
             {
-                notes.Add($"The {selected.Count} logs right after the cursor are listed; for the next ones pass sinceEventId: the last row's eventId.");
+                notes.Add(dedupe
+                    ? $"{selected.Count} groups are listed, each at its latest repeat, so logs right after the cursor may be further down; dedupe:false lists them in order for paging by the last row's eventId."
+                    : $"The {selected.Count} logs right after the cursor are listed; for the next ones pass sinceEventId: the last row's eventId.");
             }
 
             var entries = new List<Dictionary<string, object>>();

@@ -72,6 +72,23 @@ class ScriptExecuteSourceFileTests(unittest.TestCase):
         self.assertIn("csharpPath", tool["inputSchema"]["properties"])
         self.assertNotIn("csharpCode", tool["inputSchema"].get("required", []))
 
+    def test_parameters_sent_as_json_text_arrive_as_a_list(self) -> None:
+        # A client that does not know the property's type sends the array as a string; the editor read that as
+        # no parameters ("no overload with 0 supplied parameters").
+        self.call({"csharpCode": "x", "methodName": "Hello", "parameters": '[{"value": "agent"}, {"value": 2}]'})
+
+        self.assertEqual(self.sent[0]["parameters"], [{"value": "agent"}, {"value": 2}])
+
+    def test_parameters_that_are_not_an_array_are_refused_before_unity(self) -> None:
+        with self.assertRaisesRegex(mcp.ToolCallError, "JSON array"):
+            self.call({"csharpCode": "x", "parameters": "agent"})
+        self.assertEqual(self.sent, [])
+
+    def test_parameters_are_advertised_as_an_array(self) -> None:
+        tool = next(item for item in mcp.all_tools() if item["name"] == "script-execute")
+
+        self.assertEqual(mcp.advertised_input_schema(tool)["properties"]["parameters"], {"type": "array"})
+
 
 if __name__ == "__main__":
     unittest.main()

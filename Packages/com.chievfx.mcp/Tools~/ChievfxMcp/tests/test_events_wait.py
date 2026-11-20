@@ -506,6 +506,40 @@ class EventsWaitTests(unittest.TestCase):
         self.assertTrue(result["matched"], result)
         self.assertEqual(result["event"]["marker"], "input-seq-1-mouse-gesture")
 
+    def test_include_recent_reaches_below_an_explicit_cursor(self) -> None:
+        # A skill's end logged before the cursor the agent passed (taken from a reply written after the end):
+        # includeRecentMs is the look-back for exactly that race, but it used to be ANDed with the cursor.
+        self.write_events([self.marker_event(5, "skill-end"), self.marker_event(6, "other")])
+
+        started = time.monotonic()
+        result = self.server.events_wait(
+            {"marker": "skill-end", "sinceEventId": 6, "includeRecentMs": 10000, "timeoutMs": 3000}, request_id="look-back"
+        )
+
+        self.assertLess(time.monotonic() - started, 1.0)
+        self.assertTrue(result["matched"], result)
+        self.assertEqual(result["event"]["eventId"], 5)
+
+    def test_include_recent_still_skips_old_events_below_the_cursor(self) -> None:
+        old = self.marker_event(5, "skill-end")
+        old["timestamp"] = "2026-01-01T00:00:00Z"
+        self.write_events([old, self.marker_event(6, "other")])
+
+        result = self.server.events_wait(
+            {"marker": "skill-end", "sinceEventId": 6, "includeRecentMs": 2000, "timeoutMs": 20}, request_id="too-old"
+        )
+
+        self.assertFalse(result["matched"])
+
+    def test_include_recent_without_cursor_does_not_match_old_events(self) -> None:
+        old = self.marker_event(5, "skill-end")
+        old["timestamp"] = "2026-01-01T00:00:00Z"
+        self.write_events([old])
+
+        result = self.server.events_wait({"marker": "skill-end", "includeRecentMs": 2000, "timeoutMs": 20}, request_id="no-cursor")
+
+        self.assertFalse(result["matched"])
+
 
 class ParseUtcIsoTests(unittest.TestCase):
     def test_handles_fraction_lengths_and_offsets(self) -> None:

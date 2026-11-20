@@ -33,7 +33,7 @@
       "includeRecentMs": {
         "type": "integer",
         "minimum": 0,
-        "description": "Also match events from the last N ms (race look-back); keep small."
+        "description": "Also match events of the last N ms, even below sinceEventId; keep small."
       },
       "timeoutMs": {
         "type": "integer",

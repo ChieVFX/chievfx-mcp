@@ -285,8 +285,6 @@ class EventsStatusMixin:
         initial_stream = self.read_event_stream()
         if isinstance(arguments.get("sinceEventId"), int):
             since_event_id = self.read_since_event_id(arguments, default=0)
-        elif include_recent_cutoff is not None:
-            since_event_id = 0
         else:
             since_event_id = self.event_stream_last_id(initial_stream)
 
@@ -325,7 +323,7 @@ class EventsStatusMixin:
                     since_event_id=since_event_id,
                     filters=filters,
                     include_data=include_data,
-                    min_timestamp=include_recent_cutoff,
+                    recent_floor=include_recent_cutoff,
                 )
                 if matched:
                     self.remember_reported_wait_event(matched[0])
@@ -539,14 +537,25 @@ class EventsStatusMixin:
         filters: dict[str, Any],
         include_data: bool,
         min_timestamp: float | None = None,
+        recent_floor: float | None = None,
     ) -> list[dict[str, Any]]:
+        """Events after the cursor (and not older than min_timestamp, when given).
+
+        recent_floor is events-wait includeRecentMs: an event at or below the cursor still counts when it is that
+        recent. It is the look-back for an end logged before the cursor was taken, so it widens the cursor (OR);
+        ANDed with it, as it was, it could never reach the event it exists for.
+        """
         matched: list[dict[str, Any]] = []
         for event in events:
             if not isinstance(event, dict):
                 continue
             event_id = event.get("eventId")
-            if not isinstance(event_id, int) or event_id <= since_event_id:
+            if not isinstance(event_id, int):
                 continue
+            if event_id <= since_event_id:
+                timestamp = parse_utc_iso(event.get("timestamp")) if recent_floor is not None else None
+                if timestamp is None or timestamp < recent_floor:
+                    continue
             if min_timestamp is not None:
                 timestamp = parse_utc_iso(event.get("timestamp"))
                 if timestamp is None or timestamp < min_timestamp:

@@ -153,7 +153,7 @@ class ExtensionResultTests(unittest.TestCase):
         lines = text.splitlines()
         self.assertTrue(lines[0].startswith("awaited"), text)
         self.assertIn("#2 [demo][task] Drive#3 done arrived", lines[0])
-        self.assertEqual(lines[1], "Driving")
+        self.assertEqual(lines[1], "at start: Driving")
         # One cursor only: the reply's own is for waiting by hand.
         self.assertNotIn("sinceEventId", text)
         # The bridge (and the extension behind it) never sees awaitMs.
@@ -256,7 +256,7 @@ class ExtensionResultTests(unittest.TestCase):
         text = self.text_of(result)
         self.assertTrue(text.startswith("tool-batch: 2 of 2 ok"), text)
         self.assertIn("\n1 demo-act: awaited", text)
-        self.assertIn("\n  Driving", text)
+        self.assertIn("\n  at start: Driving", text)
         self.assertIn("#2 [demo][task] Drive#3 done", text)
 
     def test_batch_stops_at_a_step_whose_awaited_end_is_a_failure(self) -> None:

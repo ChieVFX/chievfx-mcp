@@ -1023,11 +1023,12 @@ def attach_result_notice(result: Any, notice: str) -> bool:
     return delivered
 
 
-def prepend_result_headline(result: Any, line: str) -> bool:
+def prepend_result_headline(result: Any, line: str, previous_prefix: str = "") -> bool:
     """Put a line first in a tool result's text, for an outcome that supersedes the reply's own headline.
 
     awaitMs is the case: the tool's summary was written when the action started ("GoTo#3 running"), and a
-    caller who reads the first line must see how it ended. Falls back to a trailing notice without text.
+    caller who reads the first line must see how it ended. previous_prefix marks the reply below as that
+    earlier state (not for JSON text). Falls back to a trailing notice without text.
     """
     if not isinstance(result, dict):
         return False
@@ -1038,7 +1039,10 @@ def prepend_result_headline(result: Any, line: str) -> bool:
     ) if isinstance(content, list) else None
     if text_block is None:
         return attach_result_notice(result, line)
-    text_block["text"] = line + ("\n" + text_block["text"] if text_block["text"] else "")
+    previous = text_block["text"]
+    if previous and previous_prefix and not previous.lstrip().startswith(("{", "[")):
+        previous = previous_prefix + previous
+    text_block["text"] = line + ("\n" + previous if previous else "")
     structured = result.get("structuredContent")
     if isinstance(structured, dict):
         notices = structured.get("notices")

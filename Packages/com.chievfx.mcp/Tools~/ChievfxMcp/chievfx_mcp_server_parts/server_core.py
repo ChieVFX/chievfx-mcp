@@ -346,7 +346,8 @@ class McpServerCore:
         else:
             wait_arguments["marker"] = marker
         outcome = self.events_wait(wait_arguments, request_id)
-        prepend_result_headline(result, format_await_outcome_text(outcome, wait_arguments))
+        # The reply below the outcome is the state when the action started ("GoTo#3 running"): say so.
+        prepend_result_headline(result, format_await_outcome_text(outcome, wait_arguments), "at start: ")
         failure = describe_awaited_failure(raw_result, outcome)
         if failure is not None and isinstance(raw_result, dict):
             # The reply was written when the action started (ok:true); a tool-batch step judges the action by its end.

@@ -1141,8 +1141,12 @@ namespace Chievfx.Mcp.Editor
             }
         }
 
-        internal static object[] CreateLogOutputs(int startIndex, bool includeLogs, string? logType, bool includeStackTrace, int maxEntries)
+        // A call that logged more than maxEntries keeps its warnings and errors first, then its first and last plain logs:
+        // taking the first maxEntries dropped the script's own line written after a burst of game logs, with no sign of it.
+        // omittedNote says how many were left out and where to read them.
+        internal static object[] CreateLogOutputs(int startIndex, bool includeLogs, string? logType, bool includeStackTrace, int maxEntries, out string? omittedNote)
         {
+            omittedNote = null;
             if (!includeLogs)
             {
                 return Array.Empty<object>();
@@ -1153,13 +1157,72 @@ namespace Chievfx.Mcp.Editor
                 ? null
                 : new HashSet<string>(StringComparer.OrdinalIgnoreCase) { logType! };
             var truncated = false;
-            return GetLogEntriesSince(startIndex)
+            var written = GetLogEntriesSince(startIndex)
                 .Where(entry => levels == null || levels.Contains(entry.LogType))
-                .Take(maxEntries)
+                .ToArray();
+            var kept = SelectKeptLogs(written, maxEntries);
+            if (kept.Length < written.Length)
+            {
+                omittedNote = $"logs: {kept.Length} of the {written.Length} logs written during the call are shown (warnings and errors first, then the first and the last plain logs). "
+                              + $"All of them: console-get-logs sinceEventId:{written[0].EventId - 1} levels:[\"Log\",\"Warning\",\"Error\",\"Exception\",\"Assert\"] dedupe:false maxEntries:{Math.Min(written.Length, MaxLogEntries)}.";
+            }
+
+            return kept
                 // Same text as console-get-logs shows: a project logger's <b><color> prefix stripped by the same policy.
                 .Select(entry => CreateLogEntryOutput(entry, stackTraceMode, trimMessage: true, ReadStripStyleTags(), ref truncated))
                 .Cast<object>()
                 .ToArray();
+        }
+
+        // In written order: warnings, errors, exceptions and asserts take the slots first, plain logs fill the rest;
+        // each kind over its share keeps its first and last entries.
+        internal static LogEntryDto[] SelectKeptLogs(LogEntryDto[] written, int maxEntries)
+        {
+            if (written.Length <= maxEntries)
+            {
+                return written;
+            }
+
+            var keep = new bool[written.Length];
+            var important = new List<int>();
+            var plain = new List<int>();
+            for (var i = 0; i < written.Length; i++)
+            {
+                if (string.Equals(written[i].LogType, nameof(LogType.Log), StringComparison.OrdinalIgnoreCase))
+                {
+                    plain.Add(i);
+                }
+                else
+                {
+                    important.Add(i);
+                }
+            }
+
+            var keptImportant = MarkFirstAndLast(important, maxEntries, keep);
+            MarkFirstAndLast(plain, maxEntries - keptImportant, keep);
+            return written.Where((_, index) => keep[index]).ToArray();
+        }
+
+        private static int MarkFirstAndLast(List<int> indices, int slots, bool[] keep)
+        {
+            if (slots <= 0)
+            {
+                return 0;
+            }
+
+            var count = Math.Min(slots, indices.Count);
+            var fromStart = indices.Count <= slots ? indices.Count : (slots + 1) / 2;
+            for (var i = 0; i < fromStart; i++)
+            {
+                keep[indices[i]] = true;
+            }
+
+            for (var i = 0; i < count - fromStart; i++)
+            {
+                keep[indices[indices.Count - 1 - i]] = true;
+            }
+
+            return count;
         }
 
         // The last value read on the main thread: EditorPrefs answers only there, and a timed-out async script's reply

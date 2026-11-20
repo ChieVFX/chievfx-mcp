@@ -158,10 +158,39 @@ namespace Chievfx.Mcp.Editor.Tests
 
             var start = ConsoleLogBridgeService.GetLogEntryCount();
             ConsoleLogBridgeService.CollectLog(token + " mine", string.Empty, LogType.Warning);
-            var logs = ConsoleLogBridgeService.CreateLogOutputs(start, true, null, includeStackTrace: false, maxEntries: 10);
+            var logs = ConsoleLogBridgeService.CreateLogOutputs(start, true, null, includeStackTrace: false, maxEntries: 10, out _);
 
             Assert.AreEqual(1, logs.Length, "script-execute reads its logs from this start: a full buffer kept the count still and lost them.");
             StringAssert.Contains(token + " mine", Newtonsoft.Json.JsonConvert.SerializeObject(logs[0]));
+        }
+
+        [Test]
+        public void ACallOverTheLogCapKeepsItsWarningsAndItsLastLogs()
+        {
+            var written = new List<LogEntryDto>();
+            for (var i = 0; i < 80; i++)
+            {
+                written.Add(Entry("Log", "noise " + i, string.Empty));
+            }
+
+            written.Insert(30, Entry("Error", "error in the middle", string.Empty));
+            written.Add(Entry("Warning", "my tail", string.Empty));
+
+            var kept = ConsoleLogBridgeService.SelectKeptLogs(written.ToArray(), 10);
+
+            Assert.AreEqual(10, kept.Length);
+            Assert.AreEqual("noise 0", kept[0].Message, "the first plain logs stay");
+            Assert.IsTrue(kept.Any(entry => entry.Message == "error in the middle"));
+            Assert.AreEqual("my tail", kept[kept.Length - 1].Message, "the script's own line after a burst of logs stays");
+            Assert.AreEqual("noise 79", kept[kept.Length - 2].Message, "the last plain logs stay");
+            CollectionAssert.AreEqual(kept.Select(entry => written.IndexOf(entry)).OrderBy(index => index), kept.Select(entry => written.IndexOf(entry)), "kept in written order");
+        }
+
+        [Test]
+        public void ACallUnderTheLogCapKeepsEverything()
+        {
+            var written = new[] { Entry("Log", "a", string.Empty), Entry("Warning", "b", string.Empty) };
+            Assert.AreSame(written, ConsoleLogBridgeService.SelectKeptLogs(written, 10));
         }
 
         [Test]
@@ -172,7 +201,7 @@ namespace Chievfx.Mcp.Editor.Tests
             var start = ConsoleLogBridgeService.GetLogEntryCount();
             ConsoleLogBridgeService.CollectLog("<b>" + token + "</b>", string.Empty, LogType.Log);
 
-            var logs = System.Threading.Tasks.Task.Run(() => ConsoleLogBridgeService.CreateLogOutputs(start, true, null, includeStackTrace: false, maxEntries: 10)).Result;
+            var logs = System.Threading.Tasks.Task.Run(() => ConsoleLogBridgeService.CreateLogOutputs(start, true, null, includeStackTrace: false, maxEntries: 10, out _)).Result;
 
             Assert.IsTrue(logs.Any(log => Newtonsoft.Json.JsonConvert.SerializeObject(log).Contains(token)), "the call's log is in its reply");
         }

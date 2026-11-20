@@ -1417,6 +1417,12 @@ namespace Chievfx.Mcp.Editor
             int timeoutMs,
             List<string> notes)
         {
+            var logs = ConsoleLogBridgeService.CreateLogOutputs(logStartIndex, includeLogs, logType, includeStackTrace: false, DefaultScriptLogEntries, out var omittedLogsNote);
+            if (omittedLogsNote != null)
+            {
+                notes.Add(omittedLogsNote);
+            }
+
             return new
             {
                 success = true,
@@ -1432,7 +1438,7 @@ namespace Chievfx.Mcp.Editor
                     value = invocation.SerializedReturnValue
                 },
                 diagnostics,
-                logs = ConsoleLogBridgeService.CreateLogOutputs(logStartIndex, includeLogs, logType, includeStackTrace: false, DefaultScriptLogEntries),
+                logs,
                 durationMs = (int)Math.Round((DateTime.UtcNow - startedUtc).TotalMilliseconds),
                 timeoutMs
             };
@@ -1453,6 +1459,13 @@ namespace Chievfx.Mcp.Editor
             Dictionary<string, object?>[]? originalDiagnostics = null,
             string? waitFor = null)
         {
+            var logs = ConsoleLogBridgeService.CreateLogOutputs(logStartIndex, includeLogs, logType, includeStackTrace: false, DefaultScriptLogEntries, out var omittedLogsNote);
+            if (omittedLogsNote != null)
+            {
+                notes = notes == null ? new List<string>() : new List<string>(notes);
+                notes.Add(omittedLogsNote);
+            }
+
             return new
             {
                 success = false,
@@ -1469,7 +1482,7 @@ namespace Chievfx.Mcp.Editor
                 notes = notes is { Count: > 0 } ? notes : null,
                 diagnostics,
                 originalDiagnostics,
-                logs = ConsoleLogBridgeService.CreateLogOutputs(logStartIndex, includeLogs, logType, includeStackTrace: false, DefaultScriptLogEntries),
+                logs,
                 durationMs = (int)Math.Round((DateTime.UtcNow - startedUtc).TotalMilliseconds),
                 timeoutMs,
                 stillRunning

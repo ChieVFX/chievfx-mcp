@@ -243,6 +243,13 @@ namespace Chievfx.Mcp.Editor
 
         private object CreateTestRunResult(PendingTestRequest pending, object rootResult)
         {
+            var logs = ConsoleLogBridgeService.CreateLogOutputs(
+                pending.LogStartIndex,
+                pending.IncludeLogs,
+                pending.LogType,
+                pending.IncludeLogsStackTrace,
+                MaxTestLogEntries,
+                out var omittedLogsNote);
             var allResults = CollectLeafTestResults(rootResult);
             var failed = allResults.Count(result => string.Equals(result.Status, "Failed", StringComparison.Ordinal));
             var passed = allResults.Count(result => string.Equals(result.Status, "Passed", StringComparison.Ordinal));
@@ -270,12 +277,8 @@ namespace Chievfx.Mcp.Editor
                     .Select(result => CreateTestResultOutput(result, pending.IncludeMessages, pending.IncludeStackTrace))
                     .ToArray(),
                 resultsTruncated = truncated,
-                logs = ConsoleLogBridgeService.CreateLogOutputs(
-                    pending.LogStartIndex,
-                    pending.IncludeLogs,
-                    pending.LogType,
-                    pending.IncludeLogsStackTrace,
-                    MaxTestLogEntries),
+                logs,
+                logsNote = omittedLogsNote,
                 durationMs = (int)Math.Round((DateTime.UtcNow - pending.StartedUtc).TotalMilliseconds),
                 timeoutMs = pending.TimeoutMs
             };

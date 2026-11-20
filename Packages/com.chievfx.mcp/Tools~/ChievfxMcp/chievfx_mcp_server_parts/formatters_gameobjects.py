@@ -39,6 +39,9 @@ def format_gameobject_find_text(result: dict[str, Any]) -> str:
     for game_object in objects:
         if isinstance(game_object, dict):
             lines.extend(format_gameobject_find_object_lines(game_object))
+    note = result.get("note")
+    if isinstance(note, str) and note:
+        lines.append(f"note: {note}")
     return "\n".join(lines)
 
 
@@ -1183,6 +1186,9 @@ def format_events_check_since_text(result: dict[str, Any]) -> str:
         lines.append("events:")
         for event in shown_events:
             lines.append(format_event_row(event))
+    next_since = result.get("nextSinceEventId")
+    if result.get("hasMore") and isinstance(next_since, int):
+        lines.append(f"More match: pass sinceEventId:{next_since} with the same contains/marker for the next ones.")
     if omitted_count:
         lines.append(
             f"... {omitted_count} non-object events omitted. Use outputFormat:\"json\" for raw detail."

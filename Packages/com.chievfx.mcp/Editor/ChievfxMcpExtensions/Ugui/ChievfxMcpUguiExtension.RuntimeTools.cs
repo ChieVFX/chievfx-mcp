@@ -446,6 +446,12 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             UguiRuntimeReachability.AddPlayerReachabilityWarnings(controlObject!, status, warnings);
+            // A player's tap on a Selectable with interactable off changes nothing; setting the value directly still works.
+            if (control is Selectable { interactable: false })
+            {
+                warnings.Add($"'{GetTransformPath(controlObject!.transform)}' is not interactable (Selectable.interactable is off): a player's tap does not change it. The tool set it anyway.");
+            }
+
             ApplyRuntimeControlValue(control!, valueToken, invokeCallbacks: true, status);
             result["selectedObjectAfter"] = CreateSelectedObjectRow(status);
             result["targetStateAfter"] = CreateControlStateRow(controlObject!, status);
@@ -751,7 +757,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                     var row = new Dictionary<string, object?>
                     {
                         ["framework"] = "ugui",
-                        ["path"] = GetTransformPath(entry.target.transform),
+                        ["path"] = GetIndexedTransformPath(entry.target.transform),
                         ["instanceId"] = UnityObjectIdentity.GetLegacyInstanceId(entry.target),
                         ["controlType"] = entry.controlType,
                         ["zone"] = zone,

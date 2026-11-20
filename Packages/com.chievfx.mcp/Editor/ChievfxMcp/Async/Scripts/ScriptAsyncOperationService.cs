@@ -422,6 +422,7 @@ namespace Chievfx.Mcp.Editor
                             startedUtc,
                             timeoutMs,
                             null,
+                            stillRunning: true,
                             notes: notes,
                             waitFor: endMarker);
                     }
@@ -881,6 +882,9 @@ namespace Chievfx.Mcp.Editor
         // The script-execute description names it without its namespace.
         private const string ScriptStateAliasDirective = "using ChievfxMcpScriptState = Chievfx.Mcp.Editor.ChievfxMcpScriptState;";
 
+        // A bare OnCleanup(...) call, written as if it were a global function, gets the class's members imported.
+        private const string ScriptStateStaticDirective = "using static Chievfx.Mcp.Editor.ChievfxMcpScriptState;";
+
         private static bool ImportsNamespace(string csharpCode, string name)
         {
             return Regex.IsMatch(csharpCode, @"(?<![\w.])using\s+" + Regex.Escape(name) + @"\s*;");
@@ -917,6 +921,11 @@ namespace Chievfx.Mcp.Editor
                 && !DeclaresAlias(csharpCode, "ChievfxMcpScriptState"))
             {
                 directives.Add(ScriptStateAliasDirective);
+            }
+
+            if (Regex.IsMatch(csharpCode, @"(?<![\w.])OnCleanup\s*\(") && !ImportsNamespace(csharpCode, "static Chievfx.Mcp.Editor.ChievfxMcpScriptState"))
+            {
+                directives.Add(ScriptStateStaticDirective);
             }
 
             return directives;
@@ -979,7 +988,7 @@ namespace Chievfx.Mcp.Editor
                 // The aliases name exactly what the code mentions (ChievfxMcpScriptState, Object/Random), while the
                 // default namespaces bring in everything: with internal access System.IO adds Mono's internal ToArray
                 // extension, and every LINQ ToArray() became ambiguous (CS0121). The aliases alone come first.
-                var aliases = addedDirectives.Where(directive => directive.Contains(" = ")).ToList();
+                var aliases = addedDirectives.Where(directive => directive.Contains(" = ") || directive.StartsWith("using static ", StringComparison.Ordinal)).ToList();
                 if (aliases.Count > 0 && aliases.Count < addedDirectives.Count)
                 {
                     var aliasPrefix = string.Concat(aliases.Select(directive => directive + "\n"));
@@ -1335,7 +1344,8 @@ namespace Chievfx.Mcp.Editor
             {
                 1 => candidates[0],
                 0 => throw new InvalidOperationException($"No script class defines static method '{methodName}'. Provide className explicitly."),
-                _ => throw new InvalidOperationException($"Multiple script classes define static method '{methodName}'. Provide className explicitly.")
+                _ => throw new InvalidOperationException($"Multiple script classes define static method '{methodName}': "
+                    + string.Join(", ", candidates.Select(type => type.FullName)) + ". Pass className with one of them.")
             };
         }
 

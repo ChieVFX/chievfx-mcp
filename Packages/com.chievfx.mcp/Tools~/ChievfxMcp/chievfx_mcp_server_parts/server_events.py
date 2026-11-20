@@ -256,6 +256,9 @@ class EventsStatusMixin:
             "lastEventId": self.event_stream_last_id(stream),
             "truncatedBeforeEventId": stream.get("truncatedBeforeEventId", 0),
         }
+        last_shown_id = limited[-1].get("eventId") if limited and isinstance(limited[-1], dict) else None
+        if result["hasMore"] and isinstance(last_shown_id, int):
+            result["nextSinceEventId"] = last_shown_id
         ahead = self.cursor_ahead_hint(since_event_id, stream)
         if ahead is not None:
             result["warning"] = ahead

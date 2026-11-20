@@ -217,6 +217,15 @@ class EventsWaitTests(unittest.TestCase):
         self.assertEqual([event["eventId"] for event in result["events"]], [2])
         self.assertIsNone(result["sinceTimestampUtc"])
 
+    def test_events_check_since_names_the_cursor_of_the_next_page(self) -> None:
+        self.write_events([self.marker_event(index, "e" + str(index)) for index in range(1, 6)])
+
+        result = self.server.events_check_since({"sinceEventId": 1, "maxEntries": 2})
+
+        self.assertTrue(result["hasMore"])
+        self.assertEqual(result["nextSinceEventId"], 3)
+        self.assertIn("pass sinceEventId:3", mcp.format_events_check_since_text(result))
+
     def test_events_check_since_without_any_cursor_is_an_error(self) -> None:
         with self.assertRaises(ValueError):
             self.server.events_check_since({"contains": "x"})

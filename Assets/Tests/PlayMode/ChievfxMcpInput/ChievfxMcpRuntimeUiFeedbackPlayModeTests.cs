@@ -205,6 +205,43 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
         }
 
         [UnityTest]
+        public IEnumerator SameNamedSiblingsGetIndexedPathsThatClickTheRightOne()
+        {
+            // Pooled list rows share a name: a plain path pressed the first one and the reply did not say so.
+            var canvas = BuildScene();
+            var firstClicks = 0;
+            var secondClicks = 0;
+            CreateImage(canvas.transform, "Row", new Vector2(0f, 60f), new Vector2(160f, 40f)).AddComponent<Button>().onClick.AddListener(() => firstClicks++);
+            CreateImage(canvas.transform, "Row", new Vector2(0f, -60f), new Vector2(160f, 40f)).AddComponent<Button>().onClick.AddListener(() => secondClicks++);
+            yield return null;
+
+            var rows = Rows(RunRegistry("ControlFind", "{'framework':'ugui','wildcards':'*Row*'}")["controls"]);
+            CollectionAssert.AreEquivalent(new[] { CanvasName + "/Row[1]", CanvasName + "/Row[2]" }, rows.Select(row => row["path"] as string).ToArray());
+
+            var indexed = RunRegistry("RuntimeClick", "{'framework':'ugui','path':'" + CanvasName + "/Row[2]'}");
+            Assert.AreEqual(1, secondClicks, Describe(indexed));
+            Assert.AreEqual(0, firstClicks, Describe(indexed));
+
+            var plain = RunRegistry("RuntimeClick", "{'framework':'ugui','path':'" + CanvasName + "/Row'}");
+            Assert.AreEqual(1, firstClicks, Describe(plain));
+            StringAssert.Contains("matches 2 active objects", Strings(plain["warnings"]).Single(text => text.Contains("same-named")));
+        }
+
+        [UnityTest]
+        public IEnumerator SetControlValueOnANonInteractableToggleSaysAPlayerCannot()
+        {
+            var canvas = BuildScene();
+            var toggle = CreateImage(canvas.transform, "LockedToggle", Vector2.zero, new Vector2(80f, 40f)).AddComponent<Toggle>();
+            toggle.isOn = false;
+            toggle.interactable = false;
+            yield return null;
+
+            var result = RunRegistry("RuntimeSetControlValue", "{'framework':'ugui','path':'" + CanvasName + "/LockedToggle','value':true}");
+            Assert.IsTrue(toggle.isOn, Describe(result));
+            Assert.IsTrue(Strings(result["warnings"]).Any(text => text.Contains("is not interactable")), Describe(result));
+        }
+
+        [UnityTest]
         public IEnumerator SetControlValueReachesWrappedSliderAndExplainsMisses()
         {
             var canvas = BuildScene();

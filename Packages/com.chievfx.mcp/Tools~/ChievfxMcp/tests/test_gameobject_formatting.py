@@ -325,6 +325,12 @@ class GameObjectFormattingTests(unittest.TestCase):
         text = mcp.format_gameobject_find_text({"count": 1, "totalMatches": 1, "inactiveHidden": 0, "objects": []})
         self.assertNotIn("inactive hidden", text)
 
+    def test_gameobject_find_text_shows_the_note_for_a_bare_path(self) -> None:
+        note = "path names this one object; 241 more are under it: add name, namePattern or componentType to search them"
+        text = mcp.format_gameobject_find_text({"count": 1, "totalMatches": 1, "objects": [], "note": note})
+
+        self.assertIn("note: " + note, text)
+
     def test_component_get_text_focuses_component_and_fields(self) -> None:
         result = {
             "source": "activeScene",

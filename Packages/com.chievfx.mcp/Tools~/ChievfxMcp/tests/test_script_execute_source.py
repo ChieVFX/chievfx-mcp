@@ -79,6 +79,15 @@ class ScriptExecuteSourceFileTests(unittest.TestCase):
 
         self.assertEqual(self.sent[0]["parameters"], [{"value": "agent"}, {"value": 2}])
 
+    def test_bare_parameter_values_are_wrapped_as_value_entries(self) -> None:
+        # The editor reads only {value} entries: bare values reached the method as null and 0 with success:true.
+        self.call({"csharpCode": "x", "methodName": "Hello", "parameters": ["a", 2, {"x": 1, "y": 2, "z": 3}, {"value": 4}]})
+
+        self.assertEqual(
+            self.sent[0]["parameters"],
+            [{"value": "a"}, {"value": 2}, {"value": {"x": 1, "y": 2, "z": 3}}, {"value": 4}],
+        )
+
     def test_parameters_that_are_not_an_array_are_refused_before_unity(self) -> None:
         with self.assertRaisesRegex(mcp.ToolCallError, "JSON array"):
             self.call({"csharpCode": "x", "parameters": "agent"})

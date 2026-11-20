@@ -224,15 +224,24 @@ def parse_script_parameters(arguments: dict[str, Any]) -> dict[str, Any]:
     parameters at all ("no overload with 0 supplied parameters"). A bare value list is wrapped as [{value}].
     """
     raw = arguments.get("parameters")
-    if not isinstance(raw, str):
+    if raw is None:
         return arguments
-    try:
-        parsed = json.loads(raw)
-    except ValueError:
-        raise ToolCallError('parameters must be a JSON array, e.g. [{"value": "text"}, {"value": 2}].') from None
+    parsed = raw
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except ValueError:
+            raise ToolCallError('parameters must be a JSON array, e.g. [{"value": "text"}, {"value": 2}].') from None
     if not isinstance(parsed, list):
         raise ToolCallError('parameters must be a JSON array, e.g. [{"value": "text"}, {"value": 2}].')
-    return {**arguments, "parameters": parsed}
+    # The editor reads only {value} entries: a bare "a" or 2 reached the method as null and 0 with success:true.
+    return {**arguments, "parameters": [_script_parameter(item) for item in parsed]}
+
+
+def _script_parameter(item: Any) -> Any:
+    if isinstance(item, dict) and ("value" in item or "typeName" in item):
+        return item
+    return {"value": item}
 
 
 def client_session_key() -> str | None:

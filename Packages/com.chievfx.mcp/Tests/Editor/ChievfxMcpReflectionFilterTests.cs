@@ -95,6 +95,26 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
+        public void ValuesWithoutTypeNameCallTheOnlyOverloadOfThatCountOrNameTheChoice()
+        {
+            var sqrt = new JObject
+            {
+                ["filter"] = new JObject
+                {
+                    ["typeName"] = "Mathf",
+                    ["methodName"] = "Sqrt",
+                    ["inputParameters"] = new JArray(new JObject { ["value"] = 4 }),
+                },
+            };
+            Assert.AreEqual(2f, Convert.ToSingle(ReturnValue(service.CallMethod(sqrt))));
+
+            var error = Assert.Throws<InvalidOperationException>(() => service.CallMethod(AbsCall(new JObject { ["value"] = -4 }, topLevel: null)))!;
+            StringAssert.Contains("overloads take 1 parameter(s): ", error.Message);
+            StringAssert.Contains("Set filter.inputParameters[i].typeName to pick one.", error.Message);
+            StringAssert.DoesNotContain("No overload takes", error.Message);
+        }
+
+        [Test]
         public void MisspeltNameIsRefusedWithCloseNamesAndContainsStillCallsBySubstring()
         {
             var misspelt = AbsCall(new JObject { ["typeName"] = "int", ["value"] = -2 }, topLevel: null);

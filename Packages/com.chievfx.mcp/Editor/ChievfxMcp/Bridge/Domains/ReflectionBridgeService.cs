@@ -185,8 +185,30 @@ namespace Chievfx.Mcp.Editor
                     methodNameMatchLevel,
                     ReadInt(args, "parametersMatchLevel", 2),
                     includeSpecialNames)
-                .FirstOrDefault()
-                ?? throw new InvalidOperationException(DescribeNoCallMatch(filter, knownNamespace, typeNameMatchLevel, methodNameMatchLevel, includeSpecialNames));
+                .FirstOrDefault();
+            if (method == null && !HasProperty(args, "parametersMatchLevel"))
+            {
+                // Values without typeName: the one overload that takes that many parameters is the one meant; with
+                // several, the caller has to choose, and the error says so instead of "no overload takes them".
+                var byCount = FindMatchingMethods(filter, knownNamespace, typeNameMatchLevel, methodNameMatchLevel, TypedWhereGivenMatchLevel, includeSpecialNames)
+                    .Take(NoMatchCandidates + 1)
+                    .ToArray();
+                if (byCount.Length > 1)
+                {
+                    throw new InvalidOperationException(byCount.Length + (byCount.Length > NoMatchCandidates ? "+" : string.Empty) + " overloads take "
+                        + byCount[0].GetParameters().Length + " parameter(s): "
+                        + string.Join("; ", byCount.Take(NoMatchCandidates).Select(DescribeSignature))
+                        + (byCount.Length > NoMatchCandidates ? "; ..." : string.Empty)
+                        + ". Set filter.inputParameters[i].typeName to pick one.");
+                }
+
+                method = byCount.FirstOrDefault();
+            }
+
+            if (method == null)
+            {
+                throw new InvalidOperationException(DescribeNoCallMatch(filter, knownNamespace, typeNameMatchLevel, methodNameMatchLevel, includeSpecialNames));
+            }
 
             ValidateCallableMethod(method);
 
@@ -224,6 +246,9 @@ namespace Chievfx.Mcp.Editor
         }
 
         private const int NoMatchCandidates = 5;
+
+        // Same parameter count, and typeName checked only where the caller gave one.
+        private const int TypedWhereGivenMatchLevel = 3;
 
         // Why nothing was called: overloads with the same names but other parameters, or, for exact names, the
         // close names a substring search finds. Each saves a reflection-method-find round trip.
@@ -571,6 +596,11 @@ namespace Chievfx.Mcp.Editor
             {
                 // The short names find prints (int, string, float[]) are accepted along with Name and FullName.
                 var typeName = ReadString(parameterArray[i], "typeName") ?? string.Empty;
+                if (matchLevel == TypedWhereGivenMatchLevel && typeName.Length == 0)
+                {
+                    continue;
+                }
+
                 var parameterType = methodParameters[i].ParameterType;
                 if (!string.Equals(parameterType.FullName, typeName, StringComparison.Ordinal)
                     && !string.Equals(parameterType.Name, typeName, StringComparison.Ordinal)

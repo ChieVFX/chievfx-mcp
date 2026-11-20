@@ -305,6 +305,77 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return string.Join("/", names);
         }
 
+        // Same-named siblings get [k], 1-based among them, as gameobject-find prints: a plain path to a pooled list item
+        // named every row alike. Unique names stay plain, so such paths are unchanged.
+        internal static string GetIndexedTransformPath(Transform transform)
+        {
+            var names = new Stack<string>();
+            for (var current = transform; current != null; current = current.parent)
+            {
+                var siblings = SiblingsOf(current);
+                var sameName = 0;
+                var index = 0;
+                foreach (var sibling in siblings)
+                {
+                    if (string.Equals(sibling.name, current.name, StringComparison.Ordinal))
+                    {
+                        sameName++;
+                        if (sibling == current)
+                        {
+                            index = sameName;
+                        }
+                    }
+                }
+
+                names.Push(sameName > 1 ? current.name + "[" + index + "]" : current.name);
+            }
+
+            return string.Join("/", names);
+        }
+
+        // Resolves a full path whose segments may end in [k] (see GetIndexedTransformPath). Null when a segment is missing.
+        internal static GameObject? ResolveIndexedTransformPath(string path)
+        {
+            var segments = path.Trim().Trim('/').Split('/');
+            var roots = Resources.FindObjectsOfTypeAll<GameObject>()
+                .Where(candidate => candidate.transform.parent == null && candidate.scene.IsValid() && candidate.scene.isLoaded)
+                .Select(candidate => candidate.scene)
+                .Distinct()
+                .SelectMany(scene => scene.GetRootGameObjects().Select(root => root.transform));
+            Transform? current = PickIndexed(roots, segments[0]);
+            for (var i = 1; i < segments.Length && current != null; i++)
+            {
+                current = PickIndexed(current.Cast<Transform>(), segments[i]);
+            }
+
+            return current != null ? current.gameObject : null;
+        }
+
+        internal static bool HasIndexedSegment(string? path)
+        {
+            return path != null && System.Text.RegularExpressions.Regex.IsMatch(path, @"\[\d+\](/|$)");
+        }
+
+        private static Transform? PickIndexed(IEnumerable<Transform> candidates, string segment)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(segment, @"^(.*)\[(\d+)\]$");
+            var name = match.Success ? match.Groups[1].Value : segment;
+            var index = match.Success ? int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture) : 1;
+            return candidates.Where(candidate => string.Equals(candidate.name, name, StringComparison.Ordinal)).Skip(index - 1).FirstOrDefault();
+        }
+
+        private static IEnumerable<Transform> SiblingsOf(Transform transform)
+        {
+            if (transform.parent != null)
+            {
+                return transform.parent.Cast<Transform>();
+            }
+
+            return transform.gameObject.scene.IsValid()
+                ? transform.gameObject.scene.GetRootGameObjects().Select(root => root.transform)
+                : new[] { transform };
+        }
+
         internal static void MarkDirty(GameObject target)
         {
             EditorUtility.SetDirty(target);

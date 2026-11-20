@@ -45,6 +45,20 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
+        public void BareOnCleanupCompilesWithTheStateClassImported()
+        {
+            var notes = new List<string>();
+            var assembly = service.CompileScript(
+                "public static class RetryBareOnCleanup { public static object Main() { OnCleanup(\"r7\", () => { }); return 1; } }",
+                notes,
+                out _,
+                out _);
+
+            Assert.IsNotNull(assembly, string.Join(" | ", notes));
+            StringAssert.Contains("using static Chievfx.Mcp.Editor.ChievfxMcpScriptState;", notes.Single());
+        }
+
+        [Test]
         public void RetryThatGetsFurtherLeadsWithItsOwnErrors()
         {
             var notes = new List<string>();

@@ -144,7 +144,11 @@ namespace Chievfx.Mcp.Editor
             var instanceId = ReadNullableInt(args, "instanceId");
             var includeInactive = ReadBool(args, "includeInactive", false);
             var includeComponents = ReadBool(args, "includeComponents", false);
-            var includeDetails = ReadBool(args, "includeDetails", false) || includeComponents || instanceId.HasValue;
+            // A path with no name/namePattern/componentType names one object, as in gameobject-transform-get; with a
+            // filter it is the subtree to search. Listing the whole subtree for a bare path buried the object in hundreds of rows.
+            var hasFilter = !string.IsNullOrWhiteSpace(name) || !string.IsNullOrWhiteSpace(namePattern) || !string.IsNullOrWhiteSpace(componentType);
+            var isBarePath = !instanceId.HasValue && !string.IsNullOrWhiteSpace(path) && !hasFilter;
+            var includeDetails = ReadBool(args, "includeDetails", false) || includeComponents || instanceId.HasValue || isBarePath;
             var maxResults = ClampInt(ReadInt(args, "maxResults", DefaultGameObjectMaxResults), 1, HardGameObjectMaxResults);
             ValidateWildcardPattern(namePattern, "namePattern");
             ValidateComponentTypeText(componentType, required: false);
@@ -171,6 +175,7 @@ namespace Chievfx.Mcp.Editor
                     ? CreateGameObjectDetail(gameObject, context, includeComponents)
                     : CreateGameObjectRef(gameObject, context))
                 .ToArray();
+            var underPath = isBarePath && matches.Count == 1 ? EnumerateGameObjects(matches[0]).Count() - 1 : 0;
 
             return new
             {
@@ -186,7 +191,10 @@ namespace Chievfx.Mcp.Editor
                 maxResults,
                 includeDetails,
                 truncated = matches.Count > selected.Length,
-                objects = selected
+                objects = selected,
+                note = underPath > 0
+                    ? $"path names this one object; {underPath} more are under it: add name, namePattern or componentType to search them, or use gameobject-hierarchy path:'{path}'."
+                    : null
             };
         }
 

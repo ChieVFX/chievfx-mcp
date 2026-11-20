@@ -195,13 +195,35 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             var path = ReadString(args, pathKey);
-            var firstMatch = ResolveGameObject(path);
-            if (firstMatch == null || firstMatch.activeInHierarchy)
+            if (HasIndexedSegment(path))
             {
-                return firstMatch;
+                var indexed = ResolveIndexedTransformPath(path!);
+                if (indexed != null)
+                {
+                    return indexed;
+                }
+            }
+
+            var firstMatch = ResolveGameObject(path);
+            if (firstMatch == null)
+            {
+                return null;
             }
 
             var matches = FindGameObjectsByRuntimePath(path!);
+            if (firstMatch.activeInHierarchy)
+            {
+                // Same-named siblings (pooled list rows) share one plain path: say which one was taken and how to pick another.
+                var activeCount = matches.Count(candidate => candidate.activeInHierarchy);
+                if (activeCount > 1)
+                {
+                    warnings.Add($"Path '{path}' matches {activeCount} active objects (same-named siblings); used '{GetIndexedTransformPath(firstMatch.transform)}', "
+                        + $"instanceId {UnityObjectIdentity.GetLegacyInstanceId(firstMatch)}. Pass instanceId, or a path with [k] (1-based among same-named siblings) as ui-control-find prints it.");
+                }
+
+                return firstMatch;
+            }
+
             var activeMatch = matches.FirstOrDefault(candidate => candidate.activeInHierarchy);
             if (activeMatch == null)
             {

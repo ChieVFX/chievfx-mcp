@@ -101,6 +101,9 @@ class BridgeTransportMixin:
             if event.get("type") == "domain-reload-before":
                 return "reloading the script domain"
             break
+        started_at = getattr(self, "_script_started_editor_work_at", None)
+        if started_at is not None and time.monotonic() - started_at < EDITOR_SCRIPT_STARTED_WORK_SECONDS:
+            return f"resolving packages or importing (a script-execute {int(time.monotonic() - started_at)} s ago started it)"
         cores = self.editor_cpu_cores(editor.get("processId"))
         if cores is not None and cores >= EDITOR_CPU_BUSY_CORES:
             return f"working on its main thread ({int(cores * 100)}% CPU: an import, a package resolution or a long computation)"

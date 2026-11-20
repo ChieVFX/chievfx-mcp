@@ -219,6 +219,26 @@ class EditorLivenessTests(unittest.TestCase):
         self.server._editor_liveness_cache = None
         self.assertEqual(self.server.assess_editor_liveness()["state"], "unresponsive")
 
+    def test_editor_work_started_by_a_script_is_waited_for_while_the_editor_idles(self) -> None:
+        # Client.Resolve() from a script: the Package Manager waits on the network, the editor barely uses CPU,
+        # and the next call used to be told the editor hung and should be restarted.
+        self.write_heartbeat(age_seconds=90, process_id=os.getpid())
+        self.server._script_started_editor_work_at = time.monotonic() - 70
+
+        liveness = self.server.assess_editor_liveness()
+
+        self.assertEqual(liveness["state"], "busy", liveness)
+        self.assertIn("a script-execute 70 s ago started it", liveness["busySign"])
+
+        self.server._script_started_editor_work_at = time.monotonic() - mcp.EDITOR_SCRIPT_STARTED_WORK_SECONDS - 1
+        self.server._editor_liveness_cache = None
+        self.assertEqual(self.server.assess_editor_liveness()["state"], "unresponsive")
+
+    def test_scripts_that_start_editor_work_are_recognised(self) -> None:
+        for code in ("UnityEditor.PackageManager.Client.Resolve(); return 1;", "AssetDatabase.Refresh();", "Client.Add(\"x\");"):
+            self.assertIsNotNone(mcp.SCRIPT_STARTS_EDITOR_WORK_PATTERN.search(code), code)
+        self.assertIsNone(mcp.SCRIPT_STARTS_EDITOR_WORK_PATTERN.search("var client = new WebClient(); return 1;"))
+
     def write_operation(self, tool_name: str, state: str, age_seconds: float) -> None:
         operations = self.bridge_dir / "operations"
         operations.mkdir(exist_ok=True)

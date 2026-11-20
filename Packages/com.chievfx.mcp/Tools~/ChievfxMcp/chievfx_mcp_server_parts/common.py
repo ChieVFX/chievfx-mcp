@@ -150,6 +150,14 @@ EDITOR_LIVENESS_CHECK_SECONDS = 1.0
 # package resolution started from a script holds the main thread without any flag in the last heartbeat, while a
 # hung, sleeping or modal-blocked main thread leaves the process nearly idle.
 EDITOR_CPU_BUSY_CORES = 0.5
+# A script that starts editor work (Client.Resolve, AssetDatabase.Refresh) can hold the main thread for minutes while
+# the Package Manager waits on the network with the editor nearly idle: for this long after such a script, a stale
+# heartbeat is that work, not a hang.
+EDITOR_SCRIPT_STARTED_WORK_SECONDS = 600.0
+SCRIPT_STARTS_EDITOR_WORK_PATTERN = re.compile(
+    r"PackageManager\s*\.\s*Client\s*\.|\bClient\s*\.\s*(?:Resolve|Add|AddAndRemove|Remove|Embed)\s*\("
+    r"|AssetDatabase\s*\.\s*(?:Refresh|ImportAsset|ImportPackage)\s*\(|RequestScriptCompilation\s*\("
+)
 # Two CPU readings this far apart when no recent one is at hand; a reading older than the max is not reused.
 EDITOR_CPU_SAMPLE_SECONDS = 0.3
 EDITOR_CPU_SAMPLE_MAX_AGE_SECONDS = 10.0

@@ -70,17 +70,30 @@ class BridgeTransportMixin:
         if heartbeat_age is not None and not readiness["bridgeReachable"] and heartbeat_age <= BRIDGE_STALE_RECOVERY_WAIT_SECONDS:
             return "Unity heartbeat is stale; waiting for possible domain reload recovery.", BRIDGE_STALE_RECOVERY_WAIT_SECONDS
         if heartbeat_age is not None and not readiness["bridgeReachable"] and heartbeat_age < EDITOR_BUSY_UNRESPONSIVE_SECONDS:
-            busy_sign = self.editor_busy_sign(readiness["heartbeat"])
+            busy_sign = self.editor_busy_sign(readiness["heartbeat"], heartbeat_age)
             if busy_sign is not None:
                 return f"Unity is {busy_sign}.", BRIDGE_RECOVERY_WAIT_SECONDS
         return None, 0.0
 
-    def editor_busy_sign(self, heartbeat: dict[str, Any]) -> str | None:
+    def editor_busy_sign(self, heartbeat: dict[str, Any], heartbeat_age: float | None = None) -> str | None:
         """What the editor was doing that explains a stale heartbeat, or None when nothing does.
 
         The last heartbeat says compiling/importing/changing play mode; the journal says a compile or a
-        domain reload started and has not finished (the reload itself stops the heartbeat).
+        domain reload started and has not finished (the reload itself stops the heartbeat). A flag that has
+        stood for minutes is checked against the main thread: a dialog that opened during the work stops it too.
         """
+        sign = self._editor_flagged_busy_sign(heartbeat)
+        if sign is None:
+            return None
+        if sign.startswith("working on its main thread") or sign.startswith("resolving packages or importing (a script"):
+            return sign
+        if heartbeat_age is not None and heartbeat_age >= EDITOR_FLAGGED_MODAL_CHECK_AFTER_SECONDS:
+            editor = heartbeat.get("editor") if isinstance(heartbeat.get("editor"), dict) else {}
+            if self.editor_modal_loop(editor.get("processId")) in MODAL_SESSION_STACK_MARKERS:
+                return None
+        return sign
+
+    def _editor_flagged_busy_sign(self, heartbeat: dict[str, Any]) -> str | None:
         editor = heartbeat.get("editor") if isinstance(heartbeat.get("editor"), dict) else {}
         busy = heartbeat.get("busy") if isinstance(heartbeat.get("busy"), dict) else {}
         if (bool(editor.get("isCompiling")) or bool(busy.get("isCompiling"))) and not editor.get("compileWaitingForPlayModeExit"):
@@ -188,7 +201,7 @@ class BridgeTransportMixin:
             return {**row, "state": "responsive"}
         if process_is_alive(process_id) is False:
             return {**row, "state": "gone", "processAlive": False}
-        busy_sign = self.editor_busy_sign(heartbeat)
+        busy_sign = self.editor_busy_sign(heartbeat, heartbeat_age)
         limit = EDITOR_BUSY_UNRESPONSIVE_SECONDS if busy_sign is not None else EDITOR_UNRESPONSIVE_SECONDS
         state = ("busy" if busy_sign is not None else "stale") if heartbeat_age < limit else "unresponsive"
         # A dialog waits for a click, not for time: no point in waiting out the limit.

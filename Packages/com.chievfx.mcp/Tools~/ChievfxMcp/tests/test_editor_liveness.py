@@ -257,6 +257,37 @@ class EditorLivenessTests(unittest.TestCase):
         self.age_modal_check()
         self.assertNotEqual(self.server.assess_editor_liveness().get("modalLoop"), "ContainerWindow::MakeModal")
 
+    def test_dialog_behind_a_compile_flag_is_found_after_two_minutes(self) -> None:
+        # "Missing Signature" opened during the compile after a package change: the last heartbeat said isCompiling, and
+        # every call waited out the compile limit (tool-batch steps timed out after 330 s and 640 s).
+        self.write_heartbeat(age_seconds=mcp.EDITOR_FLAGGED_MODAL_CHECK_AFTER_SECONDS + 10, process_id=os.getpid(), isCompiling=True)
+        self.modal_loop = "runModalSession"
+
+        self.assertEqual(self.server.assess_editor_liveness()["state"], "busy")
+        self.age_modal_check()
+        liveness = self.server.assess_editor_liveness()
+
+        self.assertEqual(liveness["state"], "unresponsive", liveness)
+        self.assertIn("Missing Signature", self.server.describe_editor_down(liveness))
+
+    def test_progress_window_behind_a_compile_flag_is_still_a_compile(self) -> None:
+        self.write_heartbeat(age_seconds=mcp.EDITOR_FLAGGED_MODAL_CHECK_AFTER_SECONDS + 10, process_id=os.getpid(), isCompiling=True)
+        self.modal_loop = "ContainerWindow::MakeModal"
+
+        self.server.assess_editor_liveness()
+        self.age_modal_check()
+        liveness = self.server.assess_editor_liveness()
+
+        self.assertEqual(liveness["state"], "busy", liveness)
+        self.assertEqual(liveness["busySign"], "compiling scripts")
+
+    def test_fresh_compile_flag_is_not_sampled(self) -> None:
+        self.write_heartbeat(age_seconds=30, process_id=os.getpid(), isCompiling=True)
+        self.modal_loop = "runModalSession"
+
+        self.assertEqual(self.server.assess_editor_liveness()["state"], "busy")
+        self.assertIsNone(getattr(self.server, "_editor_modal_check", None), "a compile under two minutes is not sampled")
+
     def age_modal_check(self) -> None:
         check = self.server._editor_modal_check
         self.server._editor_modal_check = (check[0], check[1] - mcp.EDITOR_MODAL_CHECK_SECONDS - 1, *check[2:])

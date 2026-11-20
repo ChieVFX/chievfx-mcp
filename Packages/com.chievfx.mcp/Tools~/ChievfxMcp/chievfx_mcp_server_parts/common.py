@@ -147,6 +147,9 @@ EDITOR_UNRESPONSIVE_SECONDS = 60.0
 EDITOR_BUSY_UNRESPONSIVE_SECONDS = 900.0
 # How often a stale, CPU-busy editor's main thread is sampled for a modal dialog loop (sample itself takes ~2 s).
 EDITOR_MODAL_CHECK_SECONDS = 15.0
+# A compile, import or package flag in the last heartbeat is waited out; past this stale age the main thread is sampled too:
+# "Missing Signature" after a package change opens during the compile, and the flag hid it for 900 s.
+EDITOR_FLAGGED_MODAL_CHECK_AFTER_SECONDS = 120.0
 # How often a call waiting for its turn, or for Unity to pick up its request, re-checks that verdict.
 EDITOR_LIVENESS_CHECK_SECONDS = 1.0
 # A stale heartbeat with the editor process using at least this many cores is work, not a hang: an import or a

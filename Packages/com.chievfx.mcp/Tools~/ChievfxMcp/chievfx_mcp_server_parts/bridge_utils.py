@@ -197,8 +197,11 @@ def process_cpu_seconds(pid: Any) -> float | None:
         return None
 
 
-# Frames of a modal loop on the editor's main thread (a dialog waiting for a click), as /usr/bin/sample names them.
-MODAL_LOOP_STACK_MARKERS = ("ContainerWindow::MakeModal", "runModalForWindow", "runModalSession", "DisplayDialog")
+# Frames of a modal loop on the editor's main thread (a dialog waiting for a click), as /usr/bin/sample names them; the
+# strongest first. The first three are a modal session of the app (a dialog); a lone ContainerWindow::MakeModal is also
+# what Unity's progress window runs.
+MODAL_LOOP_STACK_MARKERS = ("runModalSession", "runModalForWindow", "DisplayDialog", "ContainerWindow::MakeModal")
+MODAL_SESSION_STACK_MARKERS = ("runModalSession", "runModalForWindow", "DisplayDialog")
 
 
 def process_modal_loop(pid: Any, timeout_seconds: float = 10.0) -> str | None:

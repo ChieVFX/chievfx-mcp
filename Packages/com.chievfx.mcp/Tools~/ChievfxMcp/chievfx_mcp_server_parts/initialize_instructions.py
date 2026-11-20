@@ -183,7 +183,7 @@ def build_core_tool_name_lines(plan: dict[str, Any]) -> list[str]:
         entry = categories.get(category.casefold())
         if entry is not None and entry.get("collapsed"):
             continue
-        arguments = _compact_signature_arguments(_schema_arguments(tool.get("inputSchema")))
+        arguments = _compact_signature_arguments(_schema_arguments(tool.get("inputSchema"), BACK_COMPAT_ARGUMENT_ALIASES.get(name, frozenset())))
         summary = _short_tool_summary(tool)
         rows.append((category, f"- {name}({arguments}){f': {summary}' if summary else ''}", name))
 
@@ -364,7 +364,7 @@ def _schema_short_type_name(raw_type: str) -> str:
     }.get(raw_type, raw_type)
 
 
-def _schema_arguments(schema: Any) -> str:
+def _schema_arguments(schema: Any, skipped: frozenset[str] = frozenset()) -> str:
     if not isinstance(schema, dict):
         return ""
     properties = schema.get("properties")
@@ -373,7 +373,7 @@ def _schema_arguments(schema: Any) -> str:
     required = set(schema.get("required", [])) if isinstance(schema.get("required"), list) else set()
     parts: list[str] = []
     for name, prop_schema in properties.items():
-        if name == "outputFormat":
+        if name == "outputFormat" or name in skipped:
             continue
         suffix = "" if name in required else "?"
         parts.append(f"{name}{suffix}:{_schema_type_name(prop_schema)}")

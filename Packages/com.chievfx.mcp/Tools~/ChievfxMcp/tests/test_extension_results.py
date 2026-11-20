@@ -272,6 +272,15 @@ class ExtensionResultTests(unittest.TestCase):
         self.assertTrue(text.startswith("tool-batch: 0 of 2 ok, 1 failed, 1 not run"), text)
         self.assertIn("1 demo-act FAILED: replied ok:false: the awaited end is a failure: #2 [demo][wait] #7 failed:timeout", text)
 
+    def test_batch_stops_at_a_runtime_ui_step_that_resolved_nothing(self) -> None:
+        self.fake_bridge({"playMode": True, "resolved": False, "attempts": [], "warnings": ["No runtime UI control found at path:'Nope/Missing'."]})
+
+        result = self.call("tool-batch", {"steps": [{"tool": "ui-runtime-set-control-value", "args": {"path": "Nope/Missing", "value": 1}}, {"waitMs": 1}]})
+
+        text = self.text_of(result)
+        self.assertTrue(text.startswith("tool-batch: 0 of 2 ok, 1 failed, 1 not run"), text)
+        self.assertIn("FAILED: replied resolved:false: No runtime UI control found at path:'Nope/Missing'.", text)
+
     def test_awaited_end_without_the_failed_marker_stays_a_success(self) -> None:
         self.write_events([self.log_event(1, "[demo] boot")])
         self.fake_bridge(

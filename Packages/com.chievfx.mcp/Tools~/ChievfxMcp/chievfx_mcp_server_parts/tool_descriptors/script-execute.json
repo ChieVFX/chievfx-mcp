@@ -1,6 +1,6 @@
 {
   "name": "script-execute",
-  "description": "Last resort: check chievfx://instructions/core-descriptors for a purpose-built tool first. Compiles and runs C# without writing files; entry: static Main, or methodName/className. Each call is a new assembly: keep values (of loaded types) in ChievfxMcpScriptState.Set/Get, undo handlers/objects via ChievfxMcpScriptState.OnCleanup. Missing usings and private members are retried.",
+  "description": "Last resort: check chievfx://instructions/core-descriptors for a purpose-built tool first. Compiles and runs C# without writing files; entry: static Main, or methodName/className. Each call is a new assembly: keep values (of loaded types) in ChievfxMcpScriptState.Set/Get/Remove (till domain reload), undo via OnCleanup(name, action), run on Play exit. Missing usings and private members are retried.",
   "inputSchema": {
     "type": "object",
     "properties": {

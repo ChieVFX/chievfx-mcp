@@ -32,7 +32,7 @@
       },
       "marker": {
         "type": "string",
-        "description": "Exact planted beacon name."
+        "description": "Exact beacon name: a log line MCPEventReachedLocation(<name>) plants one."
       },
       "maxEntries": {
         "type": "integer",

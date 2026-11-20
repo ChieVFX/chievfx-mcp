@@ -887,7 +887,7 @@ class McpServerCore:
             )
             step_images = [block for block in blocks if isinstance(block, dict) and block.get("type") == "image"]
             # A tool that answers instead of throwing (script-execute success:false, input ok:false) still failed.
-            failure = describe_reported_failure(step_raw.get("result"))
+            failure = describe_reported_failure(step_raw.get("result"), tool_name)
             row = {"index": index, "tool": tool_name, "ok": failure is None, "text": text}
             if failure is not None:
                 row["error"] = failure

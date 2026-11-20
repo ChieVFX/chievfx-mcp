@@ -357,12 +357,18 @@ def format_tool_batch_text(result: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def describe_reported_failure(raw_result: Any) -> str | None:
+# Runtime UI actions answer a miss with resolved:false (no target) or clicked:false (nothing took the click).
+UI_RUNTIME_ACTION_TOOL_IDS = frozenset(
+    {"ui-runtime-click", "ui-runtime-drag", "ui-runtime-focus", "ui-runtime-set-control-value", "ui-runtime-type-text"}
+)
+
+
+def describe_reported_failure(raw_result: Any, tool_name: str = "") -> str | None:
     """Why a tool's reply counts as a failed step, or None when it does not.
 
     Most tools throw on failure, but some answer with it: script-execute success:false (compile or runtime
-    error), input and extension tools ok:false. A batch that reads those as done runs its next steps on a
-    state the failed step never produced.
+    error), input and extension tools ok:false, runtime UI actions resolved:false / clicked:false. A batch that
+    reads those as done runs its next steps on a state the failed step never produced.
     """
     if not isinstance(raw_result, dict):
         return None
@@ -370,12 +376,19 @@ def describe_reported_failure(raw_result: Any) -> str | None:
         flag = "success:false"
     elif raw_result.get("ok") is False:
         flag = "ok:false"
+    elif tool_name in UI_RUNTIME_ACTION_TOOL_IDS and raw_result.get("resolved") is False:
+        flag = "resolved:false"
+    elif tool_name in UI_RUNTIME_ACTION_TOOL_IDS and raw_result.get("clicked") is False:
+        flag = "clicked:false"
     else:
         return None
     stage = raw_result.get("stage")
     detail = f"replied {flag}" + (f" (stage:{stage})" if isinstance(stage, str) and stage else "")
     errors = raw_result.get("errors")
     reason = next((item for item in errors if isinstance(item, str) and item), None) if isinstance(errors, list) else None
+    warnings = raw_result.get("warnings")
+    if reason is None and isinstance(warnings, list):
+        reason = next((item for item in warnings if isinstance(item, str) and item), None)
     for key in ("error", "message"):
         if reason is None and isinstance(raw_result.get(key), str) and raw_result.get(key):
             reason = raw_result[key]

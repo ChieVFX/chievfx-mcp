@@ -792,6 +792,17 @@ ADVERTISED_PROPERTY_OMISSIONS: dict[str, set[str]] = {
         "maxResults",
     },
 }
+# Old argument names still accepted but shown nowhere: the full signatures in the instructions skip them too,
+# so a caller sees one name per argument.
+BACK_COMPAT_ARGUMENT_ALIASES: dict[str, frozenset[str]] = {
+    "editor-playmode-set": frozenset({"play", "playing"}),
+    "input-control-keyboard-event": frozenset({"allowStateMutation", "eventType"}),
+    "input-control-keyboard-sequence": frozenset({"allowStateMutation"}),
+    "input-control-mouse-event": frozenset({"allowStateMutation", "eventType"}),
+    "input-control-mouse-gesture": frozenset({"allowStateMutation"}),
+    "input-control-touch-event": frozenset({"allowStateMutation", "eventType"}),
+    "input-control-pointer-capture": frozenset({"allowStateMutation"}),
+}
 # Canonical property order for advertised inputSchema surfaces (tools/list, initialize args=).
 # Short args= lines and full schemas share this order via reorder_advertised_schema_properties().
 TOOL_ADVERTISED_PROPERTY_ORDERS: dict[str, list[str]] = {

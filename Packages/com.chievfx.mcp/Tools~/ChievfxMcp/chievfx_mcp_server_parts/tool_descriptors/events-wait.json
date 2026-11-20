@@ -1,6 +1,6 @@
 {
   "name": "events-wait",
-  "description": "Long-poll for the NEXT matching Unity event, by contains (log substring; a list matches any) or marker (exact beacon name). Earlier events are skipped unless you pass sinceEventId taken before the trigger (tool reply, bridge-get-status lastEventId); a match fired just before the wait returns at once as firedBeforeWait. A tool whose reply has waitFor can wait itself: pass it awaitMs. timedOut:true is normal: read diagnostic, recover with events-check-since.",
+  "description": "Long-poll for the NEXT matching Unity event, by contains (log substring; a list matches any) or marker (exact beacon name). Earlier events are skipped unless you pass sinceEventId taken before the trigger (tool reply, bridge-get-status lastEventId); a match fired just before the wait returns at once as firedBeforeWait. A tool whose reply has waitFor can wait itself: pass it awaitMs. timedOut:true is normal: read diagnostic if any, recover with events-check-since.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -23,7 +23,7 @@
       },
       "marker": {
         "type": "string",
-        "description": "Exact planted beacon name (a string, not a boolean)."
+        "description": "Beacon name: logging MCPEventReachedLocation(<name>) plants it."
       },
       "sinceEventId": {
         "type": "integer",

@@ -48,7 +48,20 @@ def _template_category(template: dict[str, Any]) -> str:
 
 
 def _category_description(name: str) -> str:
-    return TOOL_CATEGORY_DESCRIPTIONS.get(name) or RESOURCE_CATEGORY_DESCRIPTIONS.get(name) or ""
+    return TOOL_CATEGORY_DESCRIPTIONS.get(name) or RESOURCE_CATEGORY_DESCRIPTIONS.get(name) or _extension_category_description(name)
+
+
+# A category an extension brings has no core description: the extension's own description says what it is for.
+def _extension_category_description(name: str) -> str:
+    capabilities = collect_extension_capabilities()
+    extension_id = next(
+        (tool.get("sourceExtensionId") for tool in capabilities["tools"] if str(tool.get("category", "")).casefold() == name.casefold()),
+        None,
+    )
+    if extension_id is None:
+        return ""
+    summary = next((item for item in capabilities["extensions"] if item.get("id") == extension_id), None)
+    return str(summary.get("description") or "") if summary is not None else ""
 
 
 def build_category_plan() -> dict[str, Any]:
@@ -282,8 +295,15 @@ def category_resource_body(entry: dict[str, Any]) -> str:
         lines.append("")
         lines.extend(RESOURCE_URI_ENCODING_NOTES)
     lines.append("")
-    lines.append(
-        "More optional tools for this category may exist but be disabled; "
-        "use tools-list-category to inspect and tools-set-enabled-state to enable them."
-    )
+    # The tool-management tools are themselves optional (hidden category): name them only when the caller has them.
+    if {"tools-list-category", "tools-set-enabled-state"} <= load_enabled_tool_ids():
+        lines.append(
+            "More optional tools for this category may exist but be disabled; "
+            "use tools-list-category to inspect and tools-set-enabled-state to enable them."
+        )
+    else:
+        lines.append(
+            "More optional tools for this category may exist but be disabled; "
+            "the user enables them in Unity: Window > ChievFX > MCP Tools."
+        )
     return "\n".join(lines)

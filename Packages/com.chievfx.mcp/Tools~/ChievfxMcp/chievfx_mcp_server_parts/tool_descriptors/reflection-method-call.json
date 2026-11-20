@@ -1,6 +1,6 @@
 {
   "name": "reflection-method-call",
-  "description": "Calls one loaded C# method. Instance calls need targetObject.value.",
+  "description": "Calls one loaded C# method (filter as in reflection-method-find). Instance calls need targetObject.value, a plain C# object as JSON; UnityEngine.Object instances are unsupported (use script-execute).",
   "inputSchema": {
     "type": "object",
     "properties": {

@@ -73,6 +73,14 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
+        public void ABaseComponentTypeMatchesItsSubclasses()
+        {
+            Assert.IsTrue(GameObjectBridgeService.ComponentTypeMatches(typeof(MeshCollider), "Collider"), "GetComponent<Collider>() finds a MeshCollider.");
+            Assert.IsTrue(GameObjectBridgeService.ComponentTypeMatches(typeof(MeshCollider), "UnityEngine.MeshCollider"));
+            Assert.IsFalse(GameObjectBridgeService.ComponentTypeMatches(typeof(MeshCollider), "BoxCollider"));
+        }
+
+        [Test]
         public void AmbiguousAndMissingPathsAreRefused()
         {
             StringAssert.Contains("is ambiguous", Assert.Throws<InvalidOperationException>(() => GameObjectBridgeService.ResolveGameObjectByPath(context, "PathTestRoot/Item"))!.Message);

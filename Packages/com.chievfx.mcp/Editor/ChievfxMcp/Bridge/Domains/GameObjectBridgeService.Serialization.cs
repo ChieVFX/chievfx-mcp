@@ -191,10 +191,19 @@ namespace Chievfx.Mcp.Editor
             return GetMatchingComponents(gameObject, componentType).Any();
         }
 
+        // A base class matches its subclasses, as GetComponent<Collider>() finds a MeshCollider: "Collider" found nothing on a car.
         internal static bool ComponentTypeMatches(Type type, string componentType)
         {
-            return string.Equals(type.Name, componentType, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(type.FullName, componentType, StringComparison.OrdinalIgnoreCase);
+            for (var current = type; current != null && current != typeof(object); current = current.BaseType)
+            {
+                if (string.Equals(current.Name, componentType, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(current.FullName, componentType, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         internal static void ValidateComponentTypeText(string? componentType, bool required)

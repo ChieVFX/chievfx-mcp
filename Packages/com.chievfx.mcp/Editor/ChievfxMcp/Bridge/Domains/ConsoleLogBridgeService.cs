@@ -1156,7 +1156,8 @@ namespace Chievfx.Mcp.Editor
             return GetLogEntriesSince(startIndex)
                 .Where(entry => levels == null || levels.Contains(entry.LogType))
                 .Take(maxEntries)
-                .Select(entry => CreateLogEntryOutput(entry, stackTraceMode, ref truncated))
+                // Same text as console-get-logs shows: a project logger's <b><color> prefix stripped by the same policy.
+                .Select(entry => CreateLogEntryOutput(entry, stackTraceMode, trimMessage: true, ChievfxMcpToolPolicy.StripStyleTagsFromConsoleLogs, ref truncated))
                 .Cast<object>()
                 .ToArray();
         }

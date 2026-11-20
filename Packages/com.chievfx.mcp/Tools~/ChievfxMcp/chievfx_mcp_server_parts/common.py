@@ -137,6 +137,18 @@ BRIDGE_RECOVERY_WAIT_SECONDS = 300.0
 BRIDGE_STALE_RECOVERY_WAIT_SECONDS = 60.0
 BRIDGE_RECOVERY_RECHECK_SECONDS = 1.0
 BRIDGE_POST_RECOVERY_RESPONSE_GRACE_SECONDS = 10.0
+# A heartbeat older than this, with no compile, domain reload, import or play-mode change under way, means
+# the editor's main thread is stuck (hung, behind a modal dialog, in the crash handler): calls then fail at
+# once with editor_unresponsive instead of each queueing for its full timeout behind the previous one.
+EDITOR_UNRESPONSIVE_SECONDS = 60.0
+# The same verdict while one of those is under way: a large project can spend minutes compiling or importing.
+EDITOR_BUSY_UNRESPONSIVE_SECONDS = 900.0
+# How often a call waiting for its turn, or for Unity to pick up its request, re-checks that verdict.
+EDITOR_LIVENESS_CHECK_SECONDS = 1.0
+# Journal events that open and close the windows in which a stale heartbeat is expected.
+EDITOR_LIFECYCLE_EVENT_TYPES = frozenset(
+    {"compile-start", "compile-finish", "domain-reload-before", "domain-reload-after", "domain-reload-restored"}
+)
 # Orphan response/processing files older than this are removed before queueing
 # a new request to keep the file transport from looking permanently "busy".
 ORPHAN_RESPONSE_STALE_SECONDS = 30.0

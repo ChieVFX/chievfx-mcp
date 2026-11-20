@@ -60,13 +60,121 @@ class BridgeTransportMixin:
     def bridge_recovery_wait_reason(self) -> tuple[str | None, float]:
         readiness = self.read_bridge_readiness()
         heartbeat_age = readiness["heartbeatAge"]
+        # The flags of a heartbeat that stopped an hour ago say nothing about now: no recovery to wait for.
+        if not readiness["bridgeReachable"] and self.describe_editor_down(self.assess_editor_liveness()) is not None:
+            return None, 0.0
         if readiness["isCompiling"]:
             return "Unity editor is compiling or reloading assemblies.", BRIDGE_RECOVERY_WAIT_SECONDS
         if readiness["isUpdating"]:
             return "Unity asset database is updating.", BRIDGE_RECOVERY_WAIT_SECONDS
         if heartbeat_age is not None and not readiness["bridgeReachable"] and heartbeat_age <= BRIDGE_STALE_RECOVERY_WAIT_SECONDS:
             return "Unity heartbeat is stale; waiting for possible domain reload recovery.", BRIDGE_STALE_RECOVERY_WAIT_SECONDS
+        if heartbeat_age is not None and not readiness["bridgeReachable"] and heartbeat_age < EDITOR_BUSY_UNRESPONSIVE_SECONDS:
+            busy_sign = self.editor_busy_sign(readiness["heartbeat"])
+            if busy_sign is not None:
+                return f"Unity is {busy_sign}.", BRIDGE_RECOVERY_WAIT_SECONDS
         return None, 0.0
+
+    def editor_busy_sign(self, heartbeat: dict[str, Any]) -> str | None:
+        """What the editor was doing that explains a stale heartbeat, or None when nothing does.
+
+        The last heartbeat says compiling/importing/changing play mode; the journal says a compile or a
+        domain reload started and has not finished (the reload itself stops the heartbeat).
+        """
+        editor = heartbeat.get("editor") if isinstance(heartbeat.get("editor"), dict) else {}
+        busy = heartbeat.get("busy") if isinstance(heartbeat.get("busy"), dict) else {}
+        if (bool(editor.get("isCompiling")) or bool(busy.get("isCompiling"))) and not editor.get("compileWaitingForPlayModeExit"):
+            return "compiling scripts"
+        if bool(editor.get("isUpdating")) or bool(busy.get("isUpdating")):
+            return "importing assets"
+        if "isPlayingOrWillChangePlaymode" in editor and bool(editor.get("isPlayingOrWillChangePlaymode")) != bool(editor.get("isPlaying")):
+            return "changing play mode"
+        if bool(busy.get("packageBusy")):
+            return "resolving packages"
+        if bool(busy.get("testBusy")):
+            return "running tests"
+        for event in reversed(self.read_event_stream().get("events", [])):
+            if event.get("source") != "editor" or event.get("type") not in EDITOR_LIFECYCLE_EVENT_TYPES:
+                continue
+            if event.get("type") == "compile-start":
+                return "compiling scripts"
+            if event.get("type") == "domain-reload-before":
+                return "reloading the script domain"
+            break
+        return None
+
+    def assess_editor_liveness(self) -> dict[str, Any]:
+        """responsive | stale (briefly, as during a reload) | busy | unresponsive | gone | unknown (no heartbeat yet).
+
+        Cached for EDITOR_LIVENESS_CHECK_SECONDS: wait loops poll it, and a stale heartbeat means reading the journal.
+        """
+        cached = getattr(self, "_editor_liveness_cache", None)
+        now_mono = time.monotonic()
+        if cached is not None and now_mono - cached[0] < EDITOR_LIVENESS_CHECK_SECONDS:
+            return cached[1]
+        liveness = self._read_editor_liveness()
+        self._editor_liveness_cache = (now_mono, liveness)
+        return liveness
+
+    def _read_editor_liveness(self) -> dict[str, Any]:
+        heartbeat = read_json_file(self.state_path) or {}
+        heartbeat_age = file_age_seconds(self.state_path, time.time()) if self.state_path.exists() else None
+        editor = heartbeat.get("editor") if isinstance(heartbeat.get("editor"), dict) else {}
+        process_id = editor.get("processId") if isinstance(editor.get("processId"), int) and not isinstance(editor.get("processId"), bool) else None
+        row: dict[str, Any] = {"heartbeatAgeSeconds": heartbeat_age, "processId": process_id}
+        if heartbeat_age is None:
+            return {**row, "state": "unknown"}
+        if heartbeat_age <= HEARTBEAT_STALE_SECONDS:
+            return {**row, "state": "responsive"}
+        if process_is_alive(process_id) is False:
+            return {**row, "state": "gone", "processAlive": False}
+        busy_sign = self.editor_busy_sign(heartbeat)
+        limit = EDITOR_BUSY_UNRESPONSIVE_SECONDS if busy_sign is not None else EDITOR_UNRESPONSIVE_SECONDS
+        state = ("busy" if busy_sign is not None else "stale") if heartbeat_age < limit else "unresponsive"
+        busy = heartbeat.get("busy") if isinstance(heartbeat.get("busy"), dict) else {}
+        # The bridge's own work on the main thread (a long synchronous script) stops the heartbeat just as a hang does.
+        own_work = [label for flag, label in (("scriptBusy", "script-execute"), ("editorWindowScreenshotBusy", "an editor window screenshot")) if busy.get(flag)]
+        return {**row, "state": state, "busySign": busy_sign, "unresponsiveAfterSeconds": limit, "runningWhenStopped": own_work}
+
+    @staticmethod
+    def describe_editor_down(liveness: dict[str, Any]) -> str | None:
+        """The fail-fast message for a hung or gone editor; None while it may still answer."""
+        state = liveness.get("state")
+        if state not in ("unresponsive", "gone"):
+            return None
+        age = liveness.get("heartbeatAgeSeconds") or 0.0
+        age_text = f"{int(age)} s" if age < 3600 else f"{age / 3600:.1f} h"
+        process_id = liveness.get("processId")
+        editor = f"Unity (PID {process_id})" if process_id else "Unity"
+        if state == "gone":
+            return (
+                f"editor_not_running: {editor}, which wrote the last bridge heartbeat {age_text} ago, is not running "
+                "(closed or crashed). Start the editor; calls fail at once until its bridge writes a heartbeat."
+            )
+        busy_sign = liveness.get("busySign")
+        cause = (
+            f"has been {busy_sign} for longer than {int(liveness.get('unresponsiveAfterSeconds') or 0)} s"
+            if busy_sign
+            else "shows no compile, domain reload, import or play-mode change under way"
+        )
+        own_work = liveness.get("runningWhenStopped") or []
+        suspect = (
+            f" The last heartbeat shows {' and '.join(own_work)} running: it may be what holds the main thread."
+            if own_work
+            else ""
+        )
+        return (
+            f"editor_unresponsive: {editor} has not written a bridge heartbeat for {age_text} and {cause}: its main "
+            "thread is stuck (hung, behind a modal dialog, or in the crash handler)." + suspect + " Calls fail at "
+            "once until a heartbeat comes back; look at the editor or restart it. bridge-get-status shows editorState."
+        )
+
+    def raise_if_editor_unresponsive(self) -> None:
+        if not self.bridge_dir:
+            return
+        message = self.describe_editor_down(self.assess_editor_liveness())
+        if message is not None:
+            raise EditorUnresponsiveError(message)
 
     def wait_for_bridge_recovery_if_needed(
         self,
@@ -130,6 +238,8 @@ class BridgeTransportMixin:
             busy = bool(editor.get("isCompiling")) or bool(editor.get("isUpdating"))
             if not bridge_reachable or busy:
                 last_busy_at = now_mono
+                if not bridge_reachable and self.describe_editor_down(self.assess_editor_liveness()) is not None:
+                    return False
             elif last_busy_at is None or (now_mono - last_busy_at) >= post_busy_grace_seconds:
                 return True
 
@@ -145,6 +255,7 @@ class BridgeTransportMixin:
         progress_token: Any = None,
         notify: Any | None = None,
     ) -> dict[str, Any]:
+        self.raise_if_editor_unresponsive()
         timeout_ms = clamp_int(arguments.get("timeoutMs"), int(RECOMPILE_WAIT_SECONDS * 1000), 1000, 30 * 60 * 1000)
         wait_seconds = timeout_ms / 1000
         status_before = self.get_bridge_status({})
@@ -168,6 +279,8 @@ class BridgeTransportMixin:
             result = bridge_result.get("result")
             if not isinstance(result, dict):
                 result = {}
+        except EditorUnresponsiveError:
+            raise
         except RuntimeError:
             # Leaving Play Mode domain-reloads Unity, which can swallow the response or briefly stale the
             # heartbeat mid-round-trip — the same recovery editor_playmode_set needs. The editor still
@@ -291,6 +404,8 @@ class BridgeTransportMixin:
             result = bridge_result.get("result")
             if not isinstance(result, dict):
                 result = {}
+        except EditorUnresponsiveError:
+            raise
         except RuntimeError:
             # Toggling Play Mode domain-reloads Unity, which can interrupt the bridge round-trip: the
             # response is lost across the reload, or the heartbeat goes briefly stale and call_unity_bridge
@@ -569,9 +684,16 @@ class BridgeTransportMixin:
             return []
 
     def call_unity_bridge_file(self, name: str, arguments: dict[str, Any], jsonrpc_request_id: Any = None, progress_token: Any = None, notify: Any | None = None) -> dict[str, Any]:
-        with self.bridge_call_lock:
+        # Calls take turns; one stuck on a hung editor used to hold every later call for its full timeout.
+        self.raise_if_editor_unresponsive()
+        while not self.bridge_call_lock.acquire(timeout=EDITOR_LIVENESS_CHECK_SECONDS):
+            self.raise_if_editor_unresponsive()
+        try:
             allow_recovery_extension = self.wait_for_bridge_recovery_if_needed(progress_token, notify)
+            self.raise_if_editor_unresponsive()
             return self._call_unity_bridge_file_locked(name, arguments, jsonrpc_request_id, progress_token, notify, allow_recovery_extension)
+        finally:
+            self.bridge_call_lock.release()
 
     def _call_unity_bridge_file_locked(
         self,
@@ -634,6 +756,7 @@ class BridgeTransportMixin:
             recovery_extended = False
             post_recovery_grace_started = False
             next_recovery_record_at = started
+            next_liveness_check_at = started + EDITOR_LIVENESS_CHECK_SECONDS
             while True:
                 if response_path.exists():
                     payload = json.loads(read_text_file(response_path))
@@ -672,6 +795,17 @@ class BridgeTransportMixin:
                     return fallback_payload
 
                 now = time.monotonic()
+                if now >= next_liveness_check_at:
+                    next_liveness_check_at = now + EDITOR_LIVENESS_CHECK_SECONDS
+                    # Only while the request still waits in the queue: once Unity picked it up, the stale
+                    # heartbeat may be this very operation holding the main thread, and its timeout decides.
+                    down = self.describe_editor_down(self.assess_editor_liveness()) if request_path.exists() else None
+                    if down is not None:
+                        self.update_operation_record(
+                            request_id, state="failed", completedAtUtc=utc_now_iso(), progressMessage=down
+                        )
+                        self.discard_timed_out_request(request_id)
+                        raise EditorUnresponsiveError(down)
                 if progress_token is not None and notify is not None and now >= next_progress_at:
                     elapsed = max(0.0, now - started)
                     target_progress = min(0.95, elapsed / max(wait_timeout_seconds, 0.001))

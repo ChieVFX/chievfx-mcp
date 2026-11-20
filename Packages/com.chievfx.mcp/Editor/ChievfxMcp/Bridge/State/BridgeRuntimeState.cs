@@ -28,6 +28,9 @@ namespace Chievfx.Mcp.Editor
 
         public static readonly JsonSerializerSettings JsonOptions = McpJson.SerializerSettings;
 
+        // Lets the MCP server tell a hung editor (process alive, heartbeat stale) from a closed or crashed one.
+        private static readonly int EditorProcessId = System.Diagnostics.Process.GetCurrentProcess().Id;
+
         private bool isRunning;
         private double lastHeartbeatWriteTime;
         private long editorUpdateTick;
@@ -182,6 +185,7 @@ namespace Chievfx.Mcp.Editor
                     },
                     ["editor"] = new Dictionary<string, object?>
                     {
+                        ["processId"] = EditorProcessId,
                         ["isPlaying"] = EditorApplication.isPlaying,
                         ["isPaused"] = EditorApplication.isPaused,
                         ["isPlayingOrWillChangePlaymode"] = EditorApplication.isPlayingOrWillChangePlaymode,

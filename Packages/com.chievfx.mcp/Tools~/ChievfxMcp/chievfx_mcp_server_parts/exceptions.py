@@ -17,3 +17,7 @@ class PromptArgumentError(ValueError):
 
 class ToolCallError(ValueError):
     """Raised when tools/call arguments are invalid or the target tool is unavailable."""
+
+
+class EditorUnresponsiveError(RuntimeError):
+    """Raised at once when the Unity editor is hung or gone, instead of queueing a call for its full timeout."""

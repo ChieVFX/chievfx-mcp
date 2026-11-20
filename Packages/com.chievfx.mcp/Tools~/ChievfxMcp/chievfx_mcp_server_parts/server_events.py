@@ -135,6 +135,10 @@ class EventsStatusMixin:
             len(active_event_waits),
             compile_waiting_for_play_mode_exit=bool(editor.get("compileWaitingForPlayModeExit")),
         )
+        liveness = self.assess_editor_liveness() if self.bridge_dir else {"state": "unknown"}
+        editor_down = self.describe_editor_down(liveness)
+        if editor_down is not None:
+            hints = [editor_down] + [hint for hint in hints if not hint.startswith("Unity heartbeat is stale.")]
 
         if verbose:
             return {
@@ -142,6 +146,8 @@ class EventsStatusMixin:
                 "bridgeReachable": bridge_reachable,
                 "heartbeatAgeMs": None if heartbeat_age is None else int(heartbeat_age * 1000),
                 "heartbeatStale": heartbeat_age is None or heartbeat_age > HEARTBEAT_STALE_SECONDS,
+                "editorState": liveness.get("state"),
+                "editorLiveness": liveness,
                 "editor": editor,
                 "busy": busy,
                 "busyReasons": busy_reasons,
@@ -180,6 +186,13 @@ class EventsStatusMixin:
             "isCompiling": is_compiling,
             "isUpdating": is_updating,
         }
+        # responsive and unknown (no heartbeat file yet) are what bridgeReachable/hints already say.
+        if liveness.get("state") not in ("responsive", "unknown"):
+            slim["editorState"] = liveness.get("state")
+            if liveness.get("busySign"):
+                slim["editorBusy"] = liveness.get("busySign")
+            if liveness.get("processId"):
+                slim["editorProcessId"] = liveness.get("processId")
         if is_playing:
             slim["isPlaying"] = True
         # Surface only non-default busy flags to keep the row short.

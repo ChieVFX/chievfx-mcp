@@ -776,7 +776,7 @@ ADVERTISED_PROPERTY_OMISSIONS: dict[str, set[str]] = {
     # isPlaying is the canonical name; play/playing (and enabled) stay accepted for back-compat but unadvertised.
     "editor-playmode-set": {"play", "playing"},
     "events-check-since": {"includeData", "level", "maxEntries", "source", "type"},
-    "events-wait": {"includeData", "level", "source", "type"},
+    "events-wait": {"includeBridgeState", "includeData", "level", "source", "type"},
     # allowStateMutation is deprecated (real injection is the default, gated to Play Mode); action is
     # the canonical name, so the eventType/type aliases stay accepted but unadvertised.
     "input-control-keyboard-event": {"allowStateMutation", "eventType"},

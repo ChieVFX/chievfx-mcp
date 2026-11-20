@@ -68,6 +68,11 @@
         "type": "boolean",
         "default": false,
         "description": "Include the event's structured data payload in the result."
+      },
+      "includeBridgeState": {
+        "type": "boolean",
+        "default": false,
+        "description": "Also attach bridge status to a matched reply (a timed-out one always has it)."
       }
     }
   }

@@ -80,6 +80,18 @@ class EventsWaitTests(unittest.TestCase):
         self.assertNotIn("firedBeforeWait", result)
         self.assertEqual(self.server.get_bridge_status({"verbose": True})["activeEventWaitCount"], 0)
 
+    def test_bridge_state_comes_only_with_a_wait_that_came_back_empty(self) -> None:
+        self.write_events([self.marker_event(1, "seen")])
+
+        matched = self.server.events_wait({"marker": "seen", "sinceEventId": 0, "timeoutMs": 50}, request_id="m")
+        timed_out = self.server.events_wait({"marker": "never", "timeoutMs": 20}, request_id="t")
+        asked = self.server.events_wait({"marker": "seen", "sinceEventId": 0, "includeBridgeState": True}, request_id="a")
+
+        self.assertTrue(matched["matched"])
+        self.assertNotIn("bridgeState", matched)
+        self.assertIn("bridgeState", timed_out)
+        self.assertIn("bridgeState", asked)
+
     def test_match_fired_just_before_the_wait_returns_at_once_without_matching(self) -> None:
         # The end of a short action lands between its reply and the agent's events-wait; a bare wait
         # used to skip it and sit out the whole timeout.
@@ -94,6 +106,7 @@ class EventsWaitTests(unittest.TestCase):
         self.assertIsNone(result["event"])
         self.assertEqual(result["firedBeforeWait"]["eventId"], 1)
         self.assertIn("sinceEventId:1", result["hint"])
+        self.assertNotIn("bridgeState", result)
 
     def test_fired_before_wait_is_not_handed_back_to_the_next_bare_wait(self) -> None:
         # An "act, wait" loop without cursors must not get the previous answer again instantly.

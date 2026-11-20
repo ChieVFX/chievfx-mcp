@@ -292,6 +292,8 @@ class EventsStatusMixin:
 
         filters = self.read_event_filters(arguments)
         include_data = bool(arguments.get("includeData", False))
+        # A matched wait answers with the event; the bridge status only explains a wait that came back empty.
+        include_bridge_state = parse_bool(arguments.get("includeBridgeState"), False)
         started = time.monotonic()
         started_at_utc = utc_now_iso()
         deadline = started + (timeout_ms / 1000)
@@ -300,7 +302,10 @@ class EventsStatusMixin:
             fired = self.find_fired_before_wait(initial_stream, since_event_id, filters, include_data)
             if fired is not None:
                 self.remember_reported_wait_event(fired)
-                return self.build_fired_before_wait_result(fired, since_event_id, started_at_utc, initial_stream)
+                result = self.build_fired_before_wait_result(fired, since_event_id, started_at_utc, initial_stream)
+                if include_bridge_state:
+                    result["bridgeState"] = self.get_bridge_status({})
+                return result
 
         request_key, cancel_event = self.register_event_wait(
             request_id,
@@ -332,7 +337,7 @@ class EventsStatusMixin:
                         "startedAtUtc": started_at_utc,
                         "lastEventId": self.event_stream_last_id(stream),
                         "elapsedMs": int((time.monotonic() - started) * 1000),
-                        "bridgeState": self.get_bridge_status({}),
+                        **({"bridgeState": self.get_bridge_status({})} if include_bridge_state else {}),
                     }
 
                 if cancel_event.is_set():
@@ -345,7 +350,7 @@ class EventsStatusMixin:
                         "startedAtUtc": started_at_utc,
                         "lastEventId": self.event_stream_last_id(stream),
                         "elapsedMs": int((time.monotonic() - started) * 1000),
-                        "bridgeState": self.get_bridge_status({}),
+                        **({"bridgeState": self.get_bridge_status({})} if include_bridge_state else {}),
                     }
 
                 now = time.monotonic()
@@ -444,7 +449,6 @@ class EventsStatusMixin:
             "startedAtUtc": started_at_utc,
             "lastEventId": self.event_stream_last_id(stream),
             "elapsedMs": 0,
-            "bridgeState": self.get_bridge_status({}),
         }
 
     def read_event_stream(self) -> dict[str, Any]:

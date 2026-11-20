@@ -160,7 +160,8 @@ namespace Chievfx.Mcp.Editor
                 : string.IsNullOrWhiteSpace(path)
                     ? EnumerateContextGameObjects(context)
                     : EnumerateGameObjects(ResolveGameObjectByPath(context, path!));
-            var filterMatches = sourceObjects
+            var searchedObjects = sourceObjects.ToList();
+            var filterMatches = searchedObjects
                 .Where(gameObject => string.IsNullOrWhiteSpace(name) || string.Equals(gameObject.name, name, StringComparison.Ordinal))
                 .Where(gameObject => string.IsNullOrWhiteSpace(namePattern) || WildcardMatches(gameObject.name, namePattern!))
                 .Where(gameObject => string.IsNullOrWhiteSpace(componentType) || HasMatchingComponent(gameObject, componentType!))
@@ -195,13 +196,14 @@ namespace Chievfx.Mcp.Editor
                 note = underPath > 0
                     ? $"path names this one object; {underPath} more are under it: add name, namePattern or componentType to search them, or use gameobject-hierarchy path:'{path}'."
                     : filterMatches.Count == 0 && !string.IsNullOrWhiteSpace(componentType)
-                        ? DescribeUnknownComponentType(componentType!)
+                        ? DescribeUnknownComponentType(componentType!, searchedObjects)
                         : null
             };
         }
 
         // Zero matches for a type name nothing is called: a typo or a guessed name ("Car") read the same as "no such objects".
-        private static string? DescribeUnknownComponentType(string componentType)
+        // Types on the searched objects come first, by count: the shortest loaded names ("CarPh") hid the one in use (CarControl).
+        private static string? DescribeUnknownComponentType(string componentType, List<GameObject> searchedObjects)
         {
             var types = UnityAssemblies.GetLoaded()
                 .SelectMany(GetLoadableTypes)
@@ -212,16 +214,33 @@ namespace Chievfx.Mcp.Editor
                 return null;
             }
 
-            var similar = types
-                .Where(type => !type.IsAbstract && type.Name.IndexOf(componentType, StringComparison.OrdinalIgnoreCase) >= 0)
-                .Select(type => type.Name)
-                .Distinct()
-                .OrderBy(typeName => typeName.Length)
-                .ThenBy(typeName => typeName, StringComparer.Ordinal)
-                .Take(6)
+            var inUse = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var gameObject in searchedObjects)
+            {
+                foreach (var component in gameObject.GetComponents<Component>())
+                {
+                    var typeName = component != null ? component.GetType().Name : null;
+                    if (typeName != null && typeName.IndexOf(componentType, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        inUse[typeName] = inUse.TryGetValue(typeName, out var count) ? count + 1 : 1;
+                    }
+                }
+            }
+
+            var similar = inUse
+                .OrderByDescending(pair => pair.Value)
+                .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+                .Select(pair => $"{pair.Key} (on {pair.Value})")
+                .Concat(types
+                    .Where(type => !type.IsAbstract && !inUse.ContainsKey(type.Name) && type.Name.IndexOf(componentType, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .Select(type => type.Name)
+                    .Distinct()
+                    .OrderBy(typeName => typeName.Length)
+                    .ThenBy(typeName => typeName, StringComparer.Ordinal))
+                .Take(8)
                 .ToArray();
             return $"no loaded Component type is named '{componentType}'"
-                   + (similar.Length > 0 ? $"; types containing it: {string.Join(", ", similar)}." : ": componentType is a class name (as in GetComponent<T>), check the spelling.");
+                   + (similar.Length > 0 ? $"; types containing it (on N searched objects first): {string.Join(", ", similar)}." : ": componentType is a class name (as in GetComponent<T>), check the spelling.");
         }
 
         public object GetComponent(JToken args)

@@ -130,6 +130,10 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
             var hiddenByPath = RunExtensionTool("ugui-ui-find", "{'paths':['FeedbackDdolCanvas/DdolHidden']}");
             Assert.AreEqual(1, ToInt(hiddenByPath["count"]), "An inactive object in DontDestroyOnLoad resolves by path. " + Describe(hiddenByPath));
 
+            var bogusPath = RunExtensionTool("ugui-ui-find", "{'paths':['Bogus/NoSuch/Path']}");
+            Assert.AreEqual(0, ToInt(bogusPath["totalMatches"]), "A path that resolves nothing must not fall back to every element. " + Describe(bogusPath));
+            Assert.IsTrue(Strings(bogusPath["warnings"]).Any(warning => warning.Contains("Nothing exists at path 'Bogus/NoSuch/Path'")), Describe(bogusPath));
+
             var gameObjectFind = RunGameObjectFind("{'namePattern':'DdolButton'}");
             Assert.AreEqual(1, ToInt(Member(gameObjectFind, "totalMatches")), "gameobject-find searches DontDestroyOnLoad in Play Mode.");
 

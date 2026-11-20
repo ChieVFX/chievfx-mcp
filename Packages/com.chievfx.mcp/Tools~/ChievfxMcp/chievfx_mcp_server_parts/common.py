@@ -707,6 +707,8 @@ METHOD_REF_SCHEMA: dict[str, Any] = {
                 "type": "object",
                 "properties": {
                     "typeName": {"type": "string"},
+                    # reflection-method-call: the argument passed for this parameter.
+                    "value": {},
                 },
             },
         },

@@ -252,6 +252,9 @@ namespace Chievfx.Mcp.Extensions.Ugui
         {
             Click,
             Drag,
+            // ui-runtime-click by position: like Click, but a hit with no handler is still the target, so the reply says
+            // the point was hit and nothing handled it (resolved:true, clicked:false) instead of "nothing resolved".
+            Tap,
         }
 
         internal static GameObject? ResolveRuntimeInteractionTarget(
@@ -318,7 +321,16 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 row["clickableHandlerTarget"] = CreateClickableHandlerTargetRow(rect.gameObject, status);
                 return row;
             }).ToArray();
-            var overlapTarget = ResolveTargetFromHits(rectHits.Select(rect => rect.gameObject).ToArray(), status, purpose, warnings);
+            // Elements a player can neither see nor tap (a hidden debug console under a transparent CanvasGroup) are left
+            // out: picking one pressed a button nobody could see and reported it clicked.
+            var visibleOverlaps = rectHits.Select(rect => rect.gameObject).Where(hit => !UguiRuntimeReachability.IsHiddenFromPlayer(hit)).ToArray();
+            if (visibleOverlaps.Length == 0 && rectHits.Length > 0)
+            {
+                warnings.Add($"The EventSystem raycast hit nothing at this point, and the {rectHits.Length} element(s) overlapping it are hidden from the player (inactive, transparent or not blocking raycasts): nothing was picked.");
+                return null;
+            }
+
+            var overlapTarget = ResolveTargetFromHits(visibleOverlaps, status, purpose, warnings);
             if (overlapTarget != null)
             {
                 warnings.Add($"The EventSystem raycast hit nothing at this point; '{GetTransformPath(overlapTarget.transform)}' was picked because its RectTransform overlaps it, so a real tap would not reach it.");
@@ -338,7 +350,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 : IsRuntimeInteractionCandidate(hit, status));
             if (chosenIndex < 0)
             {
-                return purpose == RuntimeHitPurpose.Drag
+                return purpose == RuntimeHitPurpose.Drag || purpose == RuntimeHitPurpose.Tap
                     ? hits.FirstOrDefault(hit => hit.activeInHierarchy && !IsRaycastInfrastructureTarget(hit, status))
                     : null;
             }
@@ -484,7 +496,15 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 return Array.Empty<object>();
             }
 
-            method.Invoke(eventSystem, new object[] { pointerEventData!, results });
+            if (eventSystem is EventSystem stockEventSystem && pointerEventData is PointerEventData pointer && results is List<RaycastResult> typedResults)
+            {
+                UguiTargetSizeRaycast.RaycastAll(stockEventSystem, pointer, typedResults);
+            }
+            else
+            {
+                method.Invoke(eventSystem, new object[] { pointerEventData!, results });
+            }
+
             if (results.Count == 0)
             {
                 foreach (var raycastResult in GraphicRaycastAll(status, pointerEventData!, listType))

@@ -131,6 +131,22 @@ namespace Chievfx.Mcp.Editor.Tests
             Assert.AreEqual(true, Member(result, "textTruncated"));
         }
 
+        [Test]
+        public void MarkerIsFoundAfterAProjectLoggerPrefix()
+        {
+            Assert.AreEqual("r4mark", ConsoleLogBridgeService.TryParseLogMarker("[UnityLogs] MCPEventReachedLocation(r4mark)"));
+            Assert.AreEqual("plain", ConsoleLogBridgeService.TryParseLogMarker("MCPEventReachedLocation(plain)\nstack line"));
+            Assert.IsNull(ConsoleLogBridgeService.TryParseLogMarker("no beacon here"));
+            Assert.IsNull(ConsoleLogBridgeService.TryParseLogMarker("first line\nMCPEventReachedLocation(late)"), "Only the first line can carry the beacon.");
+        }
+
+        [Test]
+        public void SourceLinksShrinkToPathAndLine()
+        {
+            var line = "Foo.Bar () (at <a href=\"Assets/Scripts/Foo.cs\" line=\"107\">Assets/Scripts/Foo.cs</a>:107)";
+            Assert.AreEqual("Foo.Bar () (at Assets/Scripts/Foo.cs:107)", ConsoleLogBridgeService.StripSourceLinks(line));
+        }
+
         private static LogEntryDto Entry(string level, string message, string stack)
         {
             return new LogEntryDto(level, message, DateTime.UtcNow, stack);

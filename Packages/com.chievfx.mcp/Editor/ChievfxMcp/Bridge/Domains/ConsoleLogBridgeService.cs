@@ -62,6 +62,12 @@ namespace Chievfx.Mcp.Editor
             };
         }
 
+        private const string UnityConsoleTruncationMark = "<message truncated>";
+
+        private static readonly Regex SourceLinkRegex = new(
+            "<a href=\"([^\"]*)\" line=\"(\\d+)\">[^<]*</a>(?::\\d+)?",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
         private static string? StripStyleTags(string? message)
         {
             if (string.IsNullOrEmpty(message))
@@ -221,7 +227,14 @@ namespace Chievfx.Mcp.Editor
 
         private static Dictionary<string, object> CreateLogEntryOutput(LogEntryDto entry, StackTraceMode stackTraceMode, bool trimMessage, bool stripStyleTags, ref bool truncated)
         {
-            var message = (stripStyleTags ? StripStyleTags(entry.Message) : entry.Message) ?? string.Empty;
+            var message = StripSourceLinks((stripStyleTags ? StripStyleTags(entry.Message) : entry.Message) ?? string.Empty);
+            // The Unity Console cuts very long entries itself and marks the cut; the text below is then not the whole entry.
+            if (message.Contains(UnityConsoleTruncationMark, StringComparison.Ordinal)
+                || (entry.StackTrace?.Contains(UnityConsoleTruncationMark, StringComparison.Ordinal) ?? false))
+            {
+                truncated = true;
+            }
+
             var output = new Dictionary<string, object>
             {
                 ["id"] = ComputeLogEntryId(entry),
@@ -245,13 +258,25 @@ namespace Chievfx.Mcp.Editor
                 output["hint"] = importHint;
             }
 
-            var stack = FormatStackTrace(entry.StackTrace, stackTraceMode, ref truncated);
+            var stack = FormatStackTrace(StripSourceLinks(entry.StackTrace), stackTraceMode, ref truncated);
             if (!string.IsNullOrEmpty(stack))
             {
                 output["stack"] = stack;
             }
 
             return output;
+        }
+
+        // Unity Console stack lines carry clickable links: (<a href="Assets/X.cs" line="7">Assets/X.cs</a>:7). The path
+        // shows twice and the markup eats the text budget before the frame that matters; keep path:line.
+        internal static string StripSourceLinks(string? text)
+        {
+            if (string.IsNullOrEmpty(text) || text!.IndexOf("<a href=", StringComparison.Ordinal) < 0)
+            {
+                return text ?? string.Empty;
+            }
+
+            return SourceLinkRegex.Replace(text, "$1:$2");
         }
 
         // Compact-mode row: id (and optional repeats) come first for fast scanning, then the time and event cursor
@@ -1115,19 +1140,26 @@ namespace Chievfx.Mcp.Editor
             }
         }
 
-        private static string? TryParseLogMarker(string condition)
+        // The beacon may sit after a project logger's prefix ("[UnityLogs] MCPEventReachedLocation(x)", rich-text tags), so it
+        // is looked for anywhere in the first line rather than only at its start.
+        internal static string? TryParseLogMarker(string condition)
         {
-            var message = condition.Trim();
-            if (!message.StartsWith(BridgeRuntimeState.LogMarkerPrefix, StringComparison.Ordinal)
-                || !message.EndsWith(BridgeRuntimeState.LogMarkerSuffix, StringComparison.Ordinal))
+            var newline = condition.IndexOf('\n');
+            var firstLine = newline >= 0 ? condition.Substring(0, newline) : condition;
+            var start = firstLine.IndexOf(BridgeRuntimeState.LogMarkerPrefix, StringComparison.Ordinal);
+            if (start < 0)
             {
                 return null;
             }
 
-            var marker = message.Substring(
-                BridgeRuntimeState.LogMarkerPrefix.Length,
-                message.Length - BridgeRuntimeState.LogMarkerPrefix.Length - BridgeRuntimeState.LogMarkerSuffix.Length);
-            return BridgeEventJournal.NormalizeMarker(marker);
+            var nameStart = start + BridgeRuntimeState.LogMarkerPrefix.Length;
+            var end = firstLine.IndexOf(BridgeRuntimeState.LogMarkerSuffix, nameStart, StringComparison.Ordinal);
+            if (end <= nameStart)
+            {
+                return null;
+            }
+
+            return BridgeEventJournal.NormalizeMarker(firstLine.Substring(nameStart, end - nameStart));
         }
 
     }

@@ -166,9 +166,13 @@ namespace Chievfx.Mcp.Editor
 
         public object CallMethod(JToken args)
         {
+            var filter = ReadMethodFilter(args, "reflection-method-call");
+            // Values ride either in a top-level inputParameters list or next to the types in filter.inputParameters
+            // (the shape callers see in the schema); a parameter with neither used to get default(T) silently.
             var inputParameters = ReadArray(args, "inputParameters");
+            var filterParameters = ReadArray(filter, "inputParameters");
             var method = FindMatchingMethods(
-                    ReadMethodFilter(args, "reflection-method-call"),
+                    filter,
                     ReadBool(args, "knownNamespace", false),
                     ReadInt(args, "typeNameMatchLevel", 1),
                     ReadInt(args, "methodNameMatchLevel", 1),
@@ -183,7 +187,21 @@ namespace Chievfx.Mcp.Editor
             var values = new object?[parameters.Length];
             for (var i = 0; i < parameters.Length; i++)
             {
-                values[i] = ConvertJsonValue(inputParameters, i, parameters[i].ParameterType);
+                var source = HasArgumentValue(inputParameters, i) ? inputParameters : filterParameters;
+                if (HasArgumentValue(source, i))
+                {
+                    values[i] = ConvertJsonValue(source, i, parameters[i].ParameterType);
+                }
+                else if (parameters[i].HasDefaultValue)
+                {
+                    values[i] = parameters[i].DefaultValue;
+                }
+                else
+                {
+                    throw new ArgumentException(
+                        $"Parameter {i} '{parameters[i].Name}' ({parameters[i].ParameterType.Name}) of {method.DeclaringType?.Name}.{method.Name} has no value: "
+                        + $"pass it as filter.inputParameters[{i}].value (e.g. {{typeName:'{parameters[i].ParameterType.FullName}', value:...}}).");
+                }
             }
 
             object? target = null;
@@ -632,6 +650,12 @@ namespace Chievfx.Mcp.Editor
             }
 
             return "private";
+        }
+
+        // A value is given when the entry has a "value" key, null included (an explicit null argument).
+        private static bool HasArgumentValue(JToken inputParameters, int index)
+        {
+            return inputParameters is JArray inputArray && inputArray.Count > index && inputArray[index] is JObject entry && entry.ContainsKey("value");
         }
 
         internal static object? ConvertJsonValue(JToken inputParameters, int index, Type targetType)

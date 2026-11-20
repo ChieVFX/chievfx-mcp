@@ -186,7 +186,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             var results = new List<RaycastResult>();
             try
             {
-                eventSystem.RaycastAll(pointer, results);
+                UguiTargetSizeRaycast.RaycastAll(eventSystem, pointer, results);
             }
             catch (Exception)
             {
@@ -305,7 +305,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             var results = new List<RaycastResult>();
             try
             {
-                eventSystem.RaycastAll(new PointerEventData(eventSystem) { position = screenPosition }, results);
+                UguiTargetSizeRaycast.RaycastAll(eventSystem, new PointerEventData(eventSystem) { position = screenPosition }, results);
             }
             catch (Exception)
             {

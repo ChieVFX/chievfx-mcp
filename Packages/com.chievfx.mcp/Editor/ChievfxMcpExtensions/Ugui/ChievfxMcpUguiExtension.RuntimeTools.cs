@@ -124,7 +124,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
             var eventSystem = RequireRuntimeEventSystem(status, warnings, dryRun: false);
             result["eventSystem"] = eventSystem == null ? null : CreateGameObjectRow(eventSystem.gameObject);
-            var target = ResolveRuntimeInteractionTarget(args, status, eventSystem, position.ScreenPosition, warnings, out var stack);
+            var target = ResolveRuntimeInteractionTarget(args, status, eventSystem, position.ScreenPosition, warnings, out var stack, RuntimeHitPurpose.Tap);
             result["stack"] = stack;
             result["target"] = target == null ? null : CreateRuntimeElementRow(target, status);
             result["targetStateBefore"] = target == null ? null : CreateControlStateRow(target, status);
@@ -722,6 +722,14 @@ namespace Chievfx.Mcp.Extensions.Ugui
                     || string.Equals(entry.controlType, controlTypeFilter, StringComparison.Ordinal))
                 .Where(entry => TryGetUguiScreenZone(entry.target, status, screenSize, out _))
                 .ToArray();
+            // "On-screen" is what a player sees: a control under a transparent or raycast-blocking-off CanvasGroup (a hidden
+            // debug console) is left out and counted.
+            var hiddenCount = matches.Count(entry => UguiRuntimeReachability.IsHiddenFromPlayer(entry.target));
+            if (hiddenCount > 0)
+            {
+                matches = matches.Where(entry => !UguiRuntimeReachability.IsHiddenFromPlayer(entry.target)).ToArray();
+                warnings.Add($"{hiddenCount} control(s) left out: hidden from the player (CanvasGroup alpha 0 or blocksRaycasts off).");
+            }
 
             var rows = matches
                 .Select(entry =>

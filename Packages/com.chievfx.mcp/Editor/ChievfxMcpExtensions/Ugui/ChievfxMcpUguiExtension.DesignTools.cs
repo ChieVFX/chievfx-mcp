@@ -636,7 +636,15 @@ namespace Chievfx.Mcp.Extensions.Ugui
             // components in the subtree, so a valid non-Canvas leaf path (e.g. .../Wife_1) returned
             // count:0 even though the same path worked in the click tools. Without paths, default to
             // the scene's root canvases; a nested canvas is already inside its parent's tree.
-            var rootObjects = roots.Length > 0
+            var requestsRoots = args["paths"] is JArray { Count: > 0 } || args["instanceIds"] is JArray { Count: > 0 };
+            var hierarchyWarnings = new List<string>();
+            AddUnresolvedTargetWarnings(args, hierarchyWarnings);
+            if (hierarchyWarnings.Count > 0)
+            {
+                result["warnings"] = hierarchyWarnings.ToArray();
+            }
+
+            var rootObjects = roots.Length > 0 || requestsRoots
                 ? roots
                 : FindCanvases(status, includeInactive)
                     .Where(canvas => canvas.transform.parent == null || FindParentCanvas(canvas.transform.parent.gameObject, status) == null)
@@ -694,6 +702,31 @@ namespace Chievfx.Mcp.Extensions.Ugui
             "includeInactive", "includeDetails", "normalizedCoords", "maxResults", "outputFormat",
         };
 
+        private static void AddUnresolvedTargetWarnings(JToken args, List<string> warnings)
+        {
+            if (args["paths"] is JArray paths)
+            {
+                foreach (var path in paths.Where(item => item.Type == JTokenType.String).Select(item => item.Value<string>()))
+                {
+                    if (ResolveGameObject(path) == null)
+                    {
+                        warnings.Add($"Nothing exists at path '{path}' (loaded scenes and DontDestroyOnLoad). Paths are exact names joined by '/'; find the element with nameContains first.");
+                    }
+                }
+            }
+
+            if (args["instanceIds"] is JArray ids)
+            {
+                foreach (var id in ids.Where(item => item.Type == JTokenType.Integer).Select(item => item.Value<int>()))
+                {
+                    if (ResolveGameObject(id) == null)
+                    {
+                        warnings.Add($"No GameObject with instanceId {id}.");
+                    }
+                }
+            }
+        }
+
         internal static Dictionary<string, object?> UiFind(JToken args, UguiDependencyStatus status)
         {
             var warnings = new List<string>();
@@ -719,7 +752,10 @@ namespace Chievfx.Mcp.Extensions.Ugui
             var nameContains = ReadString(args, "nameContains");
             var namePattern = ReadString(args, "namePattern");
             var componentType = ReadString(args, "componentType");
-            var hasExplicitTarget = explicitTargets.Length > 0;
+            // Asked-for targets narrow the search even when none resolves: a stale or mistyped path used to fall back to
+            // every element in the scene, reported as matches.
+            var hasExplicitTarget = args["paths"] is JArray { Count: > 0 } || args["instanceIds"] is JArray { Count: > 0 };
+            AddUnresolvedTargetWarnings(args, warnings);
             var includeInactive = ResolveIncludeInactive(args, hasExplicitTarget);
 
             GameObject[] FindMatches(bool withInactive)

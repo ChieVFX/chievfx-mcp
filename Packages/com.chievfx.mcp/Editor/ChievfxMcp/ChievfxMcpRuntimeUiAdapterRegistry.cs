@@ -677,7 +677,8 @@ namespace Chievfx.Mcp.Editor
             else
             {
                 throw new ArgumentException(
-                    "ui-runtime-drag requires x/y start coordinates (or legacy startScreenPosition/startNormalized).");
+                    "ui-runtime-drag requires x/y start coordinates (or legacy startScreenPosition/startNormalized); path/instanceId only "
+                    + "picks the target among the hits at that point. Take the start from the element's zone centre in ui-control-find or a screenshot.");
             }
 
             RuntimeScreenPosition end;
@@ -1301,6 +1302,10 @@ namespace Chievfx.Mcp.Editor
                     ? $" Patterns without * or ? must match the full control name or path exactly; try '*{wildcards[0]}*' for a contains search."
                     : string.Empty;
                 warnings.Add($"No controls matched wildcards [{string.Join(", ", wildcards)}].{containsHint}");
+            }
+            else if (totalMatches == 0 && !string.IsNullOrWhiteSpace(controlTypeFilter))
+            {
+                warnings.Add($"No on-screen controls of type '{controlTypeFilter}'.");
             }
 
             var payload = new Dictionary<string, object?>

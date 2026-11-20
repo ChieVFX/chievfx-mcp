@@ -46,5 +46,42 @@ namespace Chievfx.Mcp.Editor.Tests
 
             Assert.AreEqual(1, result.GetType().GetProperty("count")!.GetValue(result));
         }
+
+        [Test]
+        public void CallTakesArgumentValuesFromTheFilterOrTheTopLevelList()
+        {
+            var fromFilter = service.CallMethod(AbsCall(new JObject { ["typeName"] = "System.Int32", ["value"] = -7 }, topLevel: null));
+            Assert.AreEqual(7, ReturnValue(fromFilter), "filter.inputParameters[i].value is the argument.");
+
+            var fromTopLevel = service.CallMethod(AbsCall(new JObject { ["typeName"] = "System.Int32" }, topLevel: new JArray(new JObject { ["value"] = -9 })));
+            Assert.AreEqual(9, ReturnValue(fromTopLevel));
+        }
+
+        [Test]
+        public void CallWithoutAValueIsRefusedInsteadOfPassingDefault()
+        {
+            var error = Assert.Throws<ArgumentException>(() => service.CallMethod(AbsCall(new JObject { ["typeName"] = "System.Int32" }, topLevel: null)))!;
+            StringAssert.Contains("has no value", error.Message);
+            StringAssert.Contains("filter.inputParameters[0].value", error.Message);
+        }
+
+        private static JObject AbsCall(JObject parameter, JArray? topLevel)
+        {
+            var args = new JObject
+            {
+                ["filter"] = new JObject { ["typeName"] = "System.Math", ["methodName"] = "Abs", ["inputParameters"] = new JArray(parameter) },
+            };
+            if (topLevel != null)
+            {
+                args["inputParameters"] = topLevel;
+            }
+
+            return args;
+        }
+
+        private static object? ReturnValue(object result)
+        {
+            return result is System.Collections.IDictionary dictionary ? dictionary["value"] : result.GetType().GetProperty("value")?.GetValue(result);
+        }
     }
 }

@@ -14,6 +14,49 @@ namespace Chievfx.Mcp.Extensions.Ugui
     /// </summary>
     internal static class UguiRuntimeReachability
     {
+        // A player can neither see nor tap it: switched off, under a disabled Canvas, or under CanvasGroups that are
+        // fully transparent or block raycasts. The overlap fallback of a missed raycast must not pick such an element.
+        internal static bool IsHiddenFromPlayer(GameObject target)
+        {
+            if (!target.activeInHierarchy)
+            {
+                return true;
+            }
+
+            var alpha = 1f;
+            var groupsIgnored = false;
+            for (var current = target.transform; current != null; current = current.parent)
+            {
+                if (current.TryGetComponent<Canvas>(out var canvas) && !canvas.enabled)
+                {
+                    return true;
+                }
+
+                if (groupsIgnored)
+                {
+                    continue;
+                }
+
+                foreach (var group in current.GetComponents<CanvasGroup>())
+                {
+                    if (!group.enabled)
+                    {
+                        continue;
+                    }
+
+                    alpha *= group.alpha;
+                    if (!group.blocksRaycasts)
+                    {
+                        return true;
+                    }
+
+                    groupsIgnored |= group.ignoreParentGroups;
+                }
+            }
+
+            return alpha <= 0.001f;
+        }
+
         internal static void AddPlayerReachabilityWarnings(GameObject target, UguiDependencyStatus status, List<string> warnings)
         {
             var path = GetTransformPath(target.transform);

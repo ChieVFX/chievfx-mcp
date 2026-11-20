@@ -79,6 +79,9 @@ def format_gameobject_hierarchy_text(result: dict[str, Any]) -> str:
             header_parts.append(f"{key}:{format_toon_atom(value)}")
 
     lines = [" ".join(header_parts)]
+    warnings = result.get("warnings")
+    if isinstance(warnings, list):
+        lines.extend(f"warning: {warning.strip()}" for warning in warnings if isinstance(warning, str) and warning.strip())
     for root in roots:
         if isinstance(root, dict):
             lines.extend(format_gameobject_hierarchy_node(root, depth=0))

@@ -545,6 +545,16 @@ class GameObjectFormattingTests(unittest.TestCase):
         self.assertNotIn("rect:", mcp.format_ugui_ui_find_text(detail))
         self.assertIn("anchors 0.5, 0.5->0.5, 0.5 pos 10, 20 size 100, 40", mcp.format_ugui_rect_get_text(rect_result))
 
+    def test_ugui_hierarchy_text_keeps_the_unresolved_path_warning(self) -> None:
+        result = {
+            "count": 0,
+            "totalObjects": 0,
+            "roots": [],
+            "warnings": ["Nothing exists at path 'Bogus/Path' (loaded scenes and DontDestroyOnLoad)."],
+        }
+
+        self.assertIn("warning: Nothing exists at path 'Bogus/Path'", mcp.format_ugui_ui_hierarchy_text(result))
+
     def test_package_list_text_omits_descriptions_and_paths(self) -> None:
         result = {
             "count": 2,

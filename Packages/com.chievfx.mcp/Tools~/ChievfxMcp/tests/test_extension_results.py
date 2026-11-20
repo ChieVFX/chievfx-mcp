@@ -159,6 +159,21 @@ class ExtensionResultTests(unittest.TestCase):
         # The bridge (and the extension behind it) never sees awaitMs.
         self.assertEqual(self.bridge_calls, [("demo-act", {"target": "home"})])
 
+    def test_await_ms_keeps_a_long_end_whole(self) -> None:
+        # The end line is the action's result: a hint at its tail must not be cut like a row in an event list.
+        end = "[demo][skill-end] boot#4 failed:connect_failed " + "detail=x " * 25 + "hint: pick a server directly"
+        self.write_events([self.log_event(1, "[demo] boot")])
+        self.fake_bridge(
+            {"summary": "Boot started", "ok": True, "waitFor": "[demo][skill-end] boot#4 ", "waitForFailed": "[demo][skill-end] boot#4 failed"},
+            events_during_call=[self.log_event(1, "[demo] boot"), self.log_event(2, end)],
+        )
+
+        text = self.text_of(self.call("demo-act", {"awaitMs": 2000}))
+        self.assertIn("hint: pick a server directly", text.splitlines()[0])
+
+        batch = self.text_of(self.call("tool-batch", {"steps": [{"tool": "demo-act", "args": {"awaitMs": 2000}}]}))
+        self.assertIn("the awaited end is a failure: #2 " + end, batch)
+
     def test_await_ms_timeout_says_how_to_keep_waiting(self) -> None:
         self.write_events([self.log_event(5, "[demo] idle")])
         self.fake_bridge({"waitFor": "[demo][task] Drive#4"})

@@ -414,6 +414,16 @@ def without_wait_advice(raw_result: Any) -> Any:
     return {key: value for key, value in raw_result.items() if key not in advice_keys}
 
 
+def awaited_event_message(value: Any) -> str:
+    """The awaited end in full: it is the action's result (reason, hint), unlike a row in an event list."""
+    if not isinstance(value, str):
+        return ""
+    message = " ".join(value.split())
+    if len(message) <= AWAITED_EVENT_MESSAGE_CHARS:
+        return message
+    return message[: AWAITED_EVENT_MESSAGE_CHARS - 3].rstrip() + "..."
+
+
 def describe_awaited_failure(raw_result: Any, outcome: dict[str, Any]) -> str | None:
     """Why the awaited end counts as a failure, or None.
 
@@ -428,7 +438,7 @@ def describe_awaited_failure(raw_result: Any, outcome: dict[str, Any]) -> str | 
         return None
     if not any(isinstance(marker, str) and marker and marker.lower() in message.lower() for marker in markers):
         return None
-    return f"the awaited end is a failure: #{event.get('eventId')} {compact_event_message(message)}"
+    return f"the awaited end is a failure: #{event.get('eventId')} {awaited_event_message(message)}"
 
 
 def format_await_outcome_text(outcome: dict[str, Any], wait_arguments: dict[str, Any]) -> str:
@@ -437,7 +447,7 @@ def format_await_outcome_text(outcome: dict[str, Any], wait_arguments: dict[str,
     target_text = " | ".join(target) if isinstance(target, list) else str(target)
     if outcome.get("matched"):
         event = outcome.get("event") if isinstance(outcome.get("event"), dict) else {}
-        return f"awaited {outcome.get('elapsedMs')} ms: #{event.get('eventId')} {compact_event_message(event.get('message'))}"
+        return f"awaited {outcome.get('elapsedMs')} ms: #{event.get('eventId')} {awaited_event_message(event.get('message'))}"
     if outcome.get("cancelled"):
         return f"await cancelled after {outcome.get('elapsedMs')} ms (waiting for {target_text})."
     filter_key = "contains" if wait_arguments.get("contains") else "marker"

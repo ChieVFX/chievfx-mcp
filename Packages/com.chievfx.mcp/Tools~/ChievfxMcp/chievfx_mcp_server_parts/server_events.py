@@ -298,6 +298,7 @@ class EventsStatusMixin:
         # A matched wait answers with the event; the bridge status only explains a wait that came back empty.
         include_bridge_state = parse_bool(arguments.get("includeBridgeState"), False)
         started = time.monotonic()
+        started_wall = time.time()
         started_at_utc = utc_now_iso()
         deadline = started + (timeout_ms / 1000)
         explicit_cursor = isinstance(arguments.get("sinceEventId"), int) or include_recent_cutoff is not None
@@ -368,7 +369,7 @@ class EventsStatusMixin:
                         "elapsedMs": int((now - started) * 1000),
                         "bridgeState": self.get_bridge_status({}),
                     }
-                    diagnostic = self.build_wait_timeout_diagnostic(stream, since_event_id, filters)
+                    diagnostic = self.build_wait_timeout_diagnostic(stream, since_event_id, filters, started_wall)
                     if diagnostic:
                         result["diagnostic"] = diagnostic
                     return result
@@ -575,6 +576,7 @@ class EventsStatusMixin:
         stream: dict[str, Any],
         since_event_id: int,
         filters: dict[str, Any],
+        wait_started_epoch: float | None = None,
     ) -> dict[str, Any] | None:
         """Explain a timeout when the wanted event likely fired below the cursor or was evicted.
 
@@ -604,16 +606,31 @@ class EventsStatusMixin:
 
         if below_cursor:
             latest = max(below_cursor, key=lambda event: event.get("eventId", 0))
-            return {
+            # The match below the cursor may be the wanted event (it fired during the trigger) or an older one
+            # with the same text (a previous window of that name): its age before this wait tells them apart.
+            fired_at = parse_utc_iso(latest.get("timestamp"))
+            age_s = (
+                round(max(0.0, wait_started_epoch - fired_at), 1)
+                if wait_started_epoch is not None and fired_at is not None
+                else None
+            )
+            age_text = f", fired {age_s:g} s before this wait" if age_s is not None else ""
+            message = str(latest.get("message") or "")
+            message = message if len(message) <= 120 else message[:120] + "…"
+            diagnostic: dict[str, Any] = {
                 "matchBelowCursor": latest,
                 "matchBelowCursorEventId": latest.get("eventId"),
                 "hint": (
-                    f"A matching event (eventId {latest.get('eventId')}) exists at or below sinceEventId "
-                    f"{since_event_id}. It likely fired during the triggering operation (e.g. Play-mode boot). "
-                    "Retry events-wait with sinceEventId captured from bridge-get-status BEFORE the trigger, "
-                    "or use events-check-since with that earlier cursor."
+                    f"Nothing matching fired after sinceEventId {since_event_id}. The latest match at or below it is "
+                    f"eventId {latest.get('eventId')}{age_text}: '{message}'. If that is the event you waited for, it fired "
+                    "during the triggering operation (e.g. Play-mode boot): next time take sinceEventId from "
+                    "bridge-get-status BEFORE the trigger, or check it with events-check-since. If it is an older one "
+                    "(another window, an earlier step), the wanted event has not fired."
                 ),
             }
+            if age_s is not None:
+                diagnostic["matchBelowCursorAgeS"] = age_s
+            return diagnostic
 
         contains = next((term for term in self.contains_terms(filters) if not term.isascii()), None)
         if contains:

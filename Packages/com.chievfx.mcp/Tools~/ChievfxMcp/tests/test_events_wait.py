@@ -408,6 +408,30 @@ class EventsWaitTests(unittest.TestCase):
         self.assertEqual(diagnostic["matchBelowCursor"]["message"], "[Turn] Turn 1 — Player Turn")
         self.assertIn("sinceEventId", diagnostic["hint"])
 
+    def test_timeout_names_age_of_older_match_below_cursor(self) -> None:
+        old_close = {
+            "eventId": 10,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 26)),
+            "source": "log",
+            "type": "log",
+            "level": "Log",
+            "message": "[GameAI][tap] #134 window popup_closed UI Canvases/PolicePopupMessage(Clone)",
+        }
+        self.write_events([old_close])
+
+        result = self.server.events_wait(
+            {"source": "log", "contains": "PolicePopupMessage", "sinceEventId": 44, "timeoutMs": 20},
+            request_id="older-below-cursor-wait",
+        )
+
+        diagnostic = result["diagnostic"]
+        self.assertEqual(diagnostic["matchBelowCursorEventId"], 10)
+        self.assertGreaterEqual(diagnostic["matchBelowCursorAgeS"], 25)
+        self.assertIn("fired 2", diagnostic["hint"])
+        self.assertIn("popup_closed", diagnostic["hint"])
+        self.assertIn("has not fired", diagnostic["hint"])
+        self.assertNotIn("likely fired during", diagnostic["hint"])
+
     def test_timeout_reports_possible_truncation(self) -> None:
         mcp.write_json_file_atomic(
             self.bridge_dir / "events.json",

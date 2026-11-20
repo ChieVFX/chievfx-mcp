@@ -116,6 +116,10 @@ BRIDGE_READY_POLL_SECONDS = 0.1
 BRIDGE_READY_POST_BUSY_GRACE_SECONDS = 1.0
 RECOMPILE_WAIT_SECONDS = 300.0
 RECOMPILE_START_GRACE_SECONDS = 1.5
+# How long recompile waits for the bridge's compile-start event: an editor in the background starts a
+# requested compile seconds late. Polled from the event stream file.
+RECOMPILE_START_WAIT_SECONDS = 30.0
+RECOMPILE_START_POLL_SECONDS = 0.25
 # Max compile errors/warnings echoed inline in the recompile result (each list capped independently).
 RECOMPILE_MAX_ISSUES = 50
 # Per-message cap for those echoed diagnostics. A compiler diagnostic is one short line, so this only

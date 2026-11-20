@@ -199,9 +199,29 @@ class BridgeTransportMixin:
         # Compilation usually flips busy on the next editor tick. Give Unity a
         # short chance to enter compile/import state before waiting for idle.
         time.sleep(min(RECOMPILE_START_GRACE_SECONDS, max(wait_seconds, 0.0)))
+        # An editor in the background can start the requested compile seconds later, after it already
+        # looked idle: waiting for idle alone then reported "completed" on the old assemblies. The bridge
+        # journals compile-start, so wait for this compile to actually start.
+        since_event_id = status_before.get("lastEventId") if isinstance(status_before, dict) else None
+        start_wait_seconds = min(wait_seconds, RECOMPILE_START_WAIT_SECONDS)
+        compile_started: bool | None = None
+        if isinstance(since_event_id, int) and self.bridge_dir and result.get("playModeExited") is not False:
+            self.emit_progress(progress_token, notify, 0.4, "Waiting for Unity to start compiling.")
+            compile_started = self.wait_for_compile_start(since_event_id, start_wait_seconds)
         self.emit_progress(progress_token, notify, 0.5, "Waiting for Unity compilation to finish.")
         ready_after = self.wait_for_bridge_ready(max_wait_seconds=wait_seconds)
         status_after = self.get_bridge_status({})
+        if compile_started is False:
+            result["compileStarted"] = False
+            not_started_warning = (
+                f"Unity did not start compiling within {int(start_wait_seconds)} s of the request (an editor "
+                "in the background can stall), so the assemblies are unchanged and nothing below describes "
+                "the current sources. Run recompile again."
+            )
+            existing_warning = result.get("warning")
+            result["warning"] = (
+                f"{existing_warning} {not_started_warning}" if isinstance(existing_warning, str) else not_started_warning
+            )
 
         result.update(
             {
@@ -224,13 +244,29 @@ class BridgeTransportMixin:
         # Surface compile errors/warnings produced by this recompile directly, so callers do not need a
         # separate console-get-logs round-trip. Read from the event stream (which survives the domain
         # reload a successful compile triggers) using the pre-recompile cursor.
-        since_event_id = status_before.get("lastEventId") if isinstance(status_before, dict) else None
         if isinstance(since_event_id, int):
             result["compile"] = self.collect_recompile_issues(since_event_id)
 
         invalidate_extension_manifest_cache()
         self.emit_progress(progress_token, notify, 1.0, "recompile completed.")
         return result
+
+    def wait_for_compile_start(self, since_event_id: int, timeout_seconds: float) -> bool:
+        """True once the bridge journaled compile-start (or compile-finish) after since_event_id."""
+        deadline = time.monotonic() + max(timeout_seconds, 0.0)
+        while True:
+            for event in self.read_event_stream().get("events", []):
+                event_id = event.get("eventId")
+                if (
+                    isinstance(event_id, int)
+                    and event_id > since_event_id
+                    and event.get("source") == "editor"
+                    and event.get("type") in ("compile-start", "compile-finish")
+                ):
+                    return True
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(RECOMPILE_START_POLL_SECONDS)
 
     @staticmethod
     def _requested_playmode(arguments: dict[str, Any]) -> bool | None:

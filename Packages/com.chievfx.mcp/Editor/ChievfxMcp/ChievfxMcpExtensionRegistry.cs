@@ -298,6 +298,16 @@ namespace Chievfx.Mcp.Editor
             return false;
         }
 
+        // True when a registered extension provides this tool (e.g. input-control-* only exists with the Input System).
+        internal static bool HasExtensionTool(string toolName)
+        {
+            lock (SyncRoot)
+            {
+                return Extensions.Values.Any(extension => extension.Descriptor.ToolRunner != null
+                                                          && extension.Descriptor.Tools.Any(tool => string.Equals(tool.Name, toolName, StringComparison.Ordinal)));
+            }
+        }
+
         internal static bool TryRunTool(string toolName, JToken args, out object? result)
         {
             RegisteredExtension[] extensions;

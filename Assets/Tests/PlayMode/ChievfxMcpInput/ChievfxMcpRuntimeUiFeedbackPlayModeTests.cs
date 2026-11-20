@@ -62,6 +62,8 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
                 Strings(pressSection["events"]),
                 Describe(pressSection));
             Assert.IsTrue(Strings(pressResult["warnings"]).Any(warning => warning.Contains("nothing handles PointerClick")), Describe(pressResult));
+            // This project has the Input System, so the advice names the real-input tools.
+            Assert.IsTrue(Strings(pressResult["warnings"]).Any(warning => warning.Contains("use input-control-mouse-event")), Describe(pressResult));
 
             var pressByPosition = RunRegistry("RuntimeClick", PositionArgs(RectCenter(pressOnly)));
             Assert.AreEqual(false, pressByPosition["anyClicked"], "A press-only handler is hit by position but not reported as clicked. " + Describe(pressByPosition));
@@ -130,6 +132,12 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
 
             var gameObjectFind = RunGameObjectFind("{'namePattern':'DdolButton'}");
             Assert.AreEqual(1, ToInt(Member(gameObjectFind, "totalMatches")), "gameobject-find searches DontDestroyOnLoad in Play Mode.");
+
+            var hiddenByPattern = RunGameObjectFind("{'namePattern':'DdolHidden'}");
+            Assert.AreEqual(0, ToInt(Member(hiddenByPattern, "totalMatches")));
+            Assert.AreEqual(1, ToInt(Member(hiddenByPattern, "inactiveHidden")), "A search names the inactive matches it left out.");
+            var hiddenExact = RunGameObjectFind("{'path':'FeedbackDdolCanvas/DdolHidden','includeDetails':true}");
+            Assert.AreEqual(1, ToInt(Member(hiddenExact, "totalMatches")), "An exact target finds an inactive object without includeInactive.");
 
             var canvases = ReadResource("chievfx://extensions/chievfx.ugui/runtime/canvases");
             Assert.IsTrue(Rows(canvases["canvases"]).Any(row => Equals(row["name"], "FeedbackDdolCanvas")), Describe(canvases));
@@ -240,6 +248,13 @@ namespace Chievfx.Mcp.Input.PlayMode.Tests
             var cleared = RunExtensionTool("ui-runtime-type-text", "{'framework':'ugui','path':'" + CanvasName + "/HiddenGroup/CommandInputField','text':''}");
             Assert.AreEqual("help", cleared["textBefore"]);
             Assert.AreEqual(string.Empty, cleared["textAfter"], "Clearing reports an empty textAfter rather than dropping it.");
+            Assert.IsFalse(Strings(cleared["warnings"]).Any(warning => warning.Contains("inactive")), "An active field is not reported inactive. " + Describe(cleared));
+
+            group.gameObject.SetActive(false);
+            var inactive = RunExtensionTool("ui-runtime-type-text", "{'framework':'ugui','path':'" + CanvasName + "/HiddenGroup/CommandInputField','text':'x'}");
+            Assert.IsTrue(
+                Strings(inactive["warnings"]).Any(warning => warning.Contains("inactive") && warning.Contains("HiddenGroup' is switched off")),
+                "A field under a switched-off parent names that parent. " + Describe(inactive));
         }
 
         [UnityTest]

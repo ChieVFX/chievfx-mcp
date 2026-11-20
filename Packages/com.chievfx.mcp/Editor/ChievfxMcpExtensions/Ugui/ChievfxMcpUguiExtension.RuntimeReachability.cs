@@ -22,9 +22,16 @@ namespace Chievfx.Mcp.Extensions.Ugui
             string? blockedBy = null;
             string? lockedBy = null;
             string? disabledCanvas = null;
+            string? switchedOffAt = null;
             var groupsIgnored = false;
             for (var current = target.transform; current != null; current = current.parent)
             {
+                // The outermost switched-off object is the one that hides the whole branch.
+                if (!current.gameObject.activeSelf)
+                {
+                    switchedOffAt = GetTransformPath(current);
+                }
+
                 // TryGetComponent: in the Editor a missing GetComponent<T>() result is a fake-null object that
                 // passes an "is T" check and throws on first use.
                 if (disabledCanvas == null && current.TryGetComponent<Canvas>(out var canvas) && !canvas.enabled)
@@ -62,6 +69,13 @@ namespace Chievfx.Mcp.Extensions.Ugui
 
                     groupsIgnored |= group.ignoreParentGroups;
                 }
+            }
+
+            if (switchedOffAt != null)
+            {
+                warnings.Add(switchedOffAt == path
+                    ? $"'{path}' is inactive (GameObject switched off), so it is not on screen. The tool acted on it anyway; a player could not."
+                    : $"'{path}' is inactive: '{switchedOffAt}' is switched off, so the branch is not on screen. The tool acted on it anyway; a player could not.");
             }
 
             if (disabledCanvas != null)

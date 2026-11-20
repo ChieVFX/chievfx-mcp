@@ -9,7 +9,10 @@ def format_recompile_text(result: dict[str, Any]) -> str:
     compile_info = result.get("compile") if isinstance(result.get("compile"), dict) else {}
     error_count = compile_info.get("errorCount", 0) if isinstance(compile_info.get("errorCount"), int) else 0
     warning_count = compile_info.get("warningCount", 0) if isinstance(compile_info.get("warningCount"), int) else 0
-    outcome = "completed" if result.get("completed") else "timed out (Unity still busy)"
+    if result.get("compileStarted") is False:
+        outcome = "did not compile (Unity never started)"
+    else:
+        outcome = "completed" if result.get("completed") else "timed out (Unity still busy)"
 
     def plural(count: int, noun: str) -> str:
         return f"{count} {noun}{'' if count == 1 else 's'}"

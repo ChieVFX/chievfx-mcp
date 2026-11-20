@@ -289,6 +289,63 @@ class RecompileTextFormatTests(unittest.TestCase):
         )
         self.assertEqual(text, "recompile completed — 0 errors, 0 warnings")
 
+    def test_compile_that_never_started_is_not_reported_as_completed(self) -> None:
+        text = mcp.format_recompile_text(
+            {
+                "completed": True,
+                "compileStarted": False,
+                "warning": "Unity did not start compiling within 30 s",
+                "compile": {"errorCount": 0, "warningCount": 0},
+            }
+        )
+        self.assertTrue(text.startswith("recompile did not compile (Unity never started)"))
+        self.assertIn("! Unity did not start compiling within 30 s", text)
+
+
+class RecompileWaitsForCompileStartTests(unittest.TestCase):
+    """A Unity editor in the background starts a requested compile seconds late; recompile used to see an
+    idle editor first and report the old assemblies as compiled."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.server = mcp.McpServer("http://127.0.0.1:1", self.temp_dir.name, timeout_ms=1000)
+        sleep_patch = mock.patch("chievfx_mcp_server.time.sleep", return_value=None)
+        sleep_patch.start()
+        self.addCleanup(sleep_patch.stop)
+
+    def _run(self, streams):
+        stream_mock = mock.Mock(side_effect=streams)
+        clock = iter(float(second) for second in range(1000))
+        with mock.patch.object(self.server, "read_playmode_state", return_value=False), mock.patch.object(
+            self.server, "wait_for_bridge_ready", return_value=True
+        ), mock.patch.object(
+            self.server, "get_bridge_status", return_value={"lastEventId": 100}
+        ), mock.patch.object(
+            self.server, "collect_recompile_issues", return_value={"errorCount": 0, "warningCount": 0}
+        ), mock.patch.object(
+            self.server, "call_unity_bridge", return_value={"result": {"requested": True}}
+        ), mock.patch.object(
+            self.server, "read_event_stream", stream_mock
+        ), mock.patch(
+            "chievfx_mcp_server.time.monotonic", side_effect=lambda: next(clock)
+        ):
+            result = self.server.recompile({"timeoutMs": 60000})
+        return result, stream_mock
+
+    def test_waits_until_the_late_compile_start_event(self) -> None:
+        old = {"eventId": 90, "source": "editor", "type": "compile-start"}
+        late = {"eventId": 105, "source": "editor", "type": "compile-start"}
+        result, stream_mock = self._run([{"events": [old]}, {"events": [old]}, {"events": [old, late]}])
+        self.assertEqual(stream_mock.call_count, 3)
+        self.assertNotIn("compileStarted", result)
+        self.assertNotIn("warning", result)
+
+    def test_compile_that_never_starts_is_flagged(self) -> None:
+        result, _stream = self._run([{"events": []}] * 200)
+        self.assertIs(result["compileStarted"], False)
+        self.assertIn("did not start compiling within 30 s", result["warning"])
+
 
 class CompileBlockedStatusHintTests(unittest.TestCase):
     """bridge-get-status must not present a Play-Mode-held compile as work in progress."""

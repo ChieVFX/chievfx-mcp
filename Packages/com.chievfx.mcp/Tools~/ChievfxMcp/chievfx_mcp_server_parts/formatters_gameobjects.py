@@ -31,6 +31,9 @@ def format_gameobject_find_text(result: dict[str, Any]) -> str:
         max_results = result.get("maxResults")
         suffix = f" at maxResults {format_toon_atom(max_results)}" if not should_omit_toon_value(max_results) else ""
         header_parts.append(f"truncated{suffix}")
+    inactive_hidden = result.get("inactiveHidden")
+    if isinstance(inactive_hidden, int) and not isinstance(inactive_hidden, bool) and inactive_hidden > 0:
+        header_parts.append(f"+{inactive_hidden} inactive hidden (includeInactive:true shows them)")
 
     lines = [" ".join(header_parts)]
     for game_object in objects:

@@ -452,7 +452,9 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 report.Warnings.Add(
                     $"PointerDown/PointerUp reached handlers on '{targetPath}' ({string.Join(", ", report.Events)}), but nothing handles PointerClick there. "
                     + "A control driven by press and release (held buttons, or ones that poll a pressed state in Update or read Input/touches) does not react to a synthetic same-frame tap; "
-                    + "use input-control-mouse-event or input-control-touch-event for real input, then check the result with a screenshot.");
+                    + (ChievfxMcpExtensionRegistry.HasExtensionTool("input-control-touch-event")
+                        ? "use input-control-mouse-event or input-control-touch-event for real input, then check the result with a screenshot."
+                        : "real input tools (input-control-*) are not available here (they need the com.unity.inputsystem package), so use a project tool that taps like a finger, if one exists, then check the result with a screenshot."));
                 return;
             }
 

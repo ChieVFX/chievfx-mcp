@@ -149,17 +149,22 @@ namespace Chievfx.Mcp.Editor
             ValidateWildcardPattern(namePattern, "namePattern");
             ValidateComponentTypeText(componentType, required: false);
 
-            var sourceObjects = instanceId.HasValue || (includeDetails && !string.IsNullOrWhiteSpace(path))
+            // An exact target (instanceId, or path with details) is returned even when inactive: the caller named it.
+            var isExactTarget = instanceId.HasValue || (includeDetails && !string.IsNullOrWhiteSpace(path));
+            var sourceObjects = isExactTarget
                 ? new[] { ResolveSingleGameObject(context, args) }
                 : string.IsNullOrWhiteSpace(path)
                     ? EnumerateContextGameObjects(context)
                     : EnumerateGameObjects(ResolveGameObjectByPath(context, path!));
-            var matches = sourceObjects
-                .Where(gameObject => includeInactive || gameObject.activeInHierarchy)
+            var filterMatches = sourceObjects
                 .Where(gameObject => string.IsNullOrWhiteSpace(name) || string.Equals(gameObject.name, name, StringComparison.Ordinal))
                 .Where(gameObject => string.IsNullOrWhiteSpace(namePattern) || WildcardMatches(gameObject.name, namePattern!))
                 .Where(gameObject => string.IsNullOrWhiteSpace(componentType) || HasMatchingComponent(gameObject, componentType!))
                 .ToList();
+            var matches = includeInactive || isExactTarget
+                ? filterMatches
+                : filterMatches.Where(gameObject => gameObject.activeInHierarchy).ToList();
+            var inactiveHidden = filterMatches.Count - matches.Count;
             var selected = matches
                 .Take(maxResults)
                 .Select(gameObject => includeDetails
@@ -177,6 +182,7 @@ namespace Chievfx.Mcp.Editor
                 prefabAssetPath = context.PrefabAssetPath,
                 count = selected.Length,
                 totalMatches = matches.Count,
+                inactiveHidden,
                 maxResults,
                 includeDetails,
                 truncated = matches.Count > selected.Length,

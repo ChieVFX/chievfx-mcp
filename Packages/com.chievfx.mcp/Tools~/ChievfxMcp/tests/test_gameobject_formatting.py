@@ -295,6 +295,13 @@ class GameObjectFormattingTests(unittest.TestCase):
         self.assertIn("- Hidden (id: 42, inactiveSelf, inactiveHierarchy)", text)
         self.assertIn("components[1]: Transform, ...", text)
 
+    def test_gameobject_find_text_names_hidden_inactive_matches(self) -> None:
+        text = mcp.format_gameobject_find_text({"count": 0, "totalMatches": 0, "inactiveHidden": 2, "objects": []})
+        self.assertEqual("(0 shown, 0 matches) +2 inactive hidden (includeInactive:true shows them)", text)
+
+        text = mcp.format_gameobject_find_text({"count": 1, "totalMatches": 1, "inactiveHidden": 0, "objects": []})
+        self.assertNotIn("inactive hidden", text)
+
     def test_component_get_text_focuses_component_and_fields(self) -> None:
         result = {
             "source": "activeScene",

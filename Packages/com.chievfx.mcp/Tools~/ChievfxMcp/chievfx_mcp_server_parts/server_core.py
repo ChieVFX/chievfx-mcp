@@ -713,6 +713,8 @@ class McpServerCore:
             raw_sink["result"] = result
             if raw_sink.get("awaiting"):
                 result = without_wait_advice(result)
+            else:
+                result = with_wait_next(result)
         if force_ui_control_find_json:
             if not isinstance(result, dict):
                 retry_arguments = dict(arguments)

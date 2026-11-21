@@ -796,10 +796,19 @@ def format_summary_first_text(result: Any) -> str:
     if not isinstance(result, dict):
         return to_toon(result)
     summary = result.get("summary")
-    if not isinstance(summary, str) or not summary.strip():
+    has_summary = isinstance(summary, str) and bool(summary.strip())
+    # The ready wait call is copied as is: as a TOON field its JSON quotes would come out escaped.
+    next_call = result.get("next") if isinstance(result.get("next"), str) else None
+    if not has_summary and next_call is None:
         return to_toon(result)
-    rest_text = to_toon({key: value for key, value in result.items() if key != "summary"})
-    return summary + "\n" + rest_text if rest_text.strip() else summary
+    rest = {key: value for key, value in result.items() if not (key == "summary" and has_summary) and not (key == "next" and next_call)}
+    rest_text = to_toon(rest) if rest else ""
+    lines = [summary] if has_summary else []
+    if rest_text.strip():
+        lines.append(rest_text)
+    if next_call is not None:
+        lines.append("next: " + next_call)
+    return "\n".join(lines)
 
 
 def format_ugui_ui_hierarchy_text(result: dict[str, Any]) -> str:

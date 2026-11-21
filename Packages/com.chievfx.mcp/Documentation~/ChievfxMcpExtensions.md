@@ -206,9 +206,20 @@ shape core tools get from their own formatters. All are optional.
   `tool-batch` step stops the batch there, as on a thrown error. So does a
   step whose end did not come within its `awaitMs`: the next step would act
   over an action that is still running.
-- Without `awaitMs` the caller waits itself with `events-wait`; returning
-  `sinceEventId` (the journal's current id when the action started) lets that
-  wait catch an end that came before it was armed.
+- Without `awaitMs` the server adds `next` to the reply: the ready
+  `events-wait` call for that end, printed as the reply's last line
+  (`next: events-wait {"contains":...,"sinceEventId":...,"timeoutMs":...}`).
+  Its cursor is the reply's `sinceEventId` when the extension sets one,
+  otherwise the journal's id from just before `ToolRunner` ran, which the core
+  puts in the reply as `eventCursorBefore`: an end logged while the tool was
+  still replying stays inside the wait. An extension that needs the cursor at
+  another moment reads `ChievfxMcpExtensionRegistry.CurrentEventId()`.
+  `waitTimeoutMs` (integer) sets the wait's `timeoutMs` when the action
+  lasts longer than the default 30 s (a drive across the map). An extension
+  that builds its own `next` keeps it. A `watch` field (say, a shell line that
+  waits on the extension's own append-only log in the background) passes
+  through as is: the core journal is a rolling window that also holds older
+  events with the same text, so the core does not build one.
 
 Failures: throw from `ToolRunner` (the message is the error the caller sees),
 or reply with `ok:false` (with `error` or `errors` saying why). Both stop a

@@ -339,12 +339,44 @@ namespace Chievfx.Mcp.Editor
                     continue;
                 }
 
+                var eventCursorBefore = CurrentEventId();
                 result = descriptor.ToolRunner(toolName, args);
+                AddEventCursorForWait(result, eventCursorBefore);
                 return true;
             }
 
             result = null;
             return false;
+        }
+
+        // The journal's newest event id. An extension that reports an action ending later can hand it to the caller as
+        // sinceEventId, so the wait catches an end logged before the caller started waiting.
+        public static long CurrentEventId()
+        {
+            return ChievfxMcpBridgeHost.EventJournal.CurrentEventId();
+        }
+
+        // A reply naming an end to wait for (waitFor / completionMarker) gets the cursor from before the tool ran, unless
+        // the extension put its own: the server builds the ready events-wait call from it, and an end that came while the
+        // tool was still replying stays inside the window.
+        private static void AddEventCursorForWait(object? result, long eventCursorBefore)
+        {
+            if (result is JObject reply)
+            {
+                if ((reply["waitFor"] != null || reply["completionMarker"] != null) && reply["sinceEventId"] == null && reply["eventCursorBefore"] == null)
+                {
+                    reply["eventCursorBefore"] = eventCursorBefore;
+                }
+
+                return;
+            }
+
+            if (result is IDictionary<string, object?> dictionary
+                && (dictionary.ContainsKey("waitFor") || dictionary.ContainsKey("completionMarker"))
+                && dictionary.ContainsKey("sinceEventId") == false && dictionary.ContainsKey("eventCursorBefore") == false)
+            {
+                dictionary["eventCursorBefore"] = eventCursorBefore;
+            }
         }
 
         private static object BuildManifest()

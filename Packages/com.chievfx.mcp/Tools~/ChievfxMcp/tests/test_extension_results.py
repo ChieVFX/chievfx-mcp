@@ -238,6 +238,53 @@ class ExtensionResultTests(unittest.TestCase):
         self.assertIn("home", awaited)
         self.assertIn("pass awaitMs", plain)
 
+    def test_reply_with_wait_for_gets_the_ready_wait_call(self) -> None:
+        self.fake_bridge({"summary": "Driving", "waitFor": "[demo][task] Drive#5 ", "eventCursorBefore": 41})
+
+        text = self.text_of(self.call("demo-act", {}))
+
+        self.assertIn('events-wait {"contains":"[demo][task] Drive#5 ","sinceEventId":41,"timeoutMs":30000}', text)
+        self.assertIn("or pass awaitMs to this call", text)
+        # The cursor is inside the ready call: a separate row would be the same number twice.
+        self.assertNotIn("eventCursorBefore", text)
+
+    def test_extension_cursor_and_timeout_win(self) -> None:
+        self.fake_bridge(
+            {"waitFor": ["[demo] #7 window", "[demo] #7 skipped"], "sinceEventId": 12, "eventCursorBefore": 41, "waitTimeoutMs": 90000}
+        )
+
+        result = self.call("demo-act", {"outputFormat": "json"})
+        reply = json.loads(self.text_of(result))
+
+        self.assertEqual(
+            reply["next"],
+            'events-wait {"contains":["[demo] #7 window","[demo] #7 skipped"],"sinceEventId":12,"timeoutMs":90000}'
+            " (or pass awaitMs to this call to get the end in its reply)",
+        )
+        self.assertNotIn("waitTimeoutMs", reply)
+
+    def test_completion_marker_without_cursor_waits_back_a_minute(self) -> None:
+        self.fake_bridge({"completionMarker": "beacon-3"})
+
+        text = self.text_of(self.call("demo-act", {}))
+
+        self.assertIn('events-wait {"marker":"beacon-3","includeRecentMs":60000,"timeoutMs":30000}', text)
+
+    def test_extension_own_next_is_kept(self) -> None:
+        self.fake_bridge({"waitFor": "[demo] #1 ", "next": "gameai-wait task:1"})
+
+        self.assertIn("gameai-wait task:1", self.text_of(self.call("demo-act", {})))
+
+    def test_reply_without_an_end_gets_no_next(self) -> None:
+        self.fake_bridge({"summary": "Tapped", "ok": True})
+
+        self.assertNotIn("events-wait", self.text_of(self.call("demo-act", {})))
+
+    def test_awaited_call_gets_no_next(self) -> None:
+        self.fake_bridge({"waitFor": "[demo][task] Drive#6 "}, events_during_call=[self.log_event(4, "[demo][task] Drive#6 done")])
+
+        self.assertNotIn("or pass awaitMs", self.text_of(self.call("demo-act", {"awaitMs": 2000})))
+
     def test_batch_stops_at_a_step_that_replies_with_its_failure(self) -> None:
         self.fake_bridge({"success": False, "stage": "runtime", "error": "boom-in-step"})
 

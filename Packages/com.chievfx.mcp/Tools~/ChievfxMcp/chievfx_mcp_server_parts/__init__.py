@@ -16,6 +16,7 @@ _PART_FILES = [
     'tool_metadata.py',
     'resource_metadata.py',
     'tool_selection.py',
+    'extension_replies.py',
     'prompt_metadata.py',
     'resource_resolution.py',
     'resource_text.py',

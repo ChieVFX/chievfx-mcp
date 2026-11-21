@@ -45,7 +45,9 @@ namespace Chievfx.Mcp.Editor
                 ReadBool(args, "open", true),
                 ReadBool(args, "focus", true),
                 diagnostics);
-            if (GetProfilerEnabled() != wasRecording)
+            // The window may also keep its Record button pressed and switch recording on later, after this reply (its first
+            // draw while the editor is in the background); a pressed button also hides the frame data in the window.
+            if (GetProfilerEnabled() != wasRecording || IsWindowSetToRecord(window) is bool windowRecords && windowRecords != wasRecording)
             {
                 SetProfilerEnabled(wasRecording);
                 diagnostics.Add(GetProfilerEnabled() == wasRecording
@@ -95,6 +97,13 @@ namespace Chievfx.Mcp.Editor
                 profiler = CreateProfilerWindowState(window, diagnostics),
                 diagnostics = diagnostics.Distinct(StringComparer.Ordinal).ToArray()
             };
+        }
+
+        private static bool? IsWindowSetToRecord(EditorWindow window)
+        {
+            return TryInvokeReflectedMethod(window, "IsSetToRecord", Array.Empty<object?>(), out var result, out _) && result is bool isSet
+                ? isSet
+                : null;
         }
 
         public object ControlFrameDebugger(JToken args)

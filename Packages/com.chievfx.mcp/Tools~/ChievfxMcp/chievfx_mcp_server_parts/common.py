@@ -132,6 +132,11 @@ RECOMPILE_MAX_ISSUES = 50
 # ever bites on something unexpected (a logger that inlines a stack trace into the message it logs) —
 # and then it keeps that one entry from consuming the whole response.
 RECOMPILE_MAX_ISSUE_CHARS = 400
+# Runtime errors in the recompile window (the Play Mode stop it did) are named by their first line only, a few
+# of them: a clean compile reloads the domain, which wipes them from console-get-logs, so the reply is where
+# the agent still sees them.
+RECOMPILE_MAX_OTHER_ERROR_LINES = 3
+RECOMPILE_OTHER_ERROR_CHARS = 160
 # editor-playmode-set waitForReady defaults: how long to wait for the play-mode transition, and how
 # long to settle afterwards so initial frames render before returning. Entering is far heavier than
 # exiting — a domain reload + scene load + first frames — and on a large project / slow machine that

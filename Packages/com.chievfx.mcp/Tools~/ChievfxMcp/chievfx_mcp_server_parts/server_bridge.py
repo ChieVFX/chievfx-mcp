@@ -648,6 +648,7 @@ class BridgeTransportMixin:
         warnings: list[dict[str, Any]] = []
         other_errors = 0
         other_warnings = 0
+        other_error_rows: list[dict[str, Any]] = []
         seen: set[tuple[str, str]] = set()
         for event in log_events:
             level = str(event.get("level", "")).lower()
@@ -657,6 +658,14 @@ class BridgeTransportMixin:
             if not is_compiler_diagnostic(event):
                 if is_error:
                     other_errors += 1
+                    if len(other_error_rows) < RECOMPILE_MAX_OTHER_ERROR_LINES:
+                        first_line = clean_console_message(event.get("message"), RECOMPILE_MAX_ISSUE_CHARS).split("\n", 1)[0]
+                        other_error_rows.append(
+                            {
+                                "eventId": event.get("eventId"),
+                                "message": clean_console_message(first_line, RECOMPILE_OTHER_ERROR_CHARS),
+                            }
+                        )
                 else:
                     other_warnings += 1
                 continue
@@ -687,6 +696,7 @@ class BridgeTransportMixin:
                 issues["warningsTruncated"] = True
         if other_errors:
             issues["otherErrorCount"] = other_errors
+            issues["otherErrors"] = other_error_rows
         if other_warnings:
             issues["otherWarningCount"] = other_warnings
         return issues

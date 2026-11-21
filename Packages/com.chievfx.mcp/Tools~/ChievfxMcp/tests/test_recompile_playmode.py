@@ -172,6 +172,21 @@ class RecompileIssueCollectionTests(unittest.TestCase):
         self.assertNotIn("errors", issues)
         self.assertEqual(issues["otherErrorCount"], 1)
         self.assertEqual(issues["otherWarningCount"], 1)
+        # Named by its first line only: the stack the logger inlined stays out of the reply.
+        self.assertEqual(
+            issues["otherErrors"],
+            [{"eventId": 101, "message": "[UnityLogs] FileBlocks_Loader. Fail to stop thread"}],
+        )
+
+    def test_runtime_errors_are_named_by_a_few_short_first_lines(self) -> None:
+        issues = self._collect(
+            [self._event(101 + index, "Error", f"Error {index} " + "x" * 500 + "\nstack line") for index in range(5)]
+        )
+        self.assertEqual(issues["otherErrorCount"], 5)
+        self.assertEqual(len(issues["otherErrors"]), mcp.RECOMPILE_MAX_OTHER_ERROR_LINES)
+        for row in issues["otherErrors"]:
+            self.assertLessEqual(len(row["message"]), mcp.RECOMPILE_OTHER_ERROR_CHARS)
+            self.assertNotIn("stack line", row["message"])
 
     def test_compiler_diagnostics_are_reported(self) -> None:
         issues = self._collect(
@@ -276,12 +291,19 @@ class RecompileTextFormatTests(unittest.TestCase):
                     "sinceEventId": 4200,
                     "otherErrorCount": 2,
                     "otherWarningCount": 1,
+                    "otherErrors": [
+                        {"eventId": 4201, "message": "Some objects were not cleaned up when closing the scene."},
+                        {"eventId": 4203, "message": "NullReferenceException: Object reference not set"},
+                    ],
                 },
             }
         )
         self.assertIn("recompile completed — 0 errors, 0 warnings", text)
         self.assertIn("Also logged, not compile output: 2 errors, 1 warning", text)
-        self.assertIn("sinceEventId:4200", text)
+        # A clean compile reloads the domain: console-get-logs no longer has them, the event journal does.
+        self.assertIn("events-check-since sinceEventId:4200", text)
+        self.assertIn("  #4201 Some objects were not cleaned up when closing the scene.", text)
+        self.assertIn("  #4203 NullReferenceException: Object reference not set", text)
 
     def test_clean_summary_has_no_extra_line(self) -> None:
         text = mcp.format_recompile_text(

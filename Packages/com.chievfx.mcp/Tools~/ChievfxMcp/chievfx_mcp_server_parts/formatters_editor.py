@@ -42,8 +42,10 @@ def format_recompile_text(result: dict[str, Any]) -> str:
         lines.append(f"… +{warning_count - len(warnings)} more warnings")
 
     # Console output that is not a compiler diagnostic (typically the project's own runtime logs from
-    # the Play Mode stop this recompile performed) is counted, never echoed — one such entry used to
-    # be reported as a compile error and fill the whole response with its stack trace.
+    # the Play Mode stop this recompile performed) is counted and its errors named by their first line
+    # only — one such entry used to be reported as a compile error and fill the whole response with its
+    # stack trace. A clean compile reloads the domain and console-get-logs then no longer has them, so
+    # the full text is pointed at the event journal, which survives the reload.
     other_counts = [
         plural(count, noun)
         for count, noun in (
@@ -54,8 +56,16 @@ def format_recompile_text(result: dict[str, Any]) -> str:
     ]
     if other_counts:
         since_event_id = compile_info.get("sinceEventId")
-        hint = f" — console-get-logs sinceEventId:{since_event_id}" if isinstance(since_event_id, int) else ""
+        hint = (
+            f" — full text: events-check-since sinceEventId:{since_event_id} (console-get-logs loses logs from before a domain reload)"
+            if isinstance(since_event_id, int)
+            else ""
+        )
         lines.append(f"Also logged, not compile output: {', '.join(other_counts)}{hint}")
+        other_errors = compile_info.get("otherErrors") if isinstance(compile_info.get("otherErrors"), list) else []
+        for row in other_errors:
+            if isinstance(row, dict):
+                lines.append(f"  #{row.get('eventId')} {row.get('message', '')}")
     return "\n".join(lines)
 
 

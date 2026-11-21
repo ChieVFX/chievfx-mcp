@@ -642,7 +642,8 @@ def resolve_tool_role(arguments: dict[str, Any], metadata: dict[str, Any]) -> di
             return roles[role_index - 1]
         raise ValueError(f"Unknown ChievFX MCP role index {role_index}. Available role indexes: 1-{len(roles)}.")
 
-    custom_asset_path = arguments.get("customassetPath")
+    # The schema names it customAssetPath; the misspelling is what this handler used to read, kept for old callers.
+    custom_asset_path = arguments.get("customAssetPath", arguments.get("customassetPath"))
     role_name = arguments.get("role", arguments.get("roleId"))
     candidates: list[tuple[str, dict[str, Any]]] = []
 
@@ -668,7 +669,7 @@ def resolve_tool_role(arguments: dict[str, Any], metadata: dict[str, Any]) -> di
         available = ", ".join(role["id"] for role in roles)
         raise ValueError(f"Unknown ChievFX MCP role '{role_name}'. Available roles: {available}.")
 
-    raise ValueError("tools-set-role requires 'role', 'roleId', 'roleIndex', or 'customassetPath'.")
+    raise ValueError("tools-set-role requires 'role', 'roleId', 'roleIndex', or 'customAssetPath'.")
 
 
 def enabled_ids_for_role(role: dict[str, Any], metadata: dict[str, Any]) -> set[str]:

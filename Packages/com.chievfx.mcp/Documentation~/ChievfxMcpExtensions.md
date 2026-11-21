@@ -228,6 +228,18 @@ or reply with `ok:false` (with `error` or `errors` saying why). Both stop a
 Argument descriptions in `InputSchema` reach the client as written: the core
 descriptors list only the argument names of an extension tool.
 
+Before a call reaches any tool, the server renames arguments a caller guessed
+in another form: the same name in another case or with separators
+(`car_name`, `CarName` for `carName`) when it matches exactly one property,
+and names a property lists under `x-aliases` in its schema
+(`"grep": {"type": "string", "x-aliases": ["text", "query"]}`). A rename
+never overwrites an argument the call already set, and the reply ends with
+`Arguments taken under the tool's names: car_name→carName` so the caller
+learns the right name. Declare the synonyms models reach for under
+`x-aliases` instead of adding them as properties: the core descriptors list
+only property names, so aliases cost nothing there. Conversions that change
+the value (seconds to milliseconds, a point to x/y/z) stay with the extension.
+
 `additionalProperties: true` in a tool's `InputSchema` tells the core the
 extension judges argument names itself (accepts aliases, or rejects unknown
 ones with its own error), so the core does not add its "Unrecognized argument

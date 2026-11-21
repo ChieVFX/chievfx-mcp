@@ -289,6 +289,11 @@ class McpServerCore:
         # hunting for an effect that never happened.
         name = params.get("name")
         await_ms, params = self._take_await_argument(params)
+        renamed_arguments: list[str] = []
+        if isinstance(name, str):
+            resolved_arguments, renamed_arguments = resolve_argument_aliases(name, params.get("arguments"))
+            if renamed_arguments:
+                params = {**params, "arguments": resolved_arguments}
         # The cursor is taken before the call, so an end logged while the tool is still replying is
         # inside the window: the race that made a separate events-wait miss short actions cannot happen.
         await_cursor = self.event_stream_last_id(self.read_event_stream()) if await_ms is not None else 0
@@ -301,6 +306,8 @@ class McpServerCore:
             result = with_unknown_argument_warning(result, name, params.get("arguments") or {})
             if await_ms is not None:
                 result = self._await_tool_completion(result, name, raw_sink.get("result"), await_ms, await_cursor, request_id)
+            if renamed_arguments:
+                attach_result_notice(result, "Arguments taken under the tool's names: " + ", ".join(renamed_arguments))
             result = self._with_core_descriptor_reminder(result, name)
         return result
 

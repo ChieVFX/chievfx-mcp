@@ -285,6 +285,15 @@ class ExtensionResultTests(unittest.TestCase):
 
         self.assertNotIn("or pass awaitMs", self.text_of(self.call("demo-act", {"awaitMs": 2000})))
 
+    def test_guessed_argument_name_reaches_the_extension_under_its_own(self) -> None:
+        self.fake_bridge({"summary": "Tapped", "ok": True})
+
+        text = self.text_of(self.call("demo-act", {"TARGET": "Play"}))
+
+        self.assertEqual(self.bridge_calls[-1][1].get("target"), "Play")
+        self.assertNotIn("TARGET", self.bridge_calls[-1][1])
+        self.assertIn("Arguments taken under the tool's names: TARGET→target", text)
+
     def test_batch_stops_at_a_step_that_replies_with_its_failure(self) -> None:
         self.fake_bridge({"success": False, "stage": "runtime", "error": "boom-in-step"})
 

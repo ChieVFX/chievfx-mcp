@@ -398,9 +398,12 @@ namespace Chievfx.Mcp.Editor
             // Frames follow real time: a slow editor shoots fewer than seconds * fps, and the video holds each one longer.
             var realSeconds = recording.StoppedAt - recording.StartedAt;
             var expectedFrames = (int)Math.Round(realSeconds * recording.Fps);
+            // A missing frame holds the one before on screen: the video stutters there although the game did not.
+            var missing = expectedFrames - recording.Written;
+            var missingNote = missing > 0 ? " (" + missing + " frames the editor did not render are held by the frame before: a stutter in the video is not one in the game)" : string.Empty;
             Finish(recording, isBuilt
                 ? recording.StopReason + " " + video + " frames:" + recording.Written + " of " + expectedFrames + " fps:" + recording.Fps
-                  + " realSeconds:" + realSeconds.ToString("F1", CultureInfo.InvariantCulture)
+                  + " realSeconds:" + realSeconds.ToString("F1", CultureInfo.InvariantCulture) + missingNote
                 : "failed:ffmpeg_exit_" + exitCode + " " + recording.Directory);
         }
 

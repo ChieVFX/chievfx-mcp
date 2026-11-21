@@ -1,3 +1,4 @@
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -18,6 +19,22 @@ class UiControlFindFormattingTests(unittest.TestCase):
         self.assertEqual(properties["controlType"]["type"], "string")
         self.assertEqual(properties["page"]["type"], "integer")
         self.assertEqual(properties["normalizeCoords"]["type"], "boolean")
+        self.assertEqual(properties["texts"]["type"], "boolean")
+
+    def test_closed_advertised_schemas_keep_every_descriptor_argument(self) -> None:
+        # A client that checks arguments against a schema with additionalProperties:false refuses an argument the
+        # hand-written schema left out, although the tool takes it (ui-control-find texts:true).
+        descriptors = Path(mcp.__file__).resolve().parent / "chievfx_mcp_server_parts" / "tool_descriptors"
+        for path in sorted(descriptors.glob("*.json")):
+            descriptor = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(descriptor, dict) or "inputSchema" not in descriptor:
+                continue
+            schema = mcp.advertised_input_schema(descriptor)
+            if schema.get("additionalProperties") is not False:
+                continue
+            taken = set(descriptor["inputSchema"].get("properties", {})) - {"outputFormat"}
+            with self.subTest(tool=descriptor["name"]):
+                self.assertEqual(sorted(taken - set(schema.get("properties", {}))), [])
 
     def test_covered_control_names_what_covers_it(self) -> None:
         # Under a window's backdrop a control is drawn, but a player's tap lands on the window.

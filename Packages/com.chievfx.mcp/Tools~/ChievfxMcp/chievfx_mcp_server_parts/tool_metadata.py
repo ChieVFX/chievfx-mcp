@@ -130,6 +130,7 @@ def _build_advertised_input_schema(tool: dict[str, Any]) -> dict[str, Any]:
                 "controlType": {"type": "string"},
                 "page": {"type": "integer"},
                 "normalizeCoords": {"type": "boolean"},
+                "texts": {"type": "boolean"},
             },
             "additionalProperties": False,
         }

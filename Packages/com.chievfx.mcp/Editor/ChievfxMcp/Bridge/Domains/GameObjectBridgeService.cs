@@ -471,6 +471,11 @@ namespace Chievfx.Mcp.Editor
                 // Play-mode edits apply to the live instance only and are discarded on exit; flag it so
                 // callers know the change is not persisted to the scene/prefab.
                 playModeLiveEdit = EditorApplication.isPlaying ? true : (bool?)null,
+                // The reply shows the value as written; a camera rig or other game script writing the field every frame
+                // put it back a frame later (FOV 80 read 45 again), and the success read as "changed".
+                playModeNote = EditorApplication.isPlaying && updatedProperties.Length > 0
+                    ? "Game scripts may set these fields every frame (camera rigs, animated or script-driven values): read them back with gameobject-component-get after a frame."
+                    : null,
                 component = CreateComponentMutationSummary(component, updatedProperties, created)
             };
         }

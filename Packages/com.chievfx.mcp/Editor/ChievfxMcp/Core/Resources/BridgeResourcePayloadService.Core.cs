@@ -194,6 +194,7 @@ namespace Chievfx.Mcp.Editor
             var guids = filter.Folders.Length > 0
                 ? AssetDatabase.FindAssets(query, filter.Folders)
                 : AssetDatabase.FindAssets(query);
+            var labelNote = filter.Labels.Length > 0 ? KeepWholeLabelMatches(ref guids, filter.Labels) : null;
             var rows = new List<Dictionary<string, object?>>();
             var truncated = false;
             var processedGuidCount = 0;
@@ -235,7 +236,42 @@ namespace Chievfx.Mcp.Editor
             result["maxResults"] = filter.MaxResults;
             result["truncated"] = truncated || processedGuidCount < guids.Length;
             result["assets"] = rows.ToArray();
+            if (labelNote != null)
+            {
+                result["note"] = labelNote;
+            }
+
             return result;
+        }
+
+        // Unity's l: matches the start of a label: l:fire found FirebaseMessagingActivityGenerated, and l:Keep answered 218
+        // assets for a label nobody has. Only whole labels (any of the given ones, case-insensitive) are kept.
+        private static string? KeepWholeLabelMatches(ref string[] guids, string[] labels)
+        {
+            var kept = new List<string>(guids.Length);
+            var prefixOnlyLabels = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var guid in guids)
+            {
+                var assetLabels = AssetDatabase.GetLabels(new GUID(guid));
+                if (assetLabels.Any(assetLabel => labels.Contains(assetLabel, StringComparer.OrdinalIgnoreCase)))
+                {
+                    kept.Add(guid);
+                    continue;
+                }
+
+                foreach (var assetLabel in assetLabels.Where(assetLabel => labels.Any(label => assetLabel.StartsWith(label, StringComparison.OrdinalIgnoreCase))))
+                {
+                    prefixOnlyLabels.Add(assetLabel);
+                }
+            }
+
+            var dropped = guids.Length - kept.Count;
+            guids = kept.ToArray();
+            var matching = labels.Length > 1 ? "assets with any of the labels (whole label, case-insensitive)" : "whole label, case-insensitive";
+            return dropped == 0
+                ? (labels.Length > 1 ? "label: " + matching + "." : null)
+                : $"label: {matching}; left out {dropped} asset{(dropped == 1 ? string.Empty : "s")} whose labels only start with it: "
+                  + string.Join(", ", prefixOnlyLabels.Take(5)) + (prefixOnlyLabels.Count > 5 ? ", ..." : string.Empty) + ".";
         }
 
         internal static object ReadAssetDetailResource(string uri, string guid, string? localIdText)

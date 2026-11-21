@@ -263,7 +263,7 @@ namespace Chievfx.Mcp.Editor
                 var componentNote = DescribeComponentTypeSearch(filter.TypeNames);
                 if (componentNote != null)
                 {
-                    result["note"] = componentNote;
+                    result["note"] = result.TryGetValue("note", out var labelNote) && labelNote is string { Length: > 0 } text ? text + " " + componentNote : componentNote;
                 }
             }
 

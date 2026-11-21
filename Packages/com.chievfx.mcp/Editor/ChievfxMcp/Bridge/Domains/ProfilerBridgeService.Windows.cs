@@ -30,6 +30,9 @@ namespace Chievfx.Mcp.Editor
         public object ControlWindow(JToken args)
         {
             var diagnostics = new List<string>();
+            // Opening the window applies its own Record toggle to the profiler: a stopped recording started again and kept
+            // growing the capture after profiler-stop-recording.
+            var wasRecording = GetProfilerEnabled();
             var window = ResolveKnownEditorWindow(
                 new[]
                 {
@@ -42,6 +45,13 @@ namespace Chievfx.Mcp.Editor
                 ReadBool(args, "open", true),
                 ReadBool(args, "focus", true),
                 diagnostics);
+            if (GetProfilerEnabled() != wasRecording)
+            {
+                SetProfilerEnabled(wasRecording);
+                diagnostics.Add(GetProfilerEnabled() == wasRecording
+                    ? $"Opening the Profiler window switched recording {(wasRecording ? "off" : "on")} (its Record button); it is {(wasRecording ? "on" : "off")} again as before."
+                    : $"Opening the Profiler window switched recording {(wasRecording ? "off" : "on")} (its Record button) and it stayed so: use profiler-{(wasRecording ? "start" : "stop")}-recording.");
+            }
 
             if (HasProperty(args, "selectedFrameIndex"))
             {
@@ -59,10 +69,11 @@ namespace Chievfx.Mcp.Editor
                 moduleIdentifier = ResolveProfilerModuleIdentifier(window, module!, diagnostics);
             }
 
+            // The rest of the call (open, latest, frame) still applies: module selection is missing in some Unity versions.
             if (!string.IsNullOrWhiteSpace(moduleIdentifier)
                 && !TrySelectProfilerModule(window, moduleIdentifier!, out var moduleError))
             {
-                throw new NotSupportedException($"Profiler module selection is unsupported in this Unity version. {moduleError}");
+                diagnostics.Add($"Module not switched: profiler module selection is unsupported in this Unity version ({moduleError}); the selected module is in profiler.selectedModuleIdentifier.");
             }
 
             if (ReadBool(args, "latest", false) || ReadBool(args, "stayOnLatestFrame", false))

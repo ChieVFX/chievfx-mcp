@@ -207,10 +207,14 @@ namespace Chievfx.Mcp.Editor
                     return null;
                 }
 
+                // The first frame holds the start of the recording itself (session metadata, memory counters flush): it was
+                // the maximum of a short capture while the game frames were a sixth of it.
+                var firstCounted = last > first ? first + 1 : first;
                 var sum = 0d;
                 var max = 0f;
+                var worstFrame = -1;
                 var count = 0;
-                for (var frame = first; frame <= last; frame++)
+                for (var frame = firstCounted; frame <= last; frame++)
                 {
                     using var view = UnityEditorInternal.ProfilerDriver.GetRawFrameDataView(frame, 0);
                     if (view == null || !view.valid)
@@ -219,7 +223,12 @@ namespace Chievfx.Mcp.Editor
                     }
 
                     sum += view.frameTimeMs;
-                    max = Math.Max(max, view.frameTimeMs);
+                    if (view.frameTimeMs > max)
+                    {
+                        max = view.frameTimeMs;
+                        worstFrame = frame;
+                    }
+
                     count++;
                 }
 
@@ -230,7 +239,9 @@ namespace Chievfx.Mcp.Editor
                         ["frames"] = count,
                         ["frameMsAvg"] = Math.Round(sum / count, 2),
                         ["frameMsMax"] = Math.Round(max, 2),
-                        ["basis"] = "main thread time of each recorded frame; open the .data file in the Profiler window for markers"
+                        ["worstFrame"] = worstFrame,
+                        ["basis"] = "main thread time of each recorded frame (the first one, the recording start, left out); worstFrame is the frame index for "
+                                    + "profiler-window-control selectedFrameIndex while the frames are still in the profiler; open the .data file for markers"
                     };
             }
             catch (Exception exception)

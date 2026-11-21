@@ -238,7 +238,9 @@ never overwrites an argument the call already set, and the reply ends with
 learns the right name. Declare the synonyms models reach for under
 `x-aliases` instead of adding them as properties: the core descriptors list
 only property names, so aliases cost nothing there. Conversions that change
-the value (seconds to milliseconds, a point to x/y/z) stay with the extension.
+the value (seconds to milliseconds, a point to x/y/z) stay with the extension;
+it lists them in the reply as `argumentsRenamed` (`["position→x,y,z"]`), and
+the server adds them to the same line instead of showing the field.
 
 `additionalProperties: true` in a tool's `InputSchema` tells the core the
 extension judges argument names itself (accepts aliases, or rejects unknown

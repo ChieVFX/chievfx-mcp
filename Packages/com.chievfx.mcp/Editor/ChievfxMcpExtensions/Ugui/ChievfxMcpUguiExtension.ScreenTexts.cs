@@ -152,7 +152,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             if (center.x < 0f || center.y < 0f || center.x > screenSize.x || center.y > screenSize.y
-                || IsClippedByMask(graphic.transform, center, camera) || IsCoveredByOtherWindow(center, window))
+                || IsClippedByMask(graphic.transform, center, camera) || IsCoveredByOtherWindow(center, window, graphic))
             {
                 return false;
             }
@@ -229,8 +229,9 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return transform;
         }
 
-        // The player does not see a window's text where another window lies over it.
-        private static bool IsCoveredByOtherWindow(Vector2 screenPoint, Transform window)
+        // The player does not see a window's text where another window lies over it. The topmost raycast hit is not always
+        // drawn over the text: a banner whose text and background take no raycasts lets the ray through to the window under it.
+        private static bool IsCoveredByOtherWindow(Vector2 screenPoint, Transform window, Graphic text)
         {
             var eventSystem = EventSystem.current;
             if (eventSystem == null)
@@ -256,10 +257,50 @@ namespace Chievfx.Mcp.Extensions.Ugui
                     continue;
                 }
 
-                return WindowOf(hit.gameObject.transform) != window;
+                return WindowOf(hit.gameObject.transform) != window && IsDrawnOver(hit, text);
             }
 
             return false;
+        }
+
+        // Overlay canvases are drawn after every camera, so over camera and world canvases whatever their order. Among overlay
+        // canvases: sorting layer, then the order of the sorting canvas; in one canvas the later drawn graphic (bigger depth)
+        // is on top. Anything else (two camera canvases, canvases of one order) is left as covering: the order is not known here.
+        private static bool IsDrawnOver(RaycastResult hit, Graphic text)
+        {
+            var textCanvas = text.canvas;
+            var hitCanvas = hit.module is GraphicRaycaster raycaster ? raycaster.GetComponent<Canvas>() : null;
+            if (textCanvas == null || hitCanvas == null)
+            {
+                return true;
+            }
+
+            var isHitOverlay = hitCanvas.rootCanvas.renderMode == RenderMode.ScreenSpaceOverlay;
+            var isTextOverlay = textCanvas.rootCanvas.renderMode == RenderMode.ScreenSpaceOverlay;
+            if (isHitOverlay != isTextOverlay)
+            {
+                return isHitOverlay;
+            }
+
+            if (isHitOverlay == false)
+            {
+                return true;
+            }
+
+            var sortingCanvas = textCanvas.overrideSorting || textCanvas.isRootCanvas ? textCanvas : textCanvas.rootCanvas;
+            var hitLayer = SortingLayer.GetLayerValueFromID(hit.sortingLayer);
+            var textLayer = SortingLayer.GetLayerValueFromID(sortingCanvas.sortingLayerID);
+            if (hitLayer != textLayer)
+            {
+                return hitLayer > textLayer;
+            }
+
+            if (hit.sortingOrder != sortingCanvas.sortingOrder)
+            {
+                return hit.sortingOrder > sortingCanvas.sortingOrder;
+            }
+
+            return hitCanvas != sortingCanvas || hit.depth > text.depth;
         }
     }
 }

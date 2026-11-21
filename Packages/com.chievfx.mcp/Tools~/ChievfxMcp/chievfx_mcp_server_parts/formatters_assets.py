@@ -103,6 +103,18 @@ def format_asset_detail_text(result: dict[str, Any]) -> str:
     return "\n".join(line for line in lines if line)
 
 
+def format_scene_usage_partial_line(result: dict[str, Any]) -> str:
+    """A scan stopped by its time budget covered only part of the scene: a bare refs:0 read as "not used here"."""
+    scanned = result.get("scannedObjects")
+    if scanned is None:
+        return ""
+    warnings = result.get("scanWarnings")
+    warning = next((text for text in warnings if isinstance(text, str) and "scan stopped" in text), "") if isinstance(warnings, list) else ""
+    return f"partial: scanned {format_toon_atom(scanned)} of {format_toon_atom(result.get('totalObjects'))} objects, counts cover only them" + (
+        f" ({warning})" if warning else ""
+    )
+
+
 def format_scene_usage_counts_text(result: dict[str, Any]) -> str:
     if not isinstance(result, dict) or "counts" not in result:
         return to_toon(result)
@@ -117,6 +129,7 @@ def format_scene_usage_counts_text(result: dict[str, Any]) -> str:
             if "None" not in part
         )
     ]
+    lines.append(format_scene_usage_partial_line(result))
     lines.append("usage: chievfx://scene/all/usage/assets/{assetType}")
     counts = result.get("counts")
     if isinstance(counts, list):
@@ -138,6 +151,7 @@ def format_scene_usage_assets_text(result: dict[str, Any]) -> str:
         f"{format_toon_atom(result.get('assetType'))} ({format_toon_atom(result.get('count'))} shown) "
         f"refs:{format_toon_atom(result.get('totalReferences'))} objects:{format_toon_atom(result.get('totalObjects'))}"
     ]
+    lines.append(format_scene_usage_partial_line(result))
     lines.append("usage: chievfx://scene/all/usage/asset/{guid} or chievfx://scene/all/usage/asset/{guid}/id/{localId}")
     lines.append("asset: chievfx://asset/{guid} or chievfx://asset/{guid}/id/{localId}")
     assets = result.get("assets")
@@ -159,6 +173,7 @@ def format_scene_usage_asset_detail_text(result: dict[str, Any]) -> str:
         f"usage refs:{format_toon_atom(result.get('referenceCount'))} "
         f"objects:{format_toon_atom(result.get('gameObjectCount'))} locations:{format_toon_atom(result.get('locationCount'))}"
     )
+    lines.append(format_scene_usage_partial_line(result))
     locations = result.get("locations")
     if isinstance(locations, list):
         for location in locations:

@@ -51,5 +51,15 @@ class MaterialProfileSummaryTests(unittest.TestCase):
         self.assertIn("TextMeshPro/Distance Field", text)
 
 
+class AssetFindNoteTests(unittest.TestCase):
+    def test_component_type_note_is_shown(self) -> None:
+        # asset-find type:CarControl found 0 rows silently, which read as "no prefab uses it".
+        text = mcp.format_asset_find_text(
+            {"count": 0, "totalAssetGuids": 0, "assetDatabaseFilter": "t:CarControl a:assets", "assets": [],
+             "note": "type filters asset types: CarControl is a component"}
+        )
+        self.assertIn("note: type filters asset types: CarControl is a component", text)
+
+
 if __name__ == "__main__":
     unittest.main()

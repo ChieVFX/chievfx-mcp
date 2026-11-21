@@ -584,6 +584,7 @@ def format_frame_debugger_event_row(frame_event: dict[str, Any], use_drawcall_in
         ("indices", "indices"),
         ("instances", "instances"),
         ("renderTarget", "rt"),
+        ("textures", "textures"),
         ("batchBreakReason", "batch"),
     ):
         value = frame_event.get(key)

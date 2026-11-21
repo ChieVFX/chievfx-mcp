@@ -1185,6 +1185,41 @@ namespace Chievfx.Mcp.Editor
             AddInt(summary, "renderTargetFormat", ReadFirstInt(eventData, "m_RenderTargetFormat"));
             AddInt(summary, "renderTargetCount", ReadFirstInt(eventData, "m_RenderTargetCount"));
             AddBool(summary, "renderTargetBackBuffer", ReadFirstBool(eventData, "m_RenderTargetIsBackBuffer"));
+            AddString(summary, "textures", DescribeBoundTextures(eventData));
+        }
+
+        private const int MaxReportedTextures = 8;
+
+        // The event data names no material, so the bound textures are what tells two UI quads of one shader apart
+        // ("_MainTex=gui_minimapshadow 128x128").
+        private static string? DescribeBoundTextures(object eventData)
+        {
+            if (GetReflectedInstanceValue(eventData, "m_ShaderInfo") is not { } shaderInfo
+                || GetReflectedInstanceValue(shaderInfo, "m_Textures") is not Array textures)
+            {
+                return null;
+            }
+
+            var described = new List<string>();
+            foreach (var textureInfo in textures)
+            {
+                if (textureInfo == null || described.Count >= MaxReportedTextures)
+                {
+                    continue;
+                }
+
+                var property = ReadStringMember(textureInfo, "m_Name");
+                var texture = GetReflectedInstanceValue(textureInfo, "m_Value") as Texture;
+                var textureName = texture != null ? texture.name : ReadStringMember(textureInfo, "m_TextureName");
+                if (string.IsNullOrEmpty(textureName))
+                {
+                    continue;
+                }
+
+                described.Add(texture != null ? $"{property}={textureName} {texture.width}x{texture.height}" : $"{property}={textureName}");
+            }
+
+            return described.Count > 0 ? string.Join(", ", described) : null;
         }
 
         private static string? GetBatchBreakCauseText(int cause, List<string> diagnostics)

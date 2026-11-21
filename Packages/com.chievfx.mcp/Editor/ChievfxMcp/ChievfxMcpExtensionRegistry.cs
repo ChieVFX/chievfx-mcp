@@ -358,9 +358,9 @@ namespace Chievfx.Mcp.Editor
         }
 
         // A reply naming an end to wait for (waitFor / completionMarker) gets the cursor from before the tool ran, unless
-        // the extension put its own: the server builds the ready events-wait call from it, and an end that came while the
+        // the tool put its own: the server builds the ready events-wait call from it, and an end that came while the
         // tool was still replying stays inside the window.
-        private static void AddEventCursorForWait(object? result, long eventCursorBefore)
+        internal static void AddEventCursorForWait(object? result, long eventCursorBefore)
         {
             if (result is JObject reply)
             {

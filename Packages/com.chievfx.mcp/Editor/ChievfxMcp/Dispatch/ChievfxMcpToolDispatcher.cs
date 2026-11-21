@@ -23,8 +23,12 @@ namespace Chievfx.Mcp.Editor
         {
             foreach (var handler in handlers)
             {
+                // Taken before the tool runs, as for extensions: an end logged while the tool was still replying stays
+                // inside the window of the ready events-wait call the server builds from it.
+                var eventCursorBefore = ChievfxMcpExtensionRegistry.CurrentEventId();
                 if (handler.TryRunTool(toolName, args, out var result))
                 {
+                    ChievfxMcpExtensionRegistry.AddEventCursorForWait(result, eventCursorBefore);
                     return result;
                 }
             }

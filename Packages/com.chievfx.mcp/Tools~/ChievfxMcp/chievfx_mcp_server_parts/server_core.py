@@ -670,7 +670,10 @@ class McpServerCore:
                 bridge_arguments = dict(arguments)
             bridge_arguments.pop("savePath", None)
 
-        bridge_result = self.call_unity_bridge(name, bridge_arguments, request_id, progress_token, notify)
+        if name == "frame-debugger-pick-pixel":
+            bridge_result = self.run_frame_debugger_pixel_search(bridge_arguments, request_id)
+        else:
+            bridge_result = self.call_unity_bridge(name, bridge_arguments, request_id, progress_token, notify)
         if bridge_result.get("contentType") == "image":
             content: list[dict[str, Any]] = [
                 {

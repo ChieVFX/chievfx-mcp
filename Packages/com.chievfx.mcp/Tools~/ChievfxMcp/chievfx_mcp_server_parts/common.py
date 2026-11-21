@@ -142,6 +142,10 @@ FRAME_DEBUGGER_DETAIL_TOOLS = frozenset({"frame-debugger-event-get", "frame-debu
 FRAME_EVENT_DATA_UNAVAILABLE = "GetFrameEventData unavailable for event "
 FRAME_DEBUGGER_DETAIL_RETRY_SECONDS = 0.25
 FRAME_DEBUGGER_DETAIL_RETRIES = 4
+# frame-debugger-pick-pixel: the Game view shows a newly selected event only after an editor tick, so the server runs the
+# binary search one capture per call with this pause between calls (a 200-event frame takes about 10 steps).
+FRAME_DEBUGGER_PICK_STEP_SECONDS = 0.12
+FRAME_DEBUGGER_PICK_MAX_STEPS = 40
 RECOMPILE_OTHER_ERROR_CHARS = 160
 # editor-playmode-set waitForReady defaults: how long to wait for the play-mode transition, and how
 # long to settle afterwards so initial frames render before returning. Entering is far heavier than

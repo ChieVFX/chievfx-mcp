@@ -561,6 +561,28 @@ class BridgeTransportMixin:
         result["diagnostics"] = diagnostics
         return result
 
+    def run_frame_debugger_pixel_search(self, arguments: dict[str, Any], request_id: Any) -> dict[str, Any]:
+        """frame-debugger-pick-pixel over several editor ticks: one capture per bridge call.
+
+        The Frame Debugger applies a new event limit and re-renders the Game view only on a later editor tick, so a
+        search inside one call compared copies of the same picture and always answered event 0 (seen in Play Mode).
+        A Unity package without the stepped search returns its whole answer to the first call.
+        """
+        reply = self.call_unity_bridge(
+            "frame-debugger-pick-pixel", {**arguments, "searchStep": "start"}, request_id, None, None
+        )
+        for _ in range(FRAME_DEBUGGER_PICK_MAX_STEPS):
+            result = reply.get("result")
+            if not (isinstance(result, dict) and result.get("pending")):
+                return reply
+            time.sleep(FRAME_DEBUGGER_PICK_STEP_SECONDS)
+            reply = self.call_unity_bridge(
+                "frame-debugger-pick-pixel", {"searchStep": "next"}, request_id, None, None
+            )
+        raise RuntimeError(
+            f"frame-debugger-pick-pixel did not finish in {FRAME_DEBUGGER_PICK_MAX_STEPS} steps; call it again."
+        )
+
     def wait_for_compile_start(self, since_event_id: int, timeout_seconds: float) -> bool:
         """True once the bridge journaled compile-start (or compile-finish) after since_event_id."""
         return self.wait_for_compile_event(since_event_id, timeout_seconds, ("compile-start", "compile-finish"))

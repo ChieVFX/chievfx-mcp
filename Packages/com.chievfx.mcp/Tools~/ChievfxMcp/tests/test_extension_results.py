@@ -311,6 +311,14 @@ class ExtensionResultTests(unittest.TestCase):
         self.assertNotIn("TARGET", self.bridge_calls[-1][1])
         self.assertIn("Arguments taken under the tool's names: TARGET→target", text)
 
+    def test_renames_the_extension_made_join_the_server_line(self) -> None:
+        self.fake_bridge({"summary": "Driving", "argumentsRenamed": ["position→x,y,z"]})
+
+        text = self.text_of(self.call("demo-act", {"TARGET": "Play"}))
+
+        self.assertIn("Arguments taken under the tool's names: TARGET→target, position→x,y,z", text)
+        self.assertNotIn("argumentsRenamed", text)
+
     def test_batch_stops_at_a_step_that_replies_with_its_failure(self) -> None:
         self.fake_bridge({"success": False, "stage": "runtime", "error": "boom-in-step"})
 

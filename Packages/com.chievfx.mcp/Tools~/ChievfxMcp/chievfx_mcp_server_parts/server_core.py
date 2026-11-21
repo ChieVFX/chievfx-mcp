@@ -306,6 +306,7 @@ class McpServerCore:
             result = with_unknown_argument_warning(result, name, params.get("arguments") or {})
             if await_ms is not None:
                 result = self._await_tool_completion(result, name, raw_sink.get("result"), await_ms, await_cursor, request_id)
+            renamed_arguments = renamed_arguments + raw_sink.get("argumentsRenamed", [])
             if renamed_arguments:
                 attach_result_notice(result, "Arguments taken under the tool's names: " + ", ".join(renamed_arguments))
             result = self._with_core_descriptor_reminder(result, name)
@@ -720,6 +721,10 @@ class McpServerCore:
             result = self.settle_frame_debugger_result(name, arguments, result, request_id)
         if raw_sink is not None:
             raw_sink["result"] = result
+            # Names the tool renamed itself (a point string into x, y, z) join the server's own renames in one line.
+            if isinstance(result, dict) and isinstance(result.get("argumentsRenamed"), list):
+                raw_sink["argumentsRenamed"] = [item for item in result["argumentsRenamed"] if isinstance(item, str) and item]
+                result = {key: value for key, value in result.items() if key != "argumentsRenamed"}
             if raw_sink.get("awaiting"):
                 result = without_wait_advice(result)
             else:

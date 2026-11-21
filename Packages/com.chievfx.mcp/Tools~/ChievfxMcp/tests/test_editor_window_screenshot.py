@@ -72,6 +72,13 @@ class ScreenshotSavePathTests(unittest.TestCase):
         self.assertEqual(result["structuredContent"]["savedPath"], str(save_target.resolve()))
         self.assertTrue(any("savedPath" in block for block in self.text_blocks(result)))
 
+    def test_profiler_capture_keeps_save_path_for_the_bridge(self) -> None:
+        # The profiler writes its own .data file: the server used to strip savePath, and the capture went to the default folder.
+        server = ExtensionToolBridgeServer(Path(self.temp_dir.name) / "bridge")
+        result = server.call_tool({"name": "profiler-stop-recording", "arguments": {"savePath": "Library/qa.data"}})
+        self.assertFalse(result["isError"])
+        self.assertEqual(server.calls, [("profiler-stop-recording", {"savePath": "Library/qa.data"})])
+
     def test_save_path_resolves_relative_to_project_root(self) -> None:
         server = ImageScreenshotBridgeServer(Path(self.temp_dir.name) / "bridge")
         project_root = Path(self.temp_dir.name) / "project"
@@ -478,8 +485,11 @@ class editorWindowScreenshotMetadataTests(unittest.TestCase):
         self.assertIn("eventIndex", get_tool["inputSchema"]["properties"])
         self.assertEqual(get_tool["inputSchema"]["required"], ["eventIndex"])
         self.assertEqual(group_events_tool["inputSchema"]["required"], ["groupIndex"])
-        self.assertEqual(drawcall_tool["inputSchema"]["required"], ["groupIndex", "drawCallIndex"])
-        self.assertEqual(screenshot_tool["inputSchema"]["required"], ["groupIndex", "drawCallIndex"])
+        # groupName replaces groupIndex when group numbers shift between captured frames in Play Mode.
+        self.assertEqual(drawcall_tool["inputSchema"]["required"], ["drawCallIndex"])
+        self.assertEqual(screenshot_tool["inputSchema"]["required"], ["drawCallIndex"])
+        self.assertIn("groupName", drawcall_tool["inputSchema"]["properties"])
+        self.assertIn("groupName", screenshot_tool["inputSchema"]["properties"])
         self.assertEqual(mcp.RESPONSE_PROFILE_BY_TOOL["frame-debugger-drawcall-screenshot"], "image")
 
     def test_screenshot_camera_schema_accepts_path_and_instance_id(self) -> None:

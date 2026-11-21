@@ -76,7 +76,8 @@ namespace Chievfx.Mcp.Editor
                 enabled = GetProfilerEnabled(),
                 saved,
                 path = savePath,
-                exists = File.Exists(savePath)
+                exists = File.Exists(savePath),
+                recorded = SummarizeRecordedFrames()
             };
         }
 
@@ -168,8 +169,58 @@ namespace Chievfx.Mcp.Editor
 
             Directory.CreateDirectory(Path.GetDirectoryName(savePath)!);
             method.Invoke(null, new object[] { savePath });
-            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            // Only a capture saved under Assets/ is an asset; a full refresh in a big project also compiled pending script edits.
+            var assetsRoot = Path.GetFullPath(Path.Combine(ChievfxMcpToolPolicy.ProjectRoot, "Assets")) + Path.DirectorySeparatorChar;
+            if (Path.GetFullPath(savePath).StartsWith(assetsRoot, StringComparison.Ordinal))
+            {
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            }
+
             return true;
+        }
+
+        // What the capture holds, so the reply answers "record and say what you see" without opening the file.
+        private static Dictionary<string, object?>? SummarizeRecordedFrames()
+        {
+            try
+            {
+                var first = UnityEditorInternal.ProfilerDriver.firstFrameIndex;
+                var last = UnityEditorInternal.ProfilerDriver.lastFrameIndex;
+                if (first < 0 || last < first)
+                {
+                    return null;
+                }
+
+                var sum = 0d;
+                var max = 0f;
+                var count = 0;
+                for (var frame = first; frame <= last; frame++)
+                {
+                    using var view = UnityEditorInternal.ProfilerDriver.GetRawFrameDataView(frame, 0);
+                    if (view == null || !view.valid)
+                    {
+                        continue;
+                    }
+
+                    sum += view.frameTimeMs;
+                    max = Math.Max(max, view.frameTimeMs);
+                    count++;
+                }
+
+                return count == 0
+                    ? null
+                    : new Dictionary<string, object?>
+                    {
+                        ["frames"] = count,
+                        ["frameMsAvg"] = Math.Round(sum / count, 2),
+                        ["frameMsMax"] = Math.Round(max, 2),
+                        ["basis"] = "main thread time of each recorded frame; open the .data file in the Profiler window for markers"
+                    };
+            }
+            catch (Exception exception)
+            {
+                return new Dictionary<string, object?> { ["error"] = exception.Message };
+            }
         }
 
         private static object[] GetProfilerTargets()

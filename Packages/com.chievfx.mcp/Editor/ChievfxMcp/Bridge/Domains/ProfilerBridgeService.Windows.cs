@@ -375,10 +375,10 @@ namespace Chievfx.Mcp.Editor
             var window = PrepareFrameDebuggerForInspection(args, diagnostics, selectEventIndex: null);
             var state = CreateFrameDebuggerState(window, diagnostics);
             var groups = CreateFrameDebuggerGroups(state, diagnostics);
-            var group = ResolveFrameDebuggerGroup(groups, groupIndex);
+            var group = ResolveFrameDebuggerGroup(groups, groupIndex, ReadString(args, "groupName"));
             if (drawCallIndex >= group.EventIndices.Count)
             {
-                throw new ArgumentOutOfRangeException(nameof(args), $"drawCallIndex {drawCallIndex} is outside group {groupIndex} draw calls 0..{group.EventIndices.Count - 1}.");
+                throw new ArgumentOutOfRangeException(nameof(args), DescribeDrawCallOutsideGroup(group, drawCallIndex, state));
             }
 
             var eventIndex = group.EventIndices[drawCallIndex];
@@ -799,10 +799,10 @@ namespace Chievfx.Mcp.Editor
             var window = PrepareFrameDebuggerForInspection(args, diagnostics, selectEventIndex: null);
             var state = CreateFrameDebuggerState(window, diagnostics);
             var groups = CreateFrameDebuggerGroups(state, diagnostics);
-            var group = ResolveFrameDebuggerGroup(groups, groupIndex);
+            var group = ResolveFrameDebuggerGroup(groups, groupIndex, ReadString(args, "groupName"));
             if (drawCallIndex >= group.EventIndices.Count)
             {
-                throw new ArgumentOutOfRangeException(nameof(args), $"drawCallIndex {drawCallIndex} is outside group {groupIndex} draw calls 0..{group.EventIndices.Count - 1}.");
+                throw new ArgumentOutOfRangeException(nameof(args), DescribeDrawCallOutsideGroup(group, drawCallIndex, state));
             }
 
             var eventIndex = group.EventIndices[drawCallIndex];
@@ -896,6 +896,31 @@ namespace Chievfx.Mcp.Editor
             }
 
             return groups.ToArray();
+        }
+
+        // In Play Mode the game can render a different frame on some repaints (a second camera's group in front, an extra
+        // group at the end), so a group number from groups-list can point to another group: a name stays put.
+        private static FrameDebuggerGroup ResolveFrameDebuggerGroup(FrameDebuggerGroup[] groups, int groupIndex, string? groupName)
+        {
+            if (!string.IsNullOrWhiteSpace(groupName))
+            {
+                var named = groups.FirstOrDefault(group => string.Equals(group.Name, groupName, StringComparison.OrdinalIgnoreCase))
+                    ?? groups.FirstOrDefault(group => group.Name.IndexOf(groupName, StringComparison.OrdinalIgnoreCase) >= 0);
+                return named ?? throw new ArgumentException(
+                    $"No Frame Debugger group named '{groupName}' in the captured frame ({groups.Length} groups): "
+                    + string.Join(", ", groups.Take(12).Select(group => "'" + group.Name + "'")) + (groups.Length > 12 ? ", ..." : string.Empty));
+            }
+
+            return ResolveFrameDebuggerGroup(groups, groupIndex);
+        }
+
+        private static string DescribeDrawCallOutsideGroup(FrameDebuggerGroup group, int drawCallIndex, Dictionary<string, object?> state)
+        {
+            var eventCount = state.TryGetValue("eventCount", out var count) ? count : null;
+            var text = $"drawCallIndex {drawCallIndex} is outside group {group.Index} '{group.Name}' draw calls 0..{group.EventIndices.Count - 1} (the captured frame has {eventCount} events).";
+            return EditorApplication.isPlaying
+                ? text + " In Play Mode repaints can capture a different frame with other groups: pass groupName instead of groupIndex, or list groups again."
+                : text;
         }
 
         private static FrameDebuggerGroup ResolveFrameDebuggerGroup(FrameDebuggerGroup[] groups, int groupIndex)

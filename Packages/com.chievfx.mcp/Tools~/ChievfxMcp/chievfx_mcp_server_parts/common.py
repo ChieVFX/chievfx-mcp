@@ -141,7 +141,10 @@ RECOMPILE_MAX_OTHER_ERROR_LINES = 3
 FRAME_DEBUGGER_DETAIL_TOOLS = frozenset({"frame-debugger-event-get", "frame-debugger-drawcall-get", "frame-debugger-pick-pixel"})
 FRAME_EVENT_DATA_UNAVAILABLE = "GetFrameEventData unavailable for event "
 FRAME_DEBUGGER_DETAIL_RETRY_SECONDS = 0.25
-FRAME_DEBUGGER_DETAIL_RETRIES = 4
+FRAME_DEBUGGER_DETAIL_RETRIES = 6
+# drawcall-get / drawcall-screenshot by group index: in Play Mode the next repaint may capture the frame the index came from.
+FRAME_DEBUGGER_GROUP_RETRIES = 4
+FRAME_DEBUGGER_OUTSIDE_GROUP = " is outside group "
 # frame-debugger-pick-pixel: the Game view shows a newly selected event only after an editor tick, so the server runs the
 # binary search one capture per call with this pause between calls (a 200-event frame takes about 10 steps).
 FRAME_DEBUGGER_PICK_STEP_SECONDS = 0.12

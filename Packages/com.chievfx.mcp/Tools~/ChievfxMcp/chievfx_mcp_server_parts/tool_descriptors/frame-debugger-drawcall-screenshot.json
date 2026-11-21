@@ -19,6 +19,10 @@
         "type": "integer",
         "minimum": 0
       },
+      "groupName": {
+        "type": "string",
+        "description": "Group name from groups-list instead of groupIndex: in Play Mode group numbers shift between captured frames."
+      },
       "drawCallIndex": {
         "type": "integer",
         "minimum": 0
@@ -31,7 +35,6 @@
       }
     },
     "required": [
-      "groupIndex",
       "drawCallIndex"
     ]
   }

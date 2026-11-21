@@ -950,13 +950,16 @@ def _extension_validates_own_arguments(name: str) -> bool:
 
 
 def extension_owns_save_path(name: str) -> bool:
-    """An extension tool that lists savePath in its schema writes its own file (a video, a report).
+    """A tool that lists savePath in its schema and writes its own file (an extension's video, a profiler capture).
 
-    The server keeps savePath only for the image a core tool returns: taking it from such an extension
-    left the call "successful" with the file never written where the caller asked.
+    The server keeps savePath only for the image a screenshot tool returns: taking it from any other tool left the
+    call "successful" with the file never written where the caller asked (profiler-stop-recording saved to its
+    default folder whatever savePath said).
     """
+    if "savePath" not in _tool_schema_properties(name):
+        return False
     tool = _find_tool(name)
-    return isinstance(tool, dict) and tool.get("source") == "extension" and "savePath" in _tool_schema_properties(name)
+    return (isinstance(tool, dict) and tool.get("source") == "extension") or not name.startswith("screenshot-")
 
 
 def unknown_tool_arguments(name: str, arguments: Any) -> list[str]:

@@ -474,3 +474,30 @@ def frame_debugger_event_count(result: dict[str, Any]) -> int | None:
         return state["eventCount"]
     value = result.get("eventCount")
     return value if isinstance(value, int) else None
+
+
+def frame_debugger_is_playing(result: dict[str, Any]) -> bool:
+    """The Frame Debugger state carries playPaused only in Play Mode."""
+    state = result.get("frameDebugger")
+    if isinstance(state, dict) and "playPaused" in state:
+        return True
+    return "playPaused" in result
+
+
+def without_unready_event_details(bridge_result: dict[str, Any]) -> dict[str, Any]:
+    """A draw-call picture is right even when Unity has not produced the event's details yet: say where they are instead.
+
+    Every drawcall-screenshot reply carried "GetFrameEventData unavailable for event N: " with an empty reason, and the
+    agent doubted a correct picture.
+    """
+    metadata = bridge_result.get("metadata")
+    if not isinstance(metadata, dict) or not isinstance(metadata.get("diagnostics"), list):
+        return bridge_result
+    kept: list[Any] = []
+    for line in metadata["diagnostics"]:
+        if isinstance(line, str) and FRAME_EVENT_DATA_UNAVAILABLE in line:
+            event = line.split(FRAME_EVENT_DATA_UNAVAILABLE, 1)[1].split(":", 1)[0].strip()
+            kept.append(f"Event details (shader, textures): frame-debugger-event-get eventIndex:{event}")
+        else:
+            kept.append(line)
+    return {**bridge_result, "metadata": {**metadata, "diagnostics": kept}}

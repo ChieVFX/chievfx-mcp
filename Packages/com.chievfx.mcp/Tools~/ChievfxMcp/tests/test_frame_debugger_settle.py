@@ -52,9 +52,31 @@ class FrameDebuggerSettleTests(unittest.TestCase):
     def test_frame_change_before_details_is_reported_instead_of_merging(self) -> None:
         first = reply(196, {"index": 112}, [UNAVAILABLE])
         other_frame = reply(199, {"index": 112, "shader": "Other"})
-        settled, _ = self._settle("frame-debugger-event-get", {"eventIndex": 112}, first, [other_frame])
+        retries = [other_frame] * mcp.FRAME_DEBUGGER_DETAIL_RETRIES
+        settled, _ = self._settle("frame-debugger-event-get", {"eventIndex": 112}, first, retries)
         self.assertNotIn("shader", settled["frameEvent"])
         self.assertTrue(any("196 -> 199" in d for d in settled["diagnostics"]))
+
+    def test_alternating_frames_are_read_again_until_the_same_frame_comes_back(self) -> None:
+        # In Play Mode repaints alternate between two frames: the details come from a later repaint of the same frame.
+        first = reply(196, {"index": 112}, [UNAVAILABLE])
+        other_frame = reply(199, {"index": 112, "shader": "Other"})
+        same_frame = reply(196, {"index": 112, "shader": "UI/Default"})
+        settled, bridge = self._settle("frame-debugger-event-get", {"eventIndex": 112}, first, [other_frame, same_frame])
+        self.assertEqual(settled["frameEvent"]["shader"], "UI/Default")
+        self.assertEqual(bridge.call_count, 2)
+
+    def test_turning_the_debugger_on_does_not_compare_with_the_previous_session(self) -> None:
+        self.server._frame_debugger_event_count = 181
+        self.server.settle_frame_debugger_result("frame-debugger-control", {"enabled": True}, reply(0, None), None)
+        listed = self.server.settle_frame_debugger_result("frame-debugger-groups-list", {}, reply(218, None), None)
+        self.assertFalse(any("changed" in d for d in listed["diagnostics"]))
+
+    def test_frame_change_outside_play_mode_does_not_talk_about_play_mode(self) -> None:
+        self.server._frame_debugger_event_count = 234
+        listed = self.server.settle_frame_debugger_result("frame-debugger-events-list", {}, reply(4, None), None)
+        self.assertTrue(any("234 -> 4" in d for d in listed["diagnostics"]))
+        self.assertFalse(any("Play Mode" in d for d in listed["diagnostics"]))
 
     def test_select_false_is_not_retried_and_says_to_select(self) -> None:
         first = reply(196, {"index": 112}, [UNAVAILABLE])

@@ -498,12 +498,18 @@ class BridgeTransportMixin:
         draw calls in the next without any sign of it.
         """
         diagnostics = [d for d in result.get("diagnostics") or [] if isinstance(d, str)]
+        # Turning the Frame Debugger on or off starts a new capture: comparing with a frame of the previous session warned
+        # about a "changed frame" on the very first list.
+        if name == "frame-debugger-control" and "enabled" in arguments:
+            self._frame_debugger_event_count = None
         event_count = frame_debugger_event_count(result)
+        is_playing = frame_debugger_is_playing(result)
         frame_event = result.get("frameEvent")
         missing = [d for d in diagnostics if FRAME_EVENT_DATA_UNAVAILABLE in d]
         # Unity produces details only for the selected event; event-get select:false leaves the selection as it was.
         selects_event = arguments.get("select") is not False
         settled = False
+        other_frame_count = None
         if (
             name in FRAME_DEBUGGER_DETAIL_TOOLS
             and selects_event
@@ -523,13 +529,10 @@ class BridgeTransportMixin:
                 if not isinstance(retry, dict) or not isinstance(retry.get("frameEvent"), dict):
                     break
                 retry_count = frame_debugger_event_count(retry)
+                # In Play Mode repaints alternate between frames: a later repaint captures this frame again.
                 if isinstance(event_count, int) and isinstance(retry_count, int) and retry_count != event_count:
-                    diagnostics.append(
-                        f"Event {event_index} details were not read: the captured frame changed ({event_count} -> {retry_count} events) "
-                        "before Unity produced them; in Play Mode repaints can capture different frames, so call again or exit Play Mode."
-                    )
-                    settled = True
-                    break
+                    other_frame_count = retry_count
+                    continue
                 if any(FRAME_EVENT_DATA_UNAVAILABLE in d for d in retry.get("diagnostics") or [] if isinstance(d, str)):
                     continue
                 merged = dict(retry["frameEvent"])
@@ -542,7 +545,13 @@ class BridgeTransportMixin:
         if missing and isinstance(frame_event, dict) and isinstance(frame_event.get("index"), int):
             event_index = frame_event["index"]
             diagnostics = [d for d in diagnostics if FRAME_EVENT_DATA_UNAVAILABLE not in d]
-            if not settled:
+            if not settled and other_frame_count is not None:
+                diagnostics.append(
+                    f"Event {event_index} details were not read: repaints kept capturing another frame ({event_count} -> "
+                    f"{other_frame_count} events) before Unity produced them; call again"
+                    + (" or exit Play Mode." if is_playing else ".")
+                )
+            elif not settled:
                 diagnostics.append(
                     f"Event {event_index} details (shader, pass, render target) are not ready: Unity produces them only for the "
                     f"selected event, after the editor re-renders with it - call frame-debugger-event-get eventIndex:{event_index} "
@@ -554,12 +563,36 @@ class BridgeTransportMixin:
             if isinstance(previous, int) and previous > 0 and previous != event_count:
                 diagnostics.append(
                     f"The captured frame changed since the previous Frame Debugger reply ({previous} -> {event_count} events): "
-                    "event, group and draw-call numbers from earlier replies may point to other draw calls now. In Play Mode "
-                    "repaints can capture different frames: list again before using a number, or exit Play Mode."
+                    "event, group and draw-call numbers from earlier replies may point to other draw calls now. "
+                    + (
+                        "In Play Mode repaints can capture different frames: list again before using a number, pass groupName "
+                        "instead of groupIndex, or exit Play Mode."
+                        if is_playing
+                        else "List again before using a number."
+                    )
                 )
             self._frame_debugger_event_count = event_count
         result["diagnostics"] = diagnostics
         return result
+
+    def call_frame_debugger_draw_call(
+        self, name: str, arguments: dict[str, Any], request_id: Any, progress_token: Any, notify: Any | None
+    ) -> dict[str, Any]:
+        """A draw call by group index, read again while the capture is another frame.
+
+        In Play Mode repaints alternate between frames with different groups (a second camera's group in front), so a
+        group index from groups-list pointed to a one-event group in the next capture: "drawCallIndex 43 is outside
+        group 9 draw calls 0..0", and a repeat of the same call worked.
+        """
+        attempt = 0
+        while True:
+            try:
+                return self.call_unity_bridge(name, arguments, request_id, progress_token, notify)
+            except RuntimeError as exc:
+                attempt += 1
+                if FRAME_DEBUGGER_OUTSIDE_GROUP not in str(exc) or "groupName" in arguments or attempt > FRAME_DEBUGGER_GROUP_RETRIES:
+                    raise
+                time.sleep(FRAME_DEBUGGER_DETAIL_RETRY_SECONDS)
 
     def run_frame_debugger_pixel_search(self, arguments: dict[str, Any], request_id: Any) -> dict[str, Any]:
         """frame-debugger-pick-pixel over several editor ticks: one capture per bridge call.

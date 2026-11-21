@@ -139,8 +139,9 @@ namespace Chievfx.Mcp.Editor
             Notes[latest] = Notes[latest] == null ? note : Notes[latest] + " | " + note;
         }
 
-        // Save the storyboard of the buffer as a .jpg with a .txt legend next to it. Returns the path from the project
-        // root, or an empty string when there are no frames yet.
+        // Save the storyboard of the buffer as a .jpg with a .txt legend next to it. Returns its full path (a reader with
+        // another working folder opens it as is, like the video of game-view-record), or an empty string when there are
+        // no frames yet.
         public static string Save(string reason)
         {
             if (TryBuildSheet(out var jpg, out var legend, out _, out _) == false)
@@ -158,6 +159,7 @@ namespace Chievfx.Mcp.Editor
             legend = string.Empty;
             frames = 0;
             coveredSeconds = 0d;
+            CapturePendingMark();
             if (count == 0 || frameHeight <= 0)
             {
                 return false;
@@ -216,7 +218,7 @@ namespace Chievfx.Mcp.Editor
             File.WriteAllBytes(Path.Combine(directory, name + ".jpg"), jpg);
             File.WriteAllText(Path.Combine(directory, name + ".txt"), legend);
             TrimOldSheets(directory);
-            return OutputDirectory + "/" + name + ".jpg";
+            return Path.Combine(directory, name + ".jpg");
         }
 
         private static void OnPlayModeStateChanged(PlayModeStateChange change)
@@ -246,6 +248,21 @@ namespace Chievfx.Mcp.Editor
                 return;
             }
 
+            nextCaptureAt = now + intervalSeconds;
+            Capture(source, pendingNote, now);
+            pendingNote = null;
+        }
+
+        // A frame marked right before the save (the end of a skill) waits for the next tick: the sheet would miss its last
+        // moment and its mark.
+        private static void CapturePendingMark()
+        {
+            if (pendingNote == null || EditorApplication.isPlaying == false || TryGetGameViewTexture(out var source) == false)
+            {
+                return;
+            }
+
+            var now = EditorApplication.timeSinceStartup;
             nextCaptureAt = now + intervalSeconds;
             Capture(source, pendingNote, now);
             pendingNote = null;

@@ -258,8 +258,9 @@ building its own copy:
   `FrameCaptured` hands each frame to checks of the extension's own (read the
   texture inside the handler: it is reused), `AddNoteToLatestFrame(note)`
   labels the frame such a check looked at, `SetInterval(seconds)` changes the
-  pace, `Save(reason)` writes the storyboard to `Logs/chievfx_frames` and
-  returns its path. Recording stops when Play Mode ends.
+  pace, `Save(reason)` writes the storyboard to `Logs/chievfx_frames` (a frame
+  marked just before it is taken first) and returns its full path. Recording
+  stops when Play Mode ends.
 - `ChievfxMcpEditorHealth.Build()` - the editor health block
   `bridge-get-status` shows (reserved memory, Play fps, update subscribers and
   render textures left by scripts loaded from bytes), to fold into an

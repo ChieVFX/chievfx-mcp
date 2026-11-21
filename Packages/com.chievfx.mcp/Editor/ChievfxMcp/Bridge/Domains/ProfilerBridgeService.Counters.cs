@@ -72,13 +72,28 @@ namespace Chievfx.Mcp.Editor
 
         public object Stop(JToken args)
         {
+            var wasRecording = GetProfilerEnabled();
             SetProfilerEnabled(false);
 
             var savePath = ReadString(args, "savePath");
-            if (string.IsNullOrWhiteSpace(savePath))
+            var isDefaultPath = string.IsNullOrWhiteSpace(savePath);
+            // A capture of a minute is hundreds of MB: a stop without a recording does not write another copy of old frames.
+            if (wasRecording == false && isDefaultPath)
+            {
+                return new
+                {
+                    stopped = false,
+                    enabled = GetProfilerEnabled(),
+                    note = "Recording was already off: no new capture saved. profiler-start-recording starts one; pass savePath to save the frames the profiler holds now.",
+                    recorded = SummarizeRecordedFrames()
+                };
+            }
+
+            var profilesDirectory = Path.Combine(ChievfxMcpToolPolicy.ProjectRoot, "Library", "ChievfxMcpBridge", "profiles");
+            if (isDefaultPath)
             {
                 var fileName = "profile-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".data";
-                savePath = Path.Combine(ChievfxMcpToolPolicy.ProjectRoot, "Library", "ChievfxMcpBridge", "profiles", fileName);
+                savePath = Path.Combine(profilesDirectory, fileName);
             }
             else if (!Path.IsPathRooted(savePath))
             {
@@ -86,6 +101,10 @@ namespace Chievfx.Mcp.Editor
             }
 
             var saved = SaveProfilerCapture(savePath!);
+            if (isDefaultPath)
+            {
+                TrimDefaultCaptures(profilesDirectory);
+            }
             return new
             {
                 stopped = true,
@@ -95,6 +114,34 @@ namespace Chievfx.Mcp.Editor
                 exists = File.Exists(savePath),
                 recorded = SummarizeRecordedFrames()
             };
+        }
+
+        // Captures without a savePath pile up in Library: keep the newest few, as the frame recorder does with its sheets.
+        private const int KeptDefaultCaptures = 5;
+
+        private static void TrimDefaultCaptures(string directory)
+        {
+            if (Directory.Exists(directory) == false)
+            {
+                return;
+            }
+
+            var captures = new DirectoryInfo(directory).GetFiles("profile-*.data").OrderByDescending(file => file.LastWriteTimeUtc).Skip(KeptDefaultCaptures);
+            foreach (var capture in captures)
+            {
+                try
+                {
+                    capture.Delete();
+                }
+                catch (IOException)
+                {
+                    // Open elsewhere (the Profiler window loaded it): left for the next stop.
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // Same as above.
+                }
+            }
         }
 
         public object Counters()

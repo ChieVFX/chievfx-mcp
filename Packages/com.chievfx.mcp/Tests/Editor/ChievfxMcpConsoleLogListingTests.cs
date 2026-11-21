@@ -293,6 +293,19 @@ namespace Chievfx.Mcp.Editor.Tests
             }
         }
 
+        [Test]
+        public void AStackALoggerWroteIntoTheMessageIsNotCalledMissing()
+        {
+            var token = "ChievfxLogListing_" + Guid.NewGuid().ToString("N");
+            ConsoleLogBridgeService.CollectLog("[] " + token + " NullReferenceException\nException stack:\nat CarGarageUI.canSleepThisCar (Assets/Scripts/CarGarageUI.cs:472)\n",
+                string.Empty, LogType.Log);
+            var listed = Entries(service.Get(new JObject { ["contains"] = token, ["levels"] = new JArray("Log"), ["includeUnityConsole"] = false, ["includeStack"] = true }));
+            var single = Member(service.GetSingle(new JObject { ["id"] = listed.Single()["id"].ToString() }), "entry") as Dictionary<string, object>;
+
+            StringAssert.StartsWith("in the message text", listed.Single()["stack"].ToString());
+            StringAssert.Contains("in the message text", single!["stackNote"].ToString());
+        }
+
         private static LogEntryDto Entry(string level, string message, string stack)
         {
             return new LogEntryDto(level, message, DateTime.UtcNow, stack);

@@ -269,6 +269,10 @@ namespace Chievfx.Mcp.Editor
             {
                 output["stack"] = stack;
             }
+            else if (stackTraceMode != StackTraceMode.None && HasStackFramesInText(message))
+            {
+                output["stackNote"] = "The stack is in the message text above: the project's logger writes it there, not in the stack field.";
+            }
             else if (stackTraceMode != StackTraceMode.None && IsStackCaptureOff(entry.LogType, out var logType))
             {
                 output["stackNote"] = $"No stack: the project records none for {logType} logs (Project Settings > Player > Stack Trace Logging is None). "
@@ -352,6 +356,10 @@ namespace Chievfx.Mcp.Editor
                 {
                     output["stack"] = stack;
                 }
+                else if (droppedFrames > 0)
+                {
+                    output["stack"] = "in the message text: the project's logger writes it there (console-get-logs-single shows it whole)";
+                }
                 else if (IsStackCaptureOff(entry.LogType, out var logType))
                 {
                     output["stack"] = $"none recorded: Stack Trace Logging for {logType} is None in the project (console-get-logs-single says how to get one)";
@@ -394,6 +402,13 @@ namespace Chievfx.Mcp.Editor
             }
 
             return string.Join(" ", kept);
+        }
+
+        // A project logger that writes the stack into the message: a frame line after the first line.
+        internal static bool HasStackFramesInText(string? text)
+        {
+            JoinLinesWithoutStackFrames(text, out var droppedFrames);
+            return droppedFrames > 0;
         }
 
         // .NET frames ("at Ns.Type.Method (...)", "at Ns.Type.Method in /path:line 5", "at Ns.Type.Method"), Unity frames

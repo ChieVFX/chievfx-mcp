@@ -553,6 +553,19 @@ class EventsWaitTests(unittest.TestCase):
         self.assertTrue(result["matched"], result)
         self.assertEqual(result["event"]["eventId"], 5)
 
+    def test_include_recent_returns_the_newest_look_back_match(self) -> None:
+        # Two transitions inside the window: the oldest match is the previous run's end, the one the caller just
+        # started is the newest at the cursor.
+        self.write_events([self.marker_event(4, "skill-end"), self.marker_event(5, "other"), self.marker_event(6, "skill-end")])
+
+        result = self.server.events_wait(
+            {"marker": "skill-end", "includeRecentMs": 30000, "timeoutMs": 20}, request_id="newest-look-back"
+        )
+
+        self.assertTrue(result["matched"], result)
+        self.assertEqual(result["event"]["eventId"], 6)
+        self.assertIn("firedAgoMs", result)
+
     def test_include_recent_still_skips_old_events_below_the_cursor(self) -> None:
         old = self.marker_event(5, "skill-end")
         old["timestamp"] = "2026-01-01T00:00:00Z"

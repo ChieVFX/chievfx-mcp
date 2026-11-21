@@ -340,17 +340,22 @@ class EventsStatusMixin:
                     recent_floor=include_recent_cutoff,
                 )
                 if matched:
-                    self.remember_reported_wait_event(matched[0])
-                    return {
+                    event = self.pick_wait_match(matched, since_event_id, include_recent_cutoff is not None)
+                    self.remember_reported_wait_event(event)
+                    result = {
                         "matched": True,
                         "timedOut": False,
-                        "event": matched[0],
+                        "event": event,
                         "sinceEventId": since_event_id,
                         "startedAtUtc": started_at_utc,
                         "lastEventId": self.event_stream_last_id(stream),
                         "elapsedMs": int((time.monotonic() - started) * 1000),
                         **({"bridgeState": self.get_bridge_status({})} if include_bridge_state else {}),
                     }
+                    fired_ago_ms = self.fired_ago_ms(event) if event.get("eventId", 0) <= since_event_id else None
+                    if fired_ago_ms is not None:
+                        result["firedAgoMs"] = fired_ago_ms
+                    return result
 
                 if cancel_event.is_set():
                     return {
@@ -385,6 +390,24 @@ class EventsStatusMixin:
                 time.sleep(min(EVENTS_WAIT_POLL_SECONDS, max(0.0, deadline - now)))
         finally:
             self.unregister_event_wait(request_key)
+
+    @staticmethod
+    def pick_wait_match(matched: list[dict[str, Any]], since_event_id: int, looks_back: bool) -> dict[str, Any]:
+        """The next event after the cursor, or, for an includeRecentMs look-back, the newest one at or below it.
+
+        The look-back is for an end logged just before the wait: when the window also holds the previous run's end
+        (two transitions within it), the oldest match is that previous run, not the one the caller just started.
+        """
+        if looks_back:
+            looked_back = [event for event in matched if isinstance(event.get("eventId"), int) and event["eventId"] <= since_event_id]
+            if looked_back:
+                return looked_back[-1]
+        return matched[0]
+
+    @staticmethod
+    def fired_ago_ms(event: dict[str, Any]) -> int | None:
+        timestamp = parse_utc_iso(event.get("timestamp"))
+        return int(max(0.0, time.time() - timestamp) * 1000) if timestamp is not None else None
 
     def remember_reported_wait_event(self, event: dict[str, Any]) -> None:
         event_id = event.get("eventId")
@@ -444,8 +467,7 @@ class EventsStatusMixin:
         started_at_utc: str,
         stream: dict[str, Any],
     ) -> dict[str, Any]:
-        timestamp = parse_utc_iso(fired.get("timestamp"))
-        fired_ago_ms = int(max(0.0, time.time() - timestamp) * 1000) if timestamp is not None else None
+        fired_ago_ms = self.fired_ago_ms(fired)
         return {
             "matched": False,
             "timedOut": False,

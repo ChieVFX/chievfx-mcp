@@ -421,7 +421,7 @@ Use `sinceEventId` only when you intentionally want to wait from a known cursor:
 }
 ```
 
-Use `includeRecentMs` only when matching a recent event that may have happened just before the wait call:
+Use `includeRecentMs` only when matching a recent event that may have happened just before the wait call. When several events in that window match, the newest one is returned (with `firedAgoMs`), not the previous run's:
 
 ```json
 {

@@ -101,9 +101,12 @@ namespace Chievfx.Mcp.Editor
 
         private static bool? IsWindowSetToRecord(EditorWindow window)
         {
-            return TryInvokeReflectedMethod(window, "IsSetToRecord", Array.Empty<object?>(), out var result, out _) && result is bool isSet
-                ? isSet
-                : null;
+            if (TryInvokeReflectedMethod(window, "IsSetToRecord", Array.Empty<object?>(), out var result, out _) && result is bool isSet)
+            {
+                return isSet;
+            }
+
+            return window.GetType().GetField("m_Recording", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(window) as bool?;
         }
 
         public object ControlFrameDebugger(JToken args)

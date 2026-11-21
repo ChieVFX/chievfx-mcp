@@ -245,6 +245,28 @@ extension judges argument names itself (accepts aliases, or rejects unknown
 ones with its own error), so the core does not add its "Unrecognized argument
 ... expect no effect" warning. Leave it out to get that warning for free.
 
+## Shared Editor Services
+
+Public static classes in `Chievfx.Mcp.Editor` an extension uses instead of
+building its own copy:
+
+- `ChievfxMcpFrameRecorder` - the Play Mode black box behind
+  `screenshot-game-view storyboard:true`: a small Game view frame every 0.5 s,
+  the last minute kept. `EnsureRunning()` starts it, `Mark(note)` captures a
+  labelled frame at the next tick (labelled frames always reach the
+  storyboard), `StateProvider` adds one line of state to every frame,
+  `FrameCaptured` hands each frame to checks of the extension's own (read the
+  texture inside the handler: it is reused), `AddNoteToLatestFrame(note)`
+  labels the frame such a check looked at, `SetInterval(seconds)` changes the
+  pace, `Save(reason)` writes the storyboard to `Logs/chievfx_frames` and
+  returns its path. Recording stops when Play Mode ends.
+- `ChievfxMcpEditorHealth.Build()` - the editor health block
+  `bridge-get-status` shows (reserved memory, Play fps, update subscribers and
+  render textures left by scripts loaded from bytes), to fold into an
+  extension's own state reply.
+- `ChievfxMcpExtensionRegistry.CurrentEventId()` - the event journal's newest
+  id, for a `sinceEventId` taken at another moment than the tool call.
+
 ## Manifest Fields
 
 At runtime, Unity serves extension capabilities to the MCP server through the

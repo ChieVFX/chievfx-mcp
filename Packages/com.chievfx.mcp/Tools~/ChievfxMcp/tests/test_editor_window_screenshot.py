@@ -185,7 +185,7 @@ class editorWindowScreenshotMetadataTests(unittest.TestCase):
         tool = next(tool for tool in mcp.TOOLS if tool["name"] == "screenshot-game-view")
         properties = tool["inputSchema"]["properties"]
 
-        self.assertEqual(set(properties), {"left", "top", "right", "bottom", "savePath"})
+        self.assertEqual(set(properties), {"left", "top", "right", "bottom", "savePath", "storyboard"})
         for edge, default in (("left", 0), ("top", 0), ("right", 1), ("bottom", 1)):
             self.assertEqual(properties[edge]["type"], "number", edge)
             self.assertEqual(properties[edge]["default"], default, edge)
@@ -420,14 +420,19 @@ class editorWindowScreenshotMetadataTests(unittest.TestCase):
         # turns a pixel read off a screenshot into a click, and an undocumented coordinate space is how
         # mirrored clicks go unnoticed. ~10 tokens each, capped so the surface cannot creep further.
         coordinate_tools = {"ui-runtime-click", "ui-runtime-drag"}
+        # screenshot-game-view carries storyboard:true, the only way an agent sees how an action went over time (the
+        # frame recorder's last minute in one image). As a mode of the always-on screenshot tool it costs ~20 tokens;
+        # a tool of its own would cost more. Capped so the surface cannot creep further.
+        storyboard_tools = {"screenshot-game-view"}
         lean_estimates = {
             name: value
             for name, value in estimates.items()
-            if name not in documented_tools and name not in coordinate_tools
+            if name not in documented_tools and name not in coordinate_tools and name not in storyboard_tools
         }
         self.assertLessEqual(max(lean_estimates.values()), 160)
         for name in coordinate_tools:
             self.assertLessEqual(estimates[name], 170, name)
+        self.assertLessEqual(estimates["screenshot-game-view"], 180)
         self.assertLessEqual(estimates["tests-run"], 130)
         # screenshot-editor-window's advertised surface is design-locked to {target, openIfMissing,
         # savePath} (see test_advertised_editor_window_screenshot_schema_keeps_common_path_only); the

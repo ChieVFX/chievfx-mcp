@@ -1,6 +1,6 @@
 {
   "name": "screenshot-game-view",
-  "description": "Captures the Game View as a PNG, longest side fixed at 960 px. left/top/right/bottom (0..1, top-left origin) crop to a region scaled to the same size (zoom). To click what you see, pass its 0..1 PNG position to ui-runtime-click/drag/probe with space:\"screenshot\", plus the same left/top/right/bottom if cropped. pixelMappingReliable:false = letterboxed; target by path/instanceId instead.",
+  "description": "Captures the Game View as a PNG, longest side fixed at 960 px. left/top/right/bottom (0..1, top-left origin) crop to a region scaled to the same size (zoom). To click what you see, pass its 0..1 PNG position to ui-runtime-click/drag/probe with space:\"screenshot\", plus the same left/top/right/bottom if cropped. pixelMappingReliable:false = letterboxed; target by path/instanceId instead. storyboard:true: the last minute of Play in one image.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -35,6 +35,11 @@
       "savePath": {
         "type": "string",
         "description": "Optional path to also write the resulting PNG to disk. Accepts an absolute path (e.g. C:/Shots/view.png) or a path relative to the Unity project folder (e.g. ./Temp/view.png). Parent folders are created as needed."
+      },
+      "storyboard": {
+        "type": "boolean",
+        "default": false,
+        "description": "Play Mode: the frame recorder's last minute (a frame every 0.5 s) as one image of up to 30 frames, marked frames always in, with a legend of times and per-frame state. The first call starts recording and returns no image."
       }
     }
   }

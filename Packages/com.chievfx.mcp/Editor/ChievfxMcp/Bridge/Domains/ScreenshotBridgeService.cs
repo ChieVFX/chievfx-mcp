@@ -38,8 +38,13 @@ namespace Chievfx.Mcp.Editor
         // small HUD text unreadable. Zoom now comes from left/top/right/bottom instead — a sub-region is
         // cropped and scaled up to the same fixed size, so the agent sees it magnified and can compare
         // one isolated area between captures.
-        public ImageResult CaptureGameView(JToken args)
+        public object CaptureGameView(JToken args)
         {
+            if (args is JObject storyboardArgs && storyboardArgs.Value<bool?>("storyboard") == true)
+            {
+                return CaptureStoryboard();
+            }
+
             var region = ScreenshotRegion.Read(args);
             var result = CaptureGameView(region, FitLongestSideExactly(DefaultGameViewScreenshotMaxDimension));
             LastGameViewToolRegion = region;
@@ -94,6 +99,47 @@ namespace Chievfx.Mcp.Editor
             return CaptureGameViewCameraFallback(region, resolveOutput, includeScreenSpaceOverlayCanvases: true, gameViewRenderTextureAvailable: renderTextureAvailable);
         }
 
+        // storyboard:true lays out the frame recorder's buffer (the last minute of Play) as one image; the first call starts
+        // the recorder, since there is nothing to show before it ran. Extensions change the interval through the recorder.
+        private static object CaptureStoryboard()
+        {
+            if (EditorApplication.isPlaying == false)
+            {
+                throw new InvalidOperationException("storyboard records Play Mode only: enter Play Mode, start recording with storyboard:true, act, then call it again.");
+            }
+
+            var wasRunning = ChievfxMcpFrameRecorder.IsRunning;
+            ChievfxMcpFrameRecorder.EnsureRunning();
+
+            var interval = Mathf.RoundToInt(ChievfxMcpFrameRecorder.IntervalSeconds * 1000f);
+            var window = Mathf.RoundToInt(ChievfxMcpFrameRecorder.WindowSeconds);
+            if (ChievfxMcpFrameRecorder.TryBuildSheet(out var jpg, out var legend, out var frames, out var coveredSeconds) == false)
+            {
+                return new Dictionary<string, object?>
+                {
+                    ["summary"] = (wasRunning ? "Frame recording is on, no frames yet" : "Frame recording started")
+                                  + ": a frame every " + interval + " ms, the last " + window + " s kept. Act, then call screenshot-game-view storyboard:true.",
+                    ["everyMs"] = interval,
+                    ["windowSeconds"] = window
+                };
+            }
+
+            var sheetPath = ChievfxMcpFrameRecorder.WriteSheet(jpg, legend, "storyboard");
+            var metadata = new Dictionary<string, object?>
+            {
+                ["summary"] = "Storyboard of the last " + Math.Round(coveredSeconds, 1).ToString(CultureInfo.InvariantCulture) + " s: " + frames
+                              + " frames, left to right, top to bottom. Legend: seconds before now, state, marks.",
+                ["captureSource"] = "frameRecorder",
+                ["frames"] = frames,
+                ["everyMs"] = interval,
+                ["windowSeconds"] = window,
+                ["sheetPath"] = sheetPath,
+                // The first line of the legend file explains the layout; the summary above says it already.
+                ["legend"] = legend.TrimEnd('\n').Split('\n').Skip(1).ToArray()
+            };
+            return new ImageResult("image/jpeg", Convert.ToBase64String(jpg), metadata);
+        }
+
         // EditorWindow.GetWindow focuses the window and with it the whole editor, which pulls Unity over the
         // user's windows on every screenshot (several editors on one machine made that constant). An open
         // Game view is used as it is; a hidden docked one only becomes the selected tab so it renders.
@@ -112,7 +158,7 @@ namespace Chievfx.Mcp.Editor
 
         // The main play-mode view is the one the game renders into; with several Game views open the
         // first one found may be a stale secondary display.
-        private static EditorWindow? FindOpenGameView(Type gameViewType)
+        internal static EditorWindow? FindOpenGameView(Type gameViewType)
         {
             const BindingFlags staticFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
             try

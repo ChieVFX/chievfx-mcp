@@ -1436,6 +1436,17 @@ namespace Chievfx.Mcp.Extensions.Control
                 result["missingShaders"] = missing;
             }
 
+            // A path names one shader or material: say which shader it is, the question that brought the agent here
+            // ("what draws this?") was left without an answer when the shader compiled cleanly.
+            if (!string.IsNullOrWhiteSpace(path) && shaders.Count > 0)
+            {
+                result["shaders"] = shaders
+                    .Where(entry => entry.Shader != null)
+                    .Select(entry => entry.Shader.name + " (" + AssetDatabase.GetAssetPath(entry.Shader) + ")")
+                    .Distinct()
+                    .ToArray();
+            }
+
             if (rows.Count == 0 && missing.Count == 0)
             {
                 result["summary"] = UnityEditor.ShaderUtil.anythingCompiling

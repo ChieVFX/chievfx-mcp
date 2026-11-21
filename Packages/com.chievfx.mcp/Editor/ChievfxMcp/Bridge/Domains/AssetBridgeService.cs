@@ -257,7 +257,39 @@ namespace Chievfx.Mcp.Editor
                 filter.Folders = BridgeResourcePayloadService.ParseAssetResourceFolders(string.Join(",", filter.Folders));
             }
 
-            return BridgeResourcePayloadService.FindAssets("tool:asset-find", filter);
+            var result = BridgeResourcePayloadService.FindAssets("tool:asset-find", filter);
+            if (result.TryGetValue("count", out var count) && count is int found && found == 0)
+            {
+                var componentNote = DescribeComponentTypeSearch(filter.TypeNames);
+                if (componentNote != null)
+                {
+                    result["note"] = componentNote;
+                }
+            }
+
+            return result;
+        }
+
+        // type filters asset types (Unity t:), so a component type found nothing even with hundreds of prefabs carrying it,
+        // and the empty list read as "no prefab uses it".
+        private static string? DescribeComponentTypeSearch(IEnumerable<string> typeNames)
+        {
+            foreach (var typeName in typeNames)
+            {
+                foreach (var guid in AssetDatabase.FindAssets("t:MonoScript " + typeName))
+                {
+                    var path = AssetDatabase.GUIDToAssetPath(guid);
+                    var script = AssetDatabase.LoadAssetAtPath<MonoScript>(path);
+                    var scriptClass = script != null ? script.GetClass() : null;
+                    if (scriptClass != null && scriptClass.Name == typeName && typeof(Component).IsAssignableFrom(scriptClass))
+                    {
+                        return $"type filters asset types: {typeName} is a component, and prefabs that carry it are not assets of that type. "
+                            + $"Its script is {path} (guid {guid}); prefabs and scenes using it name that guid in their files: grep -rl \"guid: {guid}\" Assets --include=*.prefab";
+                    }
+                }
+            }
+
+            return null;
         }
 
         public object EnsureFolder(JToken args)

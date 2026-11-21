@@ -290,6 +290,11 @@ namespace Chievfx.Mcp.Editor
             row["instanceId"] = GetLegacyInstanceId(asset);
             row["isSubAsset"] = AssetDatabase.IsSubAsset(asset);
             row["isPersistent"] = AssetDatabase.Contains(asset);
+            if (asset is Material material)
+            {
+                row["material"] = CreateMaterialAssetSummary(material);
+            }
+
             if (AssetDatabase.IsMainAsset(asset))
             {
                 row["subassets"] = AssetDatabase.LoadAllAssetsAtPath(path)
@@ -300,6 +305,33 @@ namespace Chievfx.Mcp.Editor
 
             return row;
         }
+
+        // Shader, queue, keywords and textures of a material: the asset row said only "[Material]", and the shader of a
+        // material on screen took a script.
+        private static Dictionary<string, object?> CreateMaterialAssetSummary(Material material)
+        {
+            var shader = material.shader;
+            var textures = new List<string>();
+            foreach (var propertyName in GetMaterialProfileTexturePropertyNames(material))
+            {
+                var texture = material.GetTexture(propertyName);
+                if (texture != null && textures.Count < MaxMaterialSummaryTextures)
+                {
+                    textures.Add($"{propertyName}={texture.name} {texture.width}x{texture.height}");
+                }
+            }
+
+            return new Dictionary<string, object?>
+            {
+                ["shader"] = shader != null ? shader.name : null,
+                ["shaderPath"] = shader != null ? AssetDatabase.GetAssetPath(shader) : null,
+                ["renderQueue"] = material.renderQueue,
+                ["keywords"] = material.shaderKeywords,
+                ["textures"] = textures.ToArray(),
+            };
+        }
+
+        private const int MaxMaterialSummaryTextures = 12;
 
         private static string[] GetAssetLabels(string path)
         {

@@ -66,7 +66,12 @@ namespace Chievfx.Mcp.Editor
                 group.Materials.Add(materialEntry);
             }
 
-            AddMaterialProfileRendererSlotStats(profile, context);
+            // The scan stopped on its time budget: counting every renderer again would cost the time it saved.
+            if (!usageScan.StoppedByBudget)
+            {
+                AddMaterialProfileRendererSlotStats(profile, context);
+            }
+
             return profile;
         }
 
@@ -112,7 +117,9 @@ namespace Chievfx.Mcp.Editor
             result["serializedMaterialReferenceCount"] = profile.Materials.Sum(entry => entry.SerializedReferenceCount);
             result["nullMaterialSlotCount"] = profile.NullMaterialSlotCount;
             result["textureCount"] = profile.Materials.Sum(entry => entry.TextureCount);
-            result["countBasis"] = "exact scene/prefab-stage object and serialized-reference counts";
+            result["countBasis"] = profile.UsageScan.StoppedByBudget
+                ? "partial: the scan stopped on its time budget (scanWarnings); renderer slot counts skipped"
+                : "exact scene/prefab-stage object and serialized-reference counts";
             result["memoryBasis"] = "Profiler.GetRuntimeMemorySizeLong native/runtime estimate; may be 0 or unavailable";
         }
 

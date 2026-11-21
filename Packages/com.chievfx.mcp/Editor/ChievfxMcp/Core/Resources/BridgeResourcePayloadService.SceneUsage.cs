@@ -35,8 +35,20 @@ namespace Chievfx.Mcp.Editor
                 TotalObjects = context.Roots.Sum(GameObjectBridgeService.CountGameObjects)
             };
 
+            // Every component is read through SerializedObject: the game world in Play Mode (hundreds of thousands of
+            // objects) took two minutes on the main thread, the read timed out and the game lost its server meanwhile.
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             foreach (var gameObject in GameObjectBridgeService.EnumerateContextGameObjects(context))
             {
+                if ((scan.ScannedObjects & 63) == 0 && stopwatch.ElapsedMilliseconds > SceneUsageScanBudgetMs)
+                {
+                    scan.StoppedByBudget = true;
+                    AddSceneUsageWarning(scan, $"The scan stopped after {SceneUsageScanBudgetMs / 1000} s at {scan.ScannedObjects} of {scan.TotalObjects} objects: counts and lists cover only that part. "
+                        + "A scene this big (the game world in Play Mode) takes minutes: exit Play Mode, or ask about one object (gameobject-component-get) or one asset (chievfx://asset/<guid>).");
+                    break;
+                }
+
+                scan.ScannedObjects++;
                 RecordPrefabInstanceUsage(scan, context, gameObject);
                 var components = gameObject.GetComponents<Component>();
                 var componentKeys = BuildComponentKeys(components);
@@ -56,7 +68,11 @@ namespace Chievfx.Mcp.Editor
                 }
             }
 
-            RecordSceneUsageDependencies(scan, context);
+            if (!scan.StoppedByBudget)
+            {
+                RecordSceneUsageDependencies(scan, context);
+            }
+
             return scan;
         }
 
@@ -586,7 +602,12 @@ namespace Chievfx.Mcp.Editor
             result["totalObjects"] = scan.TotalObjects;
             result["totalComponents"] = scan.TotalComponents;
             result["totalAssets"] = scan.Assets.Count;
-            result["truncated"] = truncated;
+            result["truncated"] = truncated || scan.StoppedByBudget;
+            if (scan.StoppedByBudget)
+            {
+                result["scannedObjects"] = scan.ScannedObjects;
+            }
+
             result["scanWarnings"] = scan.ScanWarnings.ToArray();
             result["skippedComponents"] = scan.SkippedComponents.ToArray();
             result["skippedComponentCount"] = scan.SkippedComponentCount;

@@ -399,7 +399,7 @@ namespace Chievfx.Mcp.Editor
 
             if (typeof(Object).IsAssignableFrom(declaringType))
             {
-                throw new NotSupportedException("UnityEngine.Object instance calls from targetObject are unsupported; use static methods or a dedicated MCP tool.");
+                return ResolveUnityTargetObject(targetObj, declaringType);
             }
 
             if (ReadProperty(targetObject, "value") is not JToken value || value.Type == JTokenType.Null)
@@ -415,6 +415,44 @@ namespace Chievfx.Mcp.Editor
             {
                 throw new NotSupportedException($"targetObject.value could not deserialize to {declaringType.FullName}: {ex.GetBaseException().Message}", ex);
             }
+        }
+
+        // A scene object by the instanceId gameobject-find and gameobject-component-get give: a GameObject id gives its component
+        // of the method's type. "Call a method of this game object" used to need script-execute.
+        private static Object ResolveUnityTargetObject(JObject targetObject, Type declaringType)
+        {
+            var value = ReadProperty(targetObject, "value");
+            var idToken = value is JObject valueObject ? ReadProperty(valueObject, "instanceId") : ReadProperty(targetObject, "instanceId");
+            if (idToken == null || idToken.Type != JTokenType.Integer)
+            {
+                throw new NotSupportedException($"A {declaringType.Name} method needs its object: targetObject:{{value:{{instanceId:<id>}}}} with the instanceId of the GameObject or component (gameobject-find, gameobject-component-get).");
+            }
+
+            var instanceId = idToken.Value<int>();
+            var found = UnityObjectIdentity.LegacyInstanceIdToObject(instanceId);
+            if (found == null)
+            {
+                throw new NotSupportedException($"No object has instanceId {instanceId} (destroyed, or an id from another Play session): look it up again with gameobject-find.");
+            }
+
+            if (declaringType.IsInstanceOfType(found))
+            {
+                return found;
+            }
+
+            var owner = found as GameObject ?? (found as Component)?.gameObject;
+            if (owner != null && typeof(Component).IsAssignableFrom(declaringType))
+            {
+                var component = owner.GetComponent(declaringType);
+                if (component != null)
+                {
+                    return component;
+                }
+
+                throw new NotSupportedException($"{owner.name} (instanceId {instanceId}) has no {declaringType.Name} component.");
+            }
+
+            throw new NotSupportedException($"instanceId {instanceId} is a {found.GetType().Name} ({found.name}), not a {declaringType.Name}.");
         }
 
         private static Dictionary<string, object?> SerializeMethodReturn(MethodInfo method, object? value)

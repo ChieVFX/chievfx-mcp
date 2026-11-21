@@ -34,6 +34,8 @@ namespace Chievfx.Mcp.Editor
         public const int MaxSceneUsageSampleLocations = 5;
         public const int MaxSceneUsageResourceTextChars = 36000;
         public const int MaxSceneUsageScanWarnings = 20;
+        // Scene usage and material profile scans: resource reads time out after 10 s, the rest goes to building the reply.
+        public const int SceneUsageScanBudgetMs = 4000;
         public const int MaxSceneUsageSkippedComponents = 40;
         public const int DefaultMaterialProfileTextureLinkCap = 80;
         public const int DefaultMaterialProfileLocationCap = 120;

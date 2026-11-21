@@ -94,6 +94,11 @@ namespace Chievfx.Mcp.Editor
 
         public List<string> ScanWarnings { get; } = new();
 
+        // The scan ran out of its time budget: counts and lists cover only the first ScannedObjects objects.
+        public bool StoppedByBudget { get; set; }
+
+        public int ScannedObjects { get; set; }
+
         public List<Dictionary<string, object?>> SkippedComponents { get; } = new();
     }
 

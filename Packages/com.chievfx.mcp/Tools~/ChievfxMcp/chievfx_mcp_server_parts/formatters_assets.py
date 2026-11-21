@@ -24,6 +24,9 @@ def format_asset_find_text(result: dict[str, Any]) -> str:
         header_parts.append(f"filter:{asset_database_filter}")
 
     lines = [" ".join(header_parts), "detail: chievfx://asset/{guid} or chievfx://asset/{guid}/id/{localId}"]
+    note = result.get("note")
+    if isinstance(note, str) and note:
+        lines.append(f"note: {note}")
     for asset in assets:
         if isinstance(asset, dict):
             lines.extend(format_asset_find_row_lines(asset))
@@ -75,6 +78,19 @@ def format_asset_detail_text(result: dict[str, Any]) -> str:
             importer_parts.append(f"bundle:{format_toon_atom(bundle)}")
         if importer_parts:
             lines.append("  importer: " + " ".join(part for part in importer_parts if part))
+
+    material = asset.get("material")
+    if isinstance(material, dict):
+        lines.append(
+            f"  shader: {format_toon_atom(material.get('shader'))} ({format_toon_atom(material.get('shaderPath'))}) "
+            f"queue:{format_toon_atom(material.get('renderQueue'))}"
+        )
+        keywords = material.get("keywords")
+        if isinstance(keywords, list) and keywords:
+            lines.append("  keywords: " + " ".join(str(keyword) for keyword in keywords))
+        textures = material.get("textures")
+        if isinstance(textures, list) and textures:
+            lines.append("  textures: " + ", ".join(str(texture) for texture in textures))
 
     subassets = asset.get("subassets")
     if isinstance(subassets, list) and subassets:

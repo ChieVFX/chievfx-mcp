@@ -163,6 +163,16 @@ namespace Chievfx.Mcp.Editor
 
         private static void SetProfilerEnabled(bool enabled)
         {
+            // An open Profiler window keeps its own Record toggle and applies it to the profiler again later (on a draw while
+            // the editor is in the background): switching only the profiler left recording to come back after the reply.
+            foreach (var window in Resources.FindObjectsOfTypeAll<EditorWindow>())
+            {
+                if (window.GetType().Name == "ProfilerWindow")
+                {
+                    TryInvokeReflectedMethod(window, "SetRecordingEnabled", new object?[] { enabled }, out _, out _);
+                }
+            }
+
             var driverType = GetProfilerDriverType();
             var method = driverType.GetMethod("SetProfilingEnabled", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic, null, new[] { typeof(bool) }, null)
                 ?? throw new NotSupportedException("Profiler recording controls are unsupported in this Unity version.");

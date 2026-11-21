@@ -51,6 +51,48 @@ class FrameDebuggerPickPixelStepTests(unittest.TestCase):
                 self.server.run_frame_debugger_pixel_search({"x": 0.1, "y": 0.2}, None)
 
 
+class FrameDebuggerDrawCallCaptureStepTests(unittest.TestCase):
+    """drawcall-screenshot captured both halves in one bridge call, before the Game view re-rendered for the selected
+    events: in Play Mode both were the finished frame with its UI. The server now selects in one call and captures in
+    the next."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.server = mcp.McpServer("http://127.0.0.1:1", self.temp_dir.name, timeout_ms=1000)
+        sleep_patch = mock.patch("chievfx_mcp_server.time.sleep", return_value=None)
+        self.sleep = sleep_patch.start()
+        self.addCleanup(sleep_patch.stop)
+
+    def test_selects_then_captures_with_a_pause_between_calls(self) -> None:
+        image = {"contentType": "image", "base64": "iVBORw0", "mimeType": "image/png", "metadata": {"currentEventIndex": 38}}
+        responses = [
+            {"result": {"success": True, "pending": True, "eventIndex": 38}},
+            {"result": {"success": True, "pending": True, "eventIndex": 38}},
+            image,
+        ]
+        with mock.patch.object(self.server, "call_unity_bridge", side_effect=responses) as bridge:
+            reply = self.server.run_frame_debugger_drawcall_capture({"groupName": "DrawOpaqueObjects", "drawCallIndex": 27}, None, None, None)
+        self.assertEqual(reply, image)
+        calls = [call.args[1] for call in bridge.call_args_list]
+        self.assertEqual(calls[0], {"groupName": "DrawOpaqueObjects", "drawCallIndex": 27, "captureStep": "start"})
+        self.assertEqual(calls[1:], [{"captureStep": "next"}, {"captureStep": "next"}])
+        self.assertEqual(self.sleep.call_count, 2)
+
+    def test_a_package_without_steps_answers_the_first_call(self) -> None:
+        image = {"contentType": "image", "base64": "iVBORw0", "mimeType": "image/png", "metadata": {}}
+        with mock.patch.object(self.server, "call_unity_bridge", side_effect=[image]) as bridge:
+            reply = self.server.run_frame_debugger_drawcall_capture({"groupIndex": 2, "drawCallIndex": 0}, None, None, None)
+        self.assertEqual(reply, image)
+        self.assertEqual(bridge.call_count, 1)
+
+    def test_a_capture_that_never_ends_is_an_error(self) -> None:
+        pending = {"result": {"success": True, "pending": True}}
+        with mock.patch.object(self.server, "call_unity_bridge", return_value=pending):
+            with self.assertRaises(RuntimeError):
+                self.server.run_frame_debugger_drawcall_capture({"groupIndex": 2, "drawCallIndex": 0}, None, None, None)
+
+
 class FrameDebuggerDrawCallRetryTests(unittest.TestCase):
     """In Play Mode a group index from groups-list pointed to a one-event group in the next captured frame."""
 

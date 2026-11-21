@@ -682,7 +682,9 @@ class McpServerCore:
 
         if name == "frame-debugger-pick-pixel":
             bridge_result = self.run_frame_debugger_pixel_search(bridge_arguments, request_id)
-        elif name in ("frame-debugger-drawcall-get", "frame-debugger-drawcall-screenshot"):
+        elif name == "frame-debugger-drawcall-screenshot":
+            bridge_result = self.run_frame_debugger_drawcall_capture(bridge_arguments, request_id, progress_token, notify)
+        elif name == "frame-debugger-drawcall-get":
             bridge_result = self.call_frame_debugger_draw_call(name, bridge_arguments, request_id, progress_token, notify)
         else:
             bridge_result = self.call_unity_bridge(name, bridge_arguments, request_id, progress_token, notify)

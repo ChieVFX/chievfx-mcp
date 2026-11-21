@@ -399,6 +399,7 @@ namespace Chievfx.Mcp.Editor
             var state = CreateFrameDebuggerState(window, diagnostics);
             var groups = CreateFrameDebuggerGroups(state, diagnostics);
             var group = ResolveFrameDebuggerGroup(groups, groupIndex, ReadString(args, "groupName"));
+            NoteRenamedGroup(group, ReadString(args, "groupName"), diagnostics);
             if (drawCallIndex >= group.EventIndices.Count)
             {
                 throw new ArgumentOutOfRangeException(nameof(args), DescribeDrawCallOutsideGroup(group, drawCallIndex, state));
@@ -843,7 +844,130 @@ namespace Chievfx.Mcp.Editor
             return $"#{Mathf.RoundToInt(color.r * 255):X2}{Mathf.RoundToInt(color.g * 255):X2}{Mathf.RoundToInt(color.b * 255):X2}{Mathf.RoundToInt(color.a * 255):X2}";
         }
 
-        public ImageResult CaptureFrameDebuggerDrawCall(JToken args)
+        // The Frame Debugger re-renders the Game view for a newly selected event only on a later editor tick, so both
+        // captures of one call were the same stale picture (in Play Mode the finished frame with its UI) while the reply
+        // named the draw call. The server runs it in steps, as pick-pixel: start selects the event before the draw call,
+        // the first next captures it and selects the draw call, the second next captures that and answers.
+        private sealed class DrawCallCapture
+        {
+            public int EventIndex { get; set; }
+            public int BeforeEventIndex { get; set; }
+            public int DrawCallIndex { get; set; }
+            public int MaxDimension { get; set; }
+            public int? EventCount { get; set; }
+            public FrameDebuggerGroup Group { get; set; } = null!;
+            public List<string> Diagnostics { get; } = new();
+            public ImageResult? Before { get; set; }
+        }
+
+        private static DrawCallCapture? _drawCallCapture;
+
+        public object CaptureFrameDebuggerDrawCall(JToken args)
+        {
+            var captureStep = ReadString(args, "captureStep");
+            if (string.Equals(captureStep, "start", StringComparison.OrdinalIgnoreCase))
+            {
+                return StartDrawCallCapture(args);
+            }
+
+            if (string.Equals(captureStep, "next", StringComparison.OrdinalIgnoreCase))
+            {
+                return ContinueDrawCallCapture(args);
+            }
+
+            return CaptureFrameDebuggerDrawCallInOneCall(args);
+        }
+
+        private object StartDrawCallCapture(JToken args)
+        {
+            _drawCallCapture = null;
+            var diagnostics = new List<string>();
+            var groupIndex = ReadInt(args, "groupIndex", -1);
+            var drawCallIndex = ReadInt(args, "drawCallIndex", -1);
+            if (drawCallIndex < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(args), "drawCallIndex must be zero or greater.");
+            }
+
+            var window = PrepareFrameDebuggerForInspection(args, diagnostics, selectEventIndex: null);
+            var state = CreateFrameDebuggerState(window, diagnostics);
+            var groups = CreateFrameDebuggerGroups(state, diagnostics);
+            var group = ResolveFrameDebuggerGroup(groups, groupIndex, ReadString(args, "groupName"));
+            NoteRenamedGroup(group, ReadString(args, "groupName"), diagnostics);
+            if (drawCallIndex >= group.EventIndices.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(args), DescribeDrawCallOutsideGroup(group, drawCallIndex, state));
+            }
+
+            var eventIndex = group.EventIndices[drawCallIndex];
+            var capture = new DrawCallCapture
+            {
+                EventIndex = eventIndex,
+                BeforeEventIndex = eventIndex > 0 ? eventIndex - 1 : eventIndex,
+                DrawCallIndex = drawCallIndex,
+                MaxDimension = Math.Max(128, Math.Min(ReadInt(args, "maxDimension", 960), 4096)),
+                EventCount = state.TryGetValue("eventCount", out var countValue) ? countValue as int? : null,
+                Group = group,
+            };
+            capture.Diagnostics.AddRange(diagnostics);
+            SelectDrawCallCaptureEvent(window, capture.BeforeEventIndex);
+            _drawCallCapture = capture;
+            return new { success = true, pending = true, eventIndex };
+        }
+
+        private object ContinueDrawCallCapture(JToken args)
+        {
+            var capture = _drawCallCapture ?? throw new InvalidOperationException("No frame-debugger-drawcall-screenshot capture is running: call it with groupName or groupIndex and drawCallIndex.");
+            var diagnostics = new List<string>();
+            var window = PrepareFrameDebuggerForInspection(args, diagnostics, selectEventIndex: null);
+            var eventCount = GetFrameDebuggerEventCount(diagnostics);
+            if (eventCount.HasValue && capture.EventCount.HasValue && eventCount.Value != capture.EventCount.Value)
+            {
+                capture.Diagnostics.Add($"The captured frame changed while taking the picture ({capture.EventCount.Value} -> {eventCount.Value} events): it may show another draw call. Check the event with frame-debugger-event-get, or exit Play Mode.");
+                capture.EventCount = eventCount;
+            }
+
+            var screenshots = new ScreenshotBridgeService();
+            if (capture.Before == null)
+            {
+                capture.Before = screenshots.CaptureGameView(capture.MaxDimension);
+                SelectDrawCallCaptureEvent(window, capture.EventIndex);
+                return new { success = true, pending = true, eventIndex = capture.EventIndex };
+            }
+
+            _drawCallCapture = null;
+            var after = screenshots.CaptureGameView(capture.MaxDimension);
+            if (capture.EventIndex > 0 && capture.Before.Base64 == after.Base64)
+            {
+                capture.Diagnostics.Add("The two halves are the same picture: the draw call changed no pixel of the camera target (drawn off screen, culled by depth, or into another target), or the Game view did not re-render; call again to make sure.");
+            }
+
+            return BuildDrawCallScreenshot(capture.Before, after, capture.EventIndex, capture.BeforeEventIndex, capture.Group, capture.DrawCallIndex, capture.MaxDimension, capture.Diagnostics);
+        }
+
+        private static void SelectDrawCallCaptureEvent(EditorWindow window, int eventIndex)
+        {
+            if (!TrySelectFrameDebuggerEventIndex(window, eventIndex + 1, out var error))
+            {
+                _drawCallCapture = null;
+                throw new NotSupportedException($"Frame Debugger event selection is unsupported in this Unity version. {error}");
+            }
+
+            window.Repaint();
+            EditorApplication.QueuePlayerLoopUpdate();
+            UnityEditorInternal.InternalEditorUtility.RepaintAllViews();
+        }
+
+        // groupName without its "(RP n:m)" prefix found a group of another name: the picture is from that one.
+        private static void NoteRenamedGroup(FrameDebuggerGroup group, string? groupName, List<string> diagnostics)
+        {
+            if (!string.IsNullOrWhiteSpace(groupName) && !string.Equals(group.Name, groupName!.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                diagnostics.Add($"No group named '{groupName!.Trim()}' in this captured frame: took '{group.Name}' (group {group.Index}, {group.EventIndices.Count} draw calls); Render Graph renumbers its passes from frame to frame.");
+            }
+        }
+
+        private ImageResult CaptureFrameDebuggerDrawCallInOneCall(JToken args)
         {
             var diagnostics = new List<string>();
             var groupIndex = ReadInt(args, "groupIndex", -1);
@@ -857,6 +981,7 @@ namespace Chievfx.Mcp.Editor
             var state = CreateFrameDebuggerState(window, diagnostics);
             var groups = CreateFrameDebuggerGroups(state, diagnostics);
             var group = ResolveFrameDebuggerGroup(groups, groupIndex, ReadString(args, "groupName"));
+            NoteRenamedGroup(group, ReadString(args, "groupName"), diagnostics);
             if (drawCallIndex >= group.EventIndices.Count)
             {
                 throw new ArgumentOutOfRangeException(nameof(args), DescribeDrawCallOutsideGroup(group, drawCallIndex, state));
@@ -871,6 +996,11 @@ namespace Chievfx.Mcp.Editor
             var before = screenshots.CaptureGameView(maxDimension);
             SelectFrameDebuggerEventForCapture(window, eventIndex, diagnostics);
             var after = screenshots.CaptureGameView(maxDimension);
+            return BuildDrawCallScreenshot(before, after, eventIndex, beforeEventIndex, group, drawCallIndex, maxDimension, diagnostics);
+        }
+
+        private ImageResult BuildDrawCallScreenshot(ImageResult before, ImageResult after, int eventIndex, int beforeEventIndex, FrameDebuggerGroup group, int drawCallIndex, int maxDimension, List<string> diagnostics)
+        {
             var combined = StackFrameDebuggerScreenshots(before, after, out var width, out var height);
 
             var frameEvent = CreateFrameDebuggerEventSummary(eventIndex, includeDetails: true, diagnostics);
@@ -1611,6 +1741,13 @@ namespace Chievfx.Mcp.Editor
             if (enabled && EditorApplication.isPlaying && playPausedBeforeFrameDebugger == null)
             {
                 playPausedBeforeFrameDebugger = EditorApplication.isPaused;
+                // Unity's Frame Debugger in Play Mode keeps memory for every frame it re-renders for a selected event (an enable,
+                // each selection or draw-call screenshot) until the editor restarts: a long walk over events grew a big project's
+                // editor by 24 GB. A paused online game also drops its session after half a minute or so.
+                diagnostics.Add("Play Mode is paused while the Frame Debugger is on: a networked game may time out and drop its session. "
+                                + "In Play Mode every enable, event selection and draw-call screenshot keeps editor memory until a restart "
+                                + "(tens of MB in a small scene, about 1 GB per enable in a big one): read only the events you need, turn it off when done, "
+                                + "and watch bridge-get-status editorHealth.");
             }
 
             SetFrameDebuggerEnabledCore(window, enabled, diagnostics);

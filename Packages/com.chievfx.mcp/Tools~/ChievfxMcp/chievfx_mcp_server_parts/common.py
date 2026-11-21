@@ -149,6 +149,8 @@ FRAME_DEBUGGER_OUTSIDE_GROUP = " is outside group "
 # binary search one capture per call with this pause between calls (a 200-event frame takes about 10 steps).
 FRAME_DEBUGGER_PICK_STEP_SECONDS = 0.12
 FRAME_DEBUGGER_PICK_MAX_STEPS = 40
+# frame-debugger-drawcall-screenshot: start, capture the event before, capture the draw call (and a spare step).
+FRAME_DEBUGGER_CAPTURE_MAX_STEPS = 4
 RECOMPILE_OTHER_ERROR_CHARS = 160
 # editor-playmode-set waitForReady defaults: how long to wait for the play-mode transition, and how
 # long to settle afterwards so initial frames render before returning. Entering is far heavier than

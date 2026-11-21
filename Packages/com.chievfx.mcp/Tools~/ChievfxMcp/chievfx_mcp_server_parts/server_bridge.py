@@ -594,6 +594,29 @@ class BridgeTransportMixin:
                     raise
                 time.sleep(FRAME_DEBUGGER_DETAIL_RETRY_SECONDS)
 
+    def run_frame_debugger_drawcall_capture(
+        self, arguments: dict[str, Any], request_id: Any, progress_token: Any, notify: Any | None
+    ) -> dict[str, Any]:
+        """frame-debugger-drawcall-screenshot over editor ticks: select an event in one bridge call, capture it in the next.
+
+        Captured in one call, both halves were the Game view as it was before the selection (in Play Mode the finished
+        frame with its UI) while the reply named the draw call. A Unity package without the steps answers the first call.
+        """
+        reply = self.call_frame_debugger_draw_call(
+            "frame-debugger-drawcall-screenshot", {**arguments, "captureStep": "start"}, request_id, progress_token, notify
+        )
+        for _ in range(FRAME_DEBUGGER_CAPTURE_MAX_STEPS):
+            result = reply.get("result")
+            if not (isinstance(result, dict) and result.get("pending")):
+                return reply
+            time.sleep(FRAME_DEBUGGER_PICK_STEP_SECONDS)
+            reply = self.call_unity_bridge(
+                "frame-debugger-drawcall-screenshot", {"captureStep": "next"}, request_id, None, None
+            )
+        raise RuntimeError(
+            f"frame-debugger-drawcall-screenshot did not finish in {FRAME_DEBUGGER_CAPTURE_MAX_STEPS} steps; call it again."
+        )
+
     def run_frame_debugger_pixel_search(self, arguments: dict[str, Any], request_id: Any) -> dict[str, Any]:
         """frame-debugger-pick-pixel over several editor ticks: one capture per bridge call.
 

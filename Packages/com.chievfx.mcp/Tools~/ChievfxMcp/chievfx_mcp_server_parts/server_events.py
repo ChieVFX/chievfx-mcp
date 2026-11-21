@@ -382,7 +382,10 @@ class EventsStatusMixin:
                         "elapsedMs": int((now - started) * 1000),
                         "bridgeState": self.get_bridge_status({}),
                     }
-                    diagnostic = self.build_wait_timeout_diagnostic(stream, since_event_id, filters, started_wall)
+                    diagnostic = self.build_wait_timeout_diagnostic(
+                        stream, since_event_id, filters, started_wall,
+                        include_recent_ms if isinstance(include_recent_ms, int) else None,
+                    )
                     if diagnostic:
                         result["diagnostic"] = diagnostic
                     return result
@@ -607,6 +610,7 @@ class EventsStatusMixin:
         since_event_id: int,
         filters: dict[str, Any],
         wait_started_epoch: float | None = None,
+        include_recent_ms: int | None = None,
     ) -> dict[str, Any] | None:
         """Explain a timeout when the wanted event likely fired below the cursor or was evicted.
 
@@ -647,14 +651,25 @@ class EventsStatusMixin:
             age_text = f", fired {age_s:g} s before this wait" if age_s is not None else ""
             message = str(latest.get("message") or "")
             message = message if len(message) <= 120 else message[:120] + "…"
+            # A look-back that was too short: the match is just older than includeRecentMs, so the direct fix is a
+            # wider window, not a cursor taken before the trigger.
+            if include_recent_ms and age_s is not None and age_s * 1000 > include_recent_ms:
+                retry_text = (
+                    f"includeRecentMs {include_recent_ms} looked back only {include_recent_ms / 1000:g} s: if that is the "
+                    f"event you waited for, wait again with includeRecentMs >= {int(age_s + 1) * 1000}. "
+                )
+            else:
+                retry_text = (
+                    "If that is the event you waited for, it fired during the triggering operation (e.g. Play-mode boot): "
+                    "next time take sinceEventId from bridge-get-status BEFORE the trigger, or check it with "
+                    "events-check-since. "
+                )
             diagnostic: dict[str, Any] = {
                 "matchBelowCursor": latest,
                 "matchBelowCursorEventId": latest.get("eventId"),
                 "hint": (
                     f"Nothing matching fired after sinceEventId {since_event_id}. The latest match at or below it is "
-                    f"eventId {latest.get('eventId')}{age_text}: '{message}'. If that is the event you waited for, it fired "
-                    "during the triggering operation (e.g. Play-mode boot): next time take sinceEventId from "
-                    "bridge-get-status BEFORE the trigger, or check it with events-check-since. If it is an older one "
+                    f"eventId {latest.get('eventId')}{age_text}: '{message}'. {retry_text}If it is an older one "
                     "(another window, an earlier step), the wanted event has not fired."
                 ),
             }

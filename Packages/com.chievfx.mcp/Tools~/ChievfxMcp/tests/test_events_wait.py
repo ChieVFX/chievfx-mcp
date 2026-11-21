@@ -432,6 +432,28 @@ class EventsWaitTests(unittest.TestCase):
         self.assertIn("has not fired", diagnostic["hint"])
         self.assertNotIn("likely fired during", diagnostic["hint"])
 
+    def test_timeout_with_short_look_back_says_widen_it(self) -> None:
+        old_match = {
+            "eventId": 10,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 12)),
+            "source": "log",
+            "type": "log",
+            "level": "Log",
+            "message": "Material Spark_Yellow (Instance) doesn't have _Stencil property",
+        }
+        self.write_events([old_match])
+
+        result = self.server.events_wait(
+            {"source": "log", "contains": "_Stencil", "sinceEventId": 44, "includeRecentMs": 2000, "timeoutMs": 20},
+            request_id="short-look-back-wait",
+        )
+
+        diagnostic = result["diagnostic"]
+        self.assertEqual(diagnostic["matchBelowCursorEventId"], 10)
+        self.assertIn("includeRecentMs 2000", diagnostic["hint"])
+        self.assertIn("includeRecentMs >= 1", diagnostic["hint"])
+        self.assertNotIn("BEFORE the trigger", diagnostic["hint"])
+
     def test_timeout_reports_possible_truncation(self) -> None:
         mcp.write_json_file_atomic(
             self.bridge_dir / "events.json",

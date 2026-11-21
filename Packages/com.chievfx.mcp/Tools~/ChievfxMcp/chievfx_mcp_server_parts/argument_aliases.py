@@ -38,13 +38,14 @@ def resolve_argument_aliases(name: str, arguments: Any) -> tuple[Any, list[str]]
         aliases = schema.get(ARGUMENT_ALIASES_KEYWORD) if isinstance(schema, dict) else None
         for alias in aliases if isinstance(aliases, list) else []:
             if isinstance(alias, str) and alias:
-                declared.setdefault(alias.lower(), property_name)
+                declared.setdefault(_normalized_argument_name(alias), property_name)
     resolved = dict(arguments)
     renamed: list[str] = []
     for key in list(arguments):
         if not isinstance(key, str) or key in known:
             continue
-        canonical = declared.get(key.lower())
+        # A declared alias also in another case or with separators: frame_rate and frameRate for framerate.
+        canonical = declared.get(_normalized_argument_name(key))
         if canonical is None:
             matches = by_normalized.get(_normalized_argument_name(key)) or []
             canonical = matches[0] if len(matches) == 1 else None

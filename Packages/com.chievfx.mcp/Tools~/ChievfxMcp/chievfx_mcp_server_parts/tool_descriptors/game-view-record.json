@@ -1,6 +1,6 @@
 {
   "name": "game-view-record",
-  "description": "Records the Game View in Play Mode as an mp4 for a person to review a run (to look back yourself, use screenshot-game-view storyboard:true). Returns at once; the end is the journal event in waitFor: '[ChievFX][record] #<n> done <file.mp4> ...', or 'frames_only <dir>' without ffmpeg in PATH. Frames follow real time: a slow editor gives fewer of them.",
+  "description": "Records the Game View in Play Mode as an mp4 for a person to review a run (to look back yourself: screenshot-game-view storyboard:true). Returns at once; the end is the journal event in waitFor ('[ChievFX][record] #<n> done <file.mp4> ...', or 'frames_only <dir>' without ffmpeg), awaitMs waits for it. A slow editor records fewer frames.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -9,22 +9,34 @@
         "minimum": 1,
         "maximum": 60,
         "default": 10,
-        "description": "Seconds of real time to record."
+        "description": "Seconds of real time to record.",
+        "x-aliases": [
+          "duration"
+        ]
       },
       "fps": {
         "type": "integer",
         "minimum": 5,
         "maximum": 30,
         "default": 15,
-        "description": "Frames per second of the video."
+        "description": "Frames per second of the video.",
+        "x-aliases": [
+          "framerate"
+        ]
       },
       "savePath": {
         "type": "string",
-        "description": "Where to put the finished mp4: a .mp4 file or a folder, absolute or relative to the project. It is moved there out of Logs/chievfx_video; the done event names this path."
+        "description": "Where to put the finished mp4: a .mp4 file or a folder, absolute or relative to the project. It is moved there out of Logs/chievfx_video; the done event names this path.",
+        "x-aliases": [
+          "path"
+        ]
       },
       "stop": {
         "type": "boolean",
         "description": "true: stop the running recording now and build what was captured."
+      },
+      "awaitMs": {
+        "type": "integer"
       }
     }
   }

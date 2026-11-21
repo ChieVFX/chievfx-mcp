@@ -67,3 +67,19 @@ class ArgumentAliasTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CoreToolAliasTests(unittest.TestCase):
+    """Synonyms declared in a core tool's own descriptor."""
+
+    def test_game_view_record_takes_duration_and_frame_rate(self) -> None:
+        resolved, renamed = mcp.resolve_argument_aliases("game-view-record", {"duration": 3, "frame_rate": 10, "save_path": "Temp/a.mp4"})
+
+        self.assertEqual(resolved, {"seconds": 3, "fps": 10, "savePath": "Temp/a.mp4"})
+        self.assertEqual(renamed, ["duration→seconds", "frame_rate→fps", "save_path→savePath"])
+
+    def test_game_view_record_advertises_await_ms(self) -> None:
+        tool = next(item for item in mcp.all_tools() if item.get("name") == "game-view-record")
+
+        self.assertIn("awaitMs", mcp.advertised_input_schema(tool)["properties"])
+

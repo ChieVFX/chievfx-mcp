@@ -98,7 +98,8 @@ namespace Chievfx.Mcp.Editor
         {
             if (current != null)
             {
-                throw new InvalidOperationException("Already recording: wait for '" + EventPrefix + current.Number + " ' or pass stop:true.");
+                // The refusal is logged as an event too: quoting the waitFor text here would end an events-wait for that recording.
+                throw new InvalidOperationException("Recording #" + current.Number + " is still running: wait for its end (the waitFor of the call that started it) or pass stop:true.");
             }
 
             var number = SessionState.GetInt(RecordNumberKey, 0) + 1;

@@ -153,8 +153,9 @@ namespace Chievfx.Mcp.Editor
             ValidateWildcardPattern(namePattern, "namePattern");
             ValidateComponentTypeText(componentType, required: false);
 
-            // An exact target (instanceId, or path with details) is returned even when inactive: the caller named it.
-            var isExactTarget = instanceId.HasValue || (includeDetails && !string.IsNullOrWhiteSpace(path));
+            // An exact target (instanceId, or a path without filters) is returned even when inactive: the caller named it. A path
+            // with a filter stays the subtree to search, also with includeComponents (that once searched only the path itself: 0 matches).
+            var isExactTarget = instanceId.HasValue || (!hasFilter && !string.IsNullOrWhiteSpace(path));
             var sourceObjects = isExactTarget
                 ? new[] { ResolveSingleGameObject(context, args) }
                 : string.IsNullOrWhiteSpace(path)

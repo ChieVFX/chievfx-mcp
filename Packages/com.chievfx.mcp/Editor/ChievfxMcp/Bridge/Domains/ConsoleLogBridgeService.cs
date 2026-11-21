@@ -269,8 +269,20 @@ namespace Chievfx.Mcp.Editor
             {
                 output["stack"] = stack;
             }
+            else if (stackTraceMode != StackTraceMode.None && IsStackCaptureOff(entry.LogType, out var logType))
+            {
+                output["stackNote"] = $"No stack: the project records none for {logType} logs (Project Settings > Player > Stack Trace Logging is None). "
+                    + $"To get one, run Application.SetStackTraceLogType(LogType.{logType}, StackTraceLogType.ScriptOnly) in script-execute, repeat the action, then set it back to None.";
+            }
 
             return output;
+        }
+
+        // Stack capture can be off per log type in the project (Player Settings): such entries never had a stack, and an
+        // empty includeStack read as if the bridge had lost it.
+        private static bool IsStackCaptureOff(string? entryLogType, out LogType logType)
+        {
+            return Enum.TryParse(entryLogType, out logType) && Application.GetStackTraceLogType(logType) == StackTraceLogType.None;
         }
 
         internal static string StripAssemblyQualifiers(string? text)
@@ -339,6 +351,10 @@ namespace Chievfx.Mcp.Editor
                 if (!string.IsNullOrEmpty(stack))
                 {
                     output["stack"] = stack;
+                }
+                else if (IsStackCaptureOff(entry.LogType, out var logType))
+                {
+                    output["stack"] = $"none recorded: Stack Trace Logging for {logType} is None in the project (console-get-logs-single says how to get one)";
                 }
             }
 

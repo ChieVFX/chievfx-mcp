@@ -604,7 +604,8 @@ namespace Chievfx.Mcp.Editor
 
             if (IsFullScreenPassEvent(frameEvent))
             {
-                diagnostics.Add($"Event {writerIndex} is a clear or blit, not an object's draw: the picture reaches the screen through a full-screen pass "
+                var copied = frameEvent.TryGetValue("copiesScreenTexture", out var copiedValue) && copiedValue is string copiedName ? $" (it copies {copiedName})" : string.Empty;
+                diagnostics.Add($"Event {writerIndex} is a clear, blit or full-screen copy{copied}, not an object's draw: the picture reaches the screen through a full-screen pass "
                     + "(the camera renders into its own target, and post-processing in the final blit changes the colours), so the screen colour first appears here. "
                     + "The object was drawn earlier into the camera target: look through the groups before the final blit with frame-debugger-drawcall-screenshot.");
             }
@@ -636,7 +637,8 @@ namespace Chievfx.Mcp.Editor
             var name = frameEvent.TryGetValue("name", out var nameValue) ? nameValue as string : null;
             return (type != null && (type.StartsWith("Clear", StringComparison.Ordinal) || type.StartsWith("Resolve", StringComparison.Ordinal)))
                 || (shader != null && shader.IndexOf("Blit", StringComparison.OrdinalIgnoreCase) >= 0)
-                || (name != null && name.IndexOf("BlitFinal", StringComparison.OrdinalIgnoreCase) >= 0);
+                || (name != null && name.IndexOf("BlitFinal", StringComparison.OrdinalIgnoreCase) >= 0)
+                || frameEvent.ContainsKey("copiesScreenTexture");
         }
 
         private object PickFrameDebuggerPixelInOneCall(JToken args)
@@ -934,14 +936,27 @@ namespace Chievfx.Mcp.Editor
         {
             if (!string.IsNullOrWhiteSpace(groupName))
             {
+                // Render Graph numbers its passes per frame ("(RP 1:0) DrawOpaqueObjects" becomes "(RP 2:0) ..." when a pass
+                // comes and goes), so a name copied from an earlier reply is compared without that prefix; of several, the biggest.
+                var bareName = StripRenderPassPrefix(groupName!);
                 var named = groups.FirstOrDefault(group => string.Equals(group.Name, groupName, StringComparison.OrdinalIgnoreCase))
-                    ?? groups.FirstOrDefault(group => group.Name.IndexOf(groupName, StringComparison.OrdinalIgnoreCase) >= 0);
+                    ?? groups.Where(group => string.Equals(StripRenderPassPrefix(group.Name), bareName, StringComparison.OrdinalIgnoreCase))
+                        .OrderByDescending(group => group.EventIndices.Count).FirstOrDefault()
+                    ?? groups.Where(group => StripRenderPassPrefix(group.Name).IndexOf(bareName, StringComparison.OrdinalIgnoreCase) >= 0)
+                        .OrderByDescending(group => group.EventIndices.Count).FirstOrDefault();
                 return named ?? throw new ArgumentException(
                     $"No Frame Debugger group named '{groupName}' in the captured frame ({groups.Length} groups): "
                     + string.Join(", ", groups.Take(12).Select(group => "'" + group.Name + "'")) + (groups.Length > 12 ? ", ..." : string.Empty));
             }
 
             return ResolveFrameDebuggerGroup(groups, groupIndex);
+        }
+
+        private static readonly System.Text.RegularExpressions.Regex RenderPassPrefix = new(@"^\(RP \d+:\d+\)\s*", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        private static string StripRenderPassPrefix(string name)
+        {
+            return RenderPassPrefix.Replace(name.Trim(), string.Empty);
         }
 
         private static string DescribeDrawCallOutsideGroup(FrameDebuggerGroup group, int drawCallIndex, Dictionary<string, object?> state)
@@ -1449,6 +1464,31 @@ namespace Chievfx.Mcp.Editor
             AddInt(summary, "renderTargetCount", ReadFirstInt(eventData, "m_RenderTargetCount"));
             AddBool(summary, "renderTargetBackBuffer", ReadFirstBool(eventData, "m_RenderTargetIsBackBuffer"));
             AddString(summary, "textures", DescribeBoundTextures(eventData));
+            AddString(summary, "copiesScreenTexture", DescribeScreenCopySource(eventData, ReadFirstInt(eventData, "m_RenderTargetWidth"),
+                ReadFirstInt(eventData, "m_RenderTargetHeight"), ReadFirstInt(eventData, "m_VertexCount")));
+        }
+
+        // A quad (6 vertices at most) that samples a render texture about the size of its target copies a whole picture: a
+        // game's post-processing drawn as a UI quad over the camera's texture is not a blit by name or type, but works like one.
+        private static string? DescribeScreenCopySource(object eventData, int? targetWidth, int? targetHeight, int? vertices)
+        {
+            if (vertices is not > 0 || vertices.Value > 6 || targetWidth is not > 0 || targetHeight is not > 0
+                || GetReflectedInstanceValue(eventData, "m_ShaderInfo") is not { } shaderInfo
+                || GetReflectedInstanceValue(shaderInfo, "m_Textures") is not Array textures)
+            {
+                return null;
+            }
+
+            foreach (var textureInfo in textures)
+            {
+                if (textureInfo != null && GetReflectedInstanceValue(textureInfo, "m_Value") is RenderTexture texture
+                    && texture.width * 2 >= targetWidth.Value && texture.height * 2 >= targetHeight.Value)
+                {
+                    return texture.name;
+                }
+            }
+
+            return null;
         }
 
         private const int MaxReportedTextures = 8;

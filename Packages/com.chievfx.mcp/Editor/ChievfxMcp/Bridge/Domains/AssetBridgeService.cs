@@ -284,7 +284,7 @@ namespace Chievfx.Mcp.Editor
                     if (scriptClass != null && scriptClass.Name == typeName && typeof(Component).IsAssignableFrom(scriptClass))
                     {
                         return $"type filters asset types: {typeName} is a component, and prefabs that carry it are not assets of that type. "
-                            + $"Its script is {path} (guid {guid}); prefabs and scenes using it name that guid in their files: grep -rl \"guid: {guid}\" Assets --include=*.prefab";
+                            + $"Its script is {path} (guid {guid}); prefabs and scenes using it name that guid in their files: grep -rl \"guid: {guid}\" Assets --include='*.prefab'";
                     }
                 }
             }

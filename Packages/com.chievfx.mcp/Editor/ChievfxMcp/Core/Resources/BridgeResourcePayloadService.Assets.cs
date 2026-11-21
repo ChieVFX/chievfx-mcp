@@ -269,6 +269,13 @@ namespace Chievfx.Mcp.Editor
                 return true;
             }
 
+            // t:ScriptableObject finds assets of every derived type, and the row names the concrete type: a base type is
+            // compared by inheritance, or the list came out empty next to "1 asset guid".
+            if (filter.TypeNames.Any(typeName => IsUnityObjectTypeDerivedFrom(rowType, typeName)))
+            {
+                return true;
+            }
+
             // t:Prefab and t:Model find assets whose main object is a GameObject: the type to compare is the asset kind.
             var isMainRow = row.TryGetValue("isMainAsset", out var isMain) && isMain is true;
             var path = row.TryGetValue("path", out var pathValue) ? pathValue as string : null;
@@ -281,6 +288,34 @@ namespace Chievfx.Mcp.Editor
             var isModel = AssetImporter.GetAtPath(path) is ModelImporter;
             return filter.TypeNames.Any(typeName => (isPrefab && string.Equals(typeName, "Prefab", StringComparison.OrdinalIgnoreCase))
                                                     || (isModel && string.Equals(typeName, "Model", StringComparison.OrdinalIgnoreCase)));
+        }
+
+        private static readonly Dictionary<string, Type[]> UnityObjectTypesByName = new(StringComparer.OrdinalIgnoreCase);
+
+        private static bool IsUnityObjectTypeDerivedFrom(string typeName, string baseTypeName)
+        {
+            var baseTypes = FindUnityObjectTypes(baseTypeName);
+            return baseTypes.Length > 0
+                && FindUnityObjectTypes(typeName).Any(type => baseTypes.Any(baseType => baseType != type && baseType.IsAssignableFrom(type)));
+        }
+
+        private static Type[] FindUnityObjectTypes(string typeName)
+        {
+            if (string.IsNullOrWhiteSpace(typeName))
+            {
+                return Array.Empty<Type>();
+            }
+
+            if (!UnityObjectTypesByName.TryGetValue(typeName, out var types))
+            {
+                types = TypeCache.GetTypesDerivedFrom<Object>()
+                    .Where(type => string.Equals(type.Name, typeName, StringComparison.OrdinalIgnoreCase)
+                                   || string.Equals(type.FullName, typeName, StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+                UnityObjectTypesByName[typeName] = types;
+            }
+
+            return types;
         }
 
         private static Dictionary<string, object?> CreateAssetDetail(Object asset, string path, string guid)

@@ -348,7 +348,7 @@ TOOL_ORDER_BOTTOM: tuple[str, ...] = (
 # Caveman summaries for the instruction list: written short on purpose, because the alternative was
 # truncating a full description mid-word. The real description still ships via tools/list.
 TOOL_SHORT_SUMMARIES: dict[str, str] = {
-    "bridge-get-status": "Bridge health: alive, compiling, importing, recent ops",
+    "bridge-get-status": "Bridge health: alive, compiling, importing, recent ops, editor health",
     "script-execute": "Run C#. Last resort - look for a real tool first",
     "screenshot-editor-window": "Screenshot any editor window",
     "editor-window-focus": "Focus an editor window tab",

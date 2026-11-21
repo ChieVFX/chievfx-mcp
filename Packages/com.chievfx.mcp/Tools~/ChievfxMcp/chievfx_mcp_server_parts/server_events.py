@@ -127,6 +127,8 @@ class EventsStatusMixin:
 
         editor = heartbeat.get("editor") if isinstance(heartbeat.get("editor"), dict) else {}
         busy = heartbeat.get("busy") if isinstance(heartbeat.get("busy"), dict) else {}
+        health = heartbeat.get("health") if isinstance(heartbeat.get("health"), dict) else {}
+        health_problems = [problem for problem in health.get("problems") or [] if isinstance(problem, str)]
         hints = self.get_status_hints(
             bridge_reachable,
             heartbeat_age,
@@ -139,6 +141,8 @@ class EventsStatusMixin:
         editor_down = self.describe_editor_down(liveness)
         if editor_down is not None:
             hints = [editor_down] + [hint for hint in hints if not hint.startswith("Unity heartbeat is stale.")]
+        if health_problems and isinstance(health.get("hint"), str):
+            hints.append(health["hint"])
 
         if verbose:
             return {
@@ -151,6 +155,7 @@ class EventsStatusMixin:
                 "editor": editor,
                 "busy": busy,
                 "busyReasons": busy_reasons,
+                "health": health or None,
                 "activeOperationCount": len(active_operations),
                 "activeOperations": active_operations,
                 "activeEventWaitCount": len(active_event_waits),
@@ -203,6 +208,9 @@ class EventsStatusMixin:
                 slim[flag] = True
         if busy_reasons:
             slim["busyReasons"] = busy_reasons
+        # Only problems: a healthy editor adds nothing to the row agents poll most.
+        if health_problems:
+            slim["editorHealth"] = health_problems
         if active_operations:
             slim["activeOperations"] = active_operations
         if recent_operations:

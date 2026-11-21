@@ -214,7 +214,8 @@ namespace Chievfx.Mcp.Editor
                         ["scriptChangesWhilePlaying"] = BridgePendingRecompile.ScriptChangesWhilePlaying()
                     },
                     ["busy"] = busy,
-                    ["busyReasons"] = BuildBusyReasons(busy, compileWaitingForPlayModeExit)
+                    ["busyReasons"] = BuildBusyReasons(busy, compileWaitingForPlayModeExit),
+                    ["health"] = ChievfxMcpEditorHealth.GetCached(now)
                 };
 
                 WriteAllTextAtomic(ChievfxMcpToolPolicy.BridgeStatePath, JsonConvert.SerializeObject(payload, JsonOptions));

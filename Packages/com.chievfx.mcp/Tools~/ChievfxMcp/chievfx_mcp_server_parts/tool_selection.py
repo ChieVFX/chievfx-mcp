@@ -443,8 +443,14 @@ def describe_awaited_failure(raw_result: Any, outcome: dict[str, Any]) -> str | 
     return f"the awaited end is a failure: #{event.get('eventId')} {awaited_event_message(message)}"
 
 
-def format_await_outcome_text(outcome: dict[str, Any], wait_arguments: dict[str, Any]) -> str:
-    """The line awaitMs appends to a tool's reply: how its end event came out."""
+def format_await_outcome_text(
+    outcome: dict[str, Any], wait_arguments: dict[str, Any], expected_ms: Any = None
+) -> str:
+    """The line awaitMs appends to a tool's reply: how its end event came out.
+
+    Not ended yet: the ready events-wait call, as `next` gives it without awaitMs, waiting for what is left of the
+    time the tool expects its action to take (expected_ms, its waitTimeoutMs), at least the default.
+    """
     target = wait_arguments.get("contains") or f"marker {wait_arguments.get('marker')}"
     target_text = " | ".join(target) if isinstance(target, list) else str(target)
     if outcome.get("matched"):
@@ -453,10 +459,18 @@ def format_await_outcome_text(outcome: dict[str, Any], wait_arguments: dict[str,
     if outcome.get("cancelled"):
         return f"await cancelled after {outcome.get('elapsedMs')} ms (waiting for {target_text})."
     filter_key = "contains" if wait_arguments.get("contains") else "marker"
-    filter_value = json.dumps(wait_arguments.get(filter_key), ensure_ascii=False)
+    elapsed_ms = outcome.get("elapsedMs") if isinstance(outcome.get("elapsedMs"), int) else 0
+    timeout_ms = DEFAULT_NEXT_WAIT_TIMEOUT_MS
+    if isinstance(expected_ms, int) and not isinstance(expected_ms, bool):
+        timeout_ms = max(timeout_ms, expected_ms - elapsed_ms)
+    next_arguments = {
+        filter_key: wait_arguments.get(filter_key),
+        "sinceEventId": wait_arguments.get("sinceEventId"),
+        "timeoutMs": min(timeout_ms, HARD_EVENTS_WAIT_TIMEOUT_MS),
+    }
     return (
-        f"awaited {outcome.get('elapsedMs')} ms, not ended yet (waiting for {target_text}). Keep waiting with "
-        f"events-wait {filter_key}:{filter_value} sinceEventId:{wait_arguments.get('sinceEventId')}."
+        f"awaited {outcome.get('elapsedMs')} ms, not ended yet (waiting for {target_text}). Keep waiting: "
+        "events-wait " + json.dumps(next_arguments, ensure_ascii=False, separators=(",", ":"))
     )
 
 

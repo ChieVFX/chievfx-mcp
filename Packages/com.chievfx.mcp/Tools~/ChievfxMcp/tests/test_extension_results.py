@@ -187,7 +187,16 @@ class ExtensionResultTests(unittest.TestCase):
         text = self.text_of(self.call("demo-act", {"awaitMs": 30}))
 
         self.assertIn("not ended yet", text)
-        self.assertIn('events-wait contains:"[demo][task] Drive#4" sinceEventId:5', text)
+        self.assertIn('Keep waiting: events-wait {"contains":"[demo][task] Drive#4","sinceEventId":5,"timeoutMs":30000}', text)
+
+    def test_await_ms_timeout_keeps_waiting_for_what_is_left_of_the_expected_time(self) -> None:
+        self.write_events([self.log_event(5, "[demo] idle")])
+        self.fake_bridge({"waitFor": "[demo][task] Drive#9", "waitTimeoutMs": 400000})
+
+        text = self.text_of(self.call("demo-act", {"awaitMs": 30}))
+
+        timeout_ms = int(text.split('"timeoutMs":')[1].split("}")[0])
+        self.assertTrue(390000 < timeout_ms <= 400000, text)
 
     def test_await_ms_without_wait_for_says_it_was_ignored(self) -> None:
         self.fake_bridge({"summary": "Tapped"})

@@ -382,7 +382,9 @@ class McpServerCore:
         headline = (
             f"awaited {outcome.get('elapsedMs')} ms: no end event. {timeout_means}"
             if timed_out and timeout_means
-            else format_await_outcome_text(outcome, wait_arguments)
+            else format_await_outcome_text(
+                outcome, wait_arguments, raw_result.get("waitTimeoutMs") if isinstance(raw_result, dict) else None
+            )
         )
         # The reply below the outcome is the state when the action started ("GoTo#3 running"): say so.
         prepend_result_headline(result, headline, "at start: ")

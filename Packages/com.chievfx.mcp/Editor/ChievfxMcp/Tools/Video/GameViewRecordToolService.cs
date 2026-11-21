@@ -120,14 +120,25 @@ namespace Chievfx.Mcp.Editor
             EditorApplication.update += Update;
             AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
             var end = EventPrefix + number + " ";
-            return new Dictionary<string, object?>
+            var reply = new Dictionary<string, object?>
             {
                 ["summary"] = "Recording #" + number + ": " + seconds.ToString("0.#", CultureInfo.InvariantCulture) + " s at " + fps + " fps",
                 ["waitFor"] = end,
                 ["waitForFailed"] = end + "failed",
-                ["waitTimeoutMs"] = (int)(seconds * 1000f) + EndWaitReserveMs,
-                ["directory"] = directory
+                ["waitTimeoutMs"] = (int)(seconds * 1000f) + EndWaitReserveMs
             };
+            // With savePath the frames folder is removed once the mp4 is moved out of it: the end event names the file.
+            var savePath = args.Value<string?>("savePath");
+            if (string.IsNullOrEmpty(savePath))
+            {
+                reply["directory"] = directory;
+            }
+            else
+            {
+                reply["savePath"] = savePath;
+            }
+
+            return reply;
         }
 
         // An exception out of an update subscriber would cut off the subscribers after it (the MCP bridge among them), and a
@@ -375,6 +386,7 @@ namespace Chievfx.Mcp.Editor
             if (isBuilt)
             {
                 DeleteFrames(recording.Directory);
+                DeleteQuietly(Path.Combine(recording.Directory, "concat.txt"));
             }
 
             if (isBuilt && string.IsNullOrEmpty(recording.SavePath) == false)
@@ -382,9 +394,12 @@ namespace Chievfx.Mcp.Editor
                 video = MoveToSavePath(video, recording.SavePath!);
             }
 
+            // Frames follow real time: a slow editor shoots fewer than seconds * fps, and the video holds each one longer.
+            var realSeconds = recording.StoppedAt - recording.StartedAt;
+            var expectedFrames = (int)Math.Round(realSeconds * recording.Fps);
             Finish(recording, isBuilt
-                ? recording.StopReason + " " + video + " frames:" + recording.Written + "/" + recording.Shots + " fps:" + recording.Fps
-                  + " realSeconds:" + (recording.StoppedAt - recording.StartedAt).ToString("F1", CultureInfo.InvariantCulture)
+                ? recording.StopReason + " " + video + " frames:" + recording.Written + " of " + expectedFrames + " fps:" + recording.Fps
+                  + " realSeconds:" + realSeconds.ToString("F1", CultureInfo.InvariantCulture)
                 : "failed:ffmpeg_exit_" + exitCode + " " + recording.Directory);
         }
 
@@ -418,18 +433,23 @@ namespace Chievfx.Mcp.Editor
         {
             foreach (var frame in System.IO.Directory.GetFiles(directory, "f*.*"))
             {
-                try
-                {
-                    File.Delete(frame);
-                }
-                catch (IOException)
-                {
-                    // Left behind; the folder is under Logs.
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    // Same as above.
-                }
+                DeleteQuietly(frame);
+            }
+        }
+
+        private static void DeleteQuietly(string path)
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch (IOException)
+            {
+                // Left behind; the folder is under Logs.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Same as above.
             }
         }
 

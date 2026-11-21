@@ -236,7 +236,8 @@ namespace Chievfx.Mcp.Editor
             };
 
             var nameTerms = new List<string>();
-            foreach (var name in ReadStringValues(args, "name"))
+            var names = ReadStringValues(args, "name");
+            foreach (var name in names)
             {
                 nameTerms.AddRange(BridgeResourcePayloadService.SplitAssetNameTerms(name));
             }
@@ -273,9 +274,17 @@ namespace Chievfx.Mcp.Editor
             if (result.TryGetValue("count", out var count) && count is int found && found == 0)
             {
                 var componentNote = DescribeComponentTypeSearch(filter.TypeNames);
-                if (componentNote != null)
+                // A list of names reads like "any of them" (as type and folder lists are), but its items are ANDed: a silent 0
+                // looked like none of the assets existed.
+                var namesNote = names.Length > 1
+                    ? "The name list items are ANDed: no asset name contains all of them. Search one name per call (tool-batch tool:asset-find items:[{name:...}, ...])."
+                    : null;
+                foreach (var note in new[] { componentNote, namesNote })
                 {
-                    result["note"] = result.TryGetValue("note", out var labelNote) && labelNote is string { Length: > 0 } text ? text + " " + componentNote : componentNote;
+                    if (note != null)
+                    {
+                        result["note"] = result.TryGetValue("note", out var previousNote) && previousNote is string { Length: > 0 } text ? text + " " + note : note;
+                    }
                 }
             }
 

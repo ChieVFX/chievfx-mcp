@@ -19,7 +19,7 @@
             }
           }
         ],
-        "description": "Name terms (whitespace-separated terms are ANDed)."
+        "description": "Name terms: whitespace-separated terms and list items are all ANDed (one name per call to find several)."
       },
       "type": {
         "oneOf": [

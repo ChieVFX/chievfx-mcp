@@ -83,3 +83,27 @@ class CoreToolAliasTests(unittest.TestCase):
 
         self.assertIn("awaitMs", mcp.advertised_input_schema(tool)["properties"])
 
+
+    def test_boolean_value_goes_to_the_plural_flag_even_over_a_known_alias(self) -> None:
+        # text is an honored alias of the ui-control-find name filter, but true filters nothing: it is texts.
+        resolved, renamed = mcp.resolve_argument_aliases("ui-control-find", {"text": "true", "wildcards": "*Shop*"})
+
+        self.assertEqual(resolved, {"texts": True, "wildcards": "*Shop*"})
+        self.assertEqual(renamed, ["text→texts"])
+
+    def test_boolean_value_goes_to_the_is_flag(self) -> None:
+        probe = {
+            "name": "demo-probe",
+            "inputSchema": {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "isNormalized": {"type": "boolean"}}},
+        }
+        with mock.patch.object(mcp, "_find_tool", lambda name: probe if name == "demo-probe" else None):
+            resolved, renamed = mcp.resolve_argument_aliases("demo-probe", {"x": 0.9, "y": 0.95, "normalized": True})
+
+        self.assertEqual(resolved, {"x": 0.9, "y": 0.95, "isNormalized": True})
+        self.assertEqual(renamed, ["normalized→isNormalized"])
+
+    def test_singular_of_a_list_argument_becomes_its_one_item(self) -> None:
+        resolved, renamed = mcp.resolve_argument_aliases("console-get-logs", {"level": "Error"})
+
+        self.assertEqual(resolved, {"levels": ["Error"]})
+        self.assertEqual(renamed, ["level→levels"])

@@ -44,14 +44,30 @@ namespace Chievfx.Mcp.Editor
                 SelectProfilerConnection(connectionId.Value);
             }
 
+            // Frames kept from an earlier recording would be summarized and saved together with this one.
+            var clearedFrames = GetProfilerEnabled() ? 0 : ClearRecordedFrames();
             SetProfilerEnabled(true);
             return new
             {
                 started = true,
                 enabled = GetProfilerEnabled(),
                 connectionId,
+                clearedFrames = clearedFrames > 0 ? clearedFrames : (int?)null,
                 targets = GetProfilerTargets()
             };
+        }
+
+        private static int ClearRecordedFrames()
+        {
+            var first = UnityEditorInternal.ProfilerDriver.firstFrameIndex;
+            var last = UnityEditorInternal.ProfilerDriver.lastFrameIndex;
+            if (first < 0 || last < first)
+            {
+                return 0;
+            }
+
+            UnityEditorInternal.ProfilerDriver.ClearAllFrames();
+            return last - first + 1;
         }
 
         public object Stop(JToken args)

@@ -1,6 +1,6 @@
 {
   "name": "profiler-start-recording",
-  "description": "Enables Unity editor profiler recording, optionally selecting a profiler connection id.",
+  "description": "Enables Unity editor profiler recording, optionally selecting a profiler connection id. Starting a new recording clears frames left from the previous one (clearedFrames), so the stop summary and saved file cover only this one.",
   "inputSchema": {
     "type": "object",
     "properties": {

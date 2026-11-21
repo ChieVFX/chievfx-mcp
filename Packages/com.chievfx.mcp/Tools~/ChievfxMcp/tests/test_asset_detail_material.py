@@ -34,5 +34,22 @@ class AssetDetailMaterialTests(unittest.TestCase):
         self.assertIn("_MainTex=RobotoCondensed-Regular SDF Atlas 2048x2048", text)
 
 
+class MaterialProfileSummaryTests(unittest.TestCase):
+    def test_shader_rows_and_partial_scan_are_shown(self) -> None:
+        text = mcp.format_material_profile_summary_text(
+            {
+                "materialCount": 556,
+                "shaderGroupCount": 1,
+                "textureCount": 1772,
+                "rendererCount": 0,
+                "truncated": True,
+                "scanWarnings": ["The scan stopped after 4 s at 9000 of 410000 objects: counts and lists cover only that part."],
+                "countByShader": [{"shaderName": "TextMeshPro/Distance Field", "materialCount": 12, "rendererReferenceCount": 30, "textureCount": 4}],
+            }
+        )
+        self.assertIn("partial: The scan stopped after 4 s", text)
+        self.assertIn("TextMeshPro/Distance Field", text)
+
+
 if __name__ == "__main__":
     unittest.main()

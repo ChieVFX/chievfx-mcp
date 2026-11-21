@@ -446,6 +446,8 @@ namespace Chievfx.Mcp.Editor
             public int High;
             public int SelectedEventIndex;
             public bool IsSamplingBefore;
+            // The writer is selected and the next step reads its details: Unity gives an event's data a tick after selection.
+            public bool IsReadingDetails;
             public int Captures;
             public bool FrameChanged;
             public List<string> Diagnostics = new List<string>();
@@ -499,6 +501,11 @@ namespace Chievfx.Mcp.Editor
                 search.FrameChanged = true;
             }
 
+            if (search.IsReadingDetails)
+            {
+                return FinishPixelSearch(search);
+            }
+
             var color = SamplePixelSearchCapture(search);
             if (!search.HasFinalColor)
             {
@@ -508,7 +515,7 @@ namespace Chievfx.Mcp.Editor
             else if (search.IsSamplingBefore)
             {
                 search.BeforeColor = color;
-                return FinishPixelSearch(window, search);
+                return SelectPixelSearchWriter(window, search);
             }
             else if (ColorsMatch(color, search.FinalColor, search.Tolerance))
             {
@@ -532,7 +539,15 @@ namespace Chievfx.Mcp.Editor
                 return new { success = true, pending = true, eventCount = search.EventCount, low = search.Low, high = search.High };
             }
 
-            return FinishPixelSearch(window, search);
+            return SelectPixelSearchWriter(window, search);
+        }
+
+        // Leave the frame debugger showing the culprit so the Unity window matches the answer; its details come next step.
+        private static object SelectPixelSearchWriter(EditorWindow window, PixelSearch search)
+        {
+            SelectPixelSearchEvent(window, search, search.Low);
+            search.IsReadingDetails = true;
+            return new { success = true, pending = true, eventCount = search.EventCount, low = search.Low, high = search.High };
         }
 
         private static void SelectPixelSearchEvent(EditorWindow window, PixelSearch search, int eventIndex)
@@ -571,13 +586,11 @@ namespace Chievfx.Mcp.Editor
             }
         }
 
-        private object FinishPixelSearch(EditorWindow window, PixelSearch search)
+        private object FinishPixelSearch(PixelSearch search)
         {
             _pixelSearch = null;
             var writerIndex = search.Low;
             var diagnostics = search.Diagnostics;
-            // Leave the frame debugger showing the culprit so the Unity window matches the answer.
-            SelectPixelSearchEvent(window, search, writerIndex);
             if (search.FrameChanged)
             {
                 diagnostics.Add($"The captured frame changed during the search (it had {search.EventCount} events): writerEventIndex may point to another draw call. Check it with frame-debugger-event-get, or exit Play Mode.");
@@ -587,6 +600,13 @@ namespace Chievfx.Mcp.Editor
             if (search.BeforeColor.HasValue && ColorsMatch(search.BeforeColor.Value, search.FinalColor, search.Tolerance))
             {
                 diagnostics.Add("The pixel already had its final colour before this event, so an earlier event may be the real writer (the colour likely changed away and back). Re-run with a nearby maxDimension or inspect neighbouring events.");
+            }
+
+            if (IsFullScreenPassEvent(frameEvent))
+            {
+                diagnostics.Add($"Event {writerIndex} is a clear or blit, not an object's draw: the picture reaches the screen through a full-screen pass "
+                    + "(the camera renders into its own target, and post-processing in the final blit changes the colours), so the screen colour first appears here. "
+                    + "The object was drawn earlier into the camera target: look through the groups before the final blit with frame-debugger-drawcall-screenshot.");
             }
 
             return new
@@ -607,6 +627,16 @@ namespace Chievfx.Mcp.Editor
                 frameEvent,
                 diagnostics = diagnostics.Distinct(StringComparer.Ordinal).ToArray()
             };
+        }
+
+        private static bool IsFullScreenPassEvent(Dictionary<string, object?> frameEvent)
+        {
+            var type = frameEvent.TryGetValue("type", out var typeValue) ? typeValue as string : null;
+            var shader = frameEvent.TryGetValue("shader", out var shaderValue) ? shaderValue as string : null;
+            var name = frameEvent.TryGetValue("name", out var nameValue) ? nameValue as string : null;
+            return (type != null && (type.StartsWith("Clear", StringComparison.Ordinal) || type.StartsWith("Resolve", StringComparison.Ordinal)))
+                || (shader != null && shader.IndexOf("Blit", StringComparison.OrdinalIgnoreCase) >= 0)
+                || (name != null && name.IndexOf("BlitFinal", StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
         private object PickFrameDebuggerPixelInOneCall(JToken args)

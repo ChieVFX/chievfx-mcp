@@ -219,7 +219,12 @@ def format_material_profile_summary_text(result: dict[str, Any]) -> str:
         f"materials:{format_toon_atom(result.get('materialCount'))} shaders:{format_toon_atom(result.get('shaderGroupCount'))} "
         f"textures:{format_toon_atom(result.get('textureCount'))} renderers:{format_toon_atom(result.get('rendererCount'))}"
     ]
-    shader_groups = result.get("shaderGroups")
+    # A scan of a big scene stops on its time budget: without this line the partial counts read as the whole scene.
+    warnings = result.get("scanWarnings")
+    if result.get("truncated") is True and isinstance(warnings, list) and warnings:
+        lines.append(f"partial: {warnings[0]}")
+    # The bridge names the rows countByShader; the summary listed no shader at all while it looked only for shaderGroups.
+    shader_groups = result.get("shaderGroups") or result.get("countByShader")
     if isinstance(shader_groups, list):
         for group in shader_groups:
             if not isinstance(group, dict):

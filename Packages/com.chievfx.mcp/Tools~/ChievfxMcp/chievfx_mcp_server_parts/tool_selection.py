@@ -409,7 +409,8 @@ def without_wait_advice(raw_result: Any) -> Any:
         for key in ("hint", "wait")
         if isinstance(raw_result.get(key), str) and ("awaitMs" in raw_result[key] or "events-wait" in raw_result[key])
     ]
-    advice_keys += [key for key in ("sinceEventId", "eventCursorBefore") if key in raw_result]
+    # waitTimeoutMs only sizes the ready events-wait call in `next`, which an awaited reply does not get.
+    advice_keys += [key for key in ("sinceEventId", "eventCursorBefore", "waitTimeoutMs") if key in raw_result]
     if not advice_keys:
         return raw_result
     return {key: value for key, value in raw_result.items() if key not in advice_keys}

@@ -285,6 +285,14 @@ class ExtensionResultTests(unittest.TestCase):
 
         self.assertNotIn("or pass awaitMs", self.text_of(self.call("demo-act", {"awaitMs": 2000})))
 
+    def test_awaited_call_drops_the_timeout_meant_for_next(self) -> None:
+        self.fake_bridge(
+            {"waitFor": "[demo][task] Drive#8 ", "waitTimeoutMs": 451360},
+            events_during_call=[self.log_event(4, "[demo][task] Drive#8 done")],
+        )
+
+        self.assertNotIn("waitTimeoutMs", self.text_of(self.call("demo-act", {"awaitMs": 2000})))
+
     def test_guessed_argument_name_reaches_the_extension_under_its_own(self) -> None:
         self.fake_bridge({"summary": "Tapped", "ok": True})
 

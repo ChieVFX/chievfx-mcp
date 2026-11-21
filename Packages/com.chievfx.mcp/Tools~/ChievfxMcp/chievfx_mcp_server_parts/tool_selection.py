@@ -306,6 +306,7 @@ def get_category_sort_key(category: str) -> tuple[int, str]:
         "script-execution-tests": 7,
         "profiler": 8,
         "frame-debugger": 9,
+        "video": 10,
         "obsolete": 999,
     }
     return (order.get(category, 100), category)

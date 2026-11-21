@@ -67,6 +67,7 @@
     "profiler-stop-recording",
     "profiler-counters-get",
     "profiler-window-control",
+    "game-view-record",
     "frame-debugger-control",
     "frame-debugger-groups-list",
     "frame-debugger-group-events-list",

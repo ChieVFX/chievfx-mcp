@@ -75,6 +75,7 @@ namespace Chievfx.Mcp.Editor
                         profiler.CaptureFrameDebuggerDrawCall,
                         profiler.PickFrameDebuggerPixel),
                     new ScreenshotToolService(screenshots.CaptureGameView, screenshots.CaptureCamera),
+                    new GameViewRecordToolService(),
                     new EditorWindowToolService(editorWindows.List, editorWindows.Open, editorWindows.Focus),
                     new RuntimeUiToolService(),
                     new BridgeCoreToolService(resourceRouter.ReadResource, promptService.GetPrompt)

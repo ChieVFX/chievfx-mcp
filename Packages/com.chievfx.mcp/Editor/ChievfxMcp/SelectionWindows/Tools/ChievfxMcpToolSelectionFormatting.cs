@@ -80,6 +80,7 @@ namespace Chievfx.Mcp.Editor
                 "ugui-runtime-control" => "Control Play Mode uGUI elements: clicks, drags, selection, and control values.",
                 "cinemachine-and-timeline" => "Author and inspect Cinemachine cameras, Timeline directors, shots, and camera QA workflows.",
                 "profiler" => "Record and inspect Unity profiler state, counters, and captures.",
+                "video" => "Record the Game View in Play Mode as an mp4 for a person to review a run.",
                 "remote-shell" => "Runs commands on this machine for HTTP clients. Armed only in the MCP window's Connection tab; these rows are informational and cannot be toggled here.",
                 _ => "General ChievFX MCP tools for Unity automation."
             };
@@ -150,6 +151,7 @@ namespace Chievfx.Mcp.Editor
                 "script-execution-tests" => 60,
                 "profiler" => 70,
                 "frame-debugger" => 80,
+                "video" => 82,
                 "cinemachine-and-timeline" => 85,
                 "ugui-design" => 90,
                 "ui-runtime-common" => 90,

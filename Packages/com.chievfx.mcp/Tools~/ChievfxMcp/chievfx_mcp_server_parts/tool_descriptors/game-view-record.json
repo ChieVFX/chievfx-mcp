@@ -1,0 +1,31 @@
+{
+  "name": "game-view-record",
+  "description": "Records the Game View in Play Mode as an mp4 for a person to review a run (to look back yourself, use screenshot-game-view storyboard:true). Returns at once; the end is the journal event in waitFor: '[ChievFX][record] #<n> done <file.mp4> ...', or 'frames_only <dir>' without ffmpeg in PATH. Frames follow real time: a slow editor gives fewer of them.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "seconds": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 60,
+        "default": 10,
+        "description": "Seconds of real time to record."
+      },
+      "fps": {
+        "type": "integer",
+        "minimum": 5,
+        "maximum": 30,
+        "default": 15,
+        "description": "Frames per second of the video."
+      },
+      "savePath": {
+        "type": "string",
+        "description": "Where to put the finished mp4: a .mp4 file or a folder, absolute or relative to the project. It is moved there out of Logs/chievfx_video; the done event names this path."
+      },
+      "stop": {
+        "type": "boolean",
+        "description": "true: stop the running recording now and build what was captured."
+      }
+    }
+  }
+}

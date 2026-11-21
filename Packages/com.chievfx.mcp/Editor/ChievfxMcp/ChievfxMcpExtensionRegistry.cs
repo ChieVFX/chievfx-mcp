@@ -137,6 +137,7 @@ namespace Chievfx.Mcp.Editor
             "frame-debugger-groups-list",
             "folder-ensure",
             "gameobject-component-get",
+            "game-view-record",
             "gameobject-create",
             "gameobject-duplicate",
             "gameobject-find",

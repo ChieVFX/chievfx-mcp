@@ -1199,6 +1199,7 @@ namespace Chievfx.Mcp.Editor
             {
                 "screenshot-game-view" => "Capture the current Game View.",
                 "screenshot-camera" => "Capture from a Unity camera.",
+                "game-view-record" => "Record the Game View in Play Mode as an mp4 (ffmpeg builds it).",
                 "screenshot-editor-window" => "Capture Unity tabs like Console/Inspector without OS screenshots.",
                 "tool-batch" => "Run several tool calls (mixed tools, pauses) in one request and get every output.",
                 "assets-refresh" => "Import non-script assets by path/type after file changes.",

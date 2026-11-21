@@ -193,7 +193,7 @@ def format_ui_control_find_texts(result: dict[str, Any]) -> list[str]:
     """texts:true: one line per window, its texts top to bottom joined by ' | '."""
     windows = result.get("texts")
     if not isinstance(windows, list):
-        return []
+        return ["texts: listed with page 1"] if result.get("textsOnPage") == 1 else []
     rows: list[str] = []
     shown = 0
     for window in windows:

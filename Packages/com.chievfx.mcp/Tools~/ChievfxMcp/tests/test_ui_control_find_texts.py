@@ -30,6 +30,9 @@ class UiControlFindTextsTests(unittest.TestCase):
     def test_requested_but_none_visible(self) -> None:
         self.assertIn("texts: none visible", mcp.format_ui_control_find_text({"controls": [], "texts": [], "textsTotal": 0}))
 
+    def test_later_page_points_to_the_first(self) -> None:
+        self.assertIn("texts: listed with page 1", mcp.format_ui_control_find_text({"controls": [], "textsOnPage": 1}))
+
     def test_not_requested_adds_nothing(self) -> None:
         self.assertNotIn("texts", mcp.format_ui_control_find_text({"controls": []}))
 

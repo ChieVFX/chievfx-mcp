@@ -1345,10 +1345,15 @@ namespace Chievfx.Mcp.Editor
                 ["frameworks"] = sections.ToArray(),
                 ["warnings"] = warnings.Where(warning => !string.IsNullOrWhiteSpace(warning)).Distinct().ToArray(),
             };
-            if (ReadBool(request, "texts", false))
+            // The texts are the screen's, not the page's: page 1 lists them, the next pages list only more controls.
+            if (ReadBool(request, "texts", false) && page == 1)
             {
                 payload["texts"] = texts.ToArray();
                 payload["textsTotal"] = textsTotal;
+            }
+            else if (ReadBool(request, "texts", false))
+            {
+                payload["textsOnPage"] = 1;
             }
 
             var outputFormat = request["outputFormat"]?.Value<string>();

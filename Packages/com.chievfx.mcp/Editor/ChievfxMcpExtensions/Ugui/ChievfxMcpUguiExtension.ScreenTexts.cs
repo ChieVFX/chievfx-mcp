@@ -28,46 +28,91 @@ namespace Chievfx.Mcp.Extensions.Ugui
         private static readonly Regex RichTextOrSpaces = new(@"<[^>]+>|\s+", RegexOptions.CultureInvariant);
         private static readonly Dictionary<Type, PropertyInfo?> TextProperties = new();
 
-        // The texts per window and how many were found in all (the list stops at MaxTexts). Wildcards match a text or
-        // its window's name, as they match a control's name or path.
+        // The texts per window and how many there are in all (the list stops at MaxTexts). Wildcards match a text or its
+        // window's name, as they match a control's name or path.
         internal static List<Dictionary<string, object?>> Build(string[] wildcards, Vector2 screenSize, out int total)
         {
-            var found = new List<(string Window, float Y, string Text)>();
+            var found = new List<ScreenText>();
             // FindObjectsOfTypeAll works on every supported Unity without the FindObjectsByType deprecations; prefab assets drop
             // out on isActiveAndEnabled and the scene check.
             foreach (var graphic in Resources.FindObjectsOfTypeAll<Graphic>())
             {
-                if (graphic.gameObject.scene.IsValid() && TryRead(graphic, wildcards, screenSize, out var window, out var y, out var text))
+                if (graphic.gameObject.scene.IsValid() && TryRead(graphic, wildcards, screenSize, out var text))
                 {
-                    found.Add((window, y, text));
+                    found.Add(text);
                 }
             }
 
-            total = found.Count;
             found.Sort((a, b) => a.Window != b.Window ? string.CompareOrdinal(a.Window, b.Window) : b.Y.CompareTo(a.Y));
             var windows = new List<Dictionary<string, object?>>();
             List<string>? lines = null;
             string? current = null;
-            for (var i = 0; i < found.Count && i < MaxTexts; i++)
+            total = 0;
+            for (var start = 0; start < found.Count;)
             {
-                if (found[i].Window != current || lines == null)
+                var end = LineEnd(found, start);
+                foreach (var text in ReadLine(found, start, end))
                 {
-                    current = found[i].Window;
-                    lines = new List<string>();
-                    windows.Add(new Dictionary<string, object?> { ["window"] = current, ["texts"] = lines });
+                    if (total++ >= MaxTexts)
+                    {
+                        continue;
+                    }
+
+                    if (found[start].Window != current || lines == null)
+                    {
+                        current = found[start].Window;
+                        lines = new List<string>();
+                        windows.Add(new Dictionary<string, object?> { ["window"] = current, ["texts"] = lines });
+                    }
+
+                    lines.Add(text);
                 }
 
-                lines.Add(found[i].Text);
+                start = end;
             }
 
             return windows;
         }
 
-        private static bool TryRead(Graphic graphic, string[] wildcards, Vector2 screenSize, out string windowName, out float y, out string text)
+        // A row of the screen: texts of one window whose centres sit within half a text height of the first one's. Sorting by
+        // height alone read a counter "25/75" as "75 | / | 25" (its three texts differ by a fraction of a pixel).
+        private static int LineEnd(List<ScreenText> found, int start)
         {
-            windowName = string.Empty;
-            y = 0f;
-            text = string.Empty;
+            var first = found[start];
+            var end = start + 1;
+            while (end < found.Count && found[end].Window == first.Window
+                   && Mathf.Abs(found[end].Y - first.Y) <= Mathf.Min(found[end].Height, first.Height) * 0.5f)
+            {
+                end++;
+            }
+
+            return end;
+        }
+
+        // The row left to right; the pieces of one button's caption in a row ("2", ".99", "USD" of a price) make one caption.
+        private static IEnumerable<string> ReadLine(List<ScreenText> found, int start, int end)
+        {
+            var line = found.GetRange(start, end - start);
+            line.Sort((a, b) => a.X.CompareTo(b.X));
+            for (var i = 0; i < line.Count;)
+            {
+                var caption = line[i].Text;
+                var next = i + 1;
+                while (line[i].Owner != null && next < line.Count && ReferenceEquals(line[next].Owner, line[i].Owner))
+                {
+                    caption += " " + line[next].Text;
+                    next++;
+                }
+
+                yield return caption + line[i].Mark;
+                i = next;
+            }
+        }
+
+        private static bool TryRead(Graphic graphic, string[] wildcards, Vector2 screenSize, out ScreenText screenText)
+        {
+            screenText = default;
+            string text;
             var property = TextPropertyOf(graphic.GetType());
             if (property == null || graphic.isActiveAndEnabled == false || graphic.color.a <= TransparentAlpha
                 || UguiRuntimeReachability.IsHiddenFromPlayer(graphic.gameObject))
@@ -82,14 +127,10 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             var owner = graphic.GetComponentInParent<Selectable>();
-            if (owner != null)
-            {
-                text += owner.enabled && owner.IsInteractable() ? ButtonMark : DisabledButtonMark;
-            }
-
+            var mark = owner == null ? string.Empty : owner.enabled && owner.IsInteractable() ? ButtonMark : DisabledButtonMark;
             var window = WindowOf(graphic.transform);
-            windowName = window.name;
-            if (wildcards.Length > 0 && ChievfxMcpRuntimeUiControlFind.MatchesWildcards(text, windowName, wildcards) == false)
+            var windowName = window.name;
+            if (wildcards.Length > 0 && ChievfxMcpRuntimeUiControlFind.MatchesWildcards(text + mark, windowName, wildcards) == false)
             {
                 return false;
             }
@@ -116,9 +157,31 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 return false;
             }
 
-            y = center.y;
             text = text.Length > MaxTextLength ? text.Substring(0, MaxTextLength) + "…" : text;
+            screenText = new ScreenText(windowName, center.x, center.y, Mathf.Abs(corner.y - center.y) * 2f, text, mark, owner);
             return true;
+        }
+
+        private readonly struct ScreenText
+        {
+            public readonly string Window;
+            public readonly float X;
+            public readonly float Y;
+            public readonly float Height;
+            public readonly string Text;
+            public readonly string Mark;
+            public readonly Selectable? Owner;
+
+            public ScreenText(string window, float x, float y, float height, string text, string mark, Selectable? owner)
+            {
+                Window = window;
+                X = x;
+                Y = y;
+                Height = height;
+                Text = text;
+                Mark = mark;
+                Owner = owner;
+            }
         }
 
         // A list row scrolled out of its viewport is still active and on screen, but a Mask or RectMask2D above it cuts it off.

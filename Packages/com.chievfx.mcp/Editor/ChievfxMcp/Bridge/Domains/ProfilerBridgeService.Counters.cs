@@ -53,8 +53,21 @@ namespace Chievfx.Mcp.Editor
                 enabled = GetProfilerEnabled(),
                 connectionId,
                 clearedFrames = clearedFrames > 0 ? clearedFrames : (int?)null,
+                note = IsRecordingNothingOutsidePlay() ? EditorNotProfiledNote : null,
                 targets = GetProfilerTargets()
             };
+        }
+
+        private const int EditorConnectionId = -1;
+        private const string EditorNotProfiledNote =
+            "Outside Play Mode the profiler records nothing unless it profiles the editor itself (Profiler window: target Edit Mode): enter Play Mode to measure the game.";
+
+        // Profiling the editor's own process outside Play without Profile Editor: Unity records no frames, the capture is empty.
+        private static bool IsRecordingNothingOutsidePlay()
+        {
+            return EditorApplication.isPlaying == false
+                   && UnityEditorInternal.ProfilerDriver.connectedProfiler == EditorConnectionId
+                   && UnityEditorInternal.ProfilerDriver.profileEditor == false;
         }
 
         private static int ClearRecordedFrames()
@@ -92,7 +105,8 @@ namespace Chievfx.Mcp.Editor
             var profilesDirectory = Path.Combine(ChievfxMcpToolPolicy.ProjectRoot, "Library", "ChievfxMcpBridge", "profiles");
             if (isDefaultPath)
             {
-                var fileName = "profile-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".data";
+                // Milliseconds: two stops in one second would otherwise write the same file, the second over the first.
+                var fileName = "profile-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture) + ".data";
                 savePath = Path.Combine(profilesDirectory, fileName);
             }
             else if (!Path.IsPathRooted(savePath))
@@ -105,6 +119,8 @@ namespace Chievfx.Mcp.Editor
             {
                 TrimDefaultCaptures(profilesDirectory);
             }
+
+            var recorded = SummarizeRecordedFrames();
             return new
             {
                 stopped = true,
@@ -112,7 +128,8 @@ namespace Chievfx.Mcp.Editor
                 saved,
                 path = savePath,
                 exists = File.Exists(savePath),
-                recorded = SummarizeRecordedFrames()
+                recorded,
+                note = recorded == null ? ("No frames were recorded: the saved capture is empty. " + (IsRecordingNothingOutsidePlay() ? EditorNotProfiledNote : "")).TrimEnd() : null
             };
         }
 

@@ -208,7 +208,7 @@ namespace Chievfx.Mcp.Editor
                 }
 
                 foreach (var row in CreateAssetResourceRows(path, guid, filter.IncludeSubassets)
-                    .Where(row => AssetResourceRowMatchesFilter(row, filter)))
+                    .Where(row => AssetResourceRowMatchesFilter(row, filter) && MatchesNameGlobs(row, filter)))
                 {
                     if (rows.Count >= filter.MaxResults)
                     {
@@ -242,6 +242,12 @@ namespace Chievfx.Mcp.Editor
             }
 
             return result;
+        }
+
+        private static bool MatchesNameGlobs(Dictionary<string, object?> row, ResourceAssetFilter filter)
+        {
+            return filter.NameGlobs.Length == 0
+                   || (row.TryGetValue("name", out var name) && name is string text && filter.NameGlobs.All(glob => glob.IsMatch(text)));
         }
 
         // Unity's l: matches the start of a label: l:fire found FirebaseMessagingActivityGenerated, and l:Keep answered 218

@@ -84,6 +84,10 @@ namespace Chievfx.Mcp.Editor
                     case "scene":
                         typeNames.Add("Scene");
                         break;
+                    // Unity's t:script finds the scripts, but their rows say MonoScript: the list came out empty next to N guids.
+                    case "script":
+                        typeNames.Add("MonoScript");
+                        break;
                     case "object":
                         typeNames.Add("Object");
                         break;

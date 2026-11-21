@@ -241,7 +241,19 @@ namespace Chievfx.Mcp.Editor
                 nameTerms.AddRange(BridgeResourcePayloadService.SplitAssetNameTerms(name));
             }
 
+            // Car_9* means names starting with Car_9; the AssetDatabase search would take the * as text and match Car_90 and
+            // Electric_Car_9 alike. The search gets the longest plain piece, the rows are matched against the whole pattern.
+            var globs = nameTerms.Where(term => term.IndexOfAny(new[] { '*', '?' }) >= 0).ToArray();
+            filter.NameGlobs = globs
+                .Select(glob => new System.Text.RegularExpressions.Regex(
+                    "^" + System.Text.RegularExpressions.Regex.Escape(glob).Replace("\\*", ".*").Replace("\\?", ".") + "$",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant))
+                .ToArray();
             filter.NameTerms = nameTerms
+                .Select(term => globs.Contains(term)
+                    ? term.Split('*', '?').OrderByDescending(piece => piece.Length).First()
+                    : term)
+                .Where(term => term.Length > 0)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             filter.TypeNames = BridgeResourcePayloadService.ResolveAssetTypeAliases(ReadStringValues(args, "type"));

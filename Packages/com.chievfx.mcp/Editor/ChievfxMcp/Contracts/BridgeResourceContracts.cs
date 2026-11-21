@@ -65,6 +65,9 @@ namespace Chievfx.Mcp.Editor
 
         public string[] NameTerms { get; set; } = Array.Empty<string>();
 
+        // Name terms with * or ?: matched against the whole asset name (AssetDatabase search takes them as plain text).
+        public System.Text.RegularExpressions.Regex[] NameGlobs { get; set; } = Array.Empty<System.Text.RegularExpressions.Regex>();
+
         public string[] TypeNames { get; set; } = Array.Empty<string>();
 
         public string[] Labels { get; set; } = Array.Empty<string>();

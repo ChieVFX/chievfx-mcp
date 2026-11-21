@@ -185,7 +185,32 @@ def format_ui_control_find_text(result: dict[str, Any], *, normalize_coords: boo
                 screen_height=screen_height,
             )
         )
+    lines.extend(format_ui_control_find_texts(result))
     return "\n".join(line for line in lines if line)
+
+
+def format_ui_control_find_texts(result: dict[str, Any]) -> list[str]:
+    """texts:true: one line per window, its texts top to bottom joined by ' | '."""
+    windows = result.get("texts")
+    if not isinstance(windows, list):
+        return []
+    rows: list[str] = []
+    shown = 0
+    for window in windows:
+        if not isinstance(window, dict):
+            continue
+        texts = [text for text in window.get("texts") or [] if isinstance(text, str)]
+        if not texts:
+            continue
+        shown += len(texts)
+        rows.append(f"  {window.get('window')}: " + " | ".join(texts))
+    total = result.get("textsTotal")
+    if not rows:
+        return ["texts: none visible"]
+    header = f"texts ({shown}):"
+    if isinstance(total, int) and total > shown:
+        header = f"texts ({shown} of {total}, narrow with wildcards):"
+    return [header] + rows
 
 
 def format_ui_runtime_normalized(value: float) -> str:

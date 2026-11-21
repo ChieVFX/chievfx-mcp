@@ -772,7 +772,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 })
                 .ToArray();
 
-            return new Dictionary<string, object?>
+            var section = new Dictionary<string, object?>
             {
                 ["framework"] = "ugui",
                 ["available"] = status.Available,
@@ -783,6 +783,13 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 ["controls"] = rows,
                 ["warnings"] = warnings.ToArray(),
             };
+            if (args.Value<bool?>("texts") == true)
+            {
+                section["texts"] = UguiScreenTexts.Build(wildcards, screenSize, out var textsTotal);
+                section["textsTotal"] = textsTotal;
+            }
+
+            return section;
         }
     }
 }

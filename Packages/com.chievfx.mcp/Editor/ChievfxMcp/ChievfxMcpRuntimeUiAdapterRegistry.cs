@@ -1221,6 +1221,9 @@ namespace Chievfx.Mcp.Editor
             var controls = new List<Dictionary<string, object?>>();
             var totalMatches = 0;
             var sections = new List<Dictionary<string, object?>>();
+            // texts:true - the screen's visible texts by window, from the frameworks that read them (uGUI).
+            var texts = new List<object>();
+            var textsTotal = 0;
 
             foreach (var registered in SnapshotAdapters())
             {
@@ -1254,6 +1257,20 @@ namespace Chievfx.Mcp.Editor
 
                 sections.Add(section);
                 totalMatches += section.TryGetValue("totalMatches", out var total) && total is int totalValue ? totalValue : 0;
+                if (section.TryGetValue("texts", out var sectionTexts) && sectionTexts is IEnumerable textWindows)
+                {
+                    foreach (var textWindow in textWindows)
+                    {
+                        if (textWindow != null)
+                        {
+                            texts.Add(textWindow);
+                        }
+                    }
+
+                    textsTotal += section.TryGetValue("textsTotal", out var sectionTextsTotal) && sectionTextsTotal is int sectionTextsCount ? sectionTextsCount : 0;
+                    section.Remove("texts");
+                    section.Remove("textsTotal");
+                }
                 if (section.TryGetValue("warnings", out var sectionWarnings) && sectionWarnings is IEnumerable enumerable)
                 {
                     foreach (var warning in enumerable)
@@ -1328,6 +1345,12 @@ namespace Chievfx.Mcp.Editor
                 ["frameworks"] = sections.ToArray(),
                 ["warnings"] = warnings.Where(warning => !string.IsNullOrWhiteSpace(warning)).Distinct().ToArray(),
             };
+            if (ReadBool(request, "texts", false))
+            {
+                payload["texts"] = texts.ToArray();
+                payload["textsTotal"] = textsTotal;
+            }
+
             var outputFormat = request["outputFormat"]?.Value<string>();
             if (string.Equals(outputFormat, "json", StringComparison.OrdinalIgnoreCase))
             {

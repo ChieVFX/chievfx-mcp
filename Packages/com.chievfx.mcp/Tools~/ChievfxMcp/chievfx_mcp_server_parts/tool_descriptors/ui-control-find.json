@@ -1,6 +1,6 @@
 {
   "name": "ui-control-find",
-  "description": "Find enabled, on-screen uGUI and UI Toolkit controls with compact paths, control types, and bottom-left screen click zones. Returns 10 controls per page; pass page to fetch more.",
+  "description": "Find enabled, on-screen uGUI and UI Toolkit controls with compact paths, control types, and bottom-left screen click zones. Returns 10 controls per page; pass page to fetch more. texts:true adds the visible texts by window, top to bottom.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -9,7 +9,11 @@
       },
       "framework": {
         "type": "string",
-        "enum": ["all", "ugui", "uitoolkit"],
+        "enum": [
+          "all",
+          "ugui",
+          "uitoolkit"
+        ],
         "default": "all",
         "description": "Framework scope. all (default) searches uGUI and UI Toolkit."
       },
@@ -42,6 +46,11 @@
         "type": "boolean",
         "default": false,
         "description": "When true, zone bounds are normalized 0..1 from bottom-left (0) to top-right (1) using the Game View render size reported as screenSize (not the Game View window size). Text output uses D.DD except exact 0 and 1."
+      },
+      "texts": {
+        "type": "boolean",
+        "default": false,
+        "description": "Also return the texts a player sees (uGUI Text and TextMeshPro): titles, descriptions, counters and button captions marked (button) or (disabled button), grouped by window and read top to bottom; hidden, off-screen and covered texts are left out. wildcards filter them by text or window name. Reads a screen without a screenshot."
       }
     },
     "additionalProperties": false

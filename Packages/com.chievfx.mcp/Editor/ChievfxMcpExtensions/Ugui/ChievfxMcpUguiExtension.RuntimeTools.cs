@@ -28,6 +28,8 @@ namespace Chievfx.Mcp.Extensions.Ugui
 {
     internal static class UguiRuntimeTools
     {
+        private const int MaxNamedLeftOut = 3;
+
         internal static Dictionary<string, object?> ProbeRuntimeScreenPosition(JToken args, UguiDependencyStatus status)
         {
             ChievfxMcpRuntimeUiProbeCompact.EnsurePlayModeForProbe(IsRuntimePlayModeActive());
@@ -736,11 +738,14 @@ namespace Chievfx.Mcp.Extensions.Ugui
             // "On-screen" is what a player sees: a control under a transparent or raycast-blocking-off CanvasGroup (a hidden
             // debug console) is left out and counted.
             // A control with interactable off is drawn (often greyed) but ignores taps: counted, so a search for it is not just empty.
-            var notInteractableCount = matches.Count(entry => !IsEnabledClickableControl(entry.target, entry.control));
-            if (notInteractableCount > 0)
+            // Named, so "why does this button not press" is answered here: no other tool lists interactable.
+            var notInteractable = matches.Where(entry => !IsEnabledClickableControl(entry.target, entry.control)).ToArray();
+            if (notInteractable.Length > 0)
             {
                 matches = matches.Where(entry => IsEnabledClickableControl(entry.target, entry.control)).ToArray();
-                warnings.Add($"{notInteractableCount} control(s) left out: interactable is off (drawn, but taps do nothing); ugui-ui-find lists them.");
+                var named = string.Join(", ", notInteractable.Take(MaxNamedLeftOut).Select(entry => "'" + GetTransformPath(entry.target.transform) + "'"));
+                var more = notInteractable.Length > MaxNamedLeftOut ? $" and {notInteractable.Length - MaxNamedLeftOut} more" : string.Empty;
+                warnings.Add($"{notInteractable.Length} control(s) left out: interactable is off (drawn, but taps do nothing): {named}{more}.");
             }
 
             var hiddenCount = matches.Count(entry => UguiRuntimeReachability.IsHiddenFromPlayer(entry.target));

@@ -597,7 +597,9 @@ namespace Chievfx.Mcp.Editor
             }
 
             var frameEvent = CreateFrameDebuggerEventSummary(writerIndex, includeDetails: true, diagnostics);
-            if (search.BeforeColor.HasValue && ColorsMatch(search.BeforeColor.Value, search.FinalColor, search.Tolerance))
+            // Before a full-screen pass the back buffer still holds the previous frame's picture, so the same colour there
+            // says nothing about an earlier writer.
+            if (search.BeforeColor.HasValue && ColorsMatch(search.BeforeColor.Value, search.FinalColor, search.Tolerance) && !IsFullScreenPassEvent(frameEvent))
             {
                 diagnostics.Add("The pixel already had its final colour before this event, so an earlier event may be the real writer (the colour likely changed away and back). Re-run with a nearby maxDimension or inspect neighbouring events.");
             }

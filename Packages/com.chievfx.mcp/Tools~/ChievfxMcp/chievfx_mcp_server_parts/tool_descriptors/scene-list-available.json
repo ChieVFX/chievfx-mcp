@@ -1,6 +1,6 @@
 {
   "name": "scene-list-available",
-  "description": "Finds scene assets available in the Unity project.",
+  "description": "Finds scene assets in the Unity project (buildIndex for scenes in the build); inBuild:true lists the Build Settings scenes in order.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -18,6 +18,9 @@
       },
       "maxResults": {
         "type": "integer"
+      },
+      "inBuild": {
+        "type": "boolean"
       }
     }
   }

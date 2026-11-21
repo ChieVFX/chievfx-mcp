@@ -1,6 +1,6 @@
 {
   "name": "prefab-close",
-  "description": "Closes the current prefab stage, optionally saving dirty contents first.",
+  "description": "Closes the current prefab stage: saveBeforeClose:true saves dirty contents first, discardChanges:true closes without saving.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -8,6 +8,9 @@
         "$chievfxSchema": "outputFormat"
       },
       "saveBeforeClose": {
+        "type": "boolean"
+      },
+      "discardChanges": {
         "type": "boolean"
       }
     }

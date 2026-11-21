@@ -41,13 +41,19 @@ namespace Chievfx.Mcp.Editor
             }
 
             GameObjectBridgeService.RepaintEditorAfterMutation();
+            var isDirty = IsPrefabStageDirty(stage);
             return new
             {
                 opened = true,
                 prefabPath = stage.assetPath,
                 rootName = stage.prefabContentsRoot.name,
                 rootInstanceId = GetLegacyInstanceId(stage.prefabContentsRoot),
-                isDirty = IsPrefabStageDirty(stage)
+                isDirty,
+                // Editor scripts of the prefab (OnValidate, [ExecuteAlways]) can change it while it loads: such changes
+                // and the objects they create would be saved with it.
+                note = isDirty
+                    ? "Dirty right after opening: the prefab's own editor scripts changed it while loading. To leave the asset as it is, close with prefab-close discardChanges:true."
+                    : null
             };
         }
 
@@ -56,17 +62,32 @@ namespace Chievfx.Mcp.Editor
             var stage = GetCurrentPrefabStageOrThrow();
             var closedPrefabPath = stage.assetPath;
             var saveBeforeClose = ReadBool(args, "saveBeforeClose", false);
+            var discardChanges = ReadBool(args, "discardChanges", false);
+            if (saveBeforeClose && discardChanges)
+            {
+                throw new ArgumentException("prefab-close: pass saveBeforeClose:true or discardChanges:true, not both.", nameof(args));
+            }
+
             var savedBeforeClose = false;
+            var discarded = false;
             if (IsPrefabStageDirty(stage))
             {
-                if (!saveBeforeClose)
+                if (discardChanges)
+                {
+                    // Without this Unity asks to save when leaving the stage; the asset on disk stays as it was.
+                    stage.ClearDirtiness();
+                    discarded = true;
+                }
+                else if (!saveBeforeClose)
                 {
                     throw new InvalidOperationException(
-                        $"Prefab stage '{closedPrefabPath}' has unsaved changes. Pass saveBeforeClose:true to save before closing.");
+                        $"Prefab stage '{closedPrefabPath}' has unsaved changes. Pass saveBeforeClose:true to save them, or discardChanges:true to close without saving.");
                 }
-
-                SavePrefabStage(stage);
-                savedBeforeClose = true;
+                else
+                {
+                    SavePrefabStage(stage);
+                    savedBeforeClose = true;
+                }
             }
 
             StageUtility.GoToMainStage();
@@ -76,7 +97,8 @@ namespace Chievfx.Mcp.Editor
             {
                 closed = true,
                 prefabPath = closedPrefabPath,
-                savedBeforeClose
+                savedBeforeClose,
+                discardedChanges = discarded
             };
         }
 

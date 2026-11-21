@@ -486,6 +486,81 @@ class BridgeTransportMixin:
         self.emit_progress(progress_token, notify, 1.0, "recompile completed.")
         return result
 
+    def settle_frame_debugger_result(
+        self, name: str, arguments: dict[str, Any], result: dict[str, Any], request_id: Any
+    ) -> dict[str, Any]:
+        """Fill a Frame Debugger event's details that Unity had not produced yet, and say when the captured frame changed.
+
+        Unity reports an event's shader, pass and render target only after the editor re-rendered with the event selected,
+        a tick after the tool selected it: the reply said "GetFrameEventData unavailable for event N: " with no reason,
+        and the details came only on a repeat call. In Play Mode the game can also render a different frame on some
+        repaints (196 and 199 events alternating), so event, group and draw-call numbers from one reply pointed to other
+        draw calls in the next without any sign of it.
+        """
+        diagnostics = [d for d in result.get("diagnostics") or [] if isinstance(d, str)]
+        event_count = frame_debugger_event_count(result)
+        frame_event = result.get("frameEvent")
+        missing = [d for d in diagnostics if FRAME_EVENT_DATA_UNAVAILABLE in d]
+        # Unity produces details only for the selected event; event-get select:false leaves the selection as it was.
+        selects_event = arguments.get("select") is not False
+        settled = False
+        if (
+            name in FRAME_DEBUGGER_DETAIL_TOOLS
+            and selects_event
+            and isinstance(frame_event, dict)
+            and missing
+            and isinstance(frame_event.get("index"), int)
+        ):
+            event_index = frame_event["index"]
+            for _ in range(FRAME_DEBUGGER_DETAIL_RETRIES):
+                time.sleep(FRAME_DEBUGGER_DETAIL_RETRY_SECONDS)
+                try:
+                    retry = self.call_unity_bridge(
+                        "frame-debugger-event-get", {"eventIndex": event_index, "select": False}, request_id, None, None
+                    ).get("result")
+                except RuntimeError:
+                    break
+                if not isinstance(retry, dict) or not isinstance(retry.get("frameEvent"), dict):
+                    break
+                retry_count = frame_debugger_event_count(retry)
+                if isinstance(event_count, int) and isinstance(retry_count, int) and retry_count != event_count:
+                    diagnostics.append(
+                        f"Event {event_index} details were not read: the captured frame changed ({event_count} -> {retry_count} events) "
+                        "before Unity produced them; in Play Mode repaints can capture different frames, so call again or exit Play Mode."
+                    )
+                    settled = True
+                    break
+                if any(FRAME_EVENT_DATA_UNAVAILABLE in d for d in retry.get("diagnostics") or [] if isinstance(d, str)):
+                    continue
+                merged = dict(retry["frameEvent"])
+                for key in ("groupIndex", "drawCallIndex"):
+                    if key in frame_event:
+                        merged[key] = frame_event[key]
+                result["frameEvent"] = merged
+                settled = True
+                break
+        if missing and isinstance(frame_event, dict) and isinstance(frame_event.get("index"), int):
+            event_index = frame_event["index"]
+            diagnostics = [d for d in diagnostics if FRAME_EVENT_DATA_UNAVAILABLE not in d]
+            if not settled:
+                diagnostics.append(
+                    f"Event {event_index} details (shader, pass, render target) are not ready: Unity produces them only for the "
+                    f"selected event, after the editor re-renders with it - call frame-debugger-event-get eventIndex:{event_index} "
+                    "(select:true, the default) again."
+                )
+
+        previous = getattr(self, "_frame_debugger_event_count", None)
+        if isinstance(event_count, int) and event_count > 0:
+            if isinstance(previous, int) and previous > 0 and previous != event_count:
+                diagnostics.append(
+                    f"The captured frame changed since the previous Frame Debugger reply ({previous} -> {event_count} events): "
+                    "event, group and draw-call numbers from earlier replies may point to other draw calls now. In Play Mode "
+                    "repaints can capture different frames: list again before using a number, or exit Play Mode."
+                )
+            self._frame_debugger_event_count = event_count
+        result["diagnostics"] = diagnostics
+        return result
+
     def wait_for_compile_start(self, since_event_id: int, timeout_seconds: float) -> bool:
         """True once the bridge journaled compile-start (or compile-finish) after since_event_id."""
         return self.wait_for_compile_event(since_event_id, timeout_seconds, ("compile-start", "compile-finish"))

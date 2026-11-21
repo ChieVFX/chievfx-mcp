@@ -50,6 +50,42 @@ namespace Chievfx.Mcp.Editor
 
             ValidateSearchFolders(searchInFolders);
 
+            // Build index counts only enabled scenes, as SceneManager.LoadScene(int) does.
+            var buildIndexByPath = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var buildScene in EditorBuildSettings.scenes)
+            {
+                if (buildScene.enabled && !buildIndexByPath.ContainsKey(buildScene.path))
+                {
+                    buildIndexByPath[buildScene.path] = buildIndexByPath.Count;
+                }
+            }
+
+            if (ReadBool(args, "inBuild", false))
+            {
+                var buildScenes = EditorBuildSettings.scenes
+                    .Where(buildScene => string.IsNullOrWhiteSpace(filter)
+                        || buildScene.path.IndexOf(filter!, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .ToArray();
+                var buildRows = buildScenes
+                    .Take(maxResults)
+                    .Select(buildScene => new
+                    {
+                        name = Path.GetFileNameWithoutExtension(buildScene.path),
+                        path = buildScene.path,
+                        guid = buildScene.guid.ToString(),
+                        enabled = buildScene.enabled,
+                        buildIndex = buildIndexByPath.TryGetValue(buildScene.path, out var index) && buildScene.enabled ? index : (int?)null
+                    })
+                    .ToArray();
+                return new
+                {
+                    count = buildRows.Length,
+                    truncated = buildScenes.Length > maxResults,
+                    inBuild = true,
+                    scenes = buildRows
+                };
+            }
+
             var query = string.IsNullOrWhiteSpace(filter)
                 ? "t:Scene"
                 : $"{filter} t:Scene";
@@ -70,7 +106,8 @@ namespace Chievfx.Mcp.Editor
                     {
                         name = Path.GetFileNameWithoutExtension(path),
                         path,
-                        guid
+                        guid,
+                        buildIndex = buildIndexByPath.TryGetValue(path, out var index) ? index : (int?)null
                     };
                 })
                 .ToArray();

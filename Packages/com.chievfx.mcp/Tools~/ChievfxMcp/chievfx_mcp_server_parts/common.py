@@ -136,6 +136,12 @@ RECOMPILE_MAX_ISSUE_CHARS = 400
 # of them: a clean compile reloads the domain, which wipes them from console-get-logs, so the reply is where
 # the agent still sees them.
 RECOMPILE_MAX_OTHER_ERROR_LINES = 3
+# Frame Debugger: Unity fills an event's details (shader, pass, render target) only after the editor re-renders with that
+# event selected, a tick after the tool selected it. The server reads them again after a short wait.
+FRAME_DEBUGGER_DETAIL_TOOLS = frozenset({"frame-debugger-event-get", "frame-debugger-drawcall-get", "frame-debugger-pick-pixel"})
+FRAME_EVENT_DATA_UNAVAILABLE = "GetFrameEventData unavailable for event "
+FRAME_DEBUGGER_DETAIL_RETRY_SECONDS = 0.25
+FRAME_DEBUGGER_DETAIL_RETRIES = 4
 RECOMPILE_OTHER_ERROR_CHARS = 160
 # editor-playmode-set waitForReady defaults: how long to wait for the play-mode transition, and how
 # long to settle afterwards so initial frames render before returning. Entering is far heavier than

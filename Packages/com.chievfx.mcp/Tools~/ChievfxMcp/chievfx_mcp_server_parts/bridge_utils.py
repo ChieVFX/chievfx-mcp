@@ -465,3 +465,12 @@ def clean_console_message(message: Any, max_chars: int) -> str:
     if len(text) <= max_chars:
         return text
     return text[: max(0, max_chars - 3)].rstrip() + "..."
+
+
+def frame_debugger_event_count(result: dict[str, Any]) -> int | None:
+    """Events in the capture a Frame Debugger reply describes: its frame signature."""
+    state = result.get("frameDebugger")
+    if isinstance(state, dict) and isinstance(state.get("eventCount"), int):
+        return state["eventCount"]
+    value = result.get("eventCount")
+    return value if isinstance(value, int) else None

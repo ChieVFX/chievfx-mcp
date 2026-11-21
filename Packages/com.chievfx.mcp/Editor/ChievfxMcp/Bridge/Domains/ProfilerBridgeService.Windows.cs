@@ -485,6 +485,14 @@ namespace Chievfx.Mcp.Editor
             // Leave the frame debugger showing the culprit so the Unity window matches the answer.
             SelectFrameDebuggerEventForCapture(window, writerIndex, diagnostics);
 
+            // In Play the game can render a different frame on some repaints (another camera every other frame): the
+            // search then compared captures of different frames.
+            var eventCountAfter = GetFrameDebuggerEventCount(diagnostics);
+            if (eventCountAfter.HasValue && eventCountAfter.Value != eventCount.Value)
+            {
+                diagnostics.Add($"The captured frame changed during the search ({eventCount.Value} -> {eventCountAfter.Value} events): writerEventIndex may point to another draw call. Check it with frame-debugger-event-get, or exit Play Mode.");
+            }
+
             var frameEvent = CreateFrameDebuggerEventSummary(writerIndex, includeDetails: true, diagnostics);
             if (beforeColor.HasValue && ColorsMatch(beforeColor.Value, finalColor, tolerance))
             {
@@ -974,6 +982,11 @@ namespace Chievfx.Mcp.Editor
             }
 
             state["eventCount"] = GetFrameDebuggerEventCount(diagnostics);
+            if (EditorApplication.isPlaying)
+            {
+                state["playPaused"] = EditorApplication.isPaused;
+            }
+
             var currentEventLimit = GetFrameDebuggerEventLimit(window, diagnostics);
             state["currentEventLimit"] = currentEventLimit;
             state["selectedEventIndex"] = GetFrameDebuggerSelectedEventIndex(window, currentEventLimit);
@@ -994,11 +1007,13 @@ namespace Chievfx.Mcp.Editor
                 ReadBool(args, "focus", false),
                 diagnostics);
 
+            var autoEnabled = false;
             if (!TryGetFrameDebuggerEnabled(out var enabled, out _)
                 || !enabled)
             {
                 SetFrameDebuggerEnabled(window, true, diagnostics);
                 diagnostics.Add("Frame Debugger enabled automatically for event inspection.");
+                autoEnabled = true;
             }
 
             var eventCount = GetFrameDebuggerEventCount(diagnostics);
@@ -1012,7 +1027,10 @@ namespace Chievfx.Mcp.Editor
             eventCount = GetFrameDebuggerEventCount(diagnostics);
             if (eventCount.HasValue && eventCount.Value <= 0)
             {
-                throw new InvalidOperationException("Frame Debugger has no captured events. Make sure a rendered Game/Scene view is available, then retry.");
+                // Just turned on, it captures only on the next repaint: the old text sent agents to check the Game view.
+                throw new InvalidOperationException(autoEnabled
+                    ? "Frame Debugger was off: it is on now and captures a frame on the next repaint of the Game view - call again."
+                    : "Frame Debugger has no captured events. Make sure a rendered Game/Scene view is available, then retry.");
             }
 
             if (selectEventIndex.HasValue)
@@ -1221,7 +1239,36 @@ namespace Chievfx.Mcp.Editor
             return Convert.ToBoolean(value, CultureInfo.InvariantCulture);
         }
 
+        // Turning the Frame Debugger on in Play Mode pauses the game, and turning it off leaves it paused: the game sat frozen
+        // with nothing saying why. The pause state from before enabling comes back on disable.
+        private static bool? playPausedBeforeFrameDebugger;
+
         private static void SetFrameDebuggerEnabled(EditorWindow window, bool enabled, List<string> diagnostics)
+        {
+            if (enabled && EditorApplication.isPlaying && playPausedBeforeFrameDebugger == null)
+            {
+                playPausedBeforeFrameDebugger = EditorApplication.isPaused;
+            }
+
+            SetFrameDebuggerEnabledCore(window, enabled, diagnostics);
+            if (!enabled)
+            {
+                RestorePlayPause(diagnostics);
+            }
+        }
+
+        private static void RestorePlayPause(List<string> diagnostics)
+        {
+            var pausedBefore = playPausedBeforeFrameDebugger;
+            playPausedBeforeFrameDebugger = null;
+            if (pausedBefore == false && EditorApplication.isPlaying && EditorApplication.isPaused)
+            {
+                EditorApplication.isPaused = false;
+                diagnostics.Add("Play Mode unpaused: the Frame Debugger paused it when it was turned on.");
+            }
+        }
+
+        private static void SetFrameDebuggerEnabledCore(EditorWindow window, bool enabled, List<string> diagnostics)
         {
             var stateKnown = TryGetFrameDebuggerEnabled(out var currentEnabled, out var stateError);
             if (!stateKnown)

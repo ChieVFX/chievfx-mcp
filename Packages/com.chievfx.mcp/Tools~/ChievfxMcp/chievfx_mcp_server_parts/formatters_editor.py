@@ -547,6 +547,9 @@ def append_frame_debugger_state_parts(parts: list[str], state: Any) -> None:
         value = state.get(key)
         if not should_omit_toon_value(value):
             parts.append(f"{key}:{format_toon_atom(value)}")
+    # Turning the Frame Debugger on in Play Mode pauses the game.
+    if state.get("playPaused") is True:
+        parts.append("playPaused:true")
 
 
 def format_frame_debugger_event_row(frame_event: dict[str, Any], use_drawcall_index: bool = False) -> str:

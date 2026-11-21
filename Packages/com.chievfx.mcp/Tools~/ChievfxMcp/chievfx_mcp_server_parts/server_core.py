@@ -700,6 +700,8 @@ class McpServerCore:
             return result
 
         result = bridge_result.get("result")
+        if name.startswith("frame-debugger-") and isinstance(result, dict):
+            result = self.settle_frame_debugger_result(name, arguments, result, request_id)
         if raw_sink is not None:
             raw_sink["result"] = result
             if raw_sink.get("awaiting"):

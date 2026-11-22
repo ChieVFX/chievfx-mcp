@@ -354,6 +354,7 @@ namespace Chievfx.Mcp.Editor
         public object ListFrameDebuggerGroupEvents(JToken args)
         {
             var diagnostics = new List<string>();
+            RequireFrameDebuggerGroupArgument(args);
             var window = PrepareFrameDebuggerForInspection(args, diagnostics, selectEventIndex: null);
             var state = CreateFrameDebuggerState(window, diagnostics);
             var groups = CreateFrameDebuggerGroups(state, diagnostics);
@@ -398,6 +399,7 @@ namespace Chievfx.Mcp.Editor
                 throw new ArgumentOutOfRangeException(nameof(args), "drawCallIndex must be zero or greater.");
             }
 
+            RequireFrameDebuggerGroupArgument(args);
             var window = PrepareFrameDebuggerForInspection(args, diagnostics, selectEventIndex: null);
             var state = CreateFrameDebuggerState(window, diagnostics);
             var groups = CreateFrameDebuggerGroups(state, diagnostics);
@@ -892,6 +894,7 @@ namespace Chievfx.Mcp.Editor
                 throw new ArgumentOutOfRangeException(nameof(args), "drawCallIndex must be zero or greater.");
             }
 
+            RequireFrameDebuggerGroupArgument(args);
             var window = PrepareFrameDebuggerForInspection(args, diagnostics, selectEventIndex: null);
             var state = CreateFrameDebuggerState(window, diagnostics);
             var groups = CreateFrameDebuggerGroups(state, diagnostics);
@@ -986,6 +989,7 @@ namespace Chievfx.Mcp.Editor
                 throw new ArgumentOutOfRangeException(nameof(args), "drawCallIndex must be zero or greater.");
             }
 
+            RequireFrameDebuggerGroupArgument(args);
             var window = PrepareFrameDebuggerForInspection(args, diagnostics, selectEventIndex: null);
             var state = CreateFrameDebuggerState(window, diagnostics);
             var groups = CreateFrameDebuggerGroups(state, diagnostics);
@@ -1113,13 +1117,17 @@ namespace Chievfx.Mcp.Editor
                     + string.Join(", ", groups.Take(12).Select(group => "'" + group.Name + "'")) + (groups.Length > 12 ? ", ..." : string.Empty));
             }
 
-            if (groupIndex == -1)
+            return ResolveFrameDebuggerGroup(groups, groupIndex);
+        }
+
+        // The schemas require neither argument: one of the two names the group. Checked before the Frame Debugger is turned
+        // on, so a call without both does not enable it (and pause Play) only to ask for a repeat that fails again.
+        private static void RequireFrameDebuggerGroupArgument(JToken args)
+        {
+            if (string.IsNullOrWhiteSpace(ReadString(args, "groupName")) && ReadInt(args, "groupIndex", -1) == -1)
             {
-                // The schemas require neither argument: one of the two names the group.
                 throw new ArgumentException("Pass groupName (a group name from frame-debugger-groups-list) or groupIndex.");
             }
-
-            return ResolveFrameDebuggerGroup(groups, groupIndex);
         }
 
         private static readonly System.Text.RegularExpressions.Regex RenderPassPrefix = new(@"^\(RP \d+:\d+\)\s*", System.Text.RegularExpressions.RegexOptions.CultureInvariant);

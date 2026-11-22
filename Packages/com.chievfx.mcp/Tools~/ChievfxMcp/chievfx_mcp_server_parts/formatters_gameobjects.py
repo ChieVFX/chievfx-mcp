@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import math
+import struct
 
 
 def format_diagnostics_lines(diagnostics: Any) -> list[str]:
@@ -1091,7 +1092,26 @@ def format_vector3_inline(value: Any) -> str:
     if not isinstance(value, dict):
         return format_toon_atom(value)
 
-    return f"{format_float_compact(value.get('x'))}, {format_float_compact(value.get('y'))}, {format_float_compact(value.get('z'))}"
+    return f"{format_float_exact(value.get('x'))}, {format_float_exact(value.get('y'))}, {format_float_exact(value.get('z'))}"
+
+
+def format_float_exact(value: Any) -> str:
+    # Unity stores 32-bit floats: the shortest text that reads back to the same float, so a transform read here and
+    # written back with transform-update stays as it was (4 decimals lost the last digits of -271.474335).
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        return format_toon_atom(value)
+
+    try:
+        target = struct.unpack("f", struct.pack("f", float(value)))[0]
+    except OverflowError:
+        return repr(float(value))
+    text = repr(target)
+    for digits in range(1, 10):
+        candidate = f"{target:.{digits}g}"
+        if struct.unpack("f", struct.pack("f", float(candidate)))[0] == target:
+            text = candidate
+            break
+    return text
 
 
 def format_vector2_inline(value: Any) -> str:

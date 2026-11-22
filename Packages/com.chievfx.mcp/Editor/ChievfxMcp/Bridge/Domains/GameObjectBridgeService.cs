@@ -208,6 +208,14 @@ namespace Chievfx.Mcp.Editor
         // read as "no such objects".
         internal static string? DescribeWholeNamePattern(string namePattern, List<GameObject> searchedObjects)
         {
+            // "(?i)fade|black" and "Fade|Black" found nothing without a word: the bar and brackets are matched as text.
+            if (namePattern.IndexOfAny(RegexOnlyCharacters) >= 0)
+            {
+                var word = Regex.Match(namePattern.Replace("(?i)", string.Empty), "[A-Za-z0-9_]+").Value;
+                return "namePattern is not a regex: it is a whole name with wildcards * and ? (case-insensitive), and | ( ) [ ] ^ $ + \\ are matched as text; "
+                       + "one name per call" + (word.Length > 0 ? $", e.g. namePattern:'*{word}*'." : ".");
+            }
+
             if (namePattern.IndexOfAny(WildcardCharacters) >= 0)
             {
                 return null;
@@ -220,6 +228,7 @@ namespace Chievfx.Mcp.Editor
         }
 
         private static readonly char[] WildcardCharacters = { '*', '?' };
+        private static readonly char[] RegexOnlyCharacters = { '|', '(', ')', '[', ']', '^', '$', '+', '\\' };
 
         // Zero matches for a type name nothing is called: a typo or a guessed name ("Car") read the same as "no such objects".
         // Types on the searched objects come first, the ones highest in the hierarchy first: the shortest loaded names

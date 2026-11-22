@@ -14,7 +14,8 @@
         "type": "string"
       },
       "namePattern": {
-        "type": "string"
+        "type": "string",
+        "description": "Whole name with wildcards * and ?, case-insensitive; not a regex."
       },
       "componentType": {
         "type": "string"

@@ -1,5 +1,6 @@
 #nullable enable
 using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -59,6 +60,28 @@ namespace Chievfx.Mcp.Editor.Tests
             StringAssert.Contains("2 names contain 'Player' - try namePattern:'*Player*'", GameObjectBridgeService.DescribeWholeNamePattern("Player", objects));
             Assert.IsNull(GameObjectBridgeService.DescribeWholeNamePattern("*Player", objects));
             Assert.IsNull(GameObjectBridgeService.DescribeWholeNamePattern("Truck", objects));
+            StringAssert.Contains("not a regex", GameObjectBridgeService.DescribeWholeNamePattern("(?i)player|car", objects));
+            StringAssert.Contains("namePattern:'*player*'", GameObjectBridgeService.DescribeWholeNamePattern("(?i)player|car", objects));
+        }
+
+        [Test]
+        public void CameraFieldsSetWithALayerMaskInTheSamePatchStay()
+        {
+            var camera = Create("R24PatchCamera").AddComponent<Camera>();
+            camera.backgroundColor = Color.red;
+            camera.clearFlags = CameraClearFlags.Skybox;
+            camera.cullingMask = -1;
+
+            GameObjectBridgeService.ApplyComponentPropertyPatch(camera, new JObject
+            {
+                ["m_CullingMask"] = 0,
+                ["m_BackGroundColor"] = new JObject { ["r"] = 0.1, ["g"] = 0.2, ["b"] = 0.3, ["a"] = 1.0 },
+                ["m_ClearFlags"] = 2,
+            }, false);
+
+            Assert.AreEqual(0, camera.cullingMask);
+            Assert.AreEqual(0.2f, camera.backgroundColor.g, 0.001f);
+            Assert.AreEqual(CameraClearFlags.SolidColor, camera.clearFlags);
         }
 
         private GameObject Create(string name)

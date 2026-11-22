@@ -440,10 +440,11 @@ namespace Chievfx.Mcp.Editor
             }
         }
 
-        private static string[] ApplyComponentPropertyPatch(Component component, JObject properties, bool writeNonSerialized)
+        internal static string[] ApplyComponentPropertyPatch(Component component, JObject properties, bool writeNonSerialized)
         {
             Undo.RecordObject(component, "ChievFX MCP Update Component");
             var updated = new List<string>();
+            var setThroughApi = new List<JProperty>();
             var serializedObject = new SerializedObject(component);
             serializedObject.Update();
             foreach (var property in properties.Properties())
@@ -453,14 +454,9 @@ namespace Chievfx.Mcp.Editor
                     throw new InvalidOperationException("m_Script cannot be updated.");
                 }
 
-                if (TrySetRectTransformProperty(component, property.Name, property.Value))
+                if (TrySetComponentPropertyThroughApi(component, property))
                 {
-                    updated.Add(property.Name);
-                    continue;
-                }
-
-                if (TrySetCameraProperty(component, property.Name, property.Value))
-                {
+                    setThroughApi.Add(property);
                     updated.Add(property.Name);
                     continue;
                 }
@@ -485,8 +481,25 @@ namespace Chievfx.Mcp.Editor
             }
 
             serializedObject.ApplyModifiedProperties();
+            // ApplyModifiedProperties writes the whole object back from the copy taken before the API setters ran: with a
+            // serialized field in the same patch (Camera m_CullingMask) the background colour and clear flags set above
+            // were reverted while the reply listed them as updated. Setting them again keeps them.
+            if (setThroughApi.Count < properties.Count)
+            {
+                foreach (var property in setThroughApi)
+                {
+                    TrySetComponentPropertyThroughApi(component, property);
+                }
+            }
+
             MarkComponentMutationDirty(component);
             return updated.ToArray();
+        }
+
+        private static bool TrySetComponentPropertyThroughApi(Component component, JProperty property)
+        {
+            return TrySetRectTransformProperty(component, property.Name, property.Value)
+                   || TrySetCameraProperty(component, property.Name, property.Value);
         }
 
         private static bool TrySetRectTransformProperty(Component component, string propertyName, JToken value)

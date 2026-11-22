@@ -234,8 +234,14 @@ def format_editor_window_action_text(result: dict[str, Any]) -> str:
     window = result.get("window")
     if isinstance(window, dict):
         parts.extend(format_editor_window_action_parts(window))
+    menu_executed = result.get("menuExecuted")
+    if not should_omit_toon_value(menu_executed):
+        parts.append(f"menuExecuted:{format_toon_atom(menu_executed)}")
 
     lines = [" ".join(parts) if parts else to_toon(result)]
+    note = result.get("note")
+    if isinstance(note, str) and note:
+        lines.append(f"note: {note}")
     diagnostics = result.get("diagnostics")
     if isinstance(diagnostics, list) and diagnostics:
         lines.append(f"diagnostics[{len(diagnostics)}]:")

@@ -115,12 +115,23 @@ namespace Chievfx.Mcp.Editor
                 windowsBeforeMenu,
                 focusedInstanceIdBeforeMenu,
                 diagnostics);
+            if (window == null && string.IsNullOrWhiteSpace(typeName) && string.IsNullOrWhiteSpace(title))
+            {
+                // A command or a toggle (Edit/Play Mode/Pause) opens no window: an error here made the agent call it again,
+                // and the second call toggled the pause back.
+                return new
+                {
+                    action = openedBy,
+                    success = true,
+                    menuExecuted = menuPath,
+                    note = "the menu item ran and opened no editor window (a command or a toggle); check its effect instead of calling it again - a second call toggles it back",
+                    diagnostics = diagnostics.Distinct(StringComparer.Ordinal).ToArray()
+                };
+            }
+
             if (window == null)
             {
-                var message = string.IsNullOrWhiteSpace(typeName) && string.IsNullOrWhiteSpace(title)
-                    ? "Menu item executed, but Unity did not report a focused or newly opened EditorWindow."
-                    : "Menu item executed, but no EditorWindow matched the requested type/title.";
-                throw new InvalidOperationException($"{message} menuPath='{menuPath}'.");
+                throw new InvalidOperationException($"Menu item executed, but no EditorWindow matched the requested type/title. menuPath='{menuPath}'.");
             }
 
             if (!string.IsNullOrWhiteSpace(title))

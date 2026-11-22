@@ -101,6 +101,31 @@ namespace Chievfx.Mcp.Editor.Tests
             CollectionAssert.AreEqual(new[] { 0.125f, 0.0625f, 0.333333343f, 1f }, ReadNumbers(serialized.FindProperty("m_NormalizedViewPortRect")));
         }
 
+        [Test]
+        public void PrintedColourAndVectorsWriteBackAsTheyRead()
+        {
+            var camera = Create("R26PrintedCamera").AddComponent<Camera>();
+            var colour = new Color(0.19215687f, 0.3019608f, 0.4745098f, 0f);
+            camera.backgroundColor = colour;
+            camera.rect = new Rect(0.125f, 0.0625f, 0.333333343f, 1f);
+            var serialized = new SerializedObject(camera);
+            var colourProperty = serialized.FindProperty("m_BackGroundColor");
+            var rectProperty = serialized.FindProperty("m_NormalizedViewPortRect");
+            var truncated = false;
+            var printedColour = (string)GameObjectBridgeService.ReadSerializedPropertyValue(colourProperty, ref truncated)!;
+            var printedRect = (string)GameObjectBridgeService.ReadSerializedPropertyValue(rectProperty, ref truncated)!;
+            colourProperty.colorValue = Color.white;
+            rectProperty.rectValue = new Rect(0f, 0f, 1f, 1f);
+
+            GameObjectBridgeService.SetSerializedPropertyValue(colourProperty, new JValue(printedColour), "m_BackGroundColor");
+            GameObjectBridgeService.SetSerializedPropertyValue(rectProperty, new JValue(printedRect), "m_NormalizedViewPortRect");
+
+            Assert.AreEqual(colour, colourProperty.colorValue);
+            Assert.AreEqual(new Rect(0.125f, 0.0625f, 0.333333343f, 1f), rectProperty.rectValue);
+            var refusal = Assert.Throws<System.ArgumentException>(() => GameObjectBridgeService.SetSerializedPropertyValue(rectProperty, new JValue("wide"), "m_NormalizedViewPortRect"));
+            StringAssert.Contains("\"width\":<number>", refusal.Message);
+        }
+
         private static float[] ReadNumbers(SerializedProperty property)
         {
             var truncated = false;

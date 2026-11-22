@@ -694,7 +694,7 @@ namespace Chievfx.Mcp.Editor
             return fields.ToArray();
         }
 
-        private static void SetSerializedPropertyValue(SerializedProperty property, JToken value, string displayName)
+        internal static void SetSerializedPropertyValue(SerializedProperty property, JToken value, string displayName)
         {
             if (property.isArray && property.propertyType != SerializedPropertyType.String && value is JArray array)
             {
@@ -1032,19 +1032,19 @@ namespace Chievfx.Mcp.Editor
 
         private static Vector2 ReadVector2Token(JToken token, string displayName)
         {
-            var obj = RequireObject(token, displayName);
+            var obj = RequireObject(token, displayName, "x", "y");
             return new Vector2(ReadFloatComponent(obj, "x", displayName), ReadFloatComponent(obj, "y", displayName));
         }
 
         private static Vector3 ReadVector3Token(JToken token, string displayName)
         {
-            var obj = RequireObject(token, displayName);
+            var obj = RequireObject(token, displayName, "x", "y", "z");
             return new Vector3(ReadFloatComponent(obj, "x", displayName), ReadFloatComponent(obj, "y", displayName), ReadFloatComponent(obj, "z", displayName));
         }
 
         private static Vector4 ReadVector4Token(JToken token, string displayName)
         {
-            var obj = RequireObject(token, displayName);
+            var obj = RequireObject(token, displayName, "x", "y", "z", "w");
             return new Vector4(
                 ReadFloatComponent(obj, "x", displayName),
                 ReadFloatComponent(obj, "y", displayName),
@@ -1054,13 +1054,13 @@ namespace Chievfx.Mcp.Editor
 
         private static Vector2Int ReadVector2IntToken(JToken token, string displayName)
         {
-            var obj = RequireObject(token, displayName);
+            var obj = RequireObject(token, displayName, "x", "y");
             return new Vector2Int(ReadIntComponent(obj, "x", displayName), ReadIntComponent(obj, "y", displayName));
         }
 
         private static Vector3Int ReadVector3IntToken(JToken token, string displayName)
         {
-            var obj = RequireObject(token, displayName);
+            var obj = RequireObject(token, displayName, "x", "y", "z");
             return new Vector3Int(ReadIntComponent(obj, "x", displayName), ReadIntComponent(obj, "y", displayName), ReadIntComponent(obj, "z", displayName));
         }
 
@@ -1071,7 +1071,10 @@ namespace Chievfx.Mcp.Editor
                 return color;
             }
 
-            var obj = RequireObject(token, displayName);
+            // "RGBA(1.0,0.5,0.0,1.0)" as gameobject-component-get prints it: alpha may be left out, as in the object form.
+            var obj = TryReadPrintedNumbers(token, 3) is { } rgb
+                ? new JObject { ["r"] = rgb[0], ["g"] = rgb[1], ["b"] = rgb[2] }
+                : RequireObject(token, displayName, "r", "g", "b", "a");
             return new Color(
                 ReadFloatComponent(obj, "r", displayName),
                 ReadFloatComponent(obj, "g", displayName),
@@ -1081,7 +1084,7 @@ namespace Chievfx.Mcp.Editor
 
         private static Rect ReadRectToken(JToken token, string displayName)
         {
-            var obj = RequireObject(token, displayName);
+            var obj = RequireObject(token, displayName, "x", "y", "width", "height");
             return new Rect(
                 ReadFloatComponent(obj, "x", displayName),
                 ReadFloatComponent(obj, "y", displayName),
@@ -1091,7 +1094,7 @@ namespace Chievfx.Mcp.Editor
 
         private static RectInt ReadRectIntToken(JToken token, string displayName)
         {
-            var obj = RequireObject(token, displayName);
+            var obj = RequireObject(token, displayName, "x", "y", "width", "height");
             return new RectInt(
                 ReadIntComponent(obj, "x", displayName),
                 ReadIntComponent(obj, "y", displayName),
@@ -1121,7 +1124,13 @@ namespace Chievfx.Mcp.Editor
 
         private static Quaternion ReadQuaternionToken(JToken token, string displayName)
         {
-            var obj = RequireObject(token, displayName);
+            // gameobject-component-get prints a rotation as its Euler angles "(x, y, z)".
+            if (TryReadPrintedNumbers(token, 3) is { } euler)
+            {
+                return Quaternion.Euler((float)euler[0], (float)euler[1], (float)euler[2]);
+            }
+
+            var obj = RequireObject(token, displayName, "x", "y", "z", "w");
             if (GetObjectPropertyValue(obj, "euler") is JObject eulerObj)
             {
                 return Quaternion.Euler(ReadVector3Token(eulerObj, $"{displayName}.euler"));
@@ -1134,9 +1143,55 @@ namespace Chievfx.Mcp.Editor
                 ReadFloatComponent(obj, "w", displayName));
         }
 
-        private static JObject RequireObject(JToken token, string displayName)
+        // A value is written back in the form gameobject-component-get prints it ("RGBA(1.0,0.5,0.0,1.0)", "(36, 24)",
+        // "(x:0, y:0, width:1, height:1)"): the read value was refused with "must be an object", which did not say the form.
+        private static JObject RequireObject(JToken token, string displayName, params string[] components)
         {
-            return token as JObject ?? throw new ArgumentException($"{displayName} must be an object.");
+            if (token is JObject obj)
+            {
+                return obj;
+            }
+
+            if (components.Length > 0 && TryReadPrintedNumbers(token, components.Length) is { } numbers)
+            {
+                var printed = new JObject();
+                for (var i = 0; i < components.Length; i++)
+                {
+                    printed[components[i]] = numbers[i];
+                }
+
+                return printed;
+            }
+
+            throw new ArgumentException(components.Length > 0
+                ? $"{displayName} must be an object {{{string.Join(", ", components.Select(component => "\"" + component + "\":<number>"))}}} or the string gameobject-component-get prints for it."
+                : $"{displayName} must be an object.");
+        }
+
+        private static readonly System.Text.RegularExpressions.Regex PrintedNumber = new(
+            @"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        // Numbers of a printed value, when it holds exactly count of them (labels such as "RGBA" or "width:" hold none).
+        private static double[]? TryReadPrintedNumbers(JToken token, int count)
+        {
+            if (token.Type != JTokenType.String)
+            {
+                return null;
+            }
+
+            var matches = PrintedNumber.Matches(token.Value<string>() ?? string.Empty);
+            if (matches.Count != count)
+            {
+                return null;
+            }
+
+            var numbers = new double[count];
+            for (var i = 0; i < count; i++)
+            {
+                numbers[i] = double.Parse(matches[i].Value, NumberStyles.Float, CultureInfo.InvariantCulture);
+            }
+
+            return numbers;
         }
 
         private static JToken? GetObjectPropertyValue(JObject obj, string name)

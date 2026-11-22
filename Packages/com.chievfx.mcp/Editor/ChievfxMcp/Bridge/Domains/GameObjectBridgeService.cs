@@ -577,6 +577,19 @@ namespace Chievfx.Mcp.Editor
             MarkGameObjectMutationDirty(gameObject);
             RepaintEditorAfterMutation();
 
+            // World numbers go through the parent's matrix in float: the world readout matched the old one to the last digit
+            // while the stored local position had moved by 1e-4, and an agent reported an exact restore.
+            if (isWorld && transform.parent != null)
+            {
+                return new
+                {
+                    success = true,
+                    note = "world values are stored as local ones through the parent, so the local position and rotation can differ "
+                           + "from before in the last float digits even when the world readout matches; to restore an object exactly, "
+                           + "write the local values (isWorld:false) read before the change"
+                };
+            }
+
             return new
             {
                 success = true

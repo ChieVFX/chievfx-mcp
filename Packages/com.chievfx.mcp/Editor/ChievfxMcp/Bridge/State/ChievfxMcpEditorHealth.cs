@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Profiling;
@@ -20,6 +21,8 @@ namespace Chievfx.Mcp.Editor
         private const int ManyRenderTextures = 200;
         private const long HighReservedCapMb = 12000;
         private const long BytesPerMb = 1024 * 1024;
+        private const string PlayEnteredKey = "ChievfxMcp.PlayEntered";
+        private const string DomainReloadedInPlayKey = "ChievfxMcp.DomainReloadedInPlayUtc";
 
         private static double lastBuildTime = double.NegativeInfinity;
         private static Dictionary<string, object?>? cached;
@@ -38,6 +41,44 @@ namespace Chievfx.Mcp.Editor
             }
 
             return cached;
+        }
+
+        // UTC time of a domain reload during the current Play Mode (scripts changed while playing are compiled in Play:
+        // Preferences > General > Script Changes While Playing), null when there was none. Static state is reset mid-run, and a
+        // game that does not survive it stays dead (stuck on loading, errors every frame) while replies said "ready" and "ok".
+        public static string? DomainReloadedInPlayUtc
+        {
+            get
+            {
+                var value = SessionState.GetString(DomainReloadedInPlayKey, string.Empty);
+                return value.Length > 0 ? value : null;
+            }
+        }
+
+        // SessionState outlives the reload: a Play entered earlier and still on after the reload is a reload in Play. Entering
+        // Play with a domain reload (the project default) reloads before EnteredPlayMode, so it is not counted.
+        [InitializeOnLoadMethod]
+        private static void TrackDomainReloadsInPlay()
+        {
+            if (EditorApplication.isPlaying && SessionState.GetBool(PlayEnteredKey, false))
+            {
+                SessionState.SetString(DomainReloadedInPlayKey, DateTime.UtcNow.ToString("HH:mm:ss", CultureInfo.InvariantCulture));
+            }
+
+            EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+        }
+
+        private static void OnPlayModeStateChanged(PlayModeStateChange change)
+        {
+            if (change == PlayModeStateChange.EnteredPlayMode)
+            {
+                SessionState.SetBool(PlayEnteredKey, true);
+            }
+            else if (change == PlayModeStateChange.ExitingPlayMode || change == PlayModeStateChange.EnteredEditMode)
+            {
+                SessionState.EraseBool(PlayEnteredKey);
+                SessionState.EraseString(DomainReloadedInPlayKey);
+            }
         }
 
         public static Dictionary<string, object?> Build()
@@ -73,6 +114,14 @@ namespace Chievfx.Mcp.Editor
             if (UnityEditorInternal.ProfilerDriver.enabled)
             {
                 problems.Add("profiler_recording: the Profiler records every frame and keeps them in memory; stop it with profiler-stop-recording unless you profile now");
+            }
+
+            var domainReloadedInPlayUtc = DomainReloadedInPlayUtc;
+            if (Application.isPlaying && domainReloadedInPlayUtc != null)
+            {
+                problems.Add("domain_reloaded_in_play: scripts were compiled and the domain reloaded during this Play Mode at " + domainReloadedInPlayUtc
+                             + " UTC (Preferences > General > Script Changes While Playing); static state was reset mid-run, which many games do not "
+                             + "survive (stuck on loading, errors every frame): exit Play and enter it again");
             }
 
             var health = new Dictionary<string, object?>

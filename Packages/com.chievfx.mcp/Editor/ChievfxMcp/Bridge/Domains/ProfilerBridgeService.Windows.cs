@@ -1107,6 +1107,12 @@ namespace Chievfx.Mcp.Editor
                     + string.Join(", ", groups.Take(12).Select(group => "'" + group.Name + "'")) + (groups.Length > 12 ? ", ..." : string.Empty));
             }
 
+            if (groupIndex == -1)
+            {
+                // The schemas require neither argument: one of the two names the group.
+                throw new ArgumentException("Pass groupName (a group name from frame-debugger-groups-list) or groupIndex.");
+            }
+
             return ResolveFrameDebuggerGroup(groups, groupIndex);
         }
 

@@ -491,8 +491,9 @@ class editorWindowScreenshotMetadataTests(unittest.TestCase):
         self.assertNotIn("includeDetails", list_tool["inputSchema"]["properties"])
         self.assertIn("eventIndex", get_tool["inputSchema"]["properties"])
         self.assertEqual(get_tool["inputSchema"]["required"], ["eventIndex"])
-        self.assertEqual(group_events_tool["inputSchema"]["required"], ["groupIndex"])
-        # groupName replaces groupIndex when group numbers shift between captured frames in Play Mode.
+        # groupName replaces groupIndex when group numbers shift between captured frames in Play Mode, so neither is required.
+        self.assertNotIn("required", group_events_tool["inputSchema"])
+        self.assertIn("groupName", group_events_tool["inputSchema"]["properties"])
         self.assertEqual(drawcall_tool["inputSchema"]["required"], ["drawCallIndex"])
         self.assertEqual(screenshot_tool["inputSchema"]["required"], ["drawCallIndex"])
         self.assertIn("groupName", drawcall_tool["inputSchema"]["properties"])

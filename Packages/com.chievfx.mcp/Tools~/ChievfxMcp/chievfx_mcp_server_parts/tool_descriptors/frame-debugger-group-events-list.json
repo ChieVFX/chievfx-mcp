@@ -34,9 +34,6 @@
         "maximum": 200,
         "default": 50
       }
-    },
-    "required": [
-      "groupIndex"
-    ]
+    }
   }
 }

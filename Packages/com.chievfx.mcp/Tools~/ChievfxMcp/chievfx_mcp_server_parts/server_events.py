@@ -282,6 +282,11 @@ class EventsStatusMixin:
             editor = heartbeat.get("editor") if isinstance(heartbeat.get("editor"), dict) else {}
             if isinstance(editor.get("logPath"), str):
                 result["editorLogPath"] = editor["logPath"]
+                # The journal outlives editor restarts, the log file does not: every launch starts a new one.
+                log_started = self.log_file_started_unix(editor["logPath"])
+                oldest_unix = parse_utc_iso(result["oldestEventUtc"])
+                if log_started is not None and oldest_unix is not None and oldest_unix < log_started:
+                    result["droppedBeforeEditorLog"] = True
         last_shown_id = limited[-1].get("eventId") if limited and isinstance(limited[-1], dict) else None
         if result["hasMore"] and isinstance(last_shown_id, int):
             result["nextSinceEventId"] = last_shown_id
@@ -289,6 +294,20 @@ class EventsStatusMixin:
         if ahead is not None:
             result["warning"] = ahead
         return result
+
+    @staticmethod
+    def log_file_started_unix(path: str) -> float | None:
+        if not path:
+            return None
+        try:
+            stat = os.stat(path)
+        except OSError:
+            return None
+        # Creation time: st_birthtime on macOS, st_ctime on Windows; Linux keeps none here.
+        born = getattr(stat, "st_birthtime", None)
+        if born is None and os.name == "nt":
+            born = stat.st_ctime
+        return born
 
     def cursor_ahead_hint(self, since_event_id: int, stream: dict[str, Any]) -> str | None:
         """A cursor past the newest event (an id from another counter, or from before the journal was reset)

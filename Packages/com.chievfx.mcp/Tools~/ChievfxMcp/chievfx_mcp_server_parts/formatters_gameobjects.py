@@ -1289,7 +1289,11 @@ def format_events_check_since_text(result: dict[str, Any]) -> str:
     oldest = result.get("oldestEventUtc")
     if isinstance(oldest, str) and oldest:
         log_path = result.get("editorLogPath")
-        if isinstance(log_path, str) and log_path:
+        if isinstance(log_path, str) and log_path and result.get("droppedBeforeEditorLog"):
+            # An editor restart keeps the journal but starts a new log: the dropped lines are in the previous run's file.
+            where = (f"they were logged before this editor session started, so its log {log_path} does not have them; "
+                     "the previous session's log is Editor-prev.log until another editor starts.")
+        elif isinstance(log_path, str) and log_path:
             where = f"their log lines are in {log_path} (this editor session's log)."
         elif log_path == "":
             # A newer editor took over Editor.log and a later start deleted the renamed copy: the other project's log is no lead.

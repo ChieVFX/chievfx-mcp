@@ -276,6 +276,22 @@ class EventsWaitTests(unittest.TestCase):
         gone = mcp.format_events_check_since_text(self.server.events_check_since({"sinceEventId": 0, "contains": "kept"}))
         self.assertIn("this editor's log file is gone from disk", gone)
 
+        # The editor restarted: the journal kept events older than this session's log, which does not have them.
+        log_path = self.bridge_dir / "Editor.log"
+        log_path.write_text("log", encoding="utf-8")
+        mcp.write_json_file_atomic(self.server.state_path, {"editor": {"logPath": str(log_path)}})
+        with mock.patch.object(type(self.server), "log_file_started_unix", return_value=mcp.parse_utc_iso("2026-11-22T19:00:00Z")):
+            restarted = mcp.format_events_check_since_text(self.server.events_check_since({"sinceEventId": 0, "contains": "kept"}))
+        self.assertIn("they were logged before this editor session started", restarted)
+        self.assertIn("Editor-prev.log", restarted)
+        with mock.patch.object(type(self.server), "log_file_started_unix", return_value=mcp.parse_utc_iso("2026-11-22T18:00:00Z")):
+            same_session = mcp.format_events_check_since_text(self.server.events_check_since({"sinceEventId": 0, "contains": "kept"}))
+        self.assertIn(f"their log lines are in {log_path} (this editor session's log).", same_session)
+        # A real file just written is newer than the kept events (where the OS keeps a creation time).
+        if self.server.log_file_started_unix(str(log_path)) is not None:
+            fresh = mcp.format_events_check_since_text(self.server.events_check_since({"sinceEventId": 0, "contains": "kept"}))
+            self.assertIn("they were logged before this editor session started", fresh)
+
     def test_schema_accepts_1000_second_waits(self) -> None:
         wait_tool = next(tool for tool in mcp.TOOLS if tool["name"] == "events-wait")
 

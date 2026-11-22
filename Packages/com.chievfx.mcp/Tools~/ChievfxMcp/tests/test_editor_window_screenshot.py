@@ -308,7 +308,7 @@ class editorWindowScreenshotMetadataTests(unittest.TestCase):
             "bridge-get-status": {"verbose"},
             "console-get-logs": {"lastMinutes", "stack"},
             "console-get-logs-single": {"includeUnityConsole"},
-            "events-check-since": {"includeData", "level", "maxEntries", "source", "type"},
+            "events-check-since": {"includeData", "level", "type"},
             "events-wait": {"includeData", "level", "source", "type"},
             "profiler-window-control": {"moduleIdentifier", "selectedModuleIdentifier", "stayOnLatestFrame"},
             "reflection-method-call": {"executeInMainThread", "inputParameters"},
@@ -341,8 +341,10 @@ class editorWindowScreenshotMetadataTests(unittest.TestCase):
         events_check_advertised = mcp.advertised_input_schema(tools["events-check-since"])["properties"]
         self.assertEqual(
             set(events_check_advertised),
-            {"contains", "marker", "sinceEventId", "sinceTimestampUtc"},
+            {"contains", "marker", "sinceEventId", "sinceTimestampUtc", "maxEntries", "source"},
         )
+        # The paging hint of the reply names maxEntries: a client drops arguments its schema does not list.
+        self.assertIn("description", events_check_advertised["maxEntries"])
         # These two tools keep per-property descriptions in the advertised schema (self-documenting),
         # while default/min/max noise is still stripped.
         for property_name in ("contains", "marker"):

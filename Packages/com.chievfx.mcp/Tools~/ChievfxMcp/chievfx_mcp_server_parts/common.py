@@ -839,7 +839,8 @@ ADVERTISED_PROPERTY_OMISSIONS: dict[str, set[str]] = {
     "console-get-logs-single": {"includeUnityConsole"},
     # isPlaying is the canonical name; play/playing (and enabled) stay accepted for back-compat but unadvertised.
     "editor-playmode-set": {"play", "playing"},
-    "events-check-since": {"includeData", "level", "maxEntries", "source", "type"},
+    # maxEntries: the paging hint of the reply names it; source:"log" drops the bridge lines of the agent's own calls.
+    "events-check-since": {"includeData", "level", "type"},
     "events-wait": {"includeBridgeState", "includeData", "level", "source", "type"},
     # allowStateMutation is deprecated (real injection is the default, gated to Play Mode); action is
     # the canonical name, so the eventType/type aliases stay accepted but unadvertised.

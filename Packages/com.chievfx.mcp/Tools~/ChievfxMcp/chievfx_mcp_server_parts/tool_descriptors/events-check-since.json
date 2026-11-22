@@ -43,7 +43,7 @@
         "default": {
           "$chievfxConst": "DEFAULT_EVENTS_CHECK_MAX_ENTRIES"
         },
-        "description": "Max number of matching events to return."
+        "description": "Per call (default 12, max 200)."
       },
       "source": {
         "type": "string",
@@ -53,7 +53,7 @@
           "editor",
           "structured"
         ],
-        "description": "Advanced: restrict to one event origin. Defaults to any source."
+        "description": "log = Console lines only; bridge = start/end lines of tool calls; editor = compiles. Default: all."
       },
       "type": {
         "type": "string",

@@ -3,6 +3,7 @@ using static Chievfx.Mcp.Editor.McpLimits;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
@@ -23,6 +24,12 @@ namespace Chievfx.Mcp.Editor
         private readonly global::Chievfx.Mcp.Editor.ChievfxMcpResourceRouter resourceRouter;
         private readonly global::Chievfx.Mcp.Editor.ChievfxMcpPromptService promptService;
         private readonly ChievfxMcpToolDispatcher toolDispatcher;
+        // CompilationPipeline passes an AssemblyBuilder as the context of its builds (temporary assemblies of extensions).
+        private const string AssemblyBuilderTypeName = "AssemblyBuilder";
+        private const int MaxNamedAssemblies = 3;
+        private readonly List<string> compiledAssemblies = new();
+        private DateTime compileStartedUtc = DateTime.MinValue;
+        private int compileErrors;
         internal static BridgeFileTransport Transport { get; private set; } = null!;
 
         public ChievfxMcpBridgeHost()
@@ -182,18 +189,45 @@ namespace Chievfx.Mcp.Editor
             return resourceRouter.ReadResourceUri(uri);
         }
 
+        // An AssemblyBuilder build (a temporary assembly of an extension, e.g. a GameAI skill) raises the same events as compiling
+        // the project's scripts: an agent asked when the project last compiled answered with such a build. The lines say which.
         private void OnCompilationStarted(object context)
         {
-            EventJournal.Write("editor", "compile-start", "info", "Unity script compilation started.");
+            compileStartedUtc = DateTime.UtcNow;
+            compiledAssemblies.Clear();
+            compileErrors = 0;
+            EventJournal.Write("editor", "compile-start", "info", IsAssemblyBuilderBuild(context)
+                ? "Assembly build started (AssemblyBuilder: an extension's temporary assembly, not the project's scripts)."
+                : "Unity script compilation started.");
         }
 
         private void OnCompilationFinished(object context)
         {
-            EventJournal.Write("editor", "compile-finish", "info", "Unity script compilation finished.");
+            var kind = IsAssemblyBuilderBuild(context)
+                ? "Assembly build finished (AssemblyBuilder, not the project's scripts)"
+                : "Unity script compilation finished";
+            // A clean rebuild reports its assemblies only after this event: then the line has no names and no error count.
+            var built = compiledAssemblies.Count == 0
+                ? string.Empty
+                : ": " + compiledAssemblies.Count + " assemblies (" + string.Join(", ", compiledAssemblies.Take(MaxNamedAssemblies))
+                  + (compiledAssemblies.Count > MaxNamedAssemblies ? ", ..." : string.Empty) + ")";
+            var duration = compileStartedUtc != DateTime.MinValue
+                ? " in " + (long)(DateTime.UtcNow - compileStartedUtc).TotalMilliseconds + " ms"
+                : string.Empty;
+            var errors = compiledAssemblies.Count > 0 ? ", errors " + compileErrors : string.Empty;
+            EventJournal.Write("editor", "compile-finish", "info", kind + built + duration + errors + ".");
+            compileStartedUtc = DateTime.MinValue;
+        }
+
+        private static bool IsAssemblyBuilderBuild(object context)
+        {
+            return context != null && context.GetType().Name == AssemblyBuilderTypeName;
         }
 
         private void OnAssemblyCompilationFinished(string assemblyPath, UnityEditor.Compilation.CompilerMessage[] messages)
         {
+            compiledAssemblies.Add(Path.GetFileNameWithoutExtension(assemblyPath));
+            compileErrors += messages.Count(message => message.type == UnityEditor.Compilation.CompilerMessageType.Error);
             foreach (var msg in messages)
             {
                 var logType = msg.type == UnityEditor.Compilation.CompilerMessageType.Error

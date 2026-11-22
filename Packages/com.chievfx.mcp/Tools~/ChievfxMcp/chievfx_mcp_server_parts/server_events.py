@@ -141,7 +141,8 @@ class EventsStatusMixin:
         editor_down = self.describe_editor_down(liveness)
         if editor_down is not None:
             hints = [editor_down] + [hint for hint in hints if not hint.startswith("Unity heartbeat is stale.")]
-        if health_problems and isinstance(health.get("hint"), str):
+        # A problem that names its own cure (profiler_recording) leaves the health hint empty: an empty row is noise.
+        if health_problems and isinstance(health.get("hint"), str) and health["hint"].strip():
             hints.append(health["hint"])
 
         if verbose:

@@ -34,6 +34,13 @@ class EditorHealthStatusTests(unittest.TestCase):
         self.assertEqual(status["editorHealth"], ["high_memory 48900 MB reserved (over 12000 MB)"])
         self.assertIn("Unsubscribe and destroy what your scripts created, or restart the editor.", status["hints"])
 
+    def test_a_problem_that_names_its_own_cure_adds_no_empty_hint(self) -> None:
+        problem = "profiler_recording: the Profiler records every frame and keeps them in memory; stop it with profiler-stop-recording unless you profile now"
+        self.write_heartbeat({"reservedMb": 1500, "problems": [problem], "hint": ""})
+        status = self.server.get_bridge_status({})
+        self.assertEqual(status["editorHealth"], [problem])
+        self.assertNotIn("", status.get("hints") or [])
+
     def test_healthy_editor_adds_nothing_to_the_short_status(self) -> None:
         self.write_heartbeat({"reservedMb": 1500, "problems": [], "verdict": "ok: ..."})
         status = self.server.get_bridge_status({})

@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Profiling;
@@ -24,9 +25,14 @@ namespace Chievfx.Mcp.Editor
         private const string PlayEnteredKey = "ChievfxMcp.PlayEntered";
         private const string DomainReloadedInPlayKey = "ChievfxMcp.DomainReloadedInPlayUtc";
         private const string StaleStaticStateKey = "ChievfxMcp.StaleStaticStateSinceUtc";
-        private const string ReloadDomainCure = "script-execute EditorUtility.RequestScriptReload() outside Play";
+        private const string ReloadDomainCure = "call recompile (it stops Play Mode and reloads the domain even with no script changes)";
 
         private static double lastBuildTime = double.NegativeInfinity;
+        private static double lastLogCheckTime = double.NegativeInfinity;
+        private static string? sessionLogPath;
+        // Unity creates its log a moment after the process starts; a file born much later is a newer editor's.
+        private const double LogBornAfterStartSeconds = 120d;
+        private const string DefaultLogFileName = "Editor.log";
         private static Dictionary<string, object?>? cached;
         private static int fpsFrame = -1;
         private static double fpsTime;
@@ -191,12 +197,62 @@ namespace Chievfx.Mcp.Editor
             return health;
         }
 
+        // The file holding this editor session's log, or null when it is gone from disk. Every editor on the machine writes the
+        // same Editor.log: a newer one renames it to Editor-prev.log, and a third start deletes that, so the second editor's
+        // "Editor.log" was another project's log while its own was only an open handle. Checked again every RefreshSeconds.
+        public static string? GetSessionLogPath(double now)
+        {
+            if (now - lastLogCheckTime >= RefreshSeconds)
+            {
+                sessionLogPath = FindSessionLogPath();
+                lastLogCheckTime = now;
+            }
+
+            return sessionLogPath;
+        }
+
+        internal static string? FindSessionLogPath()
+        {
+            var logPath = Application.consoleLogPath;
+            if (string.IsNullOrWhiteSpace(logPath))
+            {
+                return null;
+            }
+
+            // A log given with -logFile is this editor's alone.
+            if (!string.Equals(Path.GetFileName(logPath), DefaultLogFileName, StringComparison.OrdinalIgnoreCase))
+            {
+                return File.Exists(logPath) ? logPath : null;
+            }
+
+            DateTime startedUtc;
+            try
+            {
+                startedUtc = System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime();
+            }
+            catch (Exception)
+            {
+                return File.Exists(logPath) ? logPath : null;
+            }
+
+            var previousLogPath = Path.Combine(Path.GetDirectoryName(logPath) ?? string.Empty, Path.GetFileNameWithoutExtension(logPath) + "-prev" + Path.GetExtension(logPath));
+            foreach (var candidate in new[] { logPath, previousLogPath })
+            {
+                if (File.Exists(candidate) && Math.Abs((File.GetCreationTimeUtc(candidate) - startedUtc).TotalSeconds) < LogBornAfterStartSeconds)
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
+        }
+
         // What to do after a domain reload in Play: entering Play again resets static state only when it reloads the domain.
         public static string DescribeRecovery()
         {
             return PlayStartsWithoutDomainReload
-                ? "exit Play, reload the domain (" + ReloadDomainCure + ": Play Mode here starts without a domain reload, so the broken static "
-                  + "state would carry into the next run) and enter Play again"
+                ? ReloadDomainCure + ", then enter Play again: Play Mode here starts without a domain reload, so only exiting would carry the broken "
+                  + "static state into the next run"
                 : "exit Play and enter it again";
         }
 

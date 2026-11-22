@@ -398,7 +398,7 @@ def format_editor_playmode_set_text(result: dict[str, Any]) -> str:
     stale_hint = (
         f" staleStaticState: the domain reloaded during a Play at {stale_since} UTC, and Play Mode here starts without a domain "
         "reload, so this run inherits the static state that one broke (errors like IndexOutOfRangeException in uGUI "
-        "Selectable.OnEnable): exit Play, script-execute EditorUtility.RequestScriptReload(), and enter Play again"
+        "Selectable.OnEnable): call recompile (it stops Play Mode and reloads the domain even with no script changes), then enter Play again"
         if is_playing is True and isinstance(stale_since, str) and stale_since
         else ""
     )

@@ -455,7 +455,7 @@ class GameObjectFormattingTests(unittest.TestCase):
                                                     "playmodeReady": True, "settleMs": 250})
 
         self.assertIn("playmode now true (ready, settled 250ms) staleStaticState: the domain reloaded during a Play at 19:33:21 UTC", text)
-        self.assertIn("EditorUtility.RequestScriptReload()", text)
+        self.assertIn("call recompile (it stops Play Mode and reloads the domain even with no script changes)", text)
 
         exited = mcp.format_editor_playmode_set_text({"ok": True, "status": "requested", "isPlaying": False,
                                                       "staleStaticStateSinceUtc": "19:33:21", "waitedForReady": True,

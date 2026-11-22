@@ -1584,6 +1584,14 @@ namespace Chievfx.Mcp.Editor
                 return null;
             }
 
+            // Unity keeps the data of the selected event only: until the editor re-renders with the new selection, the data
+            // of the previous one came back under the new number (a batch of event-get gave #5 the shader and draw count of #1).
+            if (ReadFirstInt(data, "m_FrameEventIndex") is int dataIndex && dataIndex != eventIndex)
+            {
+                diagnostics.Add($"FrameDebuggerUtility.GetFrameEventData unavailable for event {eventIndex}: Unity still holds the data of event {dataIndex}");
+                return null;
+            }
+
             return data;
         }
 

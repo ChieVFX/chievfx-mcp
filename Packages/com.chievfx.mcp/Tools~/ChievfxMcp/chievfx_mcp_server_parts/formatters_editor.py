@@ -480,6 +480,12 @@ def format_frame_debugger_group_events_list_text(result: dict[str, Any]) -> str:
     for frame_event in events:
         if isinstance(frame_event, dict):
             lines.append(format_frame_debugger_event_row(frame_event, use_drawcall_index=True))
+    # "drawcalls:7" for seven SRP batches holding 207 draw calls read as the answer to "how many draw calls".
+    if any(isinstance(e, dict) and "Batch" in str(e.get("type") or "") for e in events):
+        lines.append(
+            "Batch rows hold several draw calls each: drawcalls above counts rows; "
+            "the draw calls of one batch are draws in frame-debugger-event-get."
+        )
     lines.extend(format_diagnostics_lines(result.get("diagnostics")))
     return "\n".join(lines)
 

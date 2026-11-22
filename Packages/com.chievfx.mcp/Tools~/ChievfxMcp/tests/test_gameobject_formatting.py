@@ -795,7 +795,9 @@ class GameObjectFormattingTests(unittest.TestCase):
         self.assertEqual(
             mcp.format_frame_debugger_group_events_list_text(events_result),
             "group:0 name:\"(RP 0:0) DrawOpaqueObjects\" drawcalls:1 total:2\n"
-            "- g#0 d#1 event:1 type:SRPBatch name:RenderLoop.DrawSRPBatcher",
+            "- g#0 d#1 event:1 type:SRPBatch name:RenderLoop.DrawSRPBatcher\n"
+            "Batch rows hold several draw calls each: drawcalls above counts rows; "
+            "the draw calls of one batch are draws in frame-debugger-event-get.",
         )
 
 

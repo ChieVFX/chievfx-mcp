@@ -248,7 +248,7 @@ class EventsStatusMixin:
         if since_timestamp is None and not isinstance(arguments.get("sinceEventId"), int):
             raise ValueError(
                 "events-check-since requires 'sinceEventId' (from events-wait, a tool reply, or "
-                "bridge-get-status lastEventId) or 'sinceTimestampUtc'."
+                "bridge-get-status lastEventId) or 'sinceTimestampUtc'; sinceEventId:0 searches the whole journal."
             )
         filters = self.read_event_filters(arguments)
         stream = self.read_event_stream()

@@ -964,10 +964,16 @@ namespace Chievfx.Mcp.Editor
         // groupName without its "(RP n:m)" prefix found a group of another name: the picture is from that one.
         private static void NoteRenamedGroup(FrameDebuggerGroup group, string? groupName, List<string> diagnostics)
         {
-            if (!string.IsNullOrWhiteSpace(groupName) && !string.Equals(group.Name, groupName!.Trim(), StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(groupName) || string.Equals(group.Name, groupName!.Trim(), StringComparison.OrdinalIgnoreCase))
             {
-                diagnostics.Add($"No group named '{groupName!.Trim()}' in this captured frame: took '{group.Name}' (group {group.Index}, {group.EventIndices.Count} draw calls); Render Graph renumbers its passes from frame to frame.");
+                return;
             }
+
+            var requested = groupName!.Trim();
+            // A name matched without its "(RP n:m)" prefix is a match: the reply opened with "No group named" and read as a miss.
+            diagnostics.Add(string.Equals(StripRenderPassPrefix(group.Name), StripRenderPassPrefix(requested), StringComparison.OrdinalIgnoreCase)
+                ? $"groupName '{requested}' matched '{group.Name}' (group {group.Index}, {group.EventIndices.Count} draw calls): the Render Graph prefix '(RP n:m)' is ignored, it renumbers passes from frame to frame."
+                : $"No group named '{requested}' in this captured frame: took '{group.Name}' (group {group.Index}, {group.EventIndices.Count} draw calls), whose name contains it.");
         }
 
         private ImageResult CaptureFrameDebuggerDrawCallInOneCall(JToken args)

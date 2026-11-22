@@ -46,6 +46,8 @@ namespace Chievfx.Mcp.Editor
             public int Fps;
             public float Seconds;
             public double StartedAt;
+            // The end line is written after encoding, so its time minus realSeconds missed the start by about a second.
+            public DateTime StartedAtUtc;
             public double NextShotAt;
             public int LastFrame = -1;
             public int Shots;
@@ -116,6 +118,7 @@ namespace Chievfx.Mcp.Editor
                 Fps = fps,
                 Seconds = seconds,
                 StartedAt = EditorApplication.timeSinceStartup,
+                StartedAtUtc = DateTime.UtcNow,
                 SavePath = args.Value<string?>("savePath")
             };
             EditorApplication.update += Update;
@@ -407,7 +410,8 @@ namespace Chievfx.Mcp.Editor
             var missingNote = missing > 0 ? " (" + missing + " frames the editor did not render are held by the frame before: a stutter in the video is not one in the game)" : string.Empty;
             Finish(recording, isBuilt
                 ? recording.StopReason + " " + video + " frames:" + recording.Written + " of " + expectedFrames + " fps:" + recording.Fps
-                  + " realSeconds:" + realSeconds.ToString("F1", CultureInfo.InvariantCulture) + missingNote
+                  + " realSeconds:" + realSeconds.ToString("F1", CultureInfo.InvariantCulture)
+                  + " startedAtUtc:" + recording.StartedAtUtc.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture) + missingNote
                 : "failed:ffmpeg_exit_" + exitCode + " " + recording.Directory);
         }
 

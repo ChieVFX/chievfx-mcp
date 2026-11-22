@@ -224,7 +224,9 @@ class EventsWaitTests(unittest.TestCase):
 
         self.assertTrue(result["hasMore"])
         self.assertEqual(result["nextSinceEventId"], 3)
-        self.assertIn("pass sinceEventId:3", mcp.format_events_check_since_text(result))
+        text = mcp.format_events_check_since_text(result)
+        self.assertIn("pass sinceEventId:3", text)
+        self.assertIn("maxEntries up to 200", text)
 
     def test_events_check_since_without_any_cursor_is_an_error(self) -> None:
         with self.assertRaises(ValueError):

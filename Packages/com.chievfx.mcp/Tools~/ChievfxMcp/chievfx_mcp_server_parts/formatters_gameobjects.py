@@ -1231,7 +1231,12 @@ def format_events_check_since_text(result: dict[str, Any]) -> str:
             lines.append(format_event_row(event))
     next_since = result.get("nextSinceEventId")
     if result.get("hasMore") and isinstance(next_since, int):
-        lines.append(f"More match: pass sinceEventId:{next_since} with the same contains/marker for the next ones.")
+        more_per_call = (
+            f", or maxEntries up to {HARD_EVENTS_MAX_ENTRIES} for more per call"
+            if len(events) < HARD_EVENTS_MAX_ENTRIES
+            else ""
+        )
+        lines.append(f"More match: pass sinceEventId:{next_since} with the same contains/marker for the next ones{more_per_call}.")
     if omitted_count:
         lines.append(
             f"... {omitted_count} non-object events omitted. Use outputFormat:\"json\" for raw detail."

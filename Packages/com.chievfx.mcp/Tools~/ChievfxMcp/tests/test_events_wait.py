@@ -245,7 +245,28 @@ class EventsWaitTests(unittest.TestCase):
     def test_events_check_since_without_any_cursor_is_an_error(self) -> None:
         with self.assertRaises(ValueError) as raised:
             self.server.events_check_since({"contains": "x"})
-        self.assertIn("sinceEventId:0 searches the whole journal", str(raised.exception))
+        self.assertIn("sinceEventId:0 searches all the journal keeps", str(raised.exception))
+
+    def test_events_check_since_says_when_the_journal_dropped_older_events(self) -> None:
+        mcp.write_json_file_atomic(
+            self.bridge_dir / "events.json",
+            {
+                "lastEventId": 151,
+                "truncatedBeforeEventId": 150,
+                "events": [
+                    {"eventId": 150, "timestamp": "2026-11-22T18:17:50Z", "source": "log", "type": "message", "message": "kept x"},
+                    {"eventId": 151, "timestamp": "2026-11-22T18:20:34Z", "source": "log", "type": "message", "message": "kept y"},
+                ],
+            },
+        )
+
+        whole = self.server.events_check_since({"sinceEventId": 0, "contains": "kept"})
+        text = mcp.format_events_check_since_text(whole)
+        self.assertIn("the oldest kept is from 2026-11-22T18:17:50Z", text)
+        self.assertIn("Editor.log", text)
+
+        recent = self.server.events_check_since({"sinceEventId": 150, "contains": "kept"})
+        self.assertNotIn("oldestEventUtc", recent)
 
     def test_schema_accepts_1000_second_waits(self) -> None:
         wait_tool = next(tool for tool in mcp.TOOLS if tool["name"] == "events-wait")
@@ -360,7 +381,7 @@ class EventsWaitTests(unittest.TestCase):
         self.assertNotIn("shortened", mcp.format_events_check_since_text(short_result))
         text = mcp.format_events_check_since_text(long_result)
         self.assertNotIn("hint at the tail", text)
-        self.assertIn("Rows ending in ... are shortened: the whole line is in console-get-logs", text)
+        self.assertIn('Rows ending in ... are shortened: the whole line is in outputFormat:"json" of this call', text)
 
     def test_events_check_since_matches_only_requested_window(self) -> None:
         self.write_events(

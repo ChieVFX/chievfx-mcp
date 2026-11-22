@@ -248,7 +248,8 @@ class EventsStatusMixin:
         if since_timestamp is None and not isinstance(arguments.get("sinceEventId"), int):
             raise ValueError(
                 "events-check-since requires 'sinceEventId' (from events-wait, a tool reply, or "
-                "bridge-get-status lastEventId) or 'sinceTimestampUtc'; sinceEventId:0 searches the whole journal."
+                "bridge-get-status lastEventId) or 'sinceTimestampUtc'; sinceEventId:0 searches all the journal keeps "
+                "(its latest events; older log lines are only in the Unity Editor.log)."
             )
         filters = self.read_event_filters(arguments)
         stream = self.read_event_stream()
@@ -270,6 +271,12 @@ class EventsStatusMixin:
             "lastEventId": self.event_stream_last_id(stream),
             "truncatedBeforeEventId": stream.get("truncatedBeforeEventId", 0),
         }
+        # The search reached the journal's start and it had dropped older events: "the whole journal" read as "all
+        # history", and an agent answered "once, at 21:20" about an error seen three times that day.
+        truncated_before = result["truncatedBeforeEventId"]
+        stream_events = stream.get("events", [])
+        if isinstance(truncated_before, int) and truncated_before > since_event_id and stream_events and isinstance(stream_events[0], dict):
+            result["oldestEventUtc"] = stream_events[0].get("timestamp")
         last_shown_id = limited[-1].get("eventId") if limited and isinstance(limited[-1], dict) else None
         if result["hasMore"] and isinstance(last_shown_id, int):
             result["nextSinceEventId"] = last_shown_id

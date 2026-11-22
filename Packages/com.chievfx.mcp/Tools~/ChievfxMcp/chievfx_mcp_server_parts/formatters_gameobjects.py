@@ -1281,9 +1281,16 @@ def format_events_check_since_text(result: dict[str, Any]) -> str:
         and len(" ".join(event["message"].split())) > DEFAULT_EVENTS_TEXT_MESSAGE_CHARS
         for event in shown_events
     ):
+        # console-get-logs keeps a shorter window than the journal: for a line a few minutes old it found nothing.
         lines.append(
-            "Rows ending in ... are shortened: the whole line is in console-get-logs contains:<part of it> "
-            "(a log), or outputFormat:\"json\"."
+            "Rows ending in ... are shortened: the whole line is in outputFormat:\"json\" of this call "
+            "(console-get-logs contains:<part of it> has it only while the log is still in its shorter window)."
+        )
+    oldest = result.get("oldestEventUtc")
+    if isinstance(oldest, str) and oldest:
+        lines.append(
+            f"The journal keeps only its latest events (the oldest kept is from {oldest}): earlier ones are gone from it; "
+            "their log lines are in the Unity Editor.log (this editor session) and Editor-prev.log (the previous one)."
         )
     return "\n".join(lines)
 

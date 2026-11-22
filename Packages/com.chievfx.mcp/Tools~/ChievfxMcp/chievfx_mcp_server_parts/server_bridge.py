@@ -740,15 +740,22 @@ class BridgeTransportMixin:
             result["isPlaying"] = final_state
             # The pause pressed before Play holds the game on its first frame: the reply says so, not just "ready".
             result["isPaused"] = final_state and self.read_editor_paused()
+            if final_state:
+                stale_since = self.read_editor_field("staleStaticStateSinceUtc")
+                if isinstance(stale_since, str) and stale_since:
+                    result["staleStaticStateSinceUtc"] = stale_since
         if not reached:
             result["warning"] = f"Play mode did not reach isPlaying={requested} within {timeout_ms}ms."
         self.emit_progress(progress_token, notify, 1.0, "editor-playmode-set completed.")
         return result
 
     def read_editor_paused(self) -> bool:
+        return self.read_editor_field("isPaused") is True
+
+    def read_editor_field(self, name: str) -> Any:
         heartbeat = read_json_file(self.state_path) or {}
         editor = heartbeat.get("editor") if isinstance(heartbeat.get("editor"), dict) else {}
-        return editor.get("isPaused") is True
+        return editor.get(name)
 
     def read_playmode_state(self) -> bool | None:
         """Settled EditorApplication.isPlaying from the heartbeat, or None when it can't be trusted yet

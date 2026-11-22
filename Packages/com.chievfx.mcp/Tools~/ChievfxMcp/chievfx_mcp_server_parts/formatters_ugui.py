@@ -392,6 +392,17 @@ def format_editor_playmode_set_text(result: dict[str, Any]) -> str:
         if is_playing is True and result.get("isPaused") is True
         else ""
     )
+    # Play Mode without a domain reload inherits the static state of the last Play: after a reload in that Play it was broken,
+    # and "exit Play and enter it again" brought the breakage into the new run.
+    stale_since = result.get("staleStaticStateSinceUtc")
+    stale_hint = (
+        f" staleStaticState: the domain reloaded during a Play at {stale_since} UTC, and Play Mode here starts without a domain "
+        "reload, so this run inherits the static state that one broke (errors like IndexOutOfRangeException in uGUI "
+        "Selectable.OnEnable): exit Play, script-execute EditorUtility.RequestScriptReload(), and enter Play again"
+        if is_playing is True and isinstance(stale_since, str) and stale_since
+        else ""
+    )
+    paused_hint += stale_hint
     if result.get("status") == "unchanged":
         return f"playmode already {format_toon_atom(is_playing)}{paused_hint}{cursor_hint}"
     if result.get("waitedForReady"):

@@ -211,7 +211,9 @@ namespace Chievfx.Mcp.Editor
                         // progress when it is really a queue Unity cannot drain until play ends.
                         ["compileWaitingForPlayModeExit"] = compileWaitingForPlayModeExit,
                         ["pendingRecompileAfterPlayModeExit"] = BridgePendingRecompile.IsPending,
-                        ["scriptChangesWhilePlaying"] = BridgePendingRecompile.ScriptChangesWhilePlaying()
+                        ["scriptChangesWhilePlaying"] = BridgePendingRecompile.ScriptChangesWhilePlaying(),
+                        // Read at once, not through the cached health: a Play entered right after the reloaded one says so.
+                        ["staleStaticStateSinceUtc"] = ChievfxMcpEditorHealth.StaleStaticStateSinceUtc
                     },
                     ["busy"] = busy,
                     ["busyReasons"] = BuildBusyReasons(busy, compileWaitingForPlayModeExit),

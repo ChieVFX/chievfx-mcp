@@ -23,6 +23,8 @@ namespace Chievfx.Mcp.Editor
         private const long BytesPerMb = 1024 * 1024;
         private const string PlayEnteredKey = "ChievfxMcp.PlayEntered";
         private const string DomainReloadedInPlayKey = "ChievfxMcp.DomainReloadedInPlayUtc";
+        private const string StaleStaticStateKey = "ChievfxMcp.StaleStaticStateSinceUtc";
+        private const string ReloadDomainCure = "script-execute EditorUtility.RequestScriptReload() outside Play";
 
         private static double lastBuildTime = double.NegativeInfinity;
         private static Dictionary<string, object?>? cached;
@@ -55,8 +57,26 @@ namespace Chievfx.Mcp.Editor
             }
         }
 
+        // UTC time of the domain reload in a Play Mode that has ended, while Play Mode here starts without a domain reload (Enter
+        // Play Mode Settings): static state that run broke stays until the next domain reload, and every later Play inherits it
+        // (uGUI's Selectable count went negative: IndexOutOfRangeException in Selectable.OnEnable on every button). Null when there
+        // was none or a domain reload has happened since.
+        public static string? StaleStaticStateSinceUtc
+        {
+            get
+            {
+                var value = SessionState.GetString(StaleStaticStateKey, string.Empty);
+                return value.Length > 0 ? value : null;
+            }
+        }
+
+        // Without a domain reload on entering Play, leaving Play does not reset static state either.
+        public static bool PlayStartsWithoutDomainReload =>
+            EditorSettings.enterPlayModeOptionsEnabled && (EditorSettings.enterPlayModeOptions & EnterPlayModeOptions.DisableDomainReload) != 0;
+
         // SessionState outlives the reload: a Play entered earlier and still on after the reload is a reload in Play. Entering
-        // Play with a domain reload (the project default) reloads before EnteredPlayMode, so it is not counted.
+        // Play with a domain reload (the project default) reloads before EnteredPlayMode, so it is not counted. Any other domain
+        // reload resets static state, so what a reloaded Play left behind is gone.
         [InitializeOnLoadMethod]
         private static void TrackDomainReloadsInPlay()
         {
@@ -64,18 +84,30 @@ namespace Chievfx.Mcp.Editor
             {
                 SessionState.SetString(DomainReloadedInPlayKey, DateTime.UtcNow.ToString("HH:mm:ss", CultureInfo.InvariantCulture));
             }
+            else
+            {
+                SessionState.EraseString(StaleStaticStateKey);
+            }
 
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
         }
 
         private static void OnPlayModeStateChanged(PlayModeStateChange change)
         {
+            // Play Mode problems (fps, a reload in Play) must not outlive the Play they describe by the cache period.
+            cached = null;
             if (change == PlayModeStateChange.EnteredPlayMode)
             {
                 SessionState.SetBool(PlayEnteredKey, true);
             }
             else if (change == PlayModeStateChange.ExitingPlayMode || change == PlayModeStateChange.EnteredEditMode)
             {
+                var domainReloadedInPlayUtc = DomainReloadedInPlayUtc;
+                if (domainReloadedInPlayUtc != null && PlayStartsWithoutDomainReload)
+                {
+                    SessionState.SetString(StaleStaticStateKey, domainReloadedInPlayUtc);
+                }
+
                 SessionState.EraseBool(PlayEnteredKey);
                 SessionState.EraseString(DomainReloadedInPlayKey);
             }
@@ -121,7 +153,15 @@ namespace Chievfx.Mcp.Editor
             {
                 problems.Add("domain_reloaded_in_play: scripts were compiled and the domain reloaded during this Play Mode at " + domainReloadedInPlayUtc
                              + " UTC (Preferences > General > Script Changes While Playing); static state was reset mid-run, which many games do not "
-                             + "survive (stuck on loading, errors every frame): exit Play and enter it again");
+                             + "survive (stuck on loading, errors every frame): " + DescribeRecovery());
+            }
+
+            var staleStaticStateSinceUtc = StaleStaticStateSinceUtc;
+            if (staleStaticStateSinceUtc != null)
+            {
+                problems.Add("stale_static_state: the domain reloaded during a Play Mode at " + staleStaticStateSinceUtc + " UTC, and Play Mode here starts "
+                             + "without a domain reload (Project Settings > Editor > Enter Play Mode Settings), so static state that run broke carries into "
+                             + "every next Play (seen: IndexOutOfRangeException in uGUI Selectable.OnEnable on every button): before playing, " + ReloadDomainCure);
             }
 
             var health = new Dictionary<string, object?>
@@ -149,6 +189,15 @@ namespace Chievfx.Mcp.Editor
             }
 
             return health;
+        }
+
+        // What to do after a domain reload in Play: entering Play again resets static state only when it reloads the domain.
+        public static string DescribeRecovery()
+        {
+            return PlayStartsWithoutDomainReload
+                ? "exit Play, reload the domain (" + ReloadDomainCure + ": Play Mode here starts without a domain reload, so the broken static "
+                  + "state would carry into the next run) and enter Play again"
+                : "exit Play and enter it again";
         }
 
         // Each problem has its own cure: a low fps after a freeze is no reason to restart the editor.

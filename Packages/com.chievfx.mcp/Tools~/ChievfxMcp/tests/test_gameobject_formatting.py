@@ -448,6 +448,20 @@ class GameObjectFormattingTests(unittest.TestCase):
 
         self.assertIn("playmode now true (ready, settled 250ms) isPaused:true (the editor is paused in Play Mode", text)
 
+    def test_playmode_entered_after_a_reloaded_play_says_static_state_is_stale(self) -> None:
+        # Play without a domain reload inherits the static state a reload in the last Play broke; "ready" alone hid it.
+        text = mcp.format_editor_playmode_set_text({"ok": True, "status": "requested", "isPlaying": True, "isPaused": False,
+                                                    "staleStaticStateSinceUtc": "19:33:21", "waitedForReady": True,
+                                                    "playmodeReady": True, "settleMs": 250})
+
+        self.assertIn("playmode now true (ready, settled 250ms) staleStaticState: the domain reloaded during a Play at 19:33:21 UTC", text)
+        self.assertIn("EditorUtility.RequestScriptReload()", text)
+
+        exited = mcp.format_editor_playmode_set_text({"ok": True, "status": "requested", "isPlaying": False,
+                                                      "staleStaticStateSinceUtc": "19:33:21", "waitedForReady": True,
+                                                      "playmodeReady": True, "settleMs": 250})
+        self.assertNotIn("staleStaticState", exited)
+
     def test_menu_item_without_a_window_is_not_an_error(self) -> None:
         text = mcp.format_editor_window_action_text({"action": "menuPath", "success": True, "menuExecuted": "Edit/Play Mode/Pause",
                                                      "note": "the menu item ran and opened no editor window", "diagnostics": []})

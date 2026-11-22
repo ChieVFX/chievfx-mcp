@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import decimal
 import math
 import struct
 
@@ -1111,6 +1112,10 @@ def format_float_exact(value: Any) -> str:
         if struct.unpack("f", struct.pack("f", float(candidate)))[0] == target:
             text = candidate
             break
+    # 'g' writes 180 as 1.8e+02 when 2 digits are enough; positions and angles read as plain numbers, so only
+    # values Python itself prints with an exponent (below 1e-4, from 1e16) keep it.
+    if "e" in text and 1e-4 <= abs(target) < 1e16:
+        text = format(decimal.Decimal(text), "f")
     return text
 
 

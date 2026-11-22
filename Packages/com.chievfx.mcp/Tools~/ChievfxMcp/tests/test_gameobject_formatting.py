@@ -422,6 +422,17 @@ class GameObjectFormattingTests(unittest.TestCase):
             self.assertEqual(struct.unpack("f", struct.pack("f", float(printed))), struct.unpack("f", struct.pack("f", original)))
         self.assertIn("rotationEuler: 358.0888, 0, 0", text)
 
+    def test_transform_get_prints_round_values_without_an_exponent(self) -> None:
+        # Two significant digits are enough for 180, and 'g' wrote it as 1.8e+02.
+        result = {"isWorld": True, "transform": {"position": {"x": -1200.0, "y": 0.5, "z": 1e-05},
+                                                 "rotationEuler": {"x": 0, "y": 180.0, "z": 90.0}, "scale": {"x": 100.0, "y": 1, "z": 1}}}
+
+        text = mcp.format_gameobject_transform_get_text(result)
+
+        self.assertIn("position: -1200, 0.5, 1e-05", text)
+        self.assertIn("rotationEuler: 0, 180, 90", text)
+        self.assertIn("scale: 100, 1, 1", text)
+
     def test_playmode_already_on_says_the_editor_is_paused(self) -> None:
         text = mcp.format_editor_playmode_set_text({"ok": True, "status": "unchanged", "isPlaying": True, "isPaused": True, "eventCursorBefore": 7})
 

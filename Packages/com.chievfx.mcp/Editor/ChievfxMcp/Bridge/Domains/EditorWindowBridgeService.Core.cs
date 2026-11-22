@@ -329,6 +329,12 @@ namespace Chievfx.Mcp.Editor
                     || GetEditorWindowTitle(window).IndexOf(target.TitleContains!, StringComparison.OrdinalIgnoreCase) >= 0)
                 .ToArray();
 
+            // A menu path alone filtered nothing: every open window matched and the focused one was captured as the menu's window.
+            if (typeFilter == null && string.IsNullOrWhiteSpace(target.TitleContains) && !string.IsNullOrWhiteSpace(target.MenuPath))
+            {
+                matches = FilterByMenuLeafTitle(matches, target.MenuPath!);
+            }
+
             if (matches.Length == 0)
             {
                 return null;

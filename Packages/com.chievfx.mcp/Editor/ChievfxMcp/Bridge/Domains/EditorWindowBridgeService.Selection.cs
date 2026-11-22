@@ -294,6 +294,27 @@ namespace Chievfx.Mcp.Editor
             }
         }
 
+        // Open windows titled like the last segment of the menu path: the exact title first, then one containing it.
+        internal static EditorWindow[] FilterByMenuLeafTitle(EditorWindow[] windows, string menuPath)
+        {
+            var menuTitle = GetEditorWindowMenuLeafTitle(menuPath);
+            if (string.IsNullOrWhiteSpace(menuTitle))
+            {
+                return Array.Empty<EditorWindow>();
+            }
+
+            var exact = windows.Where(window => EditorWindowTitleEquals(window, menuTitle!)).ToArray();
+            if (exact.Length > 0)
+            {
+                return exact;
+            }
+
+            var normalizedMenuTitle = NormalizeEditorWindowTitleHint(menuTitle!);
+            return windows
+                .Where(window => NormalizeEditorWindowTitleHint(GetEditorWindowTitle(window)).IndexOf(normalizedMenuTitle, StringComparison.OrdinalIgnoreCase) >= 0)
+                .ToArray();
+        }
+
         private static string? GetEditorWindowMenuLeafTitle(string? menuPath)
         {
             if (string.IsNullOrWhiteSpace(menuPath))

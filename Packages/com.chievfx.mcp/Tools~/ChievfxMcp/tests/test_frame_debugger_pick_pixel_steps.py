@@ -114,6 +114,16 @@ class FrameDebuggerDrawCallRetryTests(unittest.TestCase):
         self.assertEqual(reply, ok)
         self.assertEqual(bridge.call_count, 2)
 
+    def test_a_capture_still_initializing_is_read_again(self) -> None:
+        initializing = RuntimeError("Frame Debugger window is enabled but its event tree is still initializing. Retry after the Frame Debugger window repaints.")
+        ok = {"ok": True, "result": {"frameEvent": {"index": 22}}}
+        with mock.patch.object(self.server, "call_unity_bridge", side_effect=[initializing, initializing, ok]) as bridge:
+            reply = self.server.call_frame_debugger_draw_call(
+                "frame-debugger-drawcall-get", {"groupName": "DrawOpaqueObjects", "drawCallIndex": 7}, None, None, None
+            )
+        self.assertEqual(reply, ok)
+        self.assertEqual(bridge.call_count, 3)
+
     def test_a_named_group_is_not_retried(self) -> None:
         outside = RuntimeError("drawCallIndex 43 is outside group 9 'UI.RenderOverlays' draw calls 0..10")
         with mock.patch.object(self.server, "call_unity_bridge", side_effect=[outside]):

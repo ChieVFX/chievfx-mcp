@@ -145,6 +145,10 @@ FRAME_DEBUGGER_DETAIL_RETRIES = 6
 # drawcall-get / drawcall-screenshot by group index: in Play Mode the next repaint may capture the frame the index came from.
 FRAME_DEBUGGER_GROUP_RETRIES = 4
 FRAME_DEBUGGER_OUTSIDE_GROUP = " is outside group "
+# Frame Debugger just turned on: its first capture and event tree come with the next repaints, so drawcall-get right
+# after the enable failed with "event tree is still initializing" while drawcall-screenshot at the same place waited.
+FRAME_DEBUGGER_NOT_READY = ("event tree is still initializing", "captures a frame on the next repaint")
+FRAME_DEBUGGER_NOT_READY_RETRIES = 8
 # frame-debugger-pick-pixel: the Game view shows a newly selected event only after an editor tick, so the server runs the
 # binary search one capture per call with this pause between calls (a 200-event frame takes about 10 steps).
 FRAME_DEBUGGER_PICK_STEP_SECONDS = 0.12

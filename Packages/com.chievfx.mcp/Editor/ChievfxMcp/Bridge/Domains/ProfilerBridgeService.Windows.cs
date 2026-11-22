@@ -1743,10 +1743,11 @@ namespace Chievfx.Mcp.Editor
                 playPausedBeforeFrameDebugger = EditorApplication.isPaused;
                 // Unity's Frame Debugger in Play Mode keeps memory for every frame it re-renders for a selected event (an enable,
                 // each selection or draw-call screenshot) until the editor restarts: a long walk over events grew a big project's
-                // editor by 24 GB. A paused online game also drops its session after half a minute or so.
+                // editor by 24 GB, and one enable with a draw-call screenshot cost 2-4 GB in the MadOut2 world. A paused online game also
+                // drops its session after half a minute or so.
                 diagnostics.Add("Play Mode is paused while the Frame Debugger is on: a networked game may time out and drop its session. "
                                 + "In Play Mode every enable, event selection and draw-call screenshot keeps editor memory until a restart "
-                                + "(tens of MB in a small scene, about 1 GB per enable in a big one): read only the events you need, turn it off when done, "
+                                + "(tens of MB in a small scene, 2-4 GB per enable in a game world): read only the events you need, turn it off when done, "
                                 + "and watch bridge-get-status editorHealth.");
             }
 

@@ -582,15 +582,22 @@ class BridgeTransportMixin:
 
         In Play Mode repaints alternate between frames with different groups (a second camera's group in front), so a
         group index from groups-list pointed to a one-event group in the next capture: "drawCallIndex 43 is outside
-        group 9 draw calls 0..0", and a repeat of the same call worked.
+        group 9 draw calls 0..0", and a repeat of the same call worked. Right after the Frame Debugger is turned on the
+        capture is not there yet: the call is repeated until it is.
         """
         attempt = 0
+        not_ready_attempt = 0
         while True:
             try:
                 return self.call_unity_bridge(name, arguments, request_id, progress_token, notify)
             except RuntimeError as exc:
+                message = str(exc)
+                if any(text in message for text in FRAME_DEBUGGER_NOT_READY) and not_ready_attempt < FRAME_DEBUGGER_NOT_READY_RETRIES:
+                    not_ready_attempt += 1
+                    time.sleep(FRAME_DEBUGGER_DETAIL_RETRY_SECONDS)
+                    continue
                 attempt += 1
-                if FRAME_DEBUGGER_OUTSIDE_GROUP not in str(exc) or "groupName" in arguments or attempt > FRAME_DEBUGGER_GROUP_RETRIES:
+                if FRAME_DEBUGGER_OUTSIDE_GROUP not in message or "groupName" in arguments or attempt > FRAME_DEBUGGER_GROUP_RETRIES:
                     raise
                 time.sleep(FRAME_DEBUGGER_DETAIL_RETRY_SECONDS)
 

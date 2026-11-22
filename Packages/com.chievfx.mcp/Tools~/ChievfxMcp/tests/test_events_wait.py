@@ -243,8 +243,9 @@ class EventsWaitTests(unittest.TestCase):
         self.assertIn("maxEntries up to 200", text)
 
     def test_events_check_since_without_any_cursor_is_an_error(self) -> None:
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as raised:
             self.server.events_check_since({"contains": "x"})
+        self.assertIn("sinceEventId:0 searches the whole journal", str(raised.exception))
 
     def test_schema_accepts_1000_second_waits(self) -> None:
         wait_tool = next(tool for tool in mcp.TOOLS if tool["name"] == "events-wait")

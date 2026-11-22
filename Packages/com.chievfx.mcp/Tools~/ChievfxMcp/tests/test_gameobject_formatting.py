@@ -1,3 +1,4 @@
+import struct
 import sys
 import unittest
 from pathlib import Path
@@ -405,9 +406,29 @@ class GameObjectFormattingTests(unittest.TestCase):
             text,
             "space: local\n"
             "position: 1.25, 2.5, 3.75\n"
-            "rotationEuler: 0, 45, 0\n"
+            "rotationEuler: 0, 45.000004, 0\n"
             "scale: 1.5, 1.5, 1.5",
         )
+
+    def test_transform_get_prints_floats_that_read_back_exactly(self) -> None:
+        # 4 decimals turned -271.474335 into -271.4743: written back, the object moved by 3e-5.
+        result = {"isWorld": True, "transform": {"position": {"x": -271.47433471679688, "y": -11.207350730895996, "z": 149.453},
+                                                 "rotationEuler": {"x": 358.08880615234375, "y": 0, "z": 0}, "scale": {"x": 1, "y": 1, "z": 1}}}
+
+        text = mcp.format_gameobject_transform_get_text(result)
+
+        position = text.splitlines()[1].removeprefix("position: ").split(", ")
+        for printed, original in zip(position, (-271.47433471679688, -11.207350730895996, 149.453)):
+            self.assertEqual(struct.unpack("f", struct.pack("f", float(printed))), struct.unpack("f", struct.pack("f", original)))
+        self.assertIn("rotationEuler: 358.0888, 0, 0", text)
+
+    def test_playmode_already_on_says_the_editor_is_paused(self) -> None:
+        text = mcp.format_editor_playmode_set_text({"ok": True, "status": "unchanged", "isPlaying": True, "isPaused": True, "eventCursorBefore": 7})
+
+        self.assertIn("playmode already true isPaused:true (the editor is paused in Play Mode", text)
+
+        running = mcp.format_editor_playmode_set_text({"ok": True, "status": "unchanged", "isPlaying": True, "isPaused": False})
+        self.assertNotIn("isPaused", running)
 
     def test_gameobject_find_text_supports_detail_rows_and_components(self) -> None:
         result = {

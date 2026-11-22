@@ -659,10 +659,16 @@ class EventsStatusMixin:
                     f"event you waited for, wait again with includeRecentMs >= {int(age_s + 1) * 1000}. "
                 )
             else:
+                # "Wait for X, it may already have fired" is answered by a look-back wide enough for that event.
+                look_back_text = (
+                    f"; to take an event that may already have fired, wait with includeRecentMs >= {int(age_s + 1) * 1000}"
+                    if age_s is not None and not include_recent_ms
+                    else ""
+                )
                 retry_text = (
                     "If that is the event you waited for, it fired during the triggering operation (e.g. Play-mode boot): "
                     "next time take sinceEventId from bridge-get-status BEFORE the trigger, or check it with "
-                    "events-check-since. "
+                    f"events-check-since{look_back_text}. "
                 )
             diagnostic: dict[str, Any] = {
                 "matchBelowCursor": latest,

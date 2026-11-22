@@ -454,6 +454,27 @@ class EventsWaitTests(unittest.TestCase):
         self.assertIn("includeRecentMs >= 1", diagnostic["hint"])
         self.assertNotIn("BEFORE the trigger", diagnostic["hint"])
 
+    def test_timeout_without_look_back_names_include_recent_ms(self) -> None:
+        old_match = {
+            "eventId": 10,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 40)),
+            "source": "log",
+            "type": "log",
+            "level": "Log",
+            "message": "[QA] marker: shop prices synced",
+        }
+        self.write_events([old_match])
+
+        result = self.server.events_wait(
+            {"source": "log", "contains": "marker", "sinceEventId": 44, "timeoutMs": 20},
+            request_id="no-look-back-wait",
+        )
+
+        diagnostic = result["diagnostic"]
+        self.assertEqual(diagnostic["matchBelowCursorEventId"], 10)
+        self.assertIn("BEFORE the trigger", diagnostic["hint"])
+        self.assertIn("wait with includeRecentMs >= 4", diagnostic["hint"])
+
     def test_timeout_reports_possible_truncation(self) -> None:
         mcp.write_json_file_atomic(
             self.bridge_dir / "events.json",

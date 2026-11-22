@@ -44,7 +44,7 @@ namespace Chievfx.Mcp.Editor
                 {
                     scan.StoppedByBudget = true;
                     AddSceneUsageWarning(scan, $"The scan stopped after {SceneUsageScanBudgetMs / 1000} s at {scan.ScannedObjects} of {scan.TotalObjects} objects: counts and lists cover only that part. "
-                        + "A scene this big (the game world in Play Mode) takes minutes: exit Play Mode, or ask about one object (gameobject-component-get) or one asset (chievfx://asset/<guid>).");
+                        + "A scene this big (the game world in Play Mode) takes minutes: exit Play Mode, or narrow it by hand: gameobject-find (namePattern, componentType) for the objects that may hold the asset, then gameobject-component-get on them.");
                     break;
                 }
 

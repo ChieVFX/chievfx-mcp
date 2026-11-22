@@ -64,6 +64,10 @@ namespace Chievfx.Mcp.Editor
 
         public static float IntervalSeconds => (float)intervalSeconds;
 
+        // When the last sheet was built: its frame times are seconds before this moment. A video has startedAtUtc, and lining
+        // the two up took the sheet file's modification time.
+        public static DateTime LastSheetSavedAtUtc { get; private set; }
+
         // Start recording if it is not running yet. Only in Play Mode; recording ends with it.
         public static void EnsureRunning()
         {
@@ -171,8 +175,10 @@ namespace Chievfx.Mcp.Editor
             // Cells after the last frame stay black instead of a new texture's grey.
             sheet.SetPixels32(new Color32[sheet.width * sheet.height]);
             var previous = RenderTexture.active;
-            var builder = new StringBuilder("Storyboard: frames left to right, top to bottom; time is seconds before the save.\n");
             var now = EditorApplication.timeSinceStartup;
+            LastSheetSavedAtUtc = DateTime.UtcNow;
+            var builder = new StringBuilder("Storyboard: frames left to right, top to bottom; time is seconds before the save at ")
+                .Append(LastSheetSavedAtUtc.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture)).Append(".\n");
             try
             {
                 for (var i = 0; i < selected.Count; i++)

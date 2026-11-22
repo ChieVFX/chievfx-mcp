@@ -128,12 +128,13 @@ namespace Chievfx.Mcp.Editor
             var metadata = new Dictionary<string, object?>
             {
                 ["summary"] = "Storyboard of the last " + Math.Round(coveredSeconds, 1).ToString(CultureInfo.InvariantCulture) + " s: " + frames
-                              + " frames, left to right, top to bottom. Legend: seconds before now, state, marks.",
+                              + " frames, left to right, top to bottom. Legend: seconds before savedAtUtc, state, marks.",
                 ["captureSource"] = "frameRecorder",
                 ["frames"] = frames,
                 ["everyMs"] = interval,
                 ["windowSeconds"] = window,
                 ["sheetPath"] = sheetPath,
+                ["savedAtUtc"] = ChievfxMcpFrameRecorder.LastSheetSavedAtUtc.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture),
                 // The first line of the legend file explains the layout; the summary above says it already.
                 ["legend"] = legend.TrimEnd('\n').Split('\n').Skip(1).ToArray()
             };

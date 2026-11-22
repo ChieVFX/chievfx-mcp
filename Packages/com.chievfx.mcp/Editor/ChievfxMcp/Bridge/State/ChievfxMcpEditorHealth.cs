@@ -68,6 +68,13 @@ namespace Chievfx.Mcp.Editor
                 problems.Add("high_memory " + reservedMb + " MB reserved (over " + highReservedMb + " MB)");
             }
 
+            // A Profiler left recording (its window's Record button starts it again with every Play Mode) keeps each frame in
+            // memory: an agent found the editor "ok" while 2000 frames had been recorded.
+            if (UnityEditorInternal.ProfilerDriver.enabled)
+            {
+                problems.Add("profiler_recording: the Profiler records every frame and keeps them in memory; stop it with profiler-stop-recording unless you profile now");
+            }
+
             var health = new Dictionary<string, object?>
             {
                 ["fps"] = fps,
@@ -85,7 +92,7 @@ namespace Chievfx.Mcp.Editor
             {
                 // An empty list vanishes from a compact reply: "checked, clean" must read differently from "not checked".
                 health["verdict"] = "ok: no update subscribers left by scripts, fps >= " + LowFps + " in Play, render textures <= "
-                                    + ManyRenderTextures + ", reserved memory <= " + highReservedMb + " MB";
+                                    + ManyRenderTextures + ", reserved memory <= " + highReservedMb + " MB, Profiler not recording";
             }
             else
             {

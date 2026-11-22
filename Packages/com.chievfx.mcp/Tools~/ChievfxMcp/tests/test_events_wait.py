@@ -92,6 +92,20 @@ class EventsWaitTests(unittest.TestCase):
         self.assertIn("bridgeState", timed_out)
         self.assertIn("bridgeState", asked)
 
+    def test_wait_that_timed_out_in_a_paused_play_says_the_editor_is_paused(self) -> None:
+        # In a paused Play no game frame runs: the bridge status kept isPaused out and the wait read as a game that went quiet.
+        self.write_events([])
+        mcp.write_json_file_atomic(
+            self.bridge_dir / "state.json",
+            {"editor": {"isPlaying": True, "isPaused": True, "isPlayingOrWillChangePlaymode": True}, "busy": {}},
+        )
+
+        result = self.server.events_wait({"contains": "never", "timeoutMs": 20}, request_id="paused")
+
+        self.assertTrue(result["timedOut"])
+        self.assertTrue(result["bridgeState"]["isPaused"])
+        self.assertIn("paused in Play Mode", result["editorPaused"])
+
     def test_match_fired_just_before_the_wait_returns_at_once_without_matching(self) -> None:
         # The end of a short action lands between its reply and the agent's events-wait; a bare wait
         # used to skip it and sit out the whole timeout.

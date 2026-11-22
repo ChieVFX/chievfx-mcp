@@ -200,6 +200,9 @@ class EventsStatusMixin:
                 slim["editorProcessId"] = liveness.get("processId")
         # Printed both ways: a missing isPlaying read as "unknown" next to a printed isCompiling:false.
         slim["isPlaying"] = is_playing
+        # A paused Play runs no game frames: waits for game events time out and input does nothing until it is unpaused.
+        if is_playing and bool(editor.get("isPaused")):
+            slim["isPaused"] = True
         if "isPlayingOrWillChangePlaymode" in editor and bool(editor.get("isPlayingOrWillChangePlaymode")) != is_playing:
             slim["playModeChanging"] = "exiting" if is_playing else "entering"
         # Surface only non-default busy flags to keep the row short.
@@ -388,6 +391,11 @@ class EventsStatusMixin:
                     )
                     if diagnostic:
                         result["diagnostic"] = diagnostic
+                    if result["bridgeState"].get("isPaused"):
+                        result["editorPaused"] = (
+                            "the editor is paused in Play Mode: no game frames run, so game events do not come until "
+                            "it is unpaused (the Pause button, or EditorApplication.isPaused = false)"
+                        )
                     return result
 
                 time.sleep(min(EVENTS_WAIT_POLL_SECONDS, max(0.0, deadline - now)))

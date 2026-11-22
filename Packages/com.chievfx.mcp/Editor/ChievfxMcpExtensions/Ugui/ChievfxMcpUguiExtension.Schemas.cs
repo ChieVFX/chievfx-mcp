@@ -386,7 +386,7 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 ["namePattern"] = StringProperty("Optional wildcard filter on the GameObject name; use * and ?."),
                 ["componentType"] = StringProperty("Optional component type name filter, e.g. Image, Button, TextMeshProUGUI."),
                 ["includeInactive"] = BoolProperty("Include inactive uGUI elements. Default: true in Edit Mode and for explicit paths/instanceIds; false for searches in Play Mode, where the scene is full of inactive templates and closed screens."),
-                ["includeDetails"] = BoolProperty("Include RectTransform/Image/TMP details. Defaults true."),
+                ["includeDetails"] = BoolProperty("Add tag, layer, child count and screen rect. Defaults true. Image colour, sprite, raycastTarget: gameobject-component-get."),
                 ["normalizedCoords"] = BoolProperty("Output screenRect in normalized 0..1 screen coordinates instead of pixels."),
                 ["maxResults"] = IntProperty("Maximum matching elements to emit."),
             });

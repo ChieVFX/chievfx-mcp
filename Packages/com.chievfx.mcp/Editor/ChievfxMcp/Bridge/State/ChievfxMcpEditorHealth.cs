@@ -128,7 +128,9 @@ namespace Chievfx.Mcp.Editor
         // delta read 0 fps from a single freeze while the game ran at 60.
         private static float? MeasureFps()
         {
-            if (Application.isPlaying == false)
+            // A paused Play Mode (the pause button, a Frame Debugger turned on) renders no game frames: low_fps 0 with a hint
+            // about loading or a heavy scene sent the agent the wrong way, and the average after the pause still held it.
+            if (Application.isPlaying == false || EditorApplication.isPaused)
             {
                 fpsFrame = -1;
                 averageFps = null;

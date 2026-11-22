@@ -260,6 +260,8 @@ namespace Chievfx.Mcp.Extensions.Control
                 ["requestedIsPlaying"] = hasRequestedState ? requested : null,
                 ["isPlaying"] = IsPlaying,
                 ["isPlayingOrWillChangePlaymode"] = EditorApplication.isPlayingOrWillChangePlaymode,
+                // "Play is already on" read as "the game runs" while the editor stood paused.
+                ["isPaused"] = EditorApplication.isPaused,
                 ["eventCursorBefore"] = eventCursorBefore,
                 ["eventCursorAfter"] = global::Chievfx.Mcp.Editor.ChievfxMcpBridgeHost.EventJournal.CurrentEventId(),
             };

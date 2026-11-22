@@ -385,7 +385,14 @@ def format_editor_playmode_set_text(result: dict[str, Any]) -> str:
         logs_of = "boot logs" if result.get("requestedIsPlaying", is_playing) is not False else "logs of the exit"
         cursor_hint = f" eventCursorBefore:{cursor_before} (use as events-wait sinceEventId to catch {logs_of})"
     if result.get("status") == "unchanged":
-        return f"playmode already {format_toon_atom(is_playing)}{cursor_hint}"
+        # "Play is already on" read as "the game runs" while the editor stood paused.
+        paused_hint = (
+            " isPaused:true (the editor is paused in Play Mode: no game frames run until it is unpaused - "
+            "the Pause button, or script-execute EditorApplication.isPaused = false)"
+            if is_playing is True and result.get("isPaused") is True
+            else ""
+        )
+        return f"playmode already {format_toon_atom(is_playing)}{paused_hint}{cursor_hint}"
     if result.get("waitedForReady"):
         settle_ms = result.get("settleMs")
         settle_txt = f", settled {settle_ms}ms" if isinstance(settle_ms, int) and settle_ms > 0 else ""

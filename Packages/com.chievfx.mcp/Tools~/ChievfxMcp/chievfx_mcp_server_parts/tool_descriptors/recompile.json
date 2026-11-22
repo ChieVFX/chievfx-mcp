@@ -1,6 +1,6 @@
 {
   "name": "recompile",
-  "description": "Refreshes scripts, requests Unity script compilation, and returns only after Unity is idle again. Stops Play Mode first when the editor is playing, because Unity does not compile on demand while playing. The result includes a compile summary (errorCount/warningCount plus the error/warning messages) produced by this recompile, so no separate console-get-logs call is needed to check whether it succeeded. Compiler diagnostics only; other console output meanwhile is a count.",
+  "description": "Refreshes scripts, requests Unity script compilation, and returns only after Unity is idle again. Stops Play Mode first: a compile in Play reloads the domain mid-run, which games rarely survive. The result includes a compile summary (errorCount/warningCount plus the error/warning messages) produced by this recompile, so no separate console-get-logs call is needed to check whether it succeeded. Compiler diagnostics only; other console output meanwhile is a count.",
   "inputSchema": {
     "type": "object",
     "properties": {

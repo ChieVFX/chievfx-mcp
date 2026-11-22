@@ -21,7 +21,7 @@ def format_recompile_text(result: dict[str, Any]) -> str:
     # Stopping Play Mode is a visible side effect of the caller's own request, so never leave it to a
     # json-only field.
     if result.get("exitedPlayMode"):
-        lines.append("Play Mode stopped first (Unity does not compile while playing).")
+        lines.append("Play Mode stopped first (a compile in Play would reload the domain mid-run, which games rarely survive).")
     elif result.get("wasPlaying"):
         lines.append("Ran while Play Mode was active (stopPlayMode=false).")
     if result.get("warning"):

@@ -410,7 +410,7 @@ class BridgeTransportMixin:
             if not exited:
                 result["warning"] = (
                     f"Play Mode did not exit within {int(exit_wait_seconds * 1000)}ms, so compilation "
-                    "may not have started. Unity does not compile while playing."
+                    "may not have started: recompile compiles only outside Play Mode."
                 )
 
         # Compilation usually flips busy on the next editor tick. Give Unity a

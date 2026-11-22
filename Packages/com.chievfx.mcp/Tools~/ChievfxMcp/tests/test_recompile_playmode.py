@@ -92,7 +92,7 @@ class RecompilePlaymodeTests(unittest.TestCase):
         )
         self.assertFalse(result["playModeExited"])
         self.assertIn("Play Mode did not exit", result["warning"])
-        self.assertIn("does not compile while playing", result["warning"])
+        self.assertIn("recompile compiles only outside Play Mode", result["warning"])
 
     def test_timeout_warning_keeps_play_mode_explanation(self) -> None:
         playmode_wait = mock.Mock(return_value=(False, 30))

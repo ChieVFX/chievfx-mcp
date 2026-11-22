@@ -441,6 +441,20 @@ class GameObjectFormattingTests(unittest.TestCase):
         running = mcp.format_editor_playmode_set_text({"ok": True, "status": "unchanged", "isPlaying": True, "isPaused": False})
         self.assertNotIn("isPaused", running)
 
+    def test_playmode_entered_with_the_pause_down_says_so(self) -> None:
+        # Play entered with the Pause button down stands on its first frame; "ready" alone read as "the game runs".
+        text = mcp.format_editor_playmode_set_text({"ok": True, "status": "requested", "isPlaying": True, "isPaused": True,
+                                                    "waitedForReady": True, "playmodeReady": True, "settleMs": 250})
+
+        self.assertIn("playmode now true (ready, settled 250ms) isPaused:true (the editor is paused in Play Mode", text)
+
+    def test_menu_item_without_a_window_is_not_an_error(self) -> None:
+        text = mcp.format_editor_window_action_text({"action": "menuPath", "success": True, "menuExecuted": "Edit/Play Mode/Pause",
+                                                     "note": "the menu item ran and opened no editor window", "diagnostics": []})
+
+        self.assertIn("success:true menuExecuted:", text)
+        self.assertIn("note: the menu item ran and opened no editor window", text)
+
     def test_gameobject_find_text_supports_detail_rows_and_components(self) -> None:
         result = {
             "source": "activeScene",

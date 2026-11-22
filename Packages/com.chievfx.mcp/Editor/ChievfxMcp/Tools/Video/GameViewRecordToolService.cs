@@ -235,7 +235,11 @@ namespace Chievfx.Mcp.Editor
             }
 
             recording.LastFrame = Time.frameCount;
-            recording.NextShotAt = now + 1d / recording.Fps;
+            // Shots keep to a fixed grid of 1/fps steps from the start: counted from the shot itself, every step came late
+            // by part of a frame, and a 40 fps editor gave a 30 fps recording only 22 shots a second (held frames in a
+            // smooth game). After a stall longer than a step the missed slots hold the frame before.
+            var step = 1d / recording.Fps;
+            recording.NextShotAt = recording.StartedAt + (Math.Floor((now - recording.StartedAt) / step) + 1d) * step;
             var name = "f" + recording.Shots.ToString("D5", CultureInfo.InvariantCulture);
             if (TryCaptureGameViewTexture(recording, Path.Combine(recording.Directory, name + ".jpg")))
             {
@@ -469,10 +473,14 @@ namespace Chievfx.Mcp.Editor
             {
                 var parts = line.Split(' ');
                 if (parts.Length != 2 || File.Exists(Path.Combine(recording.Directory, parts[0])) == false
-                    || double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var time) == false)
+                    || double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var shotTime) == false)
                 {
                     continue;
                 }
+
+                // A shot lands up to a game frame after its grid slot; timed by the slot, each frame lasts whole 1/fps
+                // steps, and ffmpeg's constant frame rate neither repeats nor drops frames for that jitter.
+                var time = Math.Floor(shotTime * recording.Fps) / recording.Fps;
 
                 if (lastName != null)
                 {

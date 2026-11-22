@@ -1447,6 +1447,7 @@ namespace Chievfx.Mcp.Editor
                 SetFrameDebuggerEnabled(window, true, diagnostics);
                 diagnostics.Add("Frame Debugger enabled automatically for event inspection.");
                 autoEnabled = true;
+                isPlayModeCostNoteDue = EditorApplication.isPlaying;
             }
 
             var eventCount = GetFrameDebuggerEventCount(diagnostics);
@@ -1463,8 +1464,18 @@ namespace Chievfx.Mcp.Editor
                 // Just turned on, it captures only on the next repaint: the old text sent agents to check the Game view.
                 throw new InvalidOperationException(autoEnabled
                     ? "Frame Debugger was off: it is on now and captures a frame on the next repaint of the Game view - call again."
+                      + (EditorApplication.isPlaying ? " " + FrameDebuggerPlayModeCost : string.Empty)
                     : "Frame Debugger has no captured events. Make sure a rendered Game/Scene view is available, then retry.");
             }
+
+            // The enable that paused Play came out in an exception ("call again") or in a call the server repeated: the next
+            // reply that gets through carries the warning instead.
+            if (isPlayModeCostNoteDue && EditorApplication.isPlaying && !diagnostics.Contains(FrameDebuggerPlayModeCost))
+            {
+                diagnostics.Add(FrameDebuggerPlayModeCost);
+            }
+
+            isPlayModeCostNoteDue = false;
 
             if (selectEventIndex.HasValue)
             {
@@ -1736,24 +1747,31 @@ namespace Chievfx.Mcp.Editor
         // with nothing saying why. The pause state from before enabling comes back on disable.
         private static bool? playPausedBeforeFrameDebugger;
 
+        // An inspection tool turned the Frame Debugger on in Play Mode, and its reply with the warning has not reached the agent yet.
+        private static bool isPlayModeCostNoteDue;
+
+        // Unity's Frame Debugger in Play Mode keeps memory for every frame it re-renders for a selected event (an enable,
+        // each selection or draw-call screenshot) until the editor restarts: a long walk over events grew a big project's
+        // editor by 24 GB, one enable with a draw-call screenshot cost 2-4 GB in the MadOut2 world, and three minutes of
+        // pick-pixel and draw-call screenshots there 12 GB. A paused online game also drops its session after half a minute or so.
+        private const string FrameDebuggerPlayModeCost =
+            "Play Mode is paused while the Frame Debugger is on: a networked game may time out and drop its session. "
+            + "In Play Mode every enable, event selection and draw-call screenshot keeps editor memory until a restart "
+            + "(tens of MB in a small scene, 2-4 GB per enable in a game world): read only the events you need, turn it off when done, "
+            + "and watch bridge-get-status editorHealth.";
+
         private static void SetFrameDebuggerEnabled(EditorWindow window, bool enabled, List<string> diagnostics)
         {
             if (enabled && EditorApplication.isPlaying && playPausedBeforeFrameDebugger == null)
             {
                 playPausedBeforeFrameDebugger = EditorApplication.isPaused;
-                // Unity's Frame Debugger in Play Mode keeps memory for every frame it re-renders for a selected event (an enable,
-                // each selection or draw-call screenshot) until the editor restarts: a long walk over events grew a big project's
-                // editor by 24 GB, and one enable with a draw-call screenshot cost 2-4 GB in the MadOut2 world. A paused online game also
-                // drops its session after half a minute or so.
-                diagnostics.Add("Play Mode is paused while the Frame Debugger is on: a networked game may time out and drop its session. "
-                                + "In Play Mode every enable, event selection and draw-call screenshot keeps editor memory until a restart "
-                                + "(tens of MB in a small scene, 2-4 GB per enable in a game world): read only the events you need, turn it off when done, "
-                                + "and watch bridge-get-status editorHealth.");
+                diagnostics.Add(FrameDebuggerPlayModeCost);
             }
 
             SetFrameDebuggerEnabledCore(window, enabled, diagnostics);
             if (!enabled)
             {
+                isPlayModeCostNoteDue = false;
                 RestorePlayPause(diagnostics);
             }
         }

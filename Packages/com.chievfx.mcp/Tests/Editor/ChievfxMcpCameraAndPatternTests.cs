@@ -1,7 +1,11 @@
 #nullable enable
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text.RegularExpressions;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -82,6 +86,26 @@ namespace Chievfx.Mcp.Editor.Tests
             Assert.AreEqual(0, camera.cullingMask);
             Assert.AreEqual(0.2f, camera.backgroundColor.g, 0.001f);
             Assert.AreEqual(CameraClearFlags.SolidColor, camera.clearFlags);
+        }
+
+        [Test]
+        public void SerializedColourAndVectorsReadBackExactly()
+        {
+            var camera = Create("R25PreciseCamera").AddComponent<Camera>();
+            var colour = new Color(0.19215687f, 0.3019608f, 0.4745098f, 0f);
+            camera.backgroundColor = colour;
+            camera.rect = new Rect(0.125f, 0.0625f, 0.333333343f, 1f);
+            var serialized = new SerializedObject(camera);
+
+            CollectionAssert.AreEqual(new[] { colour.r, colour.g, colour.b, colour.a }, ReadNumbers(serialized.FindProperty("m_BackGroundColor")));
+            CollectionAssert.AreEqual(new[] { 0.125f, 0.0625f, 0.333333343f, 1f }, ReadNumbers(serialized.FindProperty("m_NormalizedViewPortRect")));
+        }
+
+        private static float[] ReadNumbers(SerializedProperty property)
+        {
+            var truncated = false;
+            var text = (string)GameObjectBridgeService.ReadSerializedPropertyValue(property, ref truncated)!;
+            return Regex.Matches(text, @"-?\d+(\.\d+)?(E[-+]?\d+)?").Cast<Match>().Select(match => float.Parse(match.Value, CultureInfo.InvariantCulture)).ToArray();
         }
 
         private GameObject Create(string name)

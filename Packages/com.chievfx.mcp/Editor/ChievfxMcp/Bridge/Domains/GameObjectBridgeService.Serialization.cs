@@ -106,7 +106,11 @@ namespace Chievfx.Mcp.Editor
             return fields.ToArray();
         }
 
-        private static object? ReadSerializedPropertyValue(SerializedProperty property, ref bool truncated)
+        // Unity's ToString() rounds colours to 3 decimals and vectors to 2, while Float is printed in full: a value read here and
+        // written back changed (a camera background 0.19215687 came back as 0.192). Round-trip precision, as for Float.
+        private const string FullPrecision = "R";
+
+        internal static object? ReadSerializedPropertyValue(SerializedProperty property, ref bool truncated)
         {
             switch (property.propertyType)
             {
@@ -119,7 +123,7 @@ namespace Chievfx.Mcp.Editor
                 case SerializedPropertyType.String:
                     return TrimText(property.stringValue ?? string.Empty, MaxSerializedStringChars, ref truncated);
                 case SerializedPropertyType.Color:
-                    return property.colorValue.ToString();
+                    return property.colorValue.ToString(FullPrecision);
                 case SerializedPropertyType.ObjectReference:
                     return SerializeUnityObjectReference(property.objectReferenceValue);
                 case SerializedPropertyType.LayerMask:
@@ -127,13 +131,13 @@ namespace Chievfx.Mcp.Editor
                 case SerializedPropertyType.Enum:
                     return property.enumDisplayNames.ElementAtOrDefault(property.enumValueIndex) ?? property.enumValueIndex.ToString(CultureInfo.InvariantCulture);
                 case SerializedPropertyType.Vector2:
-                    return property.vector2Value.ToString();
+                    return property.vector2Value.ToString(FullPrecision);
                 case SerializedPropertyType.Vector3:
-                    return property.vector3Value.ToString();
+                    return property.vector3Value.ToString(FullPrecision);
                 case SerializedPropertyType.Vector4:
-                    return property.vector4Value.ToString();
+                    return property.vector4Value.ToString(FullPrecision);
                 case SerializedPropertyType.Rect:
-                    return property.rectValue.ToString();
+                    return property.rectValue.ToString(FullPrecision);
                 case SerializedPropertyType.ArraySize:
                     return property.intValue;
                 case SerializedPropertyType.Character:
@@ -141,9 +145,9 @@ namespace Chievfx.Mcp.Editor
                 case SerializedPropertyType.AnimationCurve:
                     return $"AnimationCurve(keys:{property.animationCurveValue?.length ?? 0})";
                 case SerializedPropertyType.Bounds:
-                    return property.boundsValue.ToString();
+                    return property.boundsValue.ToString(FullPrecision);
                 case SerializedPropertyType.Quaternion:
-                    return property.quaternionValue.eulerAngles.ToString();
+                    return property.quaternionValue.eulerAngles.ToString(FullPrecision);
                 case SerializedPropertyType.Vector2Int:
                     return property.vector2IntValue.ToString();
                 case SerializedPropertyType.Vector3Int:

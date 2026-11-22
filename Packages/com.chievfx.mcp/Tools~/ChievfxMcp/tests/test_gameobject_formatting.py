@@ -381,6 +381,12 @@ class GameObjectFormattingTests(unittest.TestCase):
             mcp.format_component_value("RGBA(1.000, 1.000, 1.000, 1.000)"),
             '"RGBA(1.0,1.0,1.0,1.0)"',
         )
+        # Full precision from the bridge stays, and an HDR 10 is not cut to 1.
+        self.assertEqual(
+            mcp.format_component_value("RGBA(0.192156866, 0.3019608, 10, 0)"),
+            '"RGBA(0.192156866,0.3019608,10.0,0.0)"',
+        )
+        self.assertEqual(mcp.format_component_value("RGBA(10.000, 0.500, 1E-05, 1.000)"), '"RGBA(10.0,0.5,1E-05,1.0)"')
 
     def test_transform_get_text_is_human_readable(self) -> None:
         result = {

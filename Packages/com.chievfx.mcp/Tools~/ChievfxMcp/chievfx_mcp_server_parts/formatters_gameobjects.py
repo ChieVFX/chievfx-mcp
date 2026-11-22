@@ -1160,12 +1160,22 @@ def format_serialized_field_row(field: dict[str, Any]) -> str:
     return f"- {left} = {format_component_value(value)}"
 
 
+def _compact_decimal(number: str) -> str:
+    if "e" in number.lower():
+        return number
+    if "." not in number:
+        return f"{number}.0" if number.lstrip("-").isdigit() else number
+    number = number.rstrip("0")
+    return f"{number}0" if number.endswith(".") else number
+
+
 def format_component_value(value: Any) -> str:
     if isinstance(value, str):
         normalized = value
         if normalized.startswith("RGBA(") and normalized.endswith(")"):
-            normalized = re.sub(r"(?<=\d)0+\b", "", normalized)
-            normalized = normalized.replace(".000", ".0").replace(", ", ",")
+            # Only zeros after the decimal point go: "10.000" stayed "1.0" when every trailing zero was stripped.
+            normalized = ",".join(_compact_decimal(part.strip()) for part in normalized[5:-1].split(","))
+            normalized = f"RGBA({normalized})"
         return format_toon_atom(normalized)
     return format_toon_atom(value)
 

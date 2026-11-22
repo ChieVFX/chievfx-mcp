@@ -249,7 +249,7 @@ class EventsStatusMixin:
             raise ValueError(
                 "events-check-since requires 'sinceEventId' (from events-wait, a tool reply, or "
                 "bridge-get-status lastEventId) or 'sinceTimestampUtc'; sinceEventId:0 searches all the journal keeps "
-                "(its latest events; older log lines are only in the Unity Editor.log)."
+                "(its latest events; older log lines are only in this editor's Unity log file)."
             )
         filters = self.read_event_filters(arguments)
         stream = self.read_event_stream()
@@ -277,6 +277,11 @@ class EventsStatusMixin:
         stream_events = stream.get("events", [])
         if isinstance(truncated_before, int) and truncated_before > since_event_id and stream_events and isinstance(stream_events[0], dict):
             result["oldestEventUtc"] = stream_events[0].get("timestamp")
+            # Every editor writes the same Editor.log: the bridge names the file that holds this editor's own log ("" = gone).
+            heartbeat = read_json_file(self.state_path) or {}
+            editor = heartbeat.get("editor") if isinstance(heartbeat.get("editor"), dict) else {}
+            if isinstance(editor.get("logPath"), str):
+                result["editorLogPath"] = editor["logPath"]
         last_shown_id = limited[-1].get("eventId") if limited and isinstance(limited[-1], dict) else None
         if result["hasMore"] and isinstance(last_shown_id, int):
             result["nextSinceEventId"] = last_shown_id

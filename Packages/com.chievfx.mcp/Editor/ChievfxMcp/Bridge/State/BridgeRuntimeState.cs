@@ -213,7 +213,8 @@ namespace Chievfx.Mcp.Editor
                         ["pendingRecompileAfterPlayModeExit"] = BridgePendingRecompile.IsPending,
                         ["scriptChangesWhilePlaying"] = BridgePendingRecompile.ScriptChangesWhilePlaying(),
                         // Read at once, not through the cached health: a Play entered right after the reloaded one says so.
-                        ["staleStaticStateSinceUtc"] = ChievfxMcpEditorHealth.StaleStaticStateSinceUtc
+                        ["staleStaticStateSinceUtc"] = ChievfxMcpEditorHealth.StaleStaticStateSinceUtc,
+                        ["logPath"] = ChievfxMcpEditorHealth.GetSessionLogPath(now) ?? string.Empty
                     },
                     ["busy"] = busy,
                     ["busyReasons"] = BuildBusyReasons(busy, compileWaitingForPlayModeExit),

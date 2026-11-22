@@ -268,6 +268,14 @@ class EventsWaitTests(unittest.TestCase):
         recent = self.server.events_check_since({"sinceEventId": 150, "contains": "kept"})
         self.assertNotIn("oldestEventUtc", recent)
 
+        # Two editors share Editor.log: the bridge names this editor's own log, or says it is gone from disk.
+        mcp.write_json_file_atomic(self.server.state_path, {"editor": {"logPath": "/logs/Editor-prev.log"}})
+        named = mcp.format_events_check_since_text(self.server.events_check_since({"sinceEventId": 0, "contains": "kept"}))
+        self.assertIn("their log lines are in /logs/Editor-prev.log (this editor session's log).", named)
+        mcp.write_json_file_atomic(self.server.state_path, {"editor": {"logPath": ""}})
+        gone = mcp.format_events_check_since_text(self.server.events_check_since({"sinceEventId": 0, "contains": "kept"}))
+        self.assertIn("this editor's log file is gone from disk", gone)
+
     def test_schema_accepts_1000_second_waits(self) -> None:
         wait_tool = next(tool for tool in mcp.TOOLS if tool["name"] == "events-wait")
 

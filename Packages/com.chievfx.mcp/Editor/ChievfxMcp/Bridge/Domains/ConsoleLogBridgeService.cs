@@ -976,8 +976,9 @@ namespace Chievfx.Mcp.Editor
 
         private static IEnumerable<LogEntryDto> ReadUnityEditorLogEntries()
         {
-            var logPath = GetUnityEditorLogPath();
-            if (!File.Exists(logPath))
+            // Another editor's Editor.log is not this one's history: with two editors open it listed the other project's lines.
+            var logPath = ChievfxMcpEditorHealth.FindSessionLogPath();
+            if (logPath == null || !File.Exists(logPath))
             {
                 return Array.Empty<LogEntryDto>();
             }
@@ -1018,18 +1019,6 @@ namespace Chievfx.Mcp.Editor
             {
                 return Array.Empty<LogEntryDto>();
             }
-        }
-
-        private static string GetUnityEditorLogPath()
-        {
-            var logPath = Application.consoleLogPath;
-            if (!string.IsNullOrWhiteSpace(logPath) && File.Exists(logPath))
-            {
-                return logPath;
-            }
-
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
-            return Path.Combine(home, "Library", "Logs", "Unity", "Editor.log");
         }
 
         private static LogEntryDto? TryParseEditorLogLine(string line, int lineNumber)

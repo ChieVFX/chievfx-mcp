@@ -1288,9 +1288,17 @@ def format_events_check_since_text(result: dict[str, Any]) -> str:
         )
     oldest = result.get("oldestEventUtc")
     if isinstance(oldest, str) and oldest:
+        log_path = result.get("editorLogPath")
+        if isinstance(log_path, str) and log_path:
+            where = f"their log lines are in {log_path} (this editor session's log)."
+        elif log_path == "":
+            # A newer editor took over Editor.log and a later start deleted the renamed copy: the other project's log is no lead.
+            where = ("this editor's log file is gone from disk (editors started after it took over Editor.log), so they are not "
+                     "kept anywhere; Editor.log now holds another editor's log.")
+        else:
+            where = "their log lines are in the Unity Editor.log (this editor session) and Editor-prev.log (the previous one)."
         lines.append(
-            f"The journal keeps only its latest events (the oldest kept is from {oldest}): earlier ones are gone from it; "
-            "their log lines are in the Unity Editor.log (this editor session) and Editor-prev.log (the previous one)."
+            f"The journal keeps only its latest events (the oldest kept is from {oldest}): earlier ones are gone from it; {where}"
         )
     return "\n".join(lines)
 

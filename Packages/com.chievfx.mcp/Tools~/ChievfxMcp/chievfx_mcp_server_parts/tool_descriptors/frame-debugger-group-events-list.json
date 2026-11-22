@@ -1,6 +1,6 @@
 {
   "name": "frame-debugger-group-events-list",
-  "description": "Lists draw calls/events inside one Frame Debugger group by groupIndex.",
+  "description": "Lists draw calls/events inside one Frame Debugger group by groupName or groupIndex.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -14,6 +14,10 @@
       "focus": {
         "type": "boolean",
         "default": false
+      },
+      "groupName": {
+        "type": "string",
+        "description": "Group name from groups-list instead of groupIndex: in Play Mode group numbers shift between captured frames."
       },
       "groupIndex": {
         "type": "integer",

@@ -357,7 +357,10 @@ namespace Chievfx.Mcp.Editor
             var window = PrepareFrameDebuggerForInspection(args, diagnostics, selectEventIndex: null);
             var state = CreateFrameDebuggerState(window, diagnostics);
             var groups = CreateFrameDebuggerGroups(state, diagnostics);
-            var group = ResolveFrameDebuggerGroup(groups, ReadInt(args, "groupIndex", -1));
+            // groupName as in drawcall-get, which in Play Mode advises it over groupIndex: here it was dropped and the reply
+            // said "groupIndex -1 is outside available Frame Debugger groups".
+            var group = ResolveFrameDebuggerGroup(groups, ReadInt(args, "groupIndex", -1), ReadString(args, "groupName"));
+            NoteRenamedGroup(group, ReadString(args, "groupName"), diagnostics);
             var startIndex = Math.Max(0, ReadInt(args, "startIndex", 0));
             var maxResults = Math.Max(1, Math.Min(ReadInt(args, "maxResults", 50), 200));
             var events = new List<Dictionary<string, object?>>();

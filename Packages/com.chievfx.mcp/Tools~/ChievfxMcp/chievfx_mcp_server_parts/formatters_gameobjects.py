@@ -76,8 +76,13 @@ def format_gameobject_hierarchy_text(result: dict[str, Any]) -> str:
 
     header_parts = []
     scene_name = result.get("sceneName")
+    scenes = result.get("scenes")
     if not should_omit_toon_value(scene_name):
         header_parts.append(f"scene:{format_toon_atom(scene_name)}")
+    elif isinstance(scenes, list) and scenes:
+        # In Play the roots of DontDestroyOnLoad came mixed with the scene's own, and the header named no scene.
+        names = [format_gameobject_text_value(scene.get("name")) or "<untitled>" for scene in scenes if isinstance(scene, dict)]
+        header_parts.append("scenes:" + format_toon_atom(",".join(names)))
     for key in ("count", "totalObjects", "maxDepth", "maxResults", "truncated", "depthLimited"):
         value = result.get(key)
         if not should_omit_toon_value(value):
@@ -87,8 +92,18 @@ def format_gameobject_hierarchy_text(result: dict[str, Any]) -> str:
     warnings = result.get("warnings")
     if isinstance(warnings, list):
         lines.extend(f"warning: {warning.strip()}" for warning in warnings if isinstance(warning, str) and warning.strip())
+    scene_names = {
+        scene.get("path"): format_gameobject_text_value(scene.get("name")) or "<untitled>"
+        for scene in (scenes if isinstance(scenes, list) else [])
+        if isinstance(scene, dict)
+    }
+    current_scene = None
     for root in roots:
         if isinstance(root, dict):
+            root_scene = root.get("scenePath")
+            if scene_names and isinstance(root_scene, str) and root_scene != current_scene:
+                lines.append(f"scene:{format_toon_atom(scene_names.get(root_scene, root_scene))}")
+                current_scene = root_scene
             lines.extend(format_gameobject_hierarchy_node(root, depth=0))
     return "\n".join(line for line in lines if line)
 

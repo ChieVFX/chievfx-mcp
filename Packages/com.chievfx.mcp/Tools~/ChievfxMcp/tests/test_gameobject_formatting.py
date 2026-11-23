@@ -295,6 +295,26 @@ class GameObjectFormattingTests(unittest.TestCase):
 
         self.assertIn("(1 shown; gameobject-find instanceId:<id> includeComponents:true lists all)", text)
 
+    def test_hierarchy_in_play_names_the_scene_of_each_root(self) -> None:
+        # Play adds DontDestroyOnLoad: without scene lines its roots read as the scene's own.
+        result = {
+            "count": 3,
+            "scenes": [{"name": "Fixture", "path": "Assets/Fixture.unity"}, {"name": "DontDestroyOnLoad", "path": "DontDestroyOnLoad"}],
+            "roots": [
+                {"name": "Camera", "instanceId": 1, "scenePath": "Assets/Fixture.unity"},
+                {"name": "Canvas", "instanceId": 2, "scenePath": "Assets/Fixture.unity"},
+                {"name": "[Debug Updater]", "instanceId": 3, "scenePath": "DontDestroyOnLoad"},
+            ],
+        }
+
+        lines = mcp.format_gameobject_hierarchy_text(result).splitlines()
+
+        self.assertTrue(lines[0].startswith("scenes:"), lines[0])
+        self.assertIn("Fixture,DontDestroyOnLoad", lines[0])
+        self.assertEqual(lines[1], "scene:Fixture")
+        self.assertEqual(lines[4], "scene:DontDestroyOnLoad")
+        self.assertIn("[Debug Updater]", lines[5])
+
     def test_gameobject_find_text_marks_inactive_and_truncated_components(self) -> None:
         result = {
             "source": "activeScene",

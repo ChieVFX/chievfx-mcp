@@ -21,6 +21,32 @@ namespace Chievfx.Mcp.Editor.Tests
         }
 
         [Test]
+        public void UnityStructsWithoutPublicFieldsComeBackAsTheirProperties()
+        {
+            var truncated = false;
+            var ray = (string)ReflectionBridgeService.SerializeReturnValue(new Ray(new Vector3(1.234567f, 0, 0), Vector3.forward), ref truncated)!;
+            StringAssert.Contains("\"origin\":{\"x\":1.234567", ray);
+            StringAssert.Contains("\"direction\":{\"x\":0.0,\"y\":0.0,\"z\":1.0}", ray);
+
+            var probe = new GameObject("RaycastProbe", typeof(BoxCollider));
+            try
+            {
+                probe.transform.position = new Vector3(0f, 0f, 5f);
+                Physics.SyncTransforms();
+                var hits = Physics.RaycastAll(Vector3.zero, Vector3.forward, 20f);
+                Assert.IsNotEmpty(hits);
+                var json = (string)ReflectionBridgeService.SerializeReturnValue(hits, ref truncated)!;
+                StringAssert.Contains("\"distance\":4.5", json);
+                StringAssert.Contains("\"name\":\"RaycastProbe\"", json);
+                StringAssert.DoesNotContain("\"UnityEngine.RaycastHit\"", json);
+            }
+            finally
+            {
+                Object.DestroyImmediate(probe);
+            }
+        }
+
+        [Test]
         public void AUnityObjectInsideAValueIsAReference()
         {
             var probe = new GameObject("ReturnValueProbe");

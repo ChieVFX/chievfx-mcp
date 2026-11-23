@@ -3,5 +3,5 @@
 
 from __future__ import annotations
 
-class McpServer(McpServerCore, BridgeTransportMixin, EventsStatusMixin):
+class McpServer(McpServerCore, BridgeTransportMixin, EditorLivenessMixin, EditorCommandsMixin, EventsStatusMixin):
     pass

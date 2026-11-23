@@ -27,6 +27,8 @@ _PART_FILES = [
     'remote_cmd.py',
     'server_core.py',
     'server_bridge.py',
+    'server_editor_liveness.py',
+    'server_editor_commands.py',
     'server_events.py',
     'server.py',
     'transport.py',

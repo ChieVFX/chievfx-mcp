@@ -179,7 +179,9 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         {
             var merged = new List<object>();
             var seen = new HashSet<int>();
-            foreach (var hit in FindBoundsHits(group, status, panelPosition).Concat(pickAllHits))
+            // The panel's own picker first: it knows what is drawn on top. Bounds hits come from the documents only, so with
+            // them first a row under an open dropdown menu (the menu lives outside the document) took the click's name.
+            foreach (var hit in pickAllHits.Concat(FindBoundsHits(group, status, panelPosition)))
             {
                 var id = RuntimeHelpers.GetHashCode(hit);
                 if (seen.Add(id))

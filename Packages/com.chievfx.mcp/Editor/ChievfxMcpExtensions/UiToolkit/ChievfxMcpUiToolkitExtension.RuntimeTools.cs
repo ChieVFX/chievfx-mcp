@@ -143,6 +143,8 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             return result;
         }
 
+        private const string DropdownMenuItemClass = "unity-base-dropdown__item";
+
         // Best-effort detection of whether a UI Toolkit click landed on something that actually
         // responds. SendEvent gives no handled/return signal, so we walk the ancestor chain for a
         // Clickable manipulator (Button and custom clickables expose a non-null `clickable`) or a
@@ -160,7 +162,8 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 var clickable = current.GetType()
                     .GetProperty("clickable", BindingFlags.Public | BindingFlags.Instance)
                     ?.GetValue(current);
-                if (clickable != null)
+                // A row of an open dropdown menu: the menu picks it on pointer up.
+                if (clickable != null || current.ClassListContains(DropdownMenuItemClass))
                 {
                     return current;
                 }
@@ -262,11 +265,13 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             result["resolvedBy"] = resolution.ResolvedBy;
             result["input"] = resolution.Position == null ? null : CreateScreenPositionRow(resolution.Position.Value);
 
-            var element = resolution.Target as VisualElement;
+            var element = FindValueField(resolution.Target as VisualElement, warnings);
             var valueProperty = element?.GetType().GetProperty("value", BindingFlags.Public | BindingFlags.Instance);
             var hasWritableValue = element != null && valueProperty != null && valueProperty.CanWrite;
+            // A DropdownField holds a string too, but picks it from its choices: it is set here, not typed.
             var isTextField = hasWritableValue
-                && (Nullable.GetUnderlyingType(valueProperty!.PropertyType) ?? valueProperty.PropertyType) == typeof(string);
+                && (Nullable.GetUnderlyingType(valueProperty!.PropertyType) ?? valueProperty.PropertyType) == typeof(string)
+                && !HasChoices(element!);
             var resolved = hasWritableValue && !isTextField;
             result["resolved"] = resolved;
             result["target"] = element == null ? null : CreateVisualElementRow(element, status, resolution.Group ?? PanelGroup.FromElement(element), includeTextAndValue: true);
@@ -282,16 +287,22 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
             if (!resolved)
             {
+                var notSettable = element == null
+                    ? null
+                    : isTextField
+                        ? $"Target '{GetVisualElementPath(element)}' is a text field; use ui-runtime-type-text for string entry."
+                        : $"Target '{GetVisualElementPath(element)}' has no writable value property.";
                 if (requireTarget)
                 {
-                    throw new ArgumentException(element == null
-                        ? "ui-runtime-set-control-value could not resolve a UI Toolkit target from path or screen position."
-                        : isTextField
-                            ? $"Target '{GetVisualElementPath(element)}' is a text field; use ui-runtime-type-text for string entry."
-                            : $"Target '{GetVisualElementPath(element)}' has no writable value property.");
+                    throw new ArgumentException(notSettable ?? "ui-runtime-set-control-value could not resolve a UI Toolkit target from path or screen position.");
                 }
 
-                if (!ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args))
+                // Found but not settable: without this the reply read "Nothing exists at path" for an element that is there.
+                if (notSettable != null)
+                {
+                    warnings.Add(notSettable);
+                }
+                else if (!ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(args))
                 {
                     warnings.Add("No runtime UI Toolkit settable control resolved.");
                 }

@@ -170,6 +170,37 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 && !string.Equals(ReadMemberString(visualElement, "pickingMode"), "Ignore", StringComparison.OrdinalIgnoreCase);
         }
 
+        // A point on a field lands on its inner label or text element (IntegerField > IntegerInput > TextElement): the control
+        // is the nearest ancestor with a writable value, a few levels up at most.
+        private const int MaxValueFieldClimb = 3;
+
+        internal static VisualElement? FindValueField(VisualElement? element, List<string> warnings)
+        {
+            var current = element;
+            for (var level = 0; current != null && level <= MaxValueFieldClimb; level++, current = current.parent)
+            {
+                var property = current.GetType().GetProperty("value", BindingFlags.Public | BindingFlags.Instance);
+                if (property == null || !property.CanWrite)
+                {
+                    continue;
+                }
+
+                if (!ReferenceEquals(current, element))
+                {
+                    warnings.Add($"'{GetVisualElementPath(element!)}' is a part of '{GetVisualElementPath(current)}': acted on that {current.GetType().Name}.");
+                }
+
+                return current;
+            }
+
+            return element;
+        }
+
+        internal static bool HasChoices(VisualElement element)
+        {
+            return element.GetType().GetProperty("choices", BindingFlags.Public | BindingFlags.Instance) != null;
+        }
+
         internal static string[] PlannedEvents(string action)
         {
             return action switch
@@ -512,13 +543,13 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             result["stack"] = resolution.Stack;
             result["resolvedBy"] = resolution.ResolvedBy;
 
-            var element = resolution.Target as VisualElement;
+            var element = FindValueField(resolution.Target as VisualElement, warnings);
             var group = resolution.Group ?? (element == null ? null : PanelGroup.FromElement(element));
             var valueProperty = element?.GetType().GetProperty("value", BindingFlags.Public | BindingFlags.Instance);
-            var isTextField = element != null
-                && valueProperty != null
-                && valueProperty.CanWrite
-                && (Nullable.GetUnderlyingType(valueProperty.PropertyType) ?? valueProperty.PropertyType) == typeof(string);
+            var hasWritableValue = element != null && valueProperty != null && valueProperty.CanWrite;
+            var isTextField = hasWritableValue
+                && (Nullable.GetUnderlyingType(valueProperty!.PropertyType) ?? valueProperty.PropertyType) == typeof(string)
+                && !HasChoices(element!);
             result["resolved"] = isTextField;
             result["target"] = element == null ? null : CreateVisualElementRow(element, status, group!, includeTextAndValue: true);
             result["targetStateBefore"] = element == null ? null : CreateVisualElementStateRow(element, status);
@@ -527,9 +558,13 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             {
                 if (requireTarget)
                 {
+                    // Typing into a dropdown stored any string, one the game's own choices do not have; a number field takes a number.
                     throw new ArgumentException(element == null
                         ? "ui-runtime-type-text could not resolve a UI Toolkit target from path or screen position."
-                        : $"Target '{GetVisualElementPath(element)}' has no writable string value (not a TextField).");
+                        : hasWritableValue
+                            ? $"Target '{GetVisualElementPath(element)}' is a {element.GetType().Name}, not a text field: use ui-runtime-set-control-value with this path"
+                              + (HasChoices(element) ? " and one of its choices." : ".")
+                            : $"Target '{GetVisualElementPath(element)}' has no writable string value (not a TextField).");
                 }
 
                 result["warnings"] = warnings.Distinct().ToArray();

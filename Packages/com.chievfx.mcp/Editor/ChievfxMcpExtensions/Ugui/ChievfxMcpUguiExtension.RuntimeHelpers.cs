@@ -378,6 +378,15 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             var chosen = purpose == RuntimeHitPurpose.Drag ? hits[chosenIndex] : PromoteToClickableControlTarget(hits[chosenIndex], status)!;
+            // A UI Toolkit panel drawn above takes a real tap (its PanelRaycaster is the higher hit): pressing the uGUI control
+            // under it too clicked two things at once, one of them hidden under the panel.
+            var panelAbove = purpose == RuntimeHitPurpose.Drag ? null : hits.Take(chosenIndex).FirstOrDefault(IsUiToolkitPanelHit);
+            if (panelAbove != null)
+            {
+                warnings.Add($"A UI Toolkit panel ('{panelAbove.name}') is above '{GetTransformPath(chosen.transform)}' at this point and takes a real tap: the uGUI control under it was not pressed.");
+                return null;
+            }
+
             var blocker = hits
                 .Take(chosenIndex)
                 .FirstOrDefault(hit => !IsRaycastInfrastructureTarget(hit, status) && !hit.transform.IsChildOf(chosen.transform));
@@ -433,6 +442,12 @@ namespace Chievfx.Mcp.Extensions.Ugui
             // not anything handles PointerClick.
             return ExecuteEvents.GetEventHandler<IPointerClickHandler>(target) != null
                 || ExecuteEvents.GetEventHandler<IPointerDownHandler>(target) != null;
+        }
+
+        private static bool IsUiToolkitPanelHit(GameObject hit)
+        {
+            return hit.GetComponents<Component>().Any(component => component != null
+                && string.Equals(component.GetType().Name, "PanelRaycaster", StringComparison.Ordinal));
         }
 
         internal static bool IsRaycastInfrastructureTarget(GameObject target, UguiDependencyStatus status)

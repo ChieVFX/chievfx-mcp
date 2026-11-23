@@ -75,7 +75,7 @@ and `*.pyc`/`*.pyo`. The choice and folder are remembered per launcher project.
 
 ## Setup
 
-Nothing to do. Launching from Unity (**Window > ChievFX > MCP** → **Connection** →
+Nothing to do. Launching from Unity (**Window > ChievFX MCP** → **Connection** →
 **Advanced details** → **Launch Python Installer**) uses the **single shared managed
 environment** at `~/.chievfx-mcp/env` — the same interpreter that runs the MCP server —
 and installs `requirements.txt` into it on first use (~25 s once per machine), and again when a
@@ -99,7 +99,7 @@ To install the requirements by hand:
 python chievfx_mcp_installer.py
 ```
 
-Or launch it from **Window > ChievFX > MCP** → **Connection** → **Advanced details**
+Or launch it from **Window > ChievFX MCP** → **Connection** → **Advanced details**
 → **Launch Python Installer**.
 
 1. **FROM** auto-fills by walking up from the installer folder until a Unity
@@ -134,7 +134,7 @@ into the default profile on first use.
 ## Post-install steps in the target Unity project
 
 1. Open the project, wait for compile and domain reload.
-2. `Window > ChievFX > MCP` -> `Start Bridge`.
+2. `Window > ChievFX MCP` -> `Start Bridge`.
 3. Keep `Cursor` selected, or switch the client to `Claude Code`, `Codex`, `Kimi Code` or `JetBrains Rider`, then click `Write <client> Config`.
 4. Reload your MCP client's tools or restart it.
 

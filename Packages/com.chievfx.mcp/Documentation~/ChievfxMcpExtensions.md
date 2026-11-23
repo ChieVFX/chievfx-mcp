@@ -37,7 +37,7 @@ custom presets are `ChievfxMcpToolRoleAsset` project assets. A role lists
 category names plus optional explicit tool IDs; applying it enables matching
 tools, disables other optional tools, and never disables required tools.
 
-Create custom role assets from `Window > ChievFX > MCP Tools`, then edit
+Create custom role assets with `Assets > Create > ChievFX > MCP Tool Role`, then edit
 `enabledCategoryIds` and `enabledToolIds` in Inspector or save the current
 selection into the asset from the same window. Agents can inspect/apply roles
 with `tools-get-roles` and `tools-set-role`. After switching roles or editing

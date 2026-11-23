@@ -13,7 +13,7 @@ Short reference for how agent-facing MCP text is assembled and how it respects t
 
 `remote-cmd` is deliberately **outside** the selection model: `all_tools()` omits it unless that file arms it, so no preset, role, category "enable all", or saved selection can expose a tool that runs host commands. See `remote_cmd.py` and **Remote Command Pass-through** in `instruction.md`.
 
-Unity windows under `Window > ChievFX > MCP *` write these files. The Python MCP server reads them at runtime.
+The Unity window `Window > ChievFX MCP` (its tabs) writes these files. The Python MCP server reads them at runtime.
 
 ## MCP `initialize.instructions`
 

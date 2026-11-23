@@ -668,7 +668,7 @@ def perform_install(
     log("Done.")
     log("Next steps in target Unity project:")
     log("  1. Open the project, wait for compile + domain reload.")
-    log("  2. Window > ChievFX > MCP -> Start Bridge -> Write Cursor Config.")
+    log("  2. Window > ChievFX MCP -> Start Bridge -> Write Cursor Config.")
     log("  3. Reload Cursor MCP tools or restart Cursor.")
 
 
@@ -798,7 +798,7 @@ def perform_install_tgz(
     log("Done (tarball install).")
     log("Next steps in target Unity project:")
     log("  1. Open the project; Unity imports the tarball as an immutable package.")
-    log("  2. Window > ChievFX > MCP -> Start Bridge -> Write client config.")
+    log("  2. Window > ChievFX MCP -> Start Bridge -> Write client config.")
     log("  3. Reload the MCP client tools or restart it.")
 
 

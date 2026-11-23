@@ -149,7 +149,7 @@ namespace Chievfx.Mcp.Extensions.Control
                 descriptor.Tools.Add(Tool("input-control-keyboard-event", "Queue a New Input System keyboard down, up, or tap event. Tap holds the key for holdFrames player frames so wasPressedThisFrame edges are visible to game Update() code, and returns a completionMarker for events-wait.", KeyboardSchema()));
                 descriptor.Tools.Add(Tool("input-control-keyboard-sequence", "Type a string (text) or tap a key list (keys) in ONE call — each key held holdFrames and spaced gapFrames apart, dispatched across player frames. Returns a completionMarker for events-wait. Use for typing and real-time/action input without a round-trip per key.", KeyboardSequenceSchema()));
                 descriptor.Tools.Add(Tool("input-control-mouse-event", "Queue a New Input System mouse button or move event. Real injection routes through a virtual mouse (capturePointer, default true) so the OS cursor cannot overwrite injected positions; tap is frame-spaced and returns a completionMarker.", MouseSchema()));
-                descriptor.Tools.Add(Tool("input-control-mouse-gesture", "Queue a mouse down/move/up gesture whose steps dispatch one per player frame. Defaults dryRun=true; real runs return a completionMarker for events-wait.", GestureSchema()));
+                descriptor.Tools.Add(Tool("input-control-mouse-gesture", "Queue a mouse down/move/up gesture whose steps dispatch one per player frame. Returns a completionMarker for events-wait; dryRun:true only previews it.", GestureSchema()));
                 descriptor.Tools.Add(Tool("input-control-touch-event", "Queue a New Input System touchscreen down, move, up, or tap event. Tap holds the touch for holdFrames player frames and returns a completionMarker for events-wait.", TouchSchema()));
                 descriptor.Tools.Add(Tool("input-control-pointer-capture", "Begin, end, or inspect a pointer capture session: injected mouse events drive a virtual mouse while physical mice are disabled, preventing the OS cursor from overwriting injected positions. Ends automatically on Play Mode exit.", PointerCaptureSchema()));
             }
@@ -509,7 +509,7 @@ namespace Chievfx.Mcp.Extensions.Control
             ["durationMs"] = Num("Tap: hold the key at least this long (ms), as well as holdFrames."),
             ["holdFrames"] = Int("Player frames to hold the key during tap. Default 2, range 1..300."),
             ["awaitMs"] = AwaitMs(),
-            ["dryRun"] = Bool("Report intended events without input mutation. Defaults to !allowStateMutation, so allowStateMutation=true alone performs a real run."),
+            ["dryRun"] = Bool("Report intended events without injecting them (default false: the input is real)."),
             ["allowStateMutation"] = Bool("Deprecated and optional; real injection is the default in Play Mode. Set dryRun:true to preview instead."),
         }, "key");
 
@@ -542,7 +542,7 @@ namespace Chievfx.Mcp.Extensions.Control
             ["holdFrames"] = Int("Player frames to hold the button during tap. Default 2, range 1..300."),
             ["awaitMs"] = AwaitMs(),
             ["capturePointer"] = Bool("Route injection through a virtual mouse and disable physical mice so the OS cursor cannot overwrite injected positions. Default true; ends on Play Mode exit or input-control-pointer-capture end."),
-            ["dryRun"] = Bool("Report intended events without input mutation. Defaults to !allowStateMutation, so allowStateMutation=true alone performs a real run."),
+            ["dryRun"] = Bool("Report intended events without injecting them (default false: the input is real)."),
             ["allowStateMutation"] = Bool("Deprecated and optional; real injection is the default in Play Mode. Set dryRun:true to preview instead."),
         });
 
@@ -579,7 +579,7 @@ namespace Chievfx.Mcp.Extensions.Control
             ["delta"] = Vector("Relative touch delta for move/up metadata."),
             ["holdFrames"] = Int("Player frames to hold the touch during tap. Default 2, range 1..300."),
             ["awaitMs"] = AwaitMs(),
-            ["dryRun"] = Bool("Report intended events without input mutation. Defaults to !allowStateMutation, so allowStateMutation=true alone performs a real run."),
+            ["dryRun"] = Bool("Report intended events without injecting them (default false: the input is real)."),
             ["allowStateMutation"] = Bool("Deprecated and optional; real injection is the default in Play Mode. Set dryRun:true to preview instead."),
         });
 

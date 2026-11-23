@@ -208,6 +208,9 @@ def format_ui_control_find_texts(result: dict[str, Any]) -> list[str]:
         rows.append(f"  {window.get('window')}: " + " | ".join(texts))
     total = result.get("textsTotal")
     if not rows:
+        # Filtered by wildcards, an empty list means no visible text matched, not an empty screen.
+        if result.get("wildcards"):
+            return ["texts: none matched the wildcards (call without wildcards for every visible text)"]
         return ["texts: none visible"]
     header = f"texts ({shown}):"
     if isinstance(total, int) and total > shown:

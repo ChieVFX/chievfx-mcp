@@ -30,6 +30,11 @@ class UiControlFindTextsTests(unittest.TestCase):
     def test_requested_but_none_visible(self) -> None:
         self.assertIn("texts: none visible", mcp.format_ui_control_find_text({"controls": [], "texts": [], "textsTotal": 0}))
 
+    def test_none_matched_the_wildcards_is_not_an_empty_screen(self) -> None:
+        text = mcp.format_ui_control_find_text({"controls": [], "texts": [], "textsTotal": 0, "wildcards": ["*NoSuchThing*"]})
+        self.assertIn("texts: none matched the wildcards", text)
+        self.assertNotIn("none visible", text)
+
     def test_later_page_points_to_the_first(self) -> None:
         self.assertIn("texts: listed with page 1", mcp.format_ui_control_find_text({"controls": [], "textsOnPage": 1}))
 

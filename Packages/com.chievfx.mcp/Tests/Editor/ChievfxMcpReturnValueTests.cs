@@ -1,6 +1,9 @@
 #nullable enable
+using System.Runtime.InteropServices;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.TestTools;
 using Object = UnityEngine.Object;
 
 namespace Chievfx.Mcp.Editor.Tests
@@ -43,6 +46,55 @@ namespace Chievfx.Mcp.Editor.Tests
             finally
             {
                 Object.DestroyImmediate(probe);
+            }
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct HalfUvVertex
+        {
+            public Vector3 Position;
+            public ushort U;
+            public ushort V;
+        }
+
+        // Terrain tiles store UVs in half precision: RaycastHit.textureCoord on them logged an error and an assert per hit.
+        [Test]
+        public void ARaycastHitOnAMeshWithHalfPrecisionUvsLogsNothing()
+        {
+            var mesh = new Mesh();
+            mesh.SetVertexBufferParams(3,
+                new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
+                new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2));
+            var half = Mathf.FloatToHalf(0.5f);
+            mesh.SetVertexBufferData(new[]
+            {
+                new HalfUvVertex { Position = new Vector3(-1f, -1f, 0f), U = half, V = half },
+                new HalfUvVertex { Position = new Vector3(0f, 1f, 0f), U = half, V = half },
+                new HalfUvVertex { Position = new Vector3(1f, -1f, 0f), U = half, V = half },
+            }, 0, 0, 3);
+            mesh.SetIndexBufferParams(3, IndexFormat.UInt16);
+            mesh.SetIndexBufferData(new ushort[] { 0, 1, 2 }, 0, 0, 3);
+            mesh.SetSubMesh(0, new SubMeshDescriptor(0, 3));
+            mesh.RecalculateBounds();
+            var probe = new GameObject("HalfUvProbe");
+            try
+            {
+                probe.transform.position = new Vector3(0f, 0f, 5f);
+                probe.AddComponent<MeshCollider>().sharedMesh = mesh;
+                Physics.SyncTransforms();
+                var hits = Physics.RaycastAll(Vector3.zero, Vector3.forward, 20f);
+                Assert.IsNotEmpty(hits);
+                var truncated = false;
+                var json = (string)ReflectionBridgeService.SerializeReturnValue(hits, ref truncated)!;
+                StringAssert.Contains("\"name\":\"HalfUvProbe\"", json);
+                StringAssert.DoesNotContain("textureCoord", json);
+                StringAssert.DoesNotContain("lightmapCoord", json);
+                LogAssert.NoUnexpectedReceived();
+            }
+            finally
+            {
+                Object.DestroyImmediate(probe);
+                Object.DestroyImmediate(mesh);
             }
         }
 

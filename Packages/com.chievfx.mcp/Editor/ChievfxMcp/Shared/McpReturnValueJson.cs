@@ -11,7 +11,9 @@ namespace Chievfx.Mcp.Editor
     // returned Vector3 with "self referencing loop" after the script had already run. Unity objects nested in a value
     // (an anonymous object with a GameObject) go out as a reference, not as every property of the engine object.
     // A Unity struct with no public fields (Ray, RaycastHit) goes out as its readable properties: its ToString rounds to
-    // 0.01 or is only the type name, so a RaycastHit[] came back as ["UnityEngine.RaycastHit", ...].
+    // 0.01 or is only the type name, so a RaycastHit[] came back as ["UnityEngine.RaycastHit", ...]. RaycastHit's UV
+    // getters are left out: they read the hit mesh and log an error and an assert per hit on a mesh with half-precision
+    // or missing UVs (typical for terrain tiles), and return zero there anyway.
     internal static class McpReturnValueJson
     {
         public static readonly JsonSerializerSettings Settings = new()
@@ -26,6 +28,14 @@ namespace Chievfx.Mcp.Editor
             // Struct properties can hold other Unity structs; past this nesting they go out as text.
             private const int MaxPropertyDepth = 3;
             private static readonly Dictionary<Type, PropertyInfo[]> PropertiesByType = new();
+            // By name: the package does not depend on the 3D physics module.
+            private const string RaycastHitTypeName = "UnityEngine.RaycastHit";
+            private static readonly HashSet<string> MeshReadingRaycastHitProperties = new(StringComparer.Ordinal)
+            {
+                "textureCoord",
+                "textureCoord2",
+                "lightmapCoord",
+            };
             [ThreadStatic] private static int _propertyDepth;
 
             public override bool CanRead => false;
@@ -142,7 +152,8 @@ namespace Chievfx.Mcp.Editor
                     foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
                     {
                         if (property.CanRead && property.GetIndexParameters().Length == 0 && property.PropertyType != type
-                            && property.IsDefined(typeof(ObsoleteAttribute), true) == false)
+                            && property.IsDefined(typeof(ObsoleteAttribute), true) == false
+                            && (type.FullName != RaycastHitTypeName || MeshReadingRaycastHitProperties.Contains(property.Name) == false))
                         {
                             readable.Add(property);
                         }

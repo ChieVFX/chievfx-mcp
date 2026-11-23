@@ -68,7 +68,8 @@
       "maxDimension": {
         "type": "integer",
         "minimum": 1,
-        "maximum": 16384
+        "maximum": 16384,
+        "description": "Longest side of the PNG in pixels: a larger window is scaled down to fit. Default: full size."
       },
       "timeoutMs": {
         "type": "integer",

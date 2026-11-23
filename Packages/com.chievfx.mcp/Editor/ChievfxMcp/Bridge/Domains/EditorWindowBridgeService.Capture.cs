@@ -100,8 +100,8 @@ namespace Chievfx.Mcp.Editor
                 ["waitedEditorUpdates"] = waitedEditorUpdates,
                 ["waitedMs"] = Math.Round(waitedMs, 1),
                 ["pixelsPerPoint"] = pixelsPerPoint,
-                ["pngWidth"] = Mathf.RoundToInt(capture.CapturePixelRect.width),
-                ["pngHeight"] = Mathf.RoundToInt(capture.CapturePixelRect.height),
+                ["pngWidth"] = capture.PngSize.x,
+                ["pngHeight"] = capture.PngSize.y,
                 ["warnings"] = warnings.Distinct(StringComparer.Ordinal).ToArray(),
                 ["diagnostics"] = pending.Diagnostics.Distinct(StringComparer.Ordinal).ToArray()
             };
@@ -132,7 +132,7 @@ namespace Chievfx.Mcp.Editor
                 warnings.Add($"GUIView.GrabPixels capture failed: {ex.GetBaseException().Message}; falling back to desktop pixel capture.");
             }
 
-            return CaptureEditorWindowScreenPixelsToPng(window, requestedCaptureArea, maxDimension, warnings, out effectiveCaptureArea);
+            return CaptureEditorWindowScreenPixelsToPng(window, requestedCaptureArea, maxDimension, warnings, diagnostics, out effectiveCaptureArea);
         }
 
         private static EditorWindowCaptureResult CaptureEditorWindowGuiViewToPng(
@@ -154,7 +154,7 @@ namespace Chievfx.Mcp.Editor
             var captureRect = ResolveEditorWindowGuiViewCaptureRect(window, requestedCaptureArea, warnings, out effectiveCaptureArea);
             var pixelRect = ScaleRect(captureRect, EditorGUIUtility.pixelsPerPoint);
             var grabPixelRect = ToGuiViewGrabPixelRect(window, captureRect, EditorGUIUtility.pixelsPerPoint);
-            ValidateEditorWindowScreenshotDimensions(pixelRect, maxDimension);
+            var pngSize = FitEditorWindowScreenshotIntoMaxDimension(pixelRect, maxDimension, diagnostics);
 
             var width = Mathf.RoundToInt(pixelRect.width);
             var height = Mathf.RoundToInt(pixelRect.height);
@@ -163,8 +163,8 @@ namespace Chievfx.Mcp.Editor
             try
             {
                 grabPixelsMethod.Invoke(hostView, new object[] { renderTexture, grabPixelRect });
-                var png = ScreenshotBridgeService.EncodeRenderTexture(renderTexture, SystemInfo.graphicsUVStartsAtTop);
-                return new EditorWindowCaptureResult("guiView.grabPixels", png, captureRect, pixelRect);
+                var png = ScreenshotBridgeService.EncodeRenderTexture(renderTexture, pngSize.x, pngSize.y, SystemInfo.graphicsUVStartsAtTop);
+                return new EditorWindowCaptureResult("guiView.grabPixels", png, captureRect, pixelRect, pngSize);
             }
             catch (TargetInvocationException ex) when (ex.InnerException != null)
             {
@@ -279,12 +279,13 @@ namespace Chievfx.Mcp.Editor
             EditorWindowCaptureArea requestedCaptureArea,
             int maxDimension,
             List<string> warnings,
+            List<string> diagnostics,
             out EditorWindowCaptureArea effectiveCaptureArea)
         {
             warnings.Add("ReadScreenPixel captures visible desktop pixels only; Unity must be frontmost and the target rect must be unobscured.");
             var captureRect = ResolveEditorWindowCaptureRect(window, requestedCaptureArea, warnings, out effectiveCaptureArea);
             var pixelRect = ScaleRect(captureRect, EditorGUIUtility.pixelsPerPoint);
-            ValidateEditorWindowScreenshotDimensions(pixelRect, maxDimension);
+            var pngSize = FitEditorWindowScreenshotIntoMaxDimension(pixelRect, maxDimension, diagnostics);
             if (pixelRect.x < 0 || pixelRect.y < 0)
             {
                 warnings.Add("Capture rect starts outside the primary desktop origin; offscreen or secondary-display capture is best effort.");
@@ -292,9 +293,10 @@ namespace Chievfx.Mcp.Editor
 
             return new EditorWindowCaptureResult(
                 "desktop.readScreenPixel",
-                CaptureScreenRectToPng(pixelRect),
+                CaptureScreenRectToPng(pixelRect, pngSize),
                 captureRect,
-                pixelRect);
+                pixelRect,
+                pngSize);
         }
 
         private static Rect ResolveEditorWindowCaptureRect(
@@ -340,18 +342,25 @@ namespace Chievfx.Mcp.Editor
             return new Rect(xMin, yMin, Math.Max(0, xMax - xMin), Math.Max(0, yMax - yMin));
         }
 
-        private static void ValidateEditorWindowScreenshotDimensions(Rect pixelRect, int maxDimension)
+        // maxDimension caps the PNG's longest side, as in the other screenshot tools: a taller window is scaled down, not refused.
+        private static Vector2Int FitEditorWindowScreenshotIntoMaxDimension(Rect pixelRect, int maxDimension, List<string> diagnostics)
         {
             var width = Mathf.RoundToInt(pixelRect.width);
             var height = Mathf.RoundToInt(pixelRect.height);
             ScreenshotBridgeService.ValidateScreenshotDimensions(width, height);
-            if (width > maxDimension || height > maxDimension)
+            var longestSide = Math.Max(width, height);
+            if (longestSide <= maxDimension)
             {
-                throw new ArgumentOutOfRangeException(nameof(maxDimension), $"EditorWindow screenshot dimensions {width}x{height} exceed maxDimension {maxDimension}.");
+                return new Vector2Int(width, height);
             }
+
+            var scale = (float)maxDimension / longestSide;
+            var scaled = new Vector2Int(Math.Max(1, Mathf.RoundToInt(width * scale)), Math.Max(1, Mathf.RoundToInt(height * scale)));
+            diagnostics.Add($"Scaled from {width}x{height} to {scaled.x}x{scaled.y} to fit maxDimension {maxDimension}.");
+            return scaled;
         }
 
-        private static byte[] CaptureScreenRectToPng(Rect pixelRect)
+        private static byte[] CaptureScreenRectToPng(Rect pixelRect, Vector2Int pngSize)
         {
             var x = Mathf.RoundToInt(pixelRect.x);
             var y = Mathf.RoundToInt(pixelRect.y);
@@ -364,15 +373,27 @@ namespace Chievfx.Mcp.Editor
             }
 
             var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            RenderTexture? scaledSource = null;
             try
             {
                 texture.SetPixels(colors);
                 texture.Apply();
-                return texture.EncodeToPNG();
+                if (pngSize.x == width && pngSize.y == height)
+                {
+                    return texture.EncodeToPNG();
+                }
+
+                scaledSource = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32);
+                Graphics.Blit(texture, scaledSource);
+                return ScreenshotBridgeService.EncodeRenderTexture(scaledSource, pngSize.x, pngSize.y, flipVertical: false);
             }
             finally
             {
                 Object.DestroyImmediate(texture);
+                if (scaledSource != null)
+                {
+                    RenderTexture.ReleaseTemporary(scaledSource);
+                }
             }
         }
 

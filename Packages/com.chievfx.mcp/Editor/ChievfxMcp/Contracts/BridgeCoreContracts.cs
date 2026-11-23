@@ -75,12 +75,13 @@ namespace Chievfx.Mcp.Editor
 
     internal sealed class EditorWindowCaptureResult
     {
-        public EditorWindowCaptureResult(string backend, byte[] png, Rect captureRect, Rect capturePixelRect)
+        public EditorWindowCaptureResult(string backend, byte[] png, Rect captureRect, Rect capturePixelRect, Vector2Int pngSize)
         {
             Backend = backend;
             Png = png;
             CaptureRect = captureRect;
             CapturePixelRect = capturePixelRect;
+            PngSize = pngSize;
         }
 
         public string Backend { get; }
@@ -90,6 +91,9 @@ namespace Chievfx.Mcp.Editor
         public Rect CaptureRect { get; }
 
         public Rect CapturePixelRect { get; }
+
+        // Smaller than CapturePixelRect when maxDimension scaled the capture down.
+        public Vector2Int PngSize { get; }
     }
 
     internal sealed class TemporaryOverlayCanvasCameraScope : IDisposable

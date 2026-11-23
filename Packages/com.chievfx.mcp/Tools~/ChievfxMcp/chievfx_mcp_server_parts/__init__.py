@@ -33,6 +33,7 @@ _PART_FILES = [
     'server_editor_liveness.py',
     'server_editor_commands.py',
     'server_events.py',
+    'server_bridge_status.py',
     'server.py',
     'transport.py',
     'formatters_ugui.py',

@@ -305,12 +305,42 @@ class McpServerCore:
         if isinstance(name, str):
             result = with_unknown_argument_warning(result, name, params.get("arguments") or {})
             if await_ms is not None:
-                result = self._await_tool_completion(result, name, raw_sink.get("result"), await_ms, await_cursor, request_id)
+                meta = params.get("_meta")
+                progress_token = meta.get("progressToken") if isinstance(meta, dict) else None
+                with self._await_progress_ticker(progress_token, notify, name, await_ms):
+                    result = self._await_tool_completion(result, name, raw_sink.get("result"), await_ms, await_cursor, request_id)
             renamed_arguments = renamed_arguments + raw_sink.get("argumentsRenamed", [])
             if renamed_arguments:
                 attach_result_notice(result, "Arguments taken under the tool's names: " + ", ".join(renamed_arguments))
             result = self._with_core_descriptor_reminder(result, name)
         return result
+
+    @contextlib.contextmanager
+    def _await_progress_ticker(self, progress_token: Any, notify: Any | None, name: str, await_ms: int):
+        """Progress notifications while the server waits for an action's end under awaitMs.
+
+        Clients that cut a call at a fixed time (60 s in some) keep it alive while progress arrives; without a
+        progressToken from the client nothing is sent.
+        """
+        if progress_token is None or notify is None:
+            yield
+            return
+        stop = threading.Event()
+        started = time.monotonic()
+
+        def tick() -> None:
+            while not stop.wait(AWAIT_PROGRESS_TICK_SECONDS):
+                elapsed_s = time.monotonic() - started
+                fraction = min(0.95, elapsed_s * 1000 / max(await_ms, 1))
+                self.emit_progress(progress_token, notify, fraction, f"Waiting for {name} to end: {round(elapsed_s)} s of {round(await_ms / 1000)} s.")
+
+        ticker = threading.Thread(target=tick, name="await-progress", daemon=True)
+        ticker.start()
+        try:
+            yield
+        finally:
+            stop.set()
+            ticker.join(timeout=1)
 
     def _remember_async_action(self, raw_result: Any, cursor_before: int | None) -> None:
         """Keeps where the last action that ends later (waitFor / completionMarker) started in the event stream.

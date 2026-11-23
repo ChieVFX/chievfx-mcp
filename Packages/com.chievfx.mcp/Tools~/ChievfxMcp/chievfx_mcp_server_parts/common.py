@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import difflib
 import hashlib
 import hmac
@@ -213,6 +214,8 @@ FILE_IO_RETRY_BASE_SECONDS = 0.015
 FILE_IO_RETRY_MAX_SECONDS = 0.25
 # Reads of a response file that exists but reads missing or short before the call gives up on it.
 RESPONSE_READ_ATTEMPTS = 8
+# How often a call waiting under awaitMs reports progress (when the client sent a progressToken).
+AWAIT_PROGRESS_TICK_SECONDS = 10.0
 PROGRESS_INTERVAL_SECONDS = 1.0
 MAX_STATUS_OPERATIONS = 12
 HARD_EVENTS_MAX_ENTRIES = 200

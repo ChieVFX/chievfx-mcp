@@ -367,6 +367,7 @@ class editorWindowScreenshotMetadataTests(unittest.TestCase):
         self.assertEqual(server.get_tool_timeout_ms("script-execute", {}), 60000 + mcp.SCRIPT_EXECUTE_REPLY_ALLOWANCE_MS)
         self.assertEqual(server.get_tool_timeout_ms("reflection-method-call", {}), 60000)
         self.assertEqual(server.get_tool_timeout_ms("tests-run", {}), 60000)
+        self.assertEqual(server.get_tool_timeout_ms("recompile", {}), int(mcp.RECOMPILE_WAIT_SECONDS * 1000))
         self.assertEqual(server.get_tool_timeout_ms("script-execute", {"timeoutMs": 120000}), 120000 + mcp.SCRIPT_EXECUTE_REPLY_ALLOWANCE_MS)
         self.assertEqual(server.get_tool_timeout_ms("reflection-method-call", {"timeoutMs": 120000}), 120000)
         self.assertEqual(server.get_tool_timeout_ms("tests-run", {"timeoutMs": 120000}), 120000)

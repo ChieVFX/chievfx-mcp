@@ -377,6 +377,12 @@ class BridgeTransportMixin:
                 HARD_TESTS_RUN_TIMEOUT_MS,
             )
 
+        if name == "recompile" and self.read_playmode_state() is not True:
+            # The request lands while Unity imports the very edits it is for: its Refresh, plus a slow
+            # background editor taking the request seconds late, outlast the default reply wait. In Play
+            # the short wait stays: leaving Play can swallow the reply, and recompile() recovers from that.
+            return clamp_int(arguments.get("timeoutMs"), int(RECOMPILE_WAIT_SECONDS * 1000), 1000, 30 * 60 * 1000)
+
         timeout_ms = arguments.get("timeoutMs")
         if isinstance(timeout_ms, int) and timeout_ms > 0:
             return timeout_ms

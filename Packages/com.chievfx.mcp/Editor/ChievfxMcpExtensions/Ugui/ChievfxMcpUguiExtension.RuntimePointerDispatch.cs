@@ -447,7 +447,9 @@ namespace Chievfx.Mcp.Extensions.Ugui
                 && clickReceiver.TryGetComponent<Selectable>(out var selectable)
                 && !selectable.IsInteractable())
             {
-                report.Warnings.Add($"'{receiverPath}' is not interactable (Selectable.interactable is off, or a parent CanvasGroup disables interaction), so the click did nothing.");
+                report.Warnings.Add(selectable.interactable
+                    ? $"'{receiverPath}' is not interactable: a parent CanvasGroup has interactable off, so the click did nothing."
+                    : $"'{receiverPath}' is not interactable: its own {selectable.GetType().Name}.interactable is off, so the click did nothing.");
                 return;
             }
 

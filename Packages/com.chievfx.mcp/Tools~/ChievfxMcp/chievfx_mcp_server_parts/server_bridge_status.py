@@ -213,9 +213,20 @@ class BridgeStatusMixin:
             operation_id = arguments.get("operationId")
         operation_id = self._coerce_operation_id(operation_id)
         path = self.operation_dir / f"{operation_id}.json"
+        if not path.exists() and len(operation_id) >= OPERATION_ID_MIN_PREFIX:
+            # A shortened id (the first 8 characters, as people copy it) names the record when only one starts with it.
+            matches = sorted(self.operation_dir.glob(f"{operation_id}*.json")) if self.operation_dir.exists() else []
+            if len(matches) == 1:
+                path = matches[0]
+                operation_id = path.stem
+            elif len(matches) > 1:
+                raise ValueError(f"Bridge operation id '{operation_id}' starts {len(matches)} records: pass more of it (the full id has 32 characters).")
         payload = read_json_file(path)
         if payload is None:
-            raise ValueError(f"Bridge operation '{operation_id}' not found or could not be read.")
+            raise ValueError(
+                f"Bridge operation '{operation_id}' not found or could not be read. Pass the full id from the timed-out reply, "
+                "or find it in bridge-get-status maxOperations:50 (Unity prunes old records)."
+            )
         now = time.time()
         updated_age = file_age_seconds(path, now)
         return self._normalize_operation_record(payload, operation_id, now, updated_age, include_full=True)
@@ -236,6 +247,16 @@ class BridgeStatusMixin:
         state = raw_state if isinstance(raw_state, str) else "unknown"
         stale = state not in TERMINAL_OPERATION_STATES and updated_age is not None and updated_age > OPERATION_STALE_SECONDS
         return ("stale" if stale else state, stale)
+
+    # From the call reaching the bridge to Unity taking it: a long wait means the editor's main thread was busy (compile,
+    # import, a modal dialog, a freeze), not the tool. durationMs counts from queuedAtUtc, so it includes this wait.
+    @staticmethod
+    def _operation_queue_wait_ms(payload: dict[str, Any]) -> int | None:
+        queued_at = parse_utc_iso(payload.get("queuedAtUtc"))
+        started_at = parse_utc_iso(payload.get("startedAtUtc"))
+        if queued_at is None or started_at is None:
+            return None
+        return int(max(0.0, started_at - queued_at) * 1000)
 
     @staticmethod
     def _estimate_operation_duration_ms(payload: dict[str, Any], now: float) -> int | None:
@@ -272,6 +293,7 @@ class BridgeStatusMixin:
             compact_row["state"] = resolved_state
             compact_row["operationId"] = compact_row.get("operationId") or operation_id
             compact_row["durationMs"] = self._estimate_operation_duration_ms(payload, now)
+            compact_row["queueWaitMs"] = self._operation_queue_wait_ms(payload)
             compact_row["updatedAgeMs"] = None if updated_age is None else int(updated_age * 1000)
             if "stale" not in compact_row and stale:
                 compact_row["stale"] = True

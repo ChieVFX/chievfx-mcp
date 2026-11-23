@@ -1,6 +1,6 @@
 {
   "name": "bridge-get-operation",
-  "description": "Returns the full bridge operation record for a specific opId: the id a timed-out call names, or one from bridge-get-status operations[]. While Unity still runs a call whose wait timed out, the record says stale; Unity rewrites it when the call ends.",
+  "description": "Returns the full bridge operation record for a specific opId (its start is enough when only one record matches): the id a timed-out call names, or one from bridge-get-status maxOperations:N. queueWaitMs = how long Unity took to pick the call up (long: the editor's main thread was busy); durationMs counts from the queue. While Unity still runs a call whose wait timed out, the record says stale; Unity rewrites it when the call ends.",
   "inputSchema": {
     "type": "object",
     "properties": {

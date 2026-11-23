@@ -1,6 +1,6 @@
 {
   "name": "bridge-get-status",
-  "description": "Slim ChievFX bridge health snapshot: heartbeat, compile/import busy state, recent operations, event-wait liveness, and editorHealth problems when there are any (high reserved memory, low Play fps, EditorApplication.update subscribers and render textures left by scripts). Check before longer orchestration and after a long agent run. Pass verbose=true for full diagnostics, including the health block (reservedMb, bytesAssemblies, ...).",
+  "description": "Slim ChievFX bridge health snapshot: heartbeat, compile/import busy state, running operations (recent finished ones: maxOperations:N, up to 50), event-wait liveness, and editorHealth problems when there are any (high reserved memory, low Play fps, EditorApplication.update subscribers and render textures left by scripts). Check before longer orchestration and after a long agent run. Pass verbose=true for full diagnostics, including the health block (reservedMb, bytesAssemblies, ...).",
   "inputSchema": {
     "type": "object",
     "properties": {

@@ -21,6 +21,12 @@ def utc_now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
+# Operation records: with whole seconds, completedAtUtc read earlier than Unity's precise startedAtUtc.
+def utc_now_iso_ms() -> str:
+    now = time.time()
+    return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(now)) + f".{int(now * 1000) % 1000:03d}Z"
+
+
 def parse_utc_iso(value: Any) -> float | None:
     if not isinstance(value, str) or not value:
         return None

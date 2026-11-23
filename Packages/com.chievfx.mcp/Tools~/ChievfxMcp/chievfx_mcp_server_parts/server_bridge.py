@@ -192,7 +192,7 @@ class BridgeTransportMixin:
                 "jsonRpcRequestId": jsonrpc_key,
                 "toolName": name,
                 "state": "queued",
-                "queuedAtUtc": utc_now_iso(),
+                "queuedAtUtc": utc_now_iso_ms(),
                 "updatedAtUtc": utc_now_iso(),
                 "progressMessage": "Queued for Unity bridge.",
                 "cancellable": True,
@@ -247,7 +247,7 @@ class BridgeTransportMixin:
                         self.update_operation_record(
                             request_id,
                             state=final_state,
-                            completedAtUtc=utc_now_iso(),
+                            completedAtUtc=utc_now_iso_ms(),
                             progressMessage=error_message,
                         )
                         final_message = f"{name} cancelled." if final_state == "cancelled" else f"{name} failed."
@@ -257,7 +257,7 @@ class BridgeTransportMixin:
                     self.update_operation_record(
                         request_id,
                         state="completed",
-                        completedAtUtc=utc_now_iso(),
+                        completedAtUtc=utc_now_iso_ms(),
                         progressMessage=f"{name} completed.",
                     )
                     self.emit_progress(progress_token, notify, 1.0, f"{name} completed.")
@@ -268,7 +268,7 @@ class BridgeTransportMixin:
                     self.update_operation_record(
                         request_id,
                         state="completed",
-                        completedAtUtc=utc_now_iso(),
+                        completedAtUtc=utc_now_iso_ms(),
                         progressMessage=f"{name} completed from Unity TestResults.xml.",
                     )
                     self.emit_progress(progress_token, notify, 1.0, f"{name} completed.")
@@ -282,7 +282,7 @@ class BridgeTransportMixin:
                     down = self.describe_editor_down(self.assess_editor_liveness()) if request_path.exists() else None
                     if down is not None:
                         self.update_operation_record(
-                            request_id, state="failed", completedAtUtc=utc_now_iso(), progressMessage=down
+                            request_id, state="failed", completedAtUtc=utc_now_iso_ms(), progressMessage=down
                         )
                         self.discard_timed_out_request(request_id)
                         raise EditorUnresponsiveError(down)

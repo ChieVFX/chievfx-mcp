@@ -249,7 +249,7 @@ class McpServerCore:
             self.update_operation_record(
                 operation_id,
                 state="cancelled",
-                completedAtUtc=utc_now_iso(),
+                completedAtUtc=utc_now_iso_ms(),
                 progressMessage="Cancelled before Unity started the operation.",
             )
             write_json_file_atomic(

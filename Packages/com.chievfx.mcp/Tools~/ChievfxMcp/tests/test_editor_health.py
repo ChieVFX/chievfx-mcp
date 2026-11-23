@@ -68,3 +68,35 @@ class EditorHealthStatusTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BridgeOperationRecordTests(unittest.TestCase):
+    """bridge-get-operation: the start of an id finds the record, and the record says how long Unity took to pick the call up."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.bridge_dir = Path(self.temp_dir.name)
+        self.server = mcp.McpServer("http://127.0.0.1:1", str(self.bridge_dir), timeout_ms=1000)
+        (self.bridge_dir / "operations").mkdir()
+        self.operation_id = "8a2f6ecfb4504e0b95931690f6d2a94d"
+        mcp.write_json_file_atomic(
+            self.bridge_dir / "operations" / f"{self.operation_id}.json",
+            {
+                "operationId": self.operation_id,
+                "toolName": "gameai-wait",
+                "state": "completed",
+                "queuedAtUtc": "2026-11-23T12:42:00.300Z",
+                "startedAtUtc": "2026-11-23T12:42:39.6819670Z",
+                "completedAtUtc": "2026-11-23T12:42:39.900Z",
+            },
+        )
+
+    def test_a_shortened_id_reads_the_one_record_it_starts(self) -> None:
+        record = self.server.get_bridge_operation({"opId": "8a2f6ecf"})
+        self.assertEqual(record["operationId"], self.operation_id)
+        self.assertEqual(record["queueWaitMs"], 39381)
+
+    def test_an_unknown_id_says_where_to_find_the_full_one(self) -> None:
+        with self.assertRaisesRegex(ValueError, "maxOperations:50"):
+            self.server.get_bridge_operation({"opId": "ffffffff"})

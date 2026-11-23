@@ -118,6 +118,8 @@ BRIDGE_READY_POLL_SECONDS = 0.1
 # state can settle before we hand resources back to the client.
 BRIDGE_READY_POST_BUSY_GRACE_SECONDS = 1.0
 RECOMPILE_WAIT_SECONDS = 300.0
+# bridge-get-operation takes the start of an id when only one record starts with it.
+OPERATION_ID_MIN_PREFIX = 6
 RECOMPILE_START_GRACE_SECONDS = 1.5
 # How long recompile waits for the bridge's compile-start event: an editor in the background starts a
 # requested compile seconds late. Polled from the event stream file.

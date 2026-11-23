@@ -76,6 +76,12 @@ namespace Chievfx.Mcp.Editor
                 Group = group,
             };
             capture.Diagnostics.AddRange(diagnostics);
+            var selectedEventIndex = state.TryGetValue("selectedEventIndex", out var selectedValue) ? selectedValue as int? : null;
+            if (selectedEventIndex != capture.BeforeEventIndex)
+            {
+                capture.PictureBeforeSelection = new ScreenshotBridgeService().CaptureGameView(capture.MaxDimension).Base64;
+            }
+
             SelectDrawCallCaptureEvent(window, capture.BeforeEventIndex);
             _drawCallCapture = capture;
             return new { success = true, pending = true, eventIndex };
@@ -96,7 +102,21 @@ namespace Chievfx.Mcp.Editor
             var screenshots = new ScreenshotBridgeService();
             if (capture.Before == null)
             {
-                capture.Before = screenshots.CaptureGameView(capture.MaxDimension);
+                var before = screenshots.CaptureGameView(capture.MaxDimension);
+                var isPictureBeforeSelection = string.Equals(before.Base64, capture.PictureBeforeSelection, StringComparison.Ordinal);
+                if (isPictureBeforeSelection && capture.BeforeSelectionRetries < DrawCallCaptureBeforeSelectionRetries)
+                {
+                    capture.BeforeSelectionRetries++;
+                    SelectDrawCallCaptureEvent(window, capture.BeforeEventIndex);
+                    return new { success = true, pending = true, eventIndex = capture.EventIndex };
+                }
+
+                if (isPictureBeforeSelection)
+                {
+                    capture.Diagnostics.Add("The upper half is the same picture as the Game view before the event was selected: the event changed nothing visible, or the Game view had not re-rendered yet; call again to make sure.");
+                }
+
+                capture.Before = before;
                 SelectDrawCallCaptureEvent(window, capture.EventIndex);
                 return new { success = true, pending = true, eventIndex = capture.EventIndex };
             }
@@ -179,6 +199,7 @@ namespace Chievfx.Mcp.Editor
             var frameEvent = CreateFrameDebuggerEventSummary(eventIndex, includeDetails: true, diagnostics);
             frameEvent["groupIndex"] = group.Index;
             frameEvent["drawCallIndex"] = drawCallIndex;
+            NoteLinearCameraTarget(frameEvent, diagnostics);
             var metadata = new Dictionary<string, object?>
             {
                 ["captureSource"] = "frame-debugger-drawcall-screenshot",
@@ -195,6 +216,29 @@ namespace Chievfx.Mcp.Editor
                 ["diagnostics"] = diagnostics.Distinct(StringComparer.Ordinal).ToArray()
             };
             return new ImageResult("image/png", Convert.ToBase64String(combined), metadata);
+        }
+
+        // In the Linear colour space a camera target that is not sRGB stores linear values, and the Frame Debugger shows them
+        // as they are: the picture is darker than the screen until the final blit encodes it.
+        private static void NoteLinearCameraTarget(Dictionary<string, object?> frameEvent, List<string> diagnostics)
+        {
+            if (QualitySettings.activeColorSpace != ColorSpace.Linear
+                || frameEvent.TryGetValue("renderTargetBackBuffer", out var backBuffer) && backBuffer is true
+                || frameEvent.TryGetValue("renderTargetFormat", out var formatValue) == false
+                || formatValue is not int formatIndex
+                || Enum.IsDefined(typeof(UnityEngine.Experimental.Rendering.GraphicsFormat), formatIndex) == false)
+            {
+                return;
+            }
+
+            var format = (UnityEngine.Experimental.Rendering.GraphicsFormat)formatIndex;
+            if (UnityEngine.Experimental.Rendering.GraphicsFormatUtility.IsSRGBFormat(format))
+            {
+                return;
+            }
+
+            diagnostics.Add($"The target {format} holds linear colours: before the final blit the picture is darker than the screen, "
+                + "and the Game view under the Frame Debugger shows it the same way; screen colours appear after the final blit.");
         }
 
         private static FrameDebuggerGroup[] CreateFrameDebuggerGroups(Dictionary<string, object?> state, List<string> diagnostics)
@@ -413,7 +457,14 @@ namespace Chievfx.Mcp.Editor
             public FrameDebuggerGroup Group { get; set; } = null!;
             public List<string> Diagnostics { get; } = new();
             public ImageResult? Before { get; set; }
+            // The first selection after the Frame Debugger turns on can take more than one step to re-render the Game view:
+            // a capture equal to this picture is still the frame from before the selection, so the event is selected again.
+            public string? PictureBeforeSelection { get; set; }
+            public int BeforeSelectionRetries { get; set; }
         }
+
+        // Each retry is one more server step; the server allows FRAME_DEBUGGER_CAPTURE_MAX_STEPS.
+        private const int DrawCallCaptureBeforeSelectionRetries = 2;
 
         private static DrawCallCapture? _drawCallCapture;
 

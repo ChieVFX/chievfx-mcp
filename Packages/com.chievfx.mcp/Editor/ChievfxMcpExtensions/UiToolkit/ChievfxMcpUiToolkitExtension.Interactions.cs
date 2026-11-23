@@ -187,7 +187,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
                 if (!ReferenceEquals(current, element))
                 {
-                    warnings.Add($"'{GetVisualElementPath(element!)}' is a part of '{GetVisualElementPath(current)}': acted on that {current.GetType().Name}.");
+                    warnings.Add($"'{GetVisualElementPath(element!)}' is a part of the {current.GetType().Name} '{GetVisualElementPath(current)}': the target is that field.");
                 }
 
                 return current;
@@ -556,15 +556,21 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
             if (!isTextField)
             {
+                // Typing into a dropdown stored any string, one the game's own choices do not have; a number field takes a number.
+                var notTypable = element == null
+                    ? null
+                    : hasWritableValue
+                        ? $"Target '{GetVisualElementPath(element)}' is a {element.GetType().Name}, not a text field: use ui-runtime-set-control-value with this path"
+                          + (HasChoices(element) ? " and one of its choices." : ".")
+                        : $"Target '{GetVisualElementPath(element)}' has no writable string value (not a TextField).";
                 if (requireTarget)
                 {
-                    // Typing into a dropdown stored any string, one the game's own choices do not have; a number field takes a number.
-                    throw new ArgumentException(element == null
-                        ? "ui-runtime-type-text could not resolve a UI Toolkit target from path or screen position."
-                        : hasWritableValue
-                            ? $"Target '{GetVisualElementPath(element)}' is a {element.GetType().Name}, not a text field: use ui-runtime-set-control-value with this path"
-                              + (HasChoices(element) ? " and one of its choices." : ".")
-                            : $"Target '{GetVisualElementPath(element)}' has no writable string value (not a TextField).");
+                    throw new ArgumentException(notTypable ?? "ui-runtime-type-text could not resolve a UI Toolkit target from path or screen position.");
+                }
+
+                if (notTypable != null)
+                {
+                    warnings.Add(notTypable);
                 }
 
                 result["warnings"] = warnings.Distinct().ToArray();

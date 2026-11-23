@@ -172,23 +172,16 @@ namespace Chievfx.Mcp.Editor
             string positionMissMessage)
         {
             var explicitTarget = ChievfxMcpRuntimeUiInteractionInput.HasExplicitTargetInput(request);
-            string[] warnings;
-            if (!explicitTarget)
-            {
-                warnings = new[] { positionMissMessage };
-            }
-            else
-            {
-                var foundTargetWarnings = attempts
-                    .Select(attempt => attempt.TryGetValue("detail", out var detail) && TryReadDictionary(detail, out var row) ? row : null)
-                    .Where(row => row != null && row.TryGetValue("target", out var target) && target != null)
-                    .SelectMany(row => ChievfxMcpRuntimeUiProbeCompact.ReadStringArray(row!.TryGetValue("warnings", out var rowWarnings) ? rowWarnings : null))
-                    .Distinct()
-                    .ToArray();
-                warnings = foundTargetWarnings.Length > 0
-                    ? foundTargetWarnings
-                    : new[] { ChievfxMcpRuntimeUiInteractionInput.FormatCrossFrameworkTargetNotFoundMessage(request) };
-            }
+            var foundTargetWarnings = attempts
+                .Select(attempt => attempt.TryGetValue("detail", out var detail) && TryReadDictionary(detail, out var row) ? row : null)
+                .Where(row => row != null && row.TryGetValue("target", out var target) && target != null)
+                .SelectMany(row => ChievfxMcpRuntimeUiProbeCompact.ReadStringArray(row!.TryGetValue("warnings", out var rowWarnings) ? rowWarnings : null))
+                .Distinct()
+                .ToArray();
+            // A point on a number field is a hit too: "nothing resolved here" hid "this is an IntegerField, set its value".
+            var warnings = foundTargetWarnings.Length > 0
+                ? foundTargetWarnings
+                : new[] { explicitTarget ? ChievfxMcpRuntimeUiInteractionInput.FormatCrossFrameworkTargetNotFoundMessage(request) : positionMissMessage };
 
             return new Dictionary<string, object?>
             {

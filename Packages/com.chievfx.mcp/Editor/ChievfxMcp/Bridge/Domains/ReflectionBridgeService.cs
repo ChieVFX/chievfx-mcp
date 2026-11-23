@@ -298,6 +298,8 @@ namespace Chievfx.Mcp.Editor
             var typeNameFilter = ReadString(filter, "typeName") ?? string.Empty;
             var methodNameFilter = ReadString(filter, "methodName") ?? string.Empty;
             var parameterFilter = ReadArray(filter, "inputParameters");
+            // Lambdas and closures (<>c, <Method>b__15_10) took most rows of a contains search; asked for by name, they stay.
+            var includeCompilerGenerated = typeNameFilter.IndexOf('<') >= 0 || methodNameFilter.IndexOf('<') >= 0;
 
             foreach (var assembly in UnityAssemblies.GetLoaded())
             {
@@ -313,7 +315,13 @@ namespace Chievfx.Mcp.Editor
 
                 foreach (var type in types)
                 {
-                    if (knownNamespace && !string.Equals(type.Namespace ?? string.Empty, namespaceFilter, StringComparison.Ordinal))
+                    // The namespace follows the type name's match level: match:'contains' compared it exactly and found nothing.
+                    if (knownNamespace && !Matches(type.Namespace ?? string.Empty, namespaceFilter, typeNameMatchLevel <= 0 ? 6 : typeNameMatchLevel))
+                    {
+                        continue;
+                    }
+
+                    if (!includeCompilerGenerated && type.Name.StartsWith("<", StringComparison.Ordinal))
                     {
                         continue;
                     }
@@ -326,7 +334,8 @@ namespace Chievfx.Mcp.Editor
                     const BindingFlags flags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
                     foreach (var method in type.GetMethods(flags))
                     {
-                        if ((!includeSpecialNames && method.IsSpecialName) || !Matches(method.Name, methodNameFilter, methodNameMatchLevel))
+                        if ((!includeSpecialNames && method.IsSpecialName) || !Matches(method.Name, methodNameFilter, methodNameMatchLevel)
+                            || (!includeCompilerGenerated && method.Name.StartsWith("<", StringComparison.Ordinal)))
                         {
                             continue;
                         }

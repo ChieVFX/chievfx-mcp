@@ -131,8 +131,9 @@ namespace Chievfx.Mcp.Extensions.Ugui
             var mark = owner == null ? string.Empty : owner.enabled && owner.IsInteractable() ? ButtonMark : DisabledButtonMark;
             var window = WindowOf(graphic.transform);
             var windowName = window.name;
-            if (wildcards.Length > 0 && ChievfxMcpRuntimeUiControlFind.MatchesWildcards(text + mark, windowName, wildcards) == false
-                && ChievfxMcpRuntimeUiControlFind.MatchesWildcards(text + mark, UguiSharedHelpers.GetTransformPath(graphic.transform), wildcards) == false)
+            // The (button) mark is not part of the text: with it *Button* matched every button caption.
+            if (wildcards.Length > 0 && ChievfxMcpRuntimeUiControlFind.MatchesWildcards(text, windowName, wildcards) == false
+                && ChievfxMcpRuntimeUiControlFind.MatchesWildcards(text, UguiSharedHelpers.GetTransformPath(graphic.transform), wildcards) == false)
             {
                 return false;
             }

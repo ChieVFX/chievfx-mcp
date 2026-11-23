@@ -131,7 +131,8 @@ def build_initialize_instructions() -> str:
     if domain_line:
         lines.append(domain_line)
 
-    descriptor_blob = build_enabled_descriptor_instructions(plan)
+    budget = INSTRUCTIONS_CHAR_BUDGET - len("\n".join(lines)) - 1
+    descriptor_blob = build_enabled_descriptor_instructions(plan, budget)
     if descriptor_blob:
         lines.append(descriptor_blob)
 
@@ -294,14 +295,42 @@ def _build_descriptor_section_lines(plan: dict[str, Any], include_tools: bool = 
     return sections
 
 
-def build_enabled_descriptor_instructions(plan: dict[str, Any] | None = None) -> str:
+# Claude Code cuts initialize.instructions at 4096 characters (2048 before v2.1.296) and the model never sees
+# the rest: tool signatures past the cut were silently lost. The list stops before the budget and its last line
+# says how many tools are left out and where they are.
+INSTRUCTIONS_CHAR_BUDGET = 4000
+
+
+def _omitted_tools_line(count: int) -> str:
+    return f"- ...and {count} more: names and signatures in {CORE_DESCRIPTOR_INSTRUCTIONS_URI}"
+
+
+def _fit_tool_lines(name_lines: list[str], budget: int) -> list[str]:
+    """Commonly used tools in reaching-for order, as many as fit the budget with the omitted-tools line."""
+    lines = [core_descriptor_instructions_header()]
+    used = len(lines[0])
+    for index, line in enumerate(name_lines):
+        left_after = len(name_lines) - index - 1
+        tail = len(_omitted_tools_line(left_after)) + 1 if left_after else 0
+        if used + 1 + len(line) + tail > budget:
+            lines.append(_omitted_tools_line(len(name_lines) - index))
+            return lines
+        lines.append(line)
+        used += 1 + len(line)
+    return lines
+
+
+def build_enabled_descriptor_instructions(plan: dict[str, Any] | None = None, budget: int | None = None) -> str:
     if plan is None:
         plan = build_category_plan()
     lines: list[str] = []
     name_lines = build_core_tool_name_lines(plan)
     if name_lines:
-        lines.append(core_descriptor_instructions_header())
-        lines.extend(name_lines)
+        if budget is None:
+            lines.append(core_descriptor_instructions_header())
+            lines.extend(name_lines)
+        else:
+            lines.extend(_fit_tool_lines(name_lines, budget))
     # Resources, templates and prompts are deliberately NOT advertised here. Only core-descriptors and
     # chievfx://categories/<domain> are named (in the header records), and that budget is spent on
     # callable tool signatures instead — agents used the tools and ignored the resource list.

@@ -50,9 +50,25 @@ class InstructionLayoutTests(unittest.TestCase):
         self.assertEqual(self.listed[: len(present)], present)
 
     def test_deprioritized_tools_come_last_in_declared_order(self) -> None:
+        # Past the budget they are the first to drop out, so none may be listed at all.
         present = [name for name in mcp.TOOL_ORDER_BOTTOM if name in self.listed]
-        self.assertTrue(present, "expected some deprioritized tools to be advertised")
-        self.assertEqual(self.listed[-len(present) :], present)
+        if present:
+            self.assertEqual(self.listed[-len(present) :], present)
+
+    def test_instructions_fit_the_client_budget(self) -> None:
+        # Claude Code cuts initialize.instructions at 4096 characters; the model never sees the rest.
+        self.assertLessEqual(len(self.instructions), mcp.INSTRUCTIONS_CHAR_BUDGET)
+        self.assertLessEqual(mcp.INSTRUCTIONS_CHAR_BUDGET, 4096)
+
+    def test_tools_past_the_budget_are_named_as_left_out(self) -> None:
+        listed = mcp.build_enabled_descriptor_instructions(budget=10**6).splitlines()
+        budgeted = mcp.build_enabled_descriptor_instructions(budget=600).splitlines()
+        self.assertLess(len(budgeted), len(listed))
+        self.assertLessEqual(len("\n".join(budgeted)), 600)
+        left_out = len(listed) - (len(budgeted) - 1)
+        self.assertEqual(budgeted[-1], mcp._omitted_tools_line(left_out))
+        self.assertIn(mcp.CORE_DESCRIPTOR_INSTRUCTIONS_URI, budgeted[-1])
+        self.assertEqual(budgeted[:-1], listed[: len(budgeted) - 1])
 
     def test_curated_summaries_are_used_verbatim(self) -> None:
         # The point of curating them is to avoid truncating a real description mid-word.

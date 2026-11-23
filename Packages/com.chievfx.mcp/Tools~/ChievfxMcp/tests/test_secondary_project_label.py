@@ -43,7 +43,10 @@ class SecondaryProjectLabelTests(unittest.TestCase):
         label = "SECONDARY Unity project: builtin-sample at /tmp/builtin-sample."
         mcp.SERVER_LABEL = label
         secondary = mcp.build_initialize_instructions()
-        self.assertEqual(secondary, f"{label}\n{primary}")
+        # The label takes budget from the end of the tool list; everything above the list is the same.
+        head = primary.split(mcp.core_descriptor_instructions_header())[0]
+        self.assertTrue(secondary.startswith(f"{label}\n{head}"), secondary[:300])
+        self.assertLessEqual(len(secondary), mcp.INSTRUCTIONS_CHAR_BUDGET)
 
     def test_blank_label_is_not_emitted(self) -> None:
         # The editor never writes a blank label, but a hand-edited config might; a leading empty line

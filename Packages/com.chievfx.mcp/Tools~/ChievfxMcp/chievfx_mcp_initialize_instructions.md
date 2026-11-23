@@ -10,7 +10,8 @@ Record format:
 - `text: |` starts a multiline body.
 
 Keep text compact. This content is injected into agent context at MCP startup, and
-Claude Desktop truncates initialize.instructions around 5KB, so only cross-cutting
+Claude Code cuts initialize.instructions at 4096 characters (`INSTRUCTIONS_CHAR_BUDGET`
+keeps the whole text under it by shortening the tool list), so only cross-cutting
 guidance belongs here. Per-tool usage notes go in the tool's descriptor JSON
 (`chievfx_mcp_server_parts/tool_descriptors/<tool>.json`) — descriptions arrive via
 tools/list with no such budget, exactly when the model considers the tool. Resource

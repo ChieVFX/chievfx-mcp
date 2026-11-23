@@ -337,20 +337,29 @@ DEFAULT_ENABLED_TOOL_IDS: set[str] = set()
 TOOL_ORDER_TOP: tuple[str, ...] = (
     "bridge-get-status",
     "script-execute",
+    "screenshot-game-view",
     "screenshot-editor-window",
+    "events-wait",
+    "events-check-since",
+    # Several steps in one call: agents that knew it spent one call where they spent five.
+    "tool-batch",
+    "console-get-logs",
+    "console-get-logs-single",
+    "console-clear-logs",
+    "editor-playmode-set",
+    "recompile",
     "editor-window-focus",
     "editor-window-list",
     "editor-window-open",
-    "events-wait",
-    "console-clear-logs",
-    "console-get-logs",
-    "console-get-logs-single",
-    "editor-playmode-set",
-    "events-check-since",
 )
 
+# Past the instruction budget these drop out first (core-descriptors still lists them).
 TOOL_ORDER_BOTTOM: tuple[str, ...] = (
-    "tool-batch",
+    "bridge-get-operation",
+    "folder-ensure",
+    "asset-create",
+    "asset-delete",
+    "assets-refresh",
     "reflection-method-call",
     "reflection-method-find",
     "reflection-method-find-single",

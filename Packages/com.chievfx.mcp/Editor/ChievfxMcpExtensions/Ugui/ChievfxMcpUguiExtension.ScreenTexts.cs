@@ -28,8 +28,9 @@ namespace Chievfx.Mcp.Extensions.Ugui
         private static readonly Regex RichTextOrSpaces = new(@"<[^>]+>|\s+", RegexOptions.CultureInvariant);
         private static readonly Dictionary<Type, PropertyInfo?> TextProperties = new();
 
-        // The texts per window and how many there are in all (the list stops at MaxTexts). Wildcards match a text or its
-        // window's name, as they match a control's name or path.
+        // The texts per window and how many there are in all (the list stops at MaxTexts). Wildcards match a text, its
+        // window's name or its path, as they match a control's name or path: *DevWindow* finds the texts of a window that
+        // lies deeper than the second level (DevMainMenu/SafeArea/Windows/DevWindow), as it finds that window's controls.
         internal static List<Dictionary<string, object?>> Build(string[] wildcards, Vector2 screenSize, out int total)
         {
             var found = new List<ScreenText>();
@@ -130,7 +131,8 @@ namespace Chievfx.Mcp.Extensions.Ugui
             var mark = owner == null ? string.Empty : owner.enabled && owner.IsInteractable() ? ButtonMark : DisabledButtonMark;
             var window = WindowOf(graphic.transform);
             var windowName = window.name;
-            if (wildcards.Length > 0 && ChievfxMcpRuntimeUiControlFind.MatchesWildcards(text + mark, windowName, wildcards) == false)
+            if (wildcards.Length > 0 && ChievfxMcpRuntimeUiControlFind.MatchesWildcards(text + mark, windowName, wildcards) == false
+                && ChievfxMcpRuntimeUiControlFind.MatchesWildcards(text + mark, UguiSharedHelpers.GetTransformPath(graphic.transform), wildcards) == false)
             {
                 return false;
             }

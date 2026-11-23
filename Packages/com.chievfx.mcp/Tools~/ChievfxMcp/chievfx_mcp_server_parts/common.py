@@ -532,7 +532,7 @@ TOOL_CATEGORY_DESCRIPTIONS = {
     "ugui-design": "Author uGUI at edit time: Canvas, RectTransform, images, layout, TMP, sprites.",
     "ugui-runtime-control": "Drive uGUI in Play Mode: clicks, drags, selection, control values.",
     "obsolete": "Deprecated compatibility tools. Only enable explicitly; bulk enable skips this category.",
-    "remote-shell": "Runs commands on the machine hosting this MCP server. Absent unless armed in Window > ChievFX > MCP (Connection tab); never enabled by any preset, role, or bulk enable.",
+    "remote-shell": "Runs commands on the machine hosting this MCP server. Absent unless armed in Window > ChievFX MCP (Connection tab); never enabled by any preset, role, or bulk enable.",
 }
 DEFAULT_REQUIRED_RESOURCE_IDS: set[str] = {
     "control-status",

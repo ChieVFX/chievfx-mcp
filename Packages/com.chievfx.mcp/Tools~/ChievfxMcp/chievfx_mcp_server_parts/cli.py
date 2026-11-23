@@ -76,7 +76,7 @@ def main() -> int:
     if required and not key:
         print(
             f"{SERVER_NAME}: bound to {args.host} with no security key configured — every request will be "
-            "refused with 401. Set a key in Window > ChievFX > MCP.",
+            "refused with 401. Set a key in Window > ChievFX MCP.",
             file=sys.stderr,
         )
     httpd.serve_forever()

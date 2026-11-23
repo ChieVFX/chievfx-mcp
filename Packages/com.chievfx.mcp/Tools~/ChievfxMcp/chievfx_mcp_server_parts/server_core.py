@@ -365,8 +365,8 @@ class McpServerCore:
 
         if name not in load_enabled_tool_ids():
             raise ToolCallError(
-                f"ChievFX MCP tool '{name}' is disabled. Enable it in Window > ChievFX > MCP Tools, "
-                "then reload MCP tools or restart Cursor."
+                f"ChievFX MCP tool '{name}' is disabled. Enable it in Window > ChievFX MCP, Tools tab, "
+                "then reload MCP tools or restart the MCP client."
             )
 
         if name == MCP_RESOURCE_READ_TOOL_ID:

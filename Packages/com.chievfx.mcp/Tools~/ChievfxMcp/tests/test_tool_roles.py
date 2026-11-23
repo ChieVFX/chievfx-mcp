@@ -287,7 +287,7 @@ class ToolRoleTests(unittest.TestCase):
 
         self.assertIn("error", response)
         self.assertIn("disabled", response["error"]["message"])
-        self.assertIn("MCP Tools", response["error"]["message"])
+        self.assertIn("Window > ChievFX MCP, Tools tab", response["error"]["message"])
         self.assertNotIn("Traceback", stderr.getvalue())
 
     def test_manual_tool_edit_marks_role_modified(self) -> None:

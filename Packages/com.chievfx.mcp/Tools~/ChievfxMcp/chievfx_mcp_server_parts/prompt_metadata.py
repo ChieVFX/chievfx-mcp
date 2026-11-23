@@ -219,8 +219,8 @@ def ensure_prompt_enabled(name: str) -> None:
     prompt = get_prompt_by_name(name)
     if prompt["name"] not in load_enabled_prompt_names():
         raise PromptNotFoundError(
-            f"ChievFX MCP prompt '{name}' is disabled. Enable it in Window > ChievFX > MCP Prompts, "
-            "then reload MCP prompts or restart Cursor."
+            f"ChievFX MCP prompt '{name}' is disabled. Enable it in Window > ChievFX MCP, Prompts tab, "
+            "then reload MCP prompts or restart the MCP client."
         )
 
 

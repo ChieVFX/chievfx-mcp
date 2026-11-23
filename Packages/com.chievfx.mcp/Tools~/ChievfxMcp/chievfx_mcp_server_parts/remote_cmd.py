@@ -128,7 +128,7 @@ def remote_cmd_gate() -> dict[str, Any]:
         return {
             "armed": False,
             "settings": settings,
-            "reason": "remote-cmd is off. Enable it in Window > ChievFX > MCP (Connection tab, HTTP transport only).",
+            "reason": "remote-cmd is off. Enable it in Window > ChievFX MCP (Connection tab, HTTP transport only).",
         }
     if ACTIVE_TRANSPORT != "http":
         return {
@@ -143,7 +143,7 @@ def remote_cmd_gate() -> dict[str, Any]:
         return {
             "armed": False,
             "settings": settings,
-            "reason": "remote-cmd needs a non-empty security key. Set one in Window > ChievFX > MCP (Connection tab).",
+            "reason": "remote-cmd needs a non-empty security key. Set one in Window > ChievFX MCP (Connection tab).",
         }
     if not settings["allowPattern"] and not settings["unrestrictedAck"]:
         return {
@@ -151,7 +151,7 @@ def remote_cmd_gate() -> dict[str, Any]:
             "settings": settings,
             "reason": (
                 "remote-cmd has an empty program filter, which means unrestricted shell access. Confirm that "
-                "in Window > ChievFX > MCP (Connection tab) or set a filter pattern."
+                "in Window > ChievFX MCP (Connection tab) or set a filter pattern."
             ),
         }
     return {"armed": True, "settings": settings, "reason": ""}
@@ -222,7 +222,7 @@ def validate_filtered_command(command: str, allow_pattern: str, cwd: Path) -> li
         raise RemoteCmdRejectedError(
             "remote-cmd rejected: multi-line commands are not allowed while the program filter is on. "
             f'In this mode only single-line commands whose program matches "{allow_pattern}" are accepted. '
-            "Turn the filter off in Window > ChievFX > MCP to allow multi-line shell input."
+            "Turn the filter off in Window > ChievFX MCP to allow multi-line shell input."
         )
 
     for operator in REMOTE_CMD_SHELL_OPERATORS:
@@ -230,7 +230,7 @@ def validate_filtered_command(command: str, allow_pattern: str, cwd: Path) -> li
             raise RemoteCmdRejectedError(
                 f"remote-cmd rejected: shell operator '{operator.strip()}' is not allowed while the program filter is on, "
                 "because it can chain a second command past the filter. Send one program invocation per call, or turn "
-                "the filter off in Window > ChievFX > MCP."
+                "the filter off in Window > ChievFX MCP."
             )
 
     try:
@@ -245,7 +245,7 @@ def validate_filtered_command(command: str, allow_pattern: str, cwd: Path) -> li
         raise RemoteCmdRejectedError(
             f"remote-cmd rejected: '{program}' runs whatever code it is given, so allowing it would bypass the "
             'program filter entirely. Call the target program directly, or turn the filter off in '
-            "Window > ChievFX > MCP to accept arbitrary shell input."
+            "Window > ChievFX MCP to accept arbitrary shell input."
         )
 
     resolved = resolve_program_path(argv[0], cwd)
@@ -262,7 +262,7 @@ def validate_filtered_command(command: str, allow_pattern: str, cwd: Path) -> li
     except re.error as exc:
         raise RemoteCmdRejectedError(
             f'remote-cmd rejected: the configured program filter "{allow_pattern}" is not a valid regex ({exc}). '
-            "Fix it in Window > ChievFX > MCP."
+            "Fix it in Window > ChievFX MCP."
         ) from exc
     if not any(pattern.search(candidate) for candidate in candidates):
         raise RemoteCmdRejectedError(
@@ -365,7 +365,7 @@ def run_remote_cmd(arguments: dict[str, Any]) -> dict[str, Any]:
         audit_remote_cmd({"outcome": "rejected", "reason": "bad-key", "peerIp": peer_ip, "command": command})
         raise RemoteCmdUnavailableError(
             "remote-cmd rejected: missing or wrong security key. The MCP client must send it as the "
-            "X-Chievfx-Key header (or Authorization: Bearer <key>); the value is in Window > ChievFX > MCP."
+            "X-Chievfx-Key header (or Authorization: Bearer <key>); the value is in Window > ChievFX MCP."
         )
     if not remote_cmd_ip_allowed(peer_ip, settings["allowedIps"]):
         audit_remote_cmd({"outcome": "rejected", "reason": "ip-not-allowed", "peerIp": peer_ip, "command": command})

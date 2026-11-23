@@ -191,7 +191,7 @@ def bind_http_server(host: str, port: int, handler: type[BaseHTTPRequestHandler]
         raise PortInUseError(
             f"{SERVER_NAME}: port {port} on {host} is already in use by {describe_port_holder(host, port)}. "
             "A server left over from a restart keeps answering there with its old tools; stop it (or the process "
-            "holding the port) and start again, or set another port in Window > ChievFX > MCP."
+            "holding the port) and start again, or set another port in Window > ChievFX MCP."
         ) from exc
 
 

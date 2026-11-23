@@ -304,6 +304,6 @@ def category_resource_body(entry: dict[str, Any]) -> str:
     else:
         lines.append(
             "More optional tools for this category may exist but be disabled; "
-            "the user enables them in Unity: Window > ChievFX > MCP Tools."
+            "the user enables them in Unity: Window > ChievFX MCP, Tools tab."
         )
     return "\n".join(lines)

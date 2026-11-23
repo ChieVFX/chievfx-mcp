@@ -31,7 +31,7 @@ def resolve_tool_role(arguments: dict[str, Any], metadata: dict[str, Any]) -> di
         for key, role in candidates:
             if key == wanted and role.get("kind") == "custom":
                 return role
-        raise ValueError(f"Unknown ChievFX MCP custom role asset '{custom_asset_path}'. Create it in Window > ChievFX > MCP Tools.")
+        raise ValueError(f"Unknown ChievFX MCP custom role asset '{custom_asset_path}'. Create it with Assets > Create > ChievFX > MCP Tool Role.")
 
     if isinstance(role_name, str) and role_name.strip():
         wanted = normalize_role_id(role_name)

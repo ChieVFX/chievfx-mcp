@@ -237,6 +237,13 @@ namespace Chievfx.Mcp.Editor
                 return;
             }
 
+            // A role is a saved selection, honored only with manual selection on, as tools-set-role does: applied from a window
+            // drawn before the switch went off, it said "Matches active role" while the server kept every tool on.
+            if (ChievfxMcpToolPolicy.ManualToolResourceSelection == false)
+            {
+                ChievfxMcpToolPolicy.SetManualToolResourceSelection(true);
+            }
+
             var defaultEnabledIds = new HashSet<string>(ChievfxMcpToolPolicy.DefaultEnabledToolIds, StringComparer.Ordinal);
             foreach (var row in toolRows)
             {

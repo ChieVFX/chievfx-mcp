@@ -82,10 +82,17 @@ class InstructionLayoutTests(unittest.TestCase):
 
     def test_applied_role_is_named(self) -> None:
         state = {"kind": "custom", "roleId": "madout-gameai-playtest", "displayName": "GameAI playtest", "manualOverride": False}
-        with mock.patch.object(mcp, "load_tool_role_state", return_value=state):
+        with mock.patch.object(mcp, "load_tool_role_state", return_value=state), mock.patch.object(
+            mcp, "manual_tool_resource_selection_enabled", return_value=True
+        ):
             line = mcp.build_active_role_line()
         self.assertTrue(line.startswith("Tool role: GameAI playtest - "), line)
         self.assertIn("tools are on", line)
+        # With manual selection off the saved role is not in force: every non-hidden tool is on.
+        with mock.patch.object(mcp, "load_tool_role_state", return_value=state), mock.patch.object(
+            mcp, "manual_tool_resource_selection_enabled", return_value=False
+        ):
+            self.assertEqual(mcp.build_active_role_line(), "")
         with mock.patch.object(mcp, "load_tool_role_state", return_value={**state, "manualOverride": True}):
             self.assertEqual(mcp.build_active_role_line(), "")
         with mock.patch.object(mcp, "load_tool_role_state", return_value={"kind": "manual"}):

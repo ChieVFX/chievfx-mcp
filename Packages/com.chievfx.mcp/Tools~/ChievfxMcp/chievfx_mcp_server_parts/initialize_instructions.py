@@ -71,6 +71,10 @@ def build_active_role_line() -> str:
     state = load_tool_role_state()
     if state.get("kind") not in ("built-in", "custom") or state.get("manualOverride"):
         return ""
+    # A saved role acts only with manual selection on: with it off every non-hidden tool is on, and "Tool role: QA - 114 of
+    # 120 tools are on" read as a role in force.
+    if not manual_tool_resource_selection_enabled():
+        return ""
     name = state.get("displayName") or state.get("roleId")
     if not name:
         return ""

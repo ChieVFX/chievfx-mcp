@@ -410,7 +410,11 @@ def format_editor_playmode_set_text(result: dict[str, Any]) -> str:
         settle_txt = f", settled {settle_ms}ms" if isinstance(settle_ms, int) and settle_ms > 0 else ""
         if result.get("playmodeReady"):
             return f"playmode now {format_toon_atom(is_playing)} (ready{settle_txt}){paused_hint}{cursor_hint}"
-        return f"playmode requested {format_toon_atom(requested)} but not confirmed within timeout{cursor_hint}"
+        # Under memory pressure the switch lands a minute later, and a second call read as "it failed" toggled it back.
+        return (
+            f"playmode requested {format_toon_atom(requested)} but not confirmed within timeout: Unity may still be switching "
+            f"(slow under memory pressure), do not call it again; bridge-get-status shows isPlaying when it lands{cursor_hint}"
+        )
     if requested is not None:
         return f"playmode switching to {format_toon_atom(requested)}{cursor_hint}"
     return f"playmode {format_toon_atom(is_playing)}{cursor_hint}"

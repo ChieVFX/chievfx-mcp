@@ -94,6 +94,14 @@ class PlaymodeSetTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 self._run({"isPlaying": True, "waitForReady": False})
 
+    def test_unconfirmed_switch_says_not_to_call_again(self) -> None:
+        text = mcp.format_editor_playmode_set_text(
+            {"waitedForReady": True, "playmodeReady": False, "requestedIsPlaying": False, "isPlaying": True}
+        )
+        self.assertIn("not confirmed within timeout", text)
+        self.assertIn("do not call it again", text)
+        self.assertIn("bridge-get-status", text)
+
 
 if __name__ == "__main__":
     unittest.main()

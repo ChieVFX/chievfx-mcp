@@ -66,6 +66,19 @@ def build_core_descriptor_precondition() -> str:
     )
 
 
+def build_active_role_line() -> str:
+    """Name the tool role a person applied, so an agent missing a tool knows it is off on purpose, not absent."""
+    state = load_tool_role_state()
+    if state.get("kind") not in ("built-in", "custom") or state.get("manualOverride"):
+        return ""
+    name = state.get("displayName") or state.get("roleId")
+    if not name:
+        return ""
+    enabled = len(load_enabled_tool_ids())
+    total = len(all_tools())
+    return f"Tool role: {name} - {enabled} of {total} tools are on; the others are off for this project."
+
+
 def build_initialize_instructions() -> str:
     records = load_initialize_instruction_records_from_md()
     lines: list[str] = []
@@ -82,6 +95,9 @@ def build_initialize_instructions() -> str:
     if banner:
         lines.append(banner)
     lines.extend(records.get("global", []))
+    role_line = build_active_role_line()
+    if role_line:
+        lines.append(role_line)
 
     enabled_tool_ids = load_enabled_tool_ids()
     enabled_resource_ids, enabled_template_ids = load_enabled_resource_ids()

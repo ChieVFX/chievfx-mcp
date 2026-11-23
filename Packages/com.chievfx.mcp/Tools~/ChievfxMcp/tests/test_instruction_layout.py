@@ -1,5 +1,6 @@
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -78,6 +79,17 @@ class InstructionLayoutTests(unittest.TestCase):
             if curated:
                 self.assertTrue(line.endswith(f": {curated}"), line)
                 self.assertNotIn("…", line.rsplit(": ", 1)[-1])
+
+    def test_applied_role_is_named(self) -> None:
+        state = {"kind": "custom", "roleId": "madout-gameai-playtest", "displayName": "GameAI playtest", "manualOverride": False}
+        with mock.patch.object(mcp, "load_tool_role_state", return_value=state):
+            line = mcp.build_active_role_line()
+        self.assertTrue(line.startswith("Tool role: GameAI playtest - "), line)
+        self.assertIn("tools are on", line)
+        with mock.patch.object(mcp, "load_tool_role_state", return_value={**state, "manualOverride": True}):
+            self.assertEqual(mcp.build_active_role_line(), "")
+        with mock.patch.object(mcp, "load_tool_role_state", return_value={"kind": "manual"}):
+            self.assertEqual(mcp.build_active_role_line(), "")
 
     def test_resources_are_not_advertised(self) -> None:
         # Only core-descriptors and the categories template are named; the budget goes to tools.

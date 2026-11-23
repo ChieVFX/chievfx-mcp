@@ -214,10 +214,11 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return property;
         }
 
-        // Rich text tags out, any run of whitespace as one space.
+        // Rich text tags out, any run of whitespace as one space. The zero-width space TMP_InputField appends to the value of its
+        // text component goes too: "29\u200B" read as a value is not a number.
         private static string Collapse(string text)
         {
-            return RichTextOrSpaces.Replace(text, " ").Trim();
+            return RichTextOrSpaces.Replace(text.Replace("\u200B", string.Empty), " ").Trim();
         }
 
         // A window is the second level of the hierarchy (ScreenManager/<window>, UI/<canvas>); a lone root is its own.

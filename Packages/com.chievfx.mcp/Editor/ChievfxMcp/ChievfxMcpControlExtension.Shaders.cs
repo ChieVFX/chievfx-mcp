@@ -42,8 +42,10 @@ namespace Chievfx.Mcp.Extensions.Control
             }
             else
             {
-                CollectShadersFromOpenScenes(shaders, missing);
-                result["scanned"] = "open-scene renderers";
+                // A clean answer did not say whether anything was looked at: in a UI-only scene it covered nothing.
+                var rendererCount = CollectShadersFromOpenScenes(shaders, missing);
+                var shaderCount = shaders.Select(entry => entry.Shader).Where(shader => shader != null).Distinct().Count();
+                result["scanned"] = $"{rendererCount} renderer(s) in the open scenes, {shaderCount} shader(s); UI Graphic materials are not scanned (pass path for one)";
             }
 
             var rows = new List<Dictionary<string, object?>>();
@@ -138,12 +140,15 @@ namespace Chievfx.Mcp.Extensions.Control
             throw new ArgumentException($"No shader or material found at '{path}'.");
         }
 
-        private static void CollectShadersFromOpenScenes(List<(Shader, string)> shaders, List<Dictionary<string, object?>> missing)
+        // Returns how many renderers it looked at.
+        private static int CollectShadersFromOpenScenes(List<(Shader, string)> shaders, List<Dictionary<string, object?>> missing)
         {
+            var rendererCount = 0;
 #pragma warning disable CS0618
             foreach (var renderer in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
 #pragma warning restore CS0618
             {
+                rendererCount++;
                 foreach (var material in renderer.sharedMaterials)
                 {
                     var rendererPath = HierarchyPath(renderer.gameObject);
@@ -171,6 +176,8 @@ namespace Chievfx.Mcp.Extensions.Control
                     shaders.Add((material.shader, rendererPath));
                 }
             }
+
+            return rendererCount;
         }
 
         private static string HierarchyPath(GameObject gameObject)

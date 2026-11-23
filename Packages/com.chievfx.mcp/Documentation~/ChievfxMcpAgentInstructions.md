@@ -40,7 +40,7 @@ Optionally preceded by one **secondary-project label** line, then two layers, bo
 
 2. **Compact descriptor list** from `build_enabled_descriptor_instructions()`
    - Header: `Core tools by category (names only; ...)`
-   - Tools: names only, one line per non-collapsed category (`essentials` first), e.g. `- gameobject: gameobject-create, gameobject-find, ...`. Descriptions and argument schemas are deliberately omitted — clients already receive them via `tools/list` — which keeps the payload inside Claude Desktop's ~5KB `initialize.instructions` truncation budget
+   - Tools: "Commonly used tools", one line per tool with a compact signature and a short summary, in reaching-for order (`TOOL_ORDER_TOP`, then categories with `essentials` first, then `TOOL_ORDER_BOTTOM`). The whole instructions text stays under `INSTRUCTIONS_CHAR_BUDGET` (4000 characters, below Claude Code's 4096-character cut): tools that do not fit are counted in the last line, which points to `chievfx://instructions/core-descriptors`
    - Resources/templates: `uri` or `uriTemplate`, `description` (kept: most clients do not surface resource lists to the model)
    - Prompts: `name`, `description`, argument names
    - Items in a collapsed category (see below) are omitted here and their curated blurbs are skipped

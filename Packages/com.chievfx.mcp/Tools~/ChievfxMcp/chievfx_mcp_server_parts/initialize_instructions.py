@@ -273,11 +273,14 @@ def _build_descriptor_section_lines(plan: dict[str, Any], include_tools: bool = 
     sections: list[str] = []
 
     if include_tools:
-        tool_descriptors = sorted(enabled_tools(), key=lambda item: item.get("name", ""))
+        # Full schemas, not the token-saving tools/list ones: the instructions call this list complete, so every argument a
+        # tool accepts belongs here (old alias names aside).
+        enabled_tool_ids = load_enabled_tool_ids()
+        tool_descriptors = sorted((tool for tool in all_tools() if tool.get("name") in enabled_tool_ids), key=lambda item: item.get("name", ""))
         tool_lines = [
             line
             for descriptor in tool_descriptors
-            if (line := format_tool_for_initialize_instructions(descriptor)) not in collapsed_lines["tools"]
+            if (line := format_full_tool_descriptor_line(descriptor)) not in collapsed_lines["tools"]
         ]
         if tool_lines:
             sections.append("Tools:")
@@ -372,6 +375,9 @@ def build_core_descriptor_instructions_resource_body(plan: dict[str, Any] | None
 def _schema_type_name(schema: Any) -> str:
     if not isinstance(schema, dict):
         return "any"
+    reference = schema.get("$ref")
+    if isinstance(reference, str):
+        return "{x,y,z}" if reference.endswith("/Vector3") else reference.rsplit("/", 1)[-1]
     if "enum" in schema and isinstance(schema["enum"], list):
         return "|".join(str(item) for item in schema["enum"])
     if "oneOf" in schema and isinstance(schema["oneOf"], list):
@@ -433,12 +439,18 @@ def _compact_line(identifier: Any, description: Any, args: str = "") -> str:
     return f"- {identifier_text}: {description_text}"
 
 
-def format_tool_for_initialize_instructions(descriptor: dict[str, Any]) -> str:
+def format_tool_for_initialize_instructions(descriptor: dict[str, Any], skipped: frozenset[str] = frozenset()) -> str:
     return _compact_line(
         descriptor.get("name"),
         descriptor.get("description"),
-        _schema_arguments(descriptor.get("inputSchema")),
+        _schema_arguments(descriptor.get("inputSchema"), skipped),
     )
+
+
+def format_full_tool_descriptor_line(tool: dict[str, Any]) -> str:
+    """A tool's line from its full schema, old alias names left out: core-descriptors and category pages are the lists
+    the instructions call complete."""
+    return format_tool_for_initialize_instructions(tool, BACK_COMPAT_ARGUMENT_ALIASES.get(str(tool.get("name") or ""), frozenset()))
 
 
 def format_resource_for_initialize_instructions(descriptor: dict[str, Any]) -> str:

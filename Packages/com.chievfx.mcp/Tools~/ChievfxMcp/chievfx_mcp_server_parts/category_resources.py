@@ -94,7 +94,7 @@ def build_category_plan() -> dict[str, Any]:
 
     for tool in all_tools():
         if tool.get("name") in enabled_tool_ids:
-            bucket(_tool_category(tool))["tools"].append(format_tool_for_initialize_instructions(compact_tool_descriptor(tool)))
+            bucket(_tool_category(tool))["tools"].append(format_full_tool_descriptor_line(tool))
 
     for resource in all_resources():
         if resource.get("id") in enabled_resource_ids:

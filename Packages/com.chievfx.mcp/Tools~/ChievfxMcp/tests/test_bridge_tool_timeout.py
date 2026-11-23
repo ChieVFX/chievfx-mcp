@@ -194,7 +194,7 @@ class BridgeToolTimeoutTests(unittest.TestCase):
         cancel_path = self.bridge_dir / "cancel" / f"{operation_id}.json"
 
         with mock.patch.object(mcp.uuid, "uuid4", return_value=uuid.UUID(hex=operation_id)):
-            with self.assertRaises(RuntimeError):
+            with self.assertRaises(RuntimeError) as raised:
                 self.server.call_unity_bridge(
                     "console-get-logs",
                     {"timeoutMs": 1000},
@@ -203,6 +203,7 @@ class BridgeToolTimeoutTests(unittest.TestCase):
 
         self.assertTrue(cancel_path.exists(), "timeout should leave a cancel marker for Unity")
         self.assertFalse(request_path.exists(), "timeout should remove the still-queued request")
+        self.assertIn("Unity had not started it, so it was dropped and will not run", str(raised.exception))
 
     def test_timeout_keeps_request_already_picked_up_by_unity(self) -> None:
         operation_id = "ffffffffffffffffffffffffffffffff"
@@ -219,7 +220,7 @@ class BridgeToolTimeoutTests(unittest.TestCase):
         picker = threading.Thread(target=simulate_unity_pickup)
         picker.start()
         with mock.patch.object(mcp.uuid, "uuid4", return_value=uuid.UUID(hex=operation_id)):
-            with self.assertRaises(RuntimeError):
+            with self.assertRaises(RuntimeError) as raised:
                 self.server.call_unity_bridge(
                     "console-get-logs",
                     {"timeoutMs": 1000},
@@ -228,6 +229,9 @@ class BridgeToolTimeoutTests(unittest.TestCase):
         picker.join(timeout=1)
 
         self.assertTrue(processing_path.exists(), "an in-flight request must be left for Unity to finish")
+        # A caller that repeats a changing call while Unity still runs the first one does it twice.
+        self.assertIn(f"Unity may still be running it: bridge-get-operation opId:{operation_id}", str(raised.exception))
+        self.assertIn("do not repeat a call that changes the project or the game", str(raised.exception))
 
     def test_prune_removes_orphan_request_for_terminal_operation(self) -> None:
         request_dir = self.bridge_dir / "requests"

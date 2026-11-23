@@ -875,14 +875,16 @@ class BridgeTransportMixin:
             issues["otherWarningCount"] = other_warnings
         return issues
 
-    def discard_timed_out_request(self, request_id: str) -> None:
+    def discard_timed_out_request(self, request_id: str) -> bool:
         """After the MCP server gives up waiting, stop Unity from later draining
         the orphaned request and re-running a tool nobody is listening for.
 
         Writes a cancel marker so Unity skips the request if it has not started
         it yet, and deletes the still-queued request file directly. A request
         already moved to ``.processing`` is left for Unity to finish; the stale
-        ``.processing`` file is reaped by prune_stale_transport_files."""
+        ``.processing`` file is reaped by prune_stale_transport_files.
+
+        Returns True when the queued request was dropped before Unity took it."""
         cancel_path = self.cancel_dir / f"{request_id}.json"
         try:
             self.cancel_dir.mkdir(parents=True, exist_ok=True)
@@ -902,8 +904,10 @@ class BridgeTransportMixin:
         if request_path.exists() and not processing_path.exists():
             try:
                 request_path.unlink(missing_ok=True)
+                return True
             except OSError:
                 pass
+        return False
 
     def read_operation_state(self, operation_id: str) -> str | None:
         record = read_json_file(self.operation_dir / f"{operation_id}.json")
@@ -1169,15 +1173,22 @@ class BridgeTransportMixin:
 
                 time.sleep(0.05)
 
+            # Unity may still be running a request it already took: a caller that repeats a changing call then does it twice.
+            dropped = self.discard_timed_out_request(request_id)
+            fate = (
+                "Unity had not started it, so it was dropped and will not run."
+                if dropped
+                else f"Unity may still be running it: bridge-get-operation opId:{request_id} shows when it ends "
+                "(the call's own result is not kept); do not repeat a call that changes the project or the game before that."
+            )
             self.update_operation_record(
                 request_id,
                 state="stale",
-                progressMessage="MCP server timed out waiting for Unity bridge response.",
+                progressMessage="MCP server stopped waiting for the reply. " + fate,
             )
-            self.discard_timed_out_request(request_id)
             status = self.get_bridge_status({})
             raise RuntimeError(
-                f"Unity bridge timed out waiting for operation {request_id} ({name}) at {response_path}. "
+                f"Unity bridge timed out waiting for operation {request_id} ({name}) at {response_path}. {fate} "
                 f"{self.format_status_hint(status)}"
             )
         finally:

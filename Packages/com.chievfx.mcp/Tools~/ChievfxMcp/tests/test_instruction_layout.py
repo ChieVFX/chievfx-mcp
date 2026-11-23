@@ -91,6 +91,22 @@ class InstructionLayoutTests(unittest.TestCase):
         with mock.patch.object(mcp, "load_tool_role_state", return_value={"kind": "manual"}):
             self.assertEqual(mcp.build_active_role_line(), "")
 
+    def test_core_descriptors_carry_every_argument_a_tool_accepts(self) -> None:
+        # The instructions call core-descriptors the complete list: the token-saving tools/list schema dropped arguments
+        # (screenshot-editor-window captureArea) that only the short startup list showed.
+        body = mcp.build_core_descriptor_instructions_resource_body()
+        lines = {line[2:].split(":", 1)[0]: line for line in body.splitlines() if line.startswith("- ")}
+        self.assertIn("captureArea?:", lines["screenshot-editor-window"])
+        self.assertIn("delayFrames?:", lines["screenshot-editor-window"])
+        self.assertIn("verbose?:bool", lines["bridge-get-status"])
+        self.assertNotIn("outputFormat", body)
+        # Old alias names stay accepted but are shown nowhere.
+        line = mcp.format_full_tool_descriptor_line(
+            {"name": "editor-playmode-set", "description": "Play.", "inputSchema": {"type": "object", "properties": {"isPlaying": {"type": "boolean"}, "playing": {"type": "boolean"}}}}
+        )
+        self.assertIn("isPlaying?:bool", line)
+        self.assertNotIn("playing?:", line.replace("isPlaying?:", ""))
+
     def test_resources_are_not_advertised(self) -> None:
         # Only core-descriptors and the categories template are named; the budget goes to tools.
         self.assertNotIn("chievfx://editor/context", self.instructions)

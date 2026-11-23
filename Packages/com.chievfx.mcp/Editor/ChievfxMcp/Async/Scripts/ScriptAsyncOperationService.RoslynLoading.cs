@@ -270,9 +270,11 @@ namespace Chievfx.Mcp.Editor
             "CS0103", "CS0117", "CS0122", "CS0234", "CS0246", "CS0271", "CS0272", "CS0426", "CS1061",
         };
 
+        // System.Threading.Tasks: the description promises a returned Task is awaited, so async Main must compile without its using.
         private static readonly string[] DefaultScriptUsings =
         {
-            "System", "System.Collections.Generic", "System.IO", "System.Linq", "UnityEngine", "UnityEditor",
+            "System", "System.Collections.Generic", "System.IO", "System.Linq", "System.Reflection", "System.Text",
+            "System.Threading.Tasks", "UnityEngine", "UnityEditor",
         };
 
         // Names both System and UnityEngine define: once the retry has imported the one the code lacked, a bare

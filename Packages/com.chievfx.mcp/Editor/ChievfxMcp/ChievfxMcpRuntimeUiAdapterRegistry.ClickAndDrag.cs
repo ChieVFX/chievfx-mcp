@@ -142,7 +142,7 @@ namespace Chievfx.Mcp.Editor
             else if (!ChievfxMcpRuntimeUiControlFind.IncludesAllFrameworks(framework) && !anyResolved)
             {
                 throw new InvalidOperationException(
-                    $"ui-runtime-drag could not resolve a {framework} target at the supplied start position or explicit target.");
+                    $"ui-runtime-drag could not resolve a {framework} target at the supplied start position or explicit target.{AdapterMissReasons(sections)}");
             }
             else if (!anyResolved)
             {
@@ -409,7 +409,7 @@ namespace Chievfx.Mcp.Editor
             else if (!ChievfxMcpRuntimeUiControlFind.IncludesAllFrameworks(framework) && !anyResolved)
             {
                 throw new InvalidOperationException(
-                    $"ui-runtime-click could not resolve a {framework} target at the supplied position or explicit target.");
+                    $"ui-runtime-click could not resolve a {framework} target at the supplied position or explicit target.{AdapterMissReasons(sections)}");
             }
             else if (!anyResolved)
             {
@@ -442,6 +442,15 @@ namespace Chievfx.Mcp.Editor
         // the adapter result into a framework section used to drop them, leaving a bare clicked:false with
         // nothing to act on. Surface the resolving framework's warnings; when nothing resolved, surface all
         // of them, because then they are the whole answer.
+        // The adapter's own reason for a miss (a UI Toolkit panel above the control, an element hidden from the player) is
+        // the useful part of the error: without it a miss under a panel read as if nothing were at the point.
+        private static string AdapterMissReasons(IEnumerable<Dictionary<string, object?>> sections)
+        {
+            var reasons = new List<string>();
+            MergeAdapterWarnings(sections, anyResolved: false, reasons);
+            return reasons.Count == 0 ? string.Empty : " " + string.Join(" ", reasons.Distinct());
+        }
+
         private static void MergeAdapterWarnings(
             IEnumerable<Dictionary<string, object?>> sections,
             bool anyResolved,

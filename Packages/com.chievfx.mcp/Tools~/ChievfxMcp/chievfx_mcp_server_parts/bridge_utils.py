@@ -282,6 +282,9 @@ def client_session_key() -> str | None:
 
 
 def clamp_int(value: Any, default: int, minimum: int, maximum: int) -> int:
+    # Clients send an argument the advertised schema leaves out as a string ("3").
+    if isinstance(value, str) and re.fullmatch(r"\s*-?\d+\s*", value):
+        value = int(value)
     if not isinstance(value, int):
         return default
     return max(minimum, min(maximum, value))
@@ -337,9 +340,9 @@ def parse_unity_test_results_xml(
     passed = int_attr(root, "passed", sum(1 for case in cases if normalize_test_status(case.get("result")) == "Passed"))
     skipped = int_attr(root, "skipped", sum(1 for case in cases if normalize_test_status(case.get("result")) == "Skipped"))
     total = int_attr(root, "total", len(cases))
-    include_passing = bool(arguments.get("includePassingTests"))
-    include_messages = bool(arguments.get("includeMessages", True))
-    include_stack_trace = bool(arguments.get("includeStacktrace", arguments.get("includeStackTrace", False)))
+    include_passing = parse_bool(arguments.get("includePassingTests"), False)
+    include_messages = parse_bool(arguments.get("includeMessages"), True)
+    include_stack_trace = parse_bool(arguments.get("includeStacktrace", arguments.get("includeStackTrace")), False)
     max_results = clamp_int(arguments.get("maxResults"), 200, 1, 1000)
     selected_cases = [case for case in cases if include_passing or normalize_test_status(case.get("result")) != "Passed"]
     truncated = len(selected_cases) > max_results

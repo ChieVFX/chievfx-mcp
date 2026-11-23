@@ -52,6 +52,14 @@ class EditorHealthStatusTests(unittest.TestCase):
         status = self.server.get_bridge_status({"verbose": True})
         self.assertEqual(status["health"]["bytesAssemblies"], 7)
 
+    def test_string_arguments_from_clients_are_read_as_their_values(self) -> None:
+        # Clients send arguments the advertised schema leaves out as strings: "false" must not switch verbose on.
+        self.write_heartbeat({"reservedMb": 1500, "problems": [], "verdict": "ok: ..."})
+        self.assertNotIn("health", self.server.get_bridge_status({"verbose": "false"}))
+        self.assertIn("health", self.server.get_bridge_status({"verbose": "true"}))
+        self.assertEqual(mcp.clamp_int("3", 12, 0, 50), 3)
+        self.assertEqual(mcp.clamp_int("x", 12, 0, 50), 12)
+
     def test_heartbeat_from_an_older_bridge_has_no_health(self) -> None:
         mcp.write_json_file_atomic(self.bridge_dir / "state.json", {"editor": {}, "busy": {}})
         self.assertNotIn("editorHealth", self.server.get_bridge_status({}))

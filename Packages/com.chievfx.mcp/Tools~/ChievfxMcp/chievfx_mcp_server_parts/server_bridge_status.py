@@ -7,7 +7,7 @@ class BridgeStatusMixin:
     """bridge-get-status and bridge-get-operation: heartbeat, operation records, busy reasons and hints."""
 
     def get_bridge_status(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        verbose = bool(arguments.get("verbose", False))
+        verbose = parse_bool(arguments.get("verbose"), False)
         # In slim mode, default to active-only (no recent history) to keep the response tiny.
         default_max = MAX_STATUS_OPERATIONS if verbose else 0
         max_operations = clamp_int(arguments.get("maxOperations"), default_max, 0, 50)

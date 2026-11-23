@@ -115,7 +115,7 @@ class EventsStatusMixin:
             stream.get("events", []),
             since_event_id=since_event_id,
             filters=filters,
-            include_data=bool(arguments.get("includeData", False)),
+            include_data=parse_bool(arguments.get("includeData"), False),
             min_timestamp=since_timestamp,
         )
         limited = matched[:max_entries]
@@ -195,7 +195,7 @@ class EventsStatusMixin:
             since_event_id = self.event_stream_last_id(initial_stream)
 
         filters = self.read_event_filters(arguments)
-        include_data = bool(arguments.get("includeData", False))
+        include_data = parse_bool(arguments.get("includeData"), False)
         # A matched wait answers with the event; the bridge status only explains a wait that came back empty.
         include_bridge_state = parse_bool(arguments.get("includeBridgeState"), False)
         started = time.monotonic()

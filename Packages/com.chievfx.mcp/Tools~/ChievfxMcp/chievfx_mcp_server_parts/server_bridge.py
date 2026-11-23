@@ -1067,9 +1067,19 @@ class BridgeTransportMixin:
             post_recovery_grace_started = False
             next_recovery_record_at = started
             next_liveness_check_at = started + EDITOR_LIVENESS_CHECK_SECONDS
+            unreadable_response_reads = 0
             while True:
                 if response_path.exists():
-                    payload = json.loads(read_text_file(response_path))
+                    try:
+                        payload = json.loads(read_text_file(response_path))
+                    except (FileNotFoundError, json.JSONDecodeError):
+                        # Windows: a scanner or indexer can hold the new file so it reads missing or short for a moment
+                        # (WinError 2), though Unity wrote it whole. The action already ran; reading again beats failing.
+                        unreadable_response_reads += 1
+                        if unreadable_response_reads >= RESPONSE_READ_ATTEMPTS:
+                            raise
+                        time.sleep(file_io_retry_delay(unreadable_response_reads))
+                        continue
                     response_path.unlink(missing_ok=True)
                     if not payload.get("ok"):
                         error_message = payload.get("error") or "Unity bridge returned an error."

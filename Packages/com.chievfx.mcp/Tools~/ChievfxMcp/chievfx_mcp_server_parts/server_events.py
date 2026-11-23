@@ -921,12 +921,21 @@ class EventsStatusMixin:
             compact_row["stale"] = True
         return {key: value for key, value in compact_row.items() if value is not None}
 
+    @staticmethod
+    def _modified_or_zero(path: Path) -> float:
+        # Unity rewrites operation records with File.Replace and prunes old ones: on Windows a record listed a moment
+        # ago can be missing when stat() runs, and the WinError 2 failed whatever call was reading the bridge status.
+        try:
+            return path.stat().st_mtime
+        except OSError:
+            return 0.0
+
     def read_operation_rows(self, max_operations: int, now: float, verbose: bool = False) -> list[dict[str, Any]]:
         if not self.operation_dir.exists():
             return []
 
         rows: list[dict[str, Any]] = []
-        for path in sorted(self.operation_dir.glob("*.json"), key=lambda candidate: candidate.stat().st_mtime, reverse=True):
+        for path in sorted(self.operation_dir.glob("*.json"), key=self._modified_or_zero, reverse=True):
             payload = read_json_file(path)
             if payload is None:
                 continue

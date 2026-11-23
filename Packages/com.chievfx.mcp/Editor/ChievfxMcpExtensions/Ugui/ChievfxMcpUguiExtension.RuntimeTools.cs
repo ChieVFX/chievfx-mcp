@@ -772,6 +772,15 @@ namespace Chievfx.Mcp.Extensions.Ugui
                     {
                         row["coveredBy"] = GetIndexedTransformPath(cover.transform);
                     }
+                    else if (UguiRuntimeReachability.IsCentreMissed(entry.target, status))
+                    {
+                        row["centreMissed"] = true;
+                        if (entry.target.TryGetComponent<Selectable>(out var selectable) && selectable.targetGraphic != null && selectable.targetGraphic.raycastTarget
+                            && TryGetUguiScreenZone(selectable.targetGraphic.gameObject, status, screenSize, out var hitZone))
+                        {
+                            row["hitZone"] = hitZone;
+                        }
+                    }
 
                     return row;
                 })

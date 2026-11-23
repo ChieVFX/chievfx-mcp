@@ -100,6 +100,29 @@ namespace Chievfx.Mcp.Extensions.Ugui
             return true;
         }
 
+        // The control's centre reaches no raycast target (a Toggle whose label does not take raycasts): a tap in the middle of
+        // its zone does nothing, and no cover was named because nothing was hit at all.
+        internal static bool IsCentreMissed(GameObject target, UguiDependencyStatus status)
+        {
+            var eventSystem = EventSystem.current;
+            if (eventSystem == null || !UguiRuntimeTools.TryGetTargetScreenCenter(target, status, out var center))
+            {
+                return false;
+            }
+
+            var results = new List<RaycastResult>();
+            try
+            {
+                UguiTargetSizeRaycast.RaycastAll(eventSystem, new PointerEventData(eventSystem) { position = center }, results);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+
+            return results.Count == 0;
+        }
+
         internal static void AddCoverWarning(GameObject target, UguiDependencyStatus status, List<string> warnings)
         {
             if (TryFindCover(target, status, out var cover, out var sortingOrder))

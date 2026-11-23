@@ -58,6 +58,29 @@ class UiControlFindFormattingTests(unittest.TestCase):
         self.assertIn("- Touches/Shop_Button (id: 7)", text)
         self.assertIn("covered by Popup/Background_Image (a player's tap lands there)", text)
 
+    def test_names_a_control_whose_centre_takes_no_taps(self) -> None:
+        # A Toggle with a label that takes no raycasts: a tap in the middle of its zone did nothing.
+        result = {
+            "page": 1,
+            "totalPages": 1,
+            "total": 1,
+            "controls": [
+                {
+                    "framework": "ugui",
+                    "path": "Canvas/Toggle",
+                    "instanceId": 9,
+                    "controlType": "toggle",
+                    "zone": {"xMin": 98, "yMin": 333, "xMax": 255, "yMax": 368},
+                    "centreMissed": True,
+                    "hitZone": {"xMin": 98, "yMin": 348, "xMax": 118, "yMax": 368},
+                }
+            ],
+        }
+
+        text = mcp.format_ui_control_find_text(result)
+
+        self.assertIn("its centre takes no taps, tap its graphic at", text)
+
     def test_renders_page_header_and_compact_rows(self) -> None:
         result = {
             "page": 1,

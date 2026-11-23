@@ -631,6 +631,15 @@ def format_ui_control_find_row(
     covered_by = control.get("coveredBy")
     if not should_omit_toon_value(covered_by):
         line += f"; covered by {format_gameobject_text_value(covered_by)} (a player's tap lands there)"
+    elif control.get("centreMissed") is True:
+        # A Toggle whose label takes no raycasts: a tap in the middle of its zone did nothing and nothing said why.
+        hit_zone = format_ui_control_zone(
+            control.get("hitZone"),
+            normalize_coords=normalize_coords,
+            screen_width=screen_width,
+            screen_height=screen_height,
+        )
+        line += "; its centre takes no taps" + (f", tap its graphic at {hit_zone}" if hit_zone else ", click it by path")
     return line
 
 

@@ -147,6 +147,10 @@ def format_camera_tool_row(row: dict[str, Any]) -> str:
             continue
         if key == "type":
             value = format_short_type(value)
+        # A Unity Camera row (brain-ensure target): an orthographic camera ignores its fieldOfView.
+        if key == "fieldOfView" and row.get("orthographic") is True and "orthographicSize" in row:
+            parts.append(f"ortho size:{format_toon_atom(row.get('orthographicSize'))}")
+            continue
         parts.append(f"{label}:{format_toon_atom(value)}")
     for key, label in (("priority", "priority"), ("lens", "lens"), ("asset", "asset"), ("camera", "camera"), ("boundingVolume", "bounds")):
         value = row.get(key)

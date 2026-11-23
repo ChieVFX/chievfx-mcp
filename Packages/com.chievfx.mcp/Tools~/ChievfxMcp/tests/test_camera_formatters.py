@@ -16,6 +16,12 @@ class CameraFormatterTests(unittest.TestCase):
         row = {"name": "Cam", "lens": {"fieldOfView": 40.0, "orthographicSize": 5.0, "orthographic": False}}
         self.assertIn("lens:fov=40", mcp.format_camera_tool_row(row))
 
+    def test_orthographic_unity_camera_row_shows_its_size_not_fov(self) -> None:
+        row = {"name": "Cam", "fieldOfView": 60.0, "orthographic": True, "orthographicSize": 10.0}
+        text = mcp.format_camera_tool_row(row)
+        self.assertIn("ortho size:10", text)
+        self.assertNotIn("fov:", text)
+
     def test_camera_detail_shows_target_and_lens_without_linking_to_itself(self) -> None:
         row = {
             "name": "Cam", "path": "Cam", "instanceId": 5, "detailUri": "chievfx://extensions/chievfx.cameras/cinemachine/camera/5",

@@ -190,10 +190,19 @@ namespace Chievfx.Mcp.Editor
             counters["setPassCalls"] = UnityStats.setPassCalls;
             counters["triangles"] = UnityStats.triangles;
             counters["vertices"] = UnityStats.vertices;
+            // Right after screenshot-game-view the Stats numbers are of the capture's frame: 86 ms and +88 draw calls in a 35 ms
+            // world frame were read as the game's.
+            if (Time.frameCount - ScreenshotBridgeService.LastGameViewCaptureFrame <= ScreenshotFrameWindow)
+            {
+                counters["note"] = "These numbers include the extra Game view render of a screenshot-game-view taken a frame ago (longer frame, more draw "
+                                   + "calls): read again after a few frames for the game's own.";
+            }
+
             return counters;
         }
 
         private const float MinFrameSeconds = 0.0001f;
+        private const int ScreenshotFrameWindow = 2;
 
         private static Type GetProfilerDriverType()
         {
@@ -288,6 +297,11 @@ namespace Chievfx.Mcp.Editor
                 var max = 0f;
                 var worstFrame = -1;
                 var count = 0;
+                var playerLoopSum = 0d;
+                var editorLoopSum = 0d;
+                var playerLoopMax = 0f;
+                var worstGameFrame = -1;
+                var loopFrames = 0;
                 for (var frame = firstCounted; frame <= last; frame++)
                 {
                     using var view = UnityEditorInternal.ProfilerDriver.GetRawFrameDataView(frame, 0);
@@ -304,24 +318,90 @@ namespace Chievfx.Mcp.Editor
                     }
 
                     count++;
+                    if (TryReadLoopTimes(view, out var playerLoopMs, out var editorLoopMs))
+                    {
+                        playerLoopSum += playerLoopMs;
+                        editorLoopSum += editorLoopMs;
+                        loopFrames++;
+                        if (playerLoopMs > playerLoopMax)
+                        {
+                            playerLoopMax = playerLoopMs;
+                            worstGameFrame = frame;
+                        }
+                    }
                 }
 
-                return count == 0
-                    ? null
-                    : new Dictionary<string, object?>
-                    {
-                        ["frames"] = count,
-                        ["frameMsAvg"] = Math.Round(sum / count, 2),
-                        ["frameMsMax"] = Math.Round(max, 2),
-                        ["worstFrame"] = worstFrame,
-                        ["basis"] = "main thread time of each recorded frame (the first one, the recording start, left out); worstFrame is the frame index for "
-                                    + "profiler-window-control selectedFrameIndex while the frames are still in the profiler; open the .data file for markers"
-                    };
+                if (count == 0)
+                {
+                    return null;
+                }
+
+                var summary = new Dictionary<string, object?>
+                {
+                    ["frames"] = count,
+                    ["frameMsAvg"] = Math.Round(sum / count, 2),
+                    ["frameMsMax"] = Math.Round(max, 2),
+                    ["worstFrame"] = worstFrame,
+                };
+                // In Play in the editor the main thread is the game (PlayerLoop) plus the editor's own work (EditorLoop): the
+                // worst frame by thread time was the editor's, 38 ms of a 47 ms frame whose game part took 9.
+                if (loopFrames > 0 && editorLoopSum > 0d)
+                {
+                    summary["playerLoopMsAvg"] = Math.Round(playerLoopSum / loopFrames, 2);
+                    summary["editorLoopMsAvg"] = Math.Round(editorLoopSum / loopFrames, 2);
+                    summary["playerLoopMsMax"] = Math.Round(playerLoopMax, 2);
+                    summary["worstGameFrame"] = worstGameFrame;
+                }
+
+                summary["basis"] = (summary.ContainsKey("worstGameFrame")
+                        ? "frameMs = whole main thread, in Play in the editor with the editor's own work (editorLoopMs); the game's part is "
+                          + "playerLoopMs, worstGameFrame its slowest frame; "
+                        : "main thread time of each recorded frame; ")
+                    + "the first frame, the recording start, left out; a frame index is for profiler-window-control selectedFrameIndex while "
+                    + "the frames are still in the profiler; open the .data file for markers";
+                return summary;
             }
             catch (Exception exception)
             {
                 return new Dictionary<string, object?> { ["error"] = exception.Message };
             }
+        }
+
+        // PlayerLoop and EditorLoop are top samples of the main thread; their subtrees (most samples) are skipped, not walked.
+        private static bool TryReadLoopTimes(UnityEditor.Profiling.RawFrameDataView view, out float playerLoopMs, out float editorLoopMs)
+        {
+            playerLoopMs = 0f;
+            editorLoopMs = 0f;
+            var playerLoopId = view.GetMarkerId("PlayerLoop");
+            if (playerLoopId == UnityEditor.Profiling.FrameDataView.invalidMarkerId)
+            {
+                return false;
+            }
+
+            var editorLoopId = view.GetMarkerId("EditorLoop");
+            var sampleCount = view.sampleCount;
+            for (var sample = 0; sample < sampleCount;)
+            {
+                var markerId = view.GetSampleMarkerId(sample);
+                if (markerId != playerLoopId && markerId != editorLoopId)
+                {
+                    sample++;
+                    continue;
+                }
+
+                if (markerId == playerLoopId)
+                {
+                    playerLoopMs += view.GetSampleTimeMs(sample);
+                }
+                else
+                {
+                    editorLoopMs += view.GetSampleTimeMs(sample);
+                }
+
+                sample += 1 + view.GetSampleChildrenCountRecursive(sample);
+            }
+
+            return true;
         }
 
         private static object[] GetProfilerTargets()

@@ -58,8 +58,12 @@ namespace Chievfx.Mcp.Editor
             return CaptureGameView(ScreenshotRegion.Full, FitWithinLongestSide(ClampInt(maxDimension, 1, MaxScreenshotDimension)));
         }
 
+        // The Play frame of the last Game view capture: its extra render is counted in the Stats numbers of that frame.
+        internal static int LastGameViewCaptureFrame { get; private set; } = int.MinValue;
+
         private static ImageResult CaptureGameView(ScreenshotRegion region, Func<int, int, (int Width, int Height)> resolveOutput)
         {
+            LastGameViewCaptureFrame = Application.isPlaying ? Time.frameCount : int.MinValue;
             var gameViewType = typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");
             var renderTextureAvailable = false;
             if (gameViewType != null)

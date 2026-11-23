@@ -26,8 +26,8 @@ HIDDEN_TOOL_CATEGORIES = ("autonomous", "obsolete", "remote-shell")
 def manual_tool_resource_selection_enabled() -> bool:
     """Master toggle (Connection tab). False (default, file missing) = expose every non-hidden tool and
     resource and ignore any saved per-tool/category selection. True = honor the saved manual selection.
-    Mirrored from EditorPrefs into UserSettings/ChievfxMcpAvailability.json since Python can't read
-    EditorPrefs."""
+    The project's UserSettings/ChievfxMcpAvailability.json holds it: the editor writes it when the switch changes and
+    seeds it from EditorPrefs only when the file is missing; tools-set-role turns it on."""
     try:
         payload = json.loads(AVAILABILITY_SETTINGS_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):

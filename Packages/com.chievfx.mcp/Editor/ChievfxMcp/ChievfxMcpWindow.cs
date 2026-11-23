@@ -483,8 +483,7 @@ namespace Chievfx.Mcp.Editor
             };
             manualSelectionToggle.RegisterValueChangedCallback(evt =>
             {
-                EditorPrefs.SetBool(ChievfxMcpToolPolicy.ManualToolResourceSelectionKey, evt.newValue);
-                ChievfxMcpToolPolicy.WriteAvailabilitySettings();
+                ChievfxMcpToolPolicy.SetManualToolResourceSelection(evt.newValue);
                 ChievfxMcpReloadSignal.RequestReload("unity-manual-selection-toggle");
                 if (!evt.newValue && activeTab == ChievfxMcpTab.Presets)
                 {

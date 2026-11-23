@@ -161,7 +161,22 @@ def format_tool_role_details_text(result: dict[str, Any]) -> str:
 
 
 def format_tool_role_set_compact_text(result: dict[str, Any]) -> str:
+    if result.get("manualSelectionTurnedOn"):
+        return "success: manual tool selection turned on for this project (the switch in Window > ChievFX MCP, Connection tab), so the role applies"
     return "success"
+
+
+def turn_on_manual_selection() -> bool:
+    """A role is a saved selection, and the server honors one only with manual selection on; True when this turned it on.
+
+    The switch lives in the project's UserSettings file, which the editor no longer writes over at start, so an applied
+    role survives an editor restart.
+    """
+    if manual_tool_resource_selection_enabled():
+        return False
+    AVAILABILITY_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    AVAILABILITY_SETTINGS_PATH.write_text('{\n  "manualSelection": true\n}\n', encoding="utf-8")
+    return True
 
 
 def format_set_enabled_state_text(result: dict[str, Any]) -> str:
@@ -218,14 +233,15 @@ def set_tool_role(arguments: dict[str, Any]) -> dict[str, Any]:
     )
     before = load_enabled_tool_ids()
     after = enabled_ids_for_role(role, metadata)
-    changed = before != after
+    manual_selection_turned_on = turn_on_manual_selection()
+    changed = before != after or manual_selection_turned_on
     availability = summarize_role_availability(role, metadata)
     role_state = {
         "kind": role.get("kind", "built-in"),
         "roleId": role.get("id"),
         "displayName": role.get("displayName"),
         "description": role.get("description", ""),
-        "customassetPath": role.get("assetPath"),
+        "customAssetPath": role.get("assetPath"),
         "manualOverride": False,
         "appliedAtUtc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "appliedEnabledToolIds": sorted(after),
@@ -238,6 +254,7 @@ def set_tool_role(arguments: dict[str, Any]) -> dict[str, Any]:
     inventory = build_tool_inventory(include_tools=False)
     return {
         "mutated": changed,
+        "manualSelectionTurnedOn": manual_selection_turned_on,
         "roleIndex": role_index,
         "roleState": role_state,
         "role": role,

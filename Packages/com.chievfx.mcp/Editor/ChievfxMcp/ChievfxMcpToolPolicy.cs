@@ -4,6 +4,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -208,7 +209,16 @@ namespace Chievfx.Mcp.Editor
         // and the Presets tab is hidden. ON: the user hand-picks tools, resources, and categories (Presets
         // tab + per-item toggles), and the saved selection is honored. Mirrored to
         // UserSettings/ChievfxMcpAvailability.json for the Python server, which can't read EditorPrefs.
-        public static bool ManualToolResourceSelection => EditorPrefs.GetBool(ManualToolResourceSelectionKey, false);
+        // The project's UserSettings/ChievfxMcpAvailability.json decides: tools-set-role turns it on there from the server, and
+        // a value kept only in EditorPrefs was written back over that file at every editor start, dropping the applied role.
+        // EditorPrefs only seeds a project that has no file yet.
+        public static bool ManualToolResourceSelection => ReadAvailabilityManualSelection() ?? EditorPrefs.GetBool(ManualToolResourceSelectionKey, false);
+
+        public static void SetManualToolResourceSelection(bool isOn)
+        {
+            EditorPrefs.SetBool(ManualToolResourceSelectionKey, isOn);
+            WriteAvailabilityFile(isOn);
+        }
 
         public const string PackageName = "com.chievfx.mcp";
 
@@ -414,16 +424,53 @@ namespace Chievfx.Mcp.Editor
 
         public static string ExtensionCapabilitySnapshotPath => Path.Combine(BridgeDirectory, "extension-capabilities.snapshot.json");
 
-        // Mirror of the ManualToolResourceSelection toggle for the Python server (it can't read
-        // EditorPrefs). Written idempotently on load and whenever the toggle changes.
+        // The ManualToolResourceSelection switch for this project, shared with the Python server (it can't read EditorPrefs).
         public static string AvailabilitySettingsPath => Path.Combine(ProjectRoot, "UserSettings", "ChievfxMcpAvailability.json");
 
+        private static DateTime availabilityReadWriteTimeUtc;
+        private static bool? availabilityManualSelection;
+
+        // On load: creates the file from EditorPrefs only when the project has none; an existing file is left as it is.
         public static void WriteAvailabilitySettings()
+        {
+            if (ReadAvailabilityManualSelection() == null)
+            {
+                WriteAvailabilityFile(EditorPrefs.GetBool(ManualToolResourceSelectionKey, false));
+            }
+        }
+
+        private static bool? ReadAvailabilityManualSelection()
         {
             try
             {
                 var path = AvailabilitySettingsPath;
-                var content = "{\n  \"manualSelection\": " + (ManualToolResourceSelection ? "true" : "false") + "\n}\n";
+                if (!File.Exists(path))
+                {
+                    return null;
+                }
+
+                var writeTimeUtc = File.GetLastWriteTimeUtc(path);
+                if (writeTimeUtc != availabilityReadWriteTimeUtc)
+                {
+                    availabilityReadWriteTimeUtc = writeTimeUtc;
+                    var manualSelection = JObject.Parse(File.ReadAllText(path))["manualSelection"];
+                    availabilityManualSelection = manualSelection?.Type == JTokenType.Boolean ? manualSelection.Value<bool>() : null;
+                }
+
+                return availabilityManualSelection;
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is JsonException)
+            {
+                return null;
+            }
+        }
+
+        private static void WriteAvailabilityFile(bool isOn)
+        {
+            try
+            {
+                var path = AvailabilitySettingsPath;
+                var content = "{\n  \"manualSelection\": " + (isOn ? "true" : "false") + "\n}\n";
                 if (File.Exists(path) && string.Equals(File.ReadAllText(path), content, StringComparison.Ordinal))
                 {
                     return;

@@ -372,7 +372,7 @@ class ToolRoleTests(unittest.TestCase):
         self.assertEqual(text, "failure: events-wait required-tool-locked-enabled")
 
     def test_custom_role_asset_loads_and_applies(self) -> None:
-        role_path = self.root / "assets" / "ChievfxMcp" / "Roles" / "QaTiny.asset"
+        role_path = self.root / "Assets" / "ChievfxMcp" / "Roles" / "QaTiny.asset"
         role_path.parent.mkdir(parents=True, exist_ok=True)
         role_path.write_text(
             "\n".join(
@@ -393,15 +393,28 @@ class ToolRoleTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-        result = self.call_json_tool("tools-set-role", {"customassetPath": "assets/ChievfxMcp/Roles/QaTiny.asset"})
+        result = self.call_json_tool("tools-set-role", {"customAssetPath": "Assets/ChievfxMcp/Roles/QaTiny.asset"})
         tools = self.request("tools/list")["result"]["tools"]
         names = {tool["name"] for tool in tools}
 
         self.assertEqual(result["roleState"]["roleId"], "qa-tiny")
-        self.assertEqual(result["roleState"]["customassetPath"], "assets/ChievfxMcp/Roles/QaTiny.asset")
+        # The editor reads customAssetPath; the misspelled key left it empty and the editor lost the role.
+        self.assertEqual(result["roleState"]["customAssetPath"], "Assets/ChievfxMcp/Roles/QaTiny.asset")
         self.assertIn("scene-open", names)
         self.assertIn("tests-run", names)
         self.assertNotIn("gameobject-find", names)
+
+    def test_applying_a_role_turns_manual_selection_on(self) -> None:
+        # A role is a saved selection, honored only with manual selection on; the editor used to write the switch back
+        # to its EditorPrefs value at every start, so a role applied from the server was gone after a restart.
+        self.availability_path.write_text(json.dumps({"manualSelection": False}), encoding="utf-8")
+        # With the switch off tools-set-role is hidden, so the role comes from a script, as people apply it then.
+        result = mcp.set_tool_role({"role": "qa"})
+        self.assertTrue(result["manualSelectionTurnedOn"])
+        self.assertTrue(json.loads(self.availability_path.read_text(encoding="utf-8"))["manualSelection"])
+        names = {tool["name"] for tool in self.request("tools/list")["result"]["tools"]}
+        self.assertEqual(names, set(result["roleState"]["appliedEnabledToolIds"]) & names)
+        self.assertFalse(mcp.set_tool_role({"role": "qa"})["manualSelectionTurnedOn"])
 
 
 if __name__ == "__main__":

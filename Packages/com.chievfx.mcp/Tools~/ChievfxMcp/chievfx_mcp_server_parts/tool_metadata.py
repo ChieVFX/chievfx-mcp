@@ -619,7 +619,7 @@ def project_relative_path(path: Path) -> str:
 
 
 def load_custom_tool_roles() -> list[dict[str, Any]]:
-    assets_root = PROJECT_ROOT / "assets"
+    assets_root = PROJECT_ROOT / "Assets"
     if not assets_root.exists():
         return []
 
@@ -629,7 +629,7 @@ def load_custom_tool_roles() -> list[dict[str, Any]]:
             text = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        if "ChievfxMcpToolRoleasset" not in text and "enabledCategoryIds:" not in text and "enabledToolIds:" not in text:
+        if "ChievfxMcpToolRoleAsset" not in text and "enabledCategoryIds:" not in text and "enabledToolIds:" not in text:
             continue
 
         role_id = read_unity_yaml_string(text, "roleId")

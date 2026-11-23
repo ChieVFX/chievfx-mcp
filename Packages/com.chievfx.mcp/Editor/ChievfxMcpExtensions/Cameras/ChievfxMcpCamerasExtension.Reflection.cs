@@ -273,7 +273,68 @@ namespace Chievfx.Mcp.Extensions.Cameras
                 return Convert.ToBoolean(value, CultureInfo.InvariantCulture);
             }
 
+            // Cinemachine 3 wraps plain values in structs (Priority is a PrioritySettings built from an int): reflection
+            // does not apply implicit operators, so an int priority failed and the camera kept priority 0.
+            if (TryConvertImplicitly(value, nonNullableType, out var converted))
+            {
+                return converted;
+            }
+
             return value;
+        }
+
+        private static bool TryConvertImplicitly(object value, Type targetType, out object? converted)
+        {
+            foreach (var method in targetType.GetMethods(BindingFlags.Public | BindingFlags.Static))
+            {
+                var parameters = method.GetParameters();
+                if (method.Name != "op_Implicit" || method.ReturnType != targetType || parameters.Length != 1)
+                {
+                    continue;
+                }
+
+                var parameterType = parameters[0].ParameterType;
+                if (parameterType.IsInstanceOfType(value))
+                {
+                    converted = method.Invoke(null, new[] { value });
+                    return true;
+                }
+
+                if (parameterType.IsPrimitive && value is IConvertible)
+                {
+                    converted = method.Invoke(null, new[] { Convert.ChangeType(value, parameterType, CultureInfo.InvariantCulture) });
+                    return true;
+                }
+            }
+
+            converted = null;
+            return false;
+        }
+
+        // A struct member (Cinemachine 3 CinemachineCamera.Target is a CameraTarget) is set by writing the field on a copy and
+        // the copy back.
+        private static bool TrySetStructMemberField(object target, string memberName, string fieldName, object? value, List<string> warnings)
+        {
+            var current = ReadMember(target, memberName);
+            var field = current != null && current.GetType().IsValueType
+                ? current.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                : null;
+            if (current == null || field == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                field.SetValue(current, ConvertValue(value, field.FieldType));
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"Could not set {memberName}.{fieldName}: {ex.Message}");
+                return false;
+            }
+
+            return TrySetMember(target, memberName, current, warnings);
         }
 
         private static object? ConvertJToken(JToken token)

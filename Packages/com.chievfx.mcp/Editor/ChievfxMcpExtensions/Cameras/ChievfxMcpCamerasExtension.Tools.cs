@@ -47,7 +47,8 @@ namespace Chievfx.Mcp.Extensions.Cameras
             var result = CreateCommandEnvelope(BrainDetailUri(existing as Component ?? camera), status, dryRun);
             result["target"] = DescribeUnityCamera(camera);
             result["brain"] = existing != null ? DescribeBrain(existing) : null;
-            result["wouldCreate"] = wouldCreate;
+            // A real run that added the Brain said "wouldCreate:true", as a preview does.
+            result[dryRun ? "wouldCreate" : "created"] = wouldCreate;
             return result;
         }
 

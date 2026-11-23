@@ -29,7 +29,7 @@ namespace Chievfx.Mcp.Extensions.Cameras
                 ["detailUri"] = CinemachineDetailUri(camera),
                 ["priority"] = ReadMember(camera, "Priority"),
                 ["lens"] = DescribeLens(ReadMember(camera, "Lens")),
-                ["target"] = DescribeObjectReference(ReadMember(camera, "Target") ?? ReadMember(camera, "TrackingTarget") ?? ReadMember(camera, "Follow") ?? ReadMember(camera, "LookAt")),
+                ["target"] = DescribeCameraTarget(camera),
             };
 
             if (detail)
@@ -346,7 +346,7 @@ namespace Chievfx.Mcp.Extensions.Cameras
                 ["parentCamera"] = DescribeObjectReference(sequencer),
                 ["priority"] = ReadMember(sequencer, "Priority"),
                 ["lens"] = DescribeLens(ReadMember(sequencer, "Lens")),
-                ["target"] = DescribeObjectReference(ReadMember(sequencer, "Target") ?? ReadMember(sequencer, "TrackingTarget") ?? ReadMember(sequencer, "Follow") ?? ReadMember(sequencer, "LookAt")),
+                ["target"] = DescribeCameraTarget(sequencer),
                 ["loop"] = ReadMember(sequencer, "Loop"),
                 ["instructionCount"] = Math.Min(instructions.Length, MaxSequencerInstructionRows),
                 ["instructionCap"] = MaxSequencerInstructionRows,
@@ -415,6 +415,29 @@ namespace Chievfx.Mcp.Extensions.Cameras
             };
         }
 
+        // Cinemachine 3 CinemachineCamera.Target is a CameraTarget struct, not a Transform: Follow gives its TrackingTarget (and
+        // a Transform on Cinemachine 2), where the struct itself read as a type name.
+        private static Dictionary<string, object?>? DescribeCameraTarget(Component camera)
+        {
+            var target = ReadMember(camera, "Follow") ?? ReadMember(camera, "TrackingTarget") ?? ReadMember(camera, "LookAt");
+            return target == null ? null : DescribeObjectReference(target);
+        }
+
+        // A blend definition read as "Unity.Cinemachine.CinemachineBlendDefinition": its style and time are the value.
+        private static string? DescribeBlendText(object? blend)
+        {
+            if (blend == null)
+            {
+                return null;
+            }
+
+            var style = Convert.ToString(ReadMember(blend, "Style"), CultureInfo.InvariantCulture);
+            var time = ReadFloatMember(blend, "Time") ?? ReadFloatMember(blend, "BlendTime");
+            return string.IsNullOrEmpty(style)
+                ? Convert.ToString(blend, CultureInfo.InvariantCulture)
+                : time == null ? style : style + " " + Round(time)?.ToString(CultureInfo.InvariantCulture) + " s";
+        }
+
         private static Dictionary<string, object?> DescribeBlend(object? blend)
         {
             if (blend == null)
@@ -442,7 +465,7 @@ namespace Chievfx.Mcp.Extensions.Cameras
                 ["camera"] = DescribeUnityCamera(brain.GetComponent<Camera>()),
                 ["enabled"] = brain is Behaviour behaviour ? behaviour.enabled : null,
                 ["detailUri"] = BrainDetailUri(brain),
-                ["defaultBlend"] = Convert.ToString(ReadMember(brain, "DefaultBlend"), CultureInfo.InvariantCulture),
+                ["defaultBlend"] = DescribeBlendText(ReadMember(brain, "DefaultBlend")),
                 ["customBlendsAsset"] = customBlends is UnityEngine.Object asset ? DescribeAssetObject(asset) : null,
                 ["fallbackBehavior"] = "Uses matching CustomBlends entry when available; otherwise falls back to DefaultBlend.",
             };

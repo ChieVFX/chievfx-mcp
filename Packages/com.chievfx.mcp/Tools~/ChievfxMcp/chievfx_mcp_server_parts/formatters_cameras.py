@@ -41,7 +41,7 @@ def format_cameras_extension_resource_text(resource_id: str | None, result: dict
         return format_camera_status_text(result)
     if resource_id in {"cameras-cinemachine-camera-detail", "cameras-cinemachine-brain-detail", "cameras-cinemachine-sequencer-detail", "cameras-timeline-director-detail"}:
         target = result.get("target")
-        return format_camera_entity_row(target) if isinstance(target, dict) else to_toon(result)
+        return format_camera_entity_detail_text(target) if isinstance(target, dict) else to_toon(result)
     if resource_id == "cameras-timeline-asset-detail":
         asset = result.get("asset")
         return format_timeline_asset_detail_text(asset) if isinstance(asset, dict) else to_toon(result)
@@ -67,7 +67,7 @@ def format_camera_tool_text(tool_name: str, result: dict[str, Any]) -> str:
     header = [tool_name, f"ok:{format_toon_atom(result.get('ok', True))}"]
     if result.get("dryRun") is True:
         header.append("dryRun:true")
-    for key in ("action", "wouldCreate", "wouldCreateCamera", "wouldCreateBrain", "wouldCreateAsset", "createdAsset", "addedConfiner", "addedSplineDolly"):
+    for key in ("action", "wouldCreate", "created", "wouldCreateCamera", "wouldCreateBrain", "wouldCreateAsset", "createdAsset", "addedConfiner", "addedSplineDolly"):
         value = result.get(key)
         if not should_omit_toon_value(value):
             header.append(f"{key}:{format_toon_atom(value)}")
@@ -164,6 +164,9 @@ def format_camera_nested_value(value: dict[str, Any]) -> str:
         return format_camera_text(value.get("path"))
     if not should_omit_toon_value(value.get("name")):
         return format_camera_text(value.get("name"))
+    # An orthographic lens (it follows its Unity Camera) ignores fieldOfView: "fov=40" read as the camera's view.
+    if value.get("orthographic") is True and "orthographicSize" in value:
+        return "ortho size=" + format_toon_atom(value.get("orthographicSize"))
     if "fieldOfView" in value:
         return "fov=" + format_toon_atom(value.get("fieldOfView"))
     if "Value" in value:
@@ -242,6 +245,35 @@ def format_camera_entity_row(row: dict[str, Any]) -> str:
     suffix = f" ({', '.join(badges)})" if badges else ""
     detail = format_camera_detail_bits(row)
     return f"- {path}{suffix}{detail}"
+
+
+def format_camera_entity_detail_text(row: dict[str, Any]) -> str:
+    """A detail resource: the summary row without the link to itself, then what the row leaves out.
+
+    It was the same one line as the list, ending in its own URI, so the camera's target and lens could not be read.
+    """
+    lines = [format_camera_entity_row({key: value for key, value in row.items() if key != "detailUri"})]
+    target = row.get("target")
+    if isinstance(target, dict) and not should_omit_toon_value(target.get("path") or target.get("name")):
+        lines.append(f"  target: {format_camera_text(target.get('path') or target.get('name'))} (id:{format_toon_atom(target.get('instanceId'))})")
+    elif "target" in row:
+        lines.append("  target: none")
+    lens = row.get("lens")
+    if isinstance(lens, dict) and not lens.get("missing"):
+        bits = [f"{key}={format_toon_atom(lens.get(key))}" for key in ("orthographic", "fieldOfView", "orthographicSize", "nearClipPlane", "farClipPlane", "modeOverride") if not should_omit_toon_value(lens.get(key))]
+        if bits:
+            lines.append("  lens: " + " ".join(bits))
+    transform = row.get("unityTransform")
+    if isinstance(transform, dict):
+        position = transform.get("position")
+        rotation = transform.get("rotationEuler")
+        if isinstance(position, dict):
+            lines.append(f"  position: {format_toon_atom(position.get('x'))},{format_toon_atom(position.get('y'))},{format_toon_atom(position.get('z'))}"
+                         + (f" rotation: {format_toon_atom(rotation.get('x'))},{format_toon_atom(rotation.get('y'))},{format_toon_atom(rotation.get('z'))}" if isinstance(rotation, dict) else ""))
+    safe_fields = row.get("safeSetFields")
+    if isinstance(safe_fields, list) and safe_fields:
+        lines.append("  cinemachine-set fields: " + ", ".join(str(field) for field in safe_fields))
+    return "\n".join(lines)
 
 
 def format_camera_detail_bits(row: dict[str, Any]) -> str:

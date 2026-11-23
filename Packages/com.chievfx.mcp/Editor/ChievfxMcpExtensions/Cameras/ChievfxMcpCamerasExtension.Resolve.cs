@@ -305,6 +305,7 @@ namespace Chievfx.Mcp.Extensions.Cameras
                 ["nearClipPlane"] = Round(ReadFloatMember(lens, "NearClipPlane")),
                 ["farClipPlane"] = Round(ReadFloatMember(lens, "FarClipPlane")),
                 ["modeOverride"] = Convert.ToString(ReadMember(lens, "ModeOverride"), CultureInfo.InvariantCulture),
+                ["orthographic"] = ReadMember(lens, "Orthographic") as bool?,
             };
         }
 

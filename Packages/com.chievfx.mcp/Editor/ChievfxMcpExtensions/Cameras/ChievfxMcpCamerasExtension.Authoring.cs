@@ -422,19 +422,35 @@ namespace Chievfx.Mcp.Extensions.Cameras
                 }
             }
 
+            // The lens follows the Unity Camera it drives: under an orthographic camera fieldOfView is stored and does nothing.
+            var isOrthographic = ReadMember(mutableLens, "Orthographic") as bool?;
+            if (isOrthographic == true && lensPatch.ContainsKey("fieldOfView"))
+            {
+                warnings.Add("The lens is orthographic (it follows its Unity Camera): fieldOfView changes nothing on screen; set orthographicSize.");
+            }
+            else if (isOrthographic == false && lensPatch.ContainsKey("orthographicSize"))
+            {
+                warnings.Add("The lens is perspective (it follows its Unity Camera): orthographicSize changes nothing on screen; set fieldOfView.");
+            }
+
             TrySetMember(camera, "Lens", mutableLens, warnings);
         }
 
+        // A failed attempt is reported only when no way worked: "Could not set Target" next to a target set through Follow read
+        // as a camera without a target.
         private static void TrySetCameraTarget(Component camera, Transform target, List<string> warnings)
         {
-            if (TrySetMember(camera, "Target", target, warnings)
-                || TrySetMember(camera, "TrackingTarget", target, warnings)
-                || TrySetMember(camera, "Follow", target, warnings))
+            var attempts = new List<string>();
+            if (TrySetStructMemberField(camera, "Target", "TrackingTarget", target, attempts)
+                || TrySetMember(camera, "Target", target, attempts)
+                || TrySetMember(camera, "TrackingTarget", target, attempts)
+                || TrySetMember(camera, "Follow", target, attempts)
+                || TrySetMember(camera, "LookAt", target, attempts))
             {
                 return;
             }
 
-            TrySetMember(camera, "LookAt", target, warnings);
+            warnings.AddRange(attempts);
         }
     }
 }

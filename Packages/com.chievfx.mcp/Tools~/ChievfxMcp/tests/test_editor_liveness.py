@@ -245,6 +245,33 @@ class EditorLivenessTests(unittest.TestCase):
         self.server._script_started_editor_work_at = time.monotonic() - 30
         self.assertEqual(self.server.assess_editor_liveness()["state"], "unresponsive")
 
+    def test_native_dialog_of_an_idle_editor_is_named(self) -> None:
+        # EditorUtility.DisplayDialog ("Ошибки в конфигах" after a game start): an NSAlert keeps the editor at 0.1% CPU, the stack
+        # was never sampled, and the agent was told "hung, behind a modal dialog, or in the crash handler".
+        self.write_heartbeat(age_seconds=70, process_id=os.getpid())
+        self.cpu_seconds = [100.0, 100.0 + mcp.EDITOR_CPU_SAMPLE_SECONDS * 0.001]
+        self.modal_loop = "runModalForWindow"
+
+        self.assertIsNone(self.server.assess_editor_liveness().get("modalLoop"), "one sample is not a dialog yet")
+        self.age_modal_check()
+        self.cpu_seconds = [300.0, 300.0 + mcp.EDITOR_CPU_SAMPLE_SECONDS * 0.001]
+        liveness = self.server.assess_editor_liveness()
+
+        self.assertEqual(liveness["state"], "unresponsive", liveness)
+        self.assertEqual(liveness.get("modalLoop"), "runModalForWindow")
+        self.assertIn("DisplayDialog needs an answer", self.server.describe_editor_down(liveness))
+
+    def test_idle_progress_window_is_not_named_a_dialog(self) -> None:
+        self.write_heartbeat(age_seconds=70, process_id=os.getpid())
+        self.cpu_seconds = [100.0, 100.0 + mcp.EDITOR_CPU_SAMPLE_SECONDS * 0.001]
+        self.modal_loop = "ContainerWindow::MakeModal"
+
+        self.server.assess_editor_liveness()
+        self.age_modal_check()
+        self.cpu_seconds = [300.0, 300.0 + mcp.EDITOR_CPU_SAMPLE_SECONDS * 0.001]
+
+        self.assertIsNone(self.server.assess_editor_liveness().get("modalLoop"))
+
     def test_progress_window_while_entering_play_is_not_a_dialog(self) -> None:
         # Entering Play Mode under memory pressure: the heartbeat stopped for 5 s with Unity's "Hold on" window up, and one
         # sample of its modal loop failed game-args-play with "waits in a modal dialog" while Play went on fine.

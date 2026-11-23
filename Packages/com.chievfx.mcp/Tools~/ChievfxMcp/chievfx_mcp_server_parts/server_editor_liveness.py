@@ -181,6 +181,11 @@ class EditorLivenessMixin:
         state = ("busy" if busy_sign is not None else "stale") if heartbeat_age < limit else "unresponsive"
         # A dialog waits for a click, not for time: no point in waiting out the limit.
         modal_loop = self.recent_editor_modal_loop(process_id) if busy_sign is None else None
+        # A native dialog (EditorUtility.DisplayDialog, an NSAlert) leaves the editor idle, so the CPU check never sampled its
+        # stack, and the verdict could only guess "hung, behind a modal dialog, or in the crash handler".
+        if busy_sign is None and modal_loop is None and heartbeat_age >= EDITOR_IDLE_MODAL_CHECK_AFTER_SECONDS:
+            idle_loop = self.editor_modal_loop(process_id)
+            modal_loop = idle_loop if idle_loop in MODAL_SESSION_STACK_MARKERS else None
         if modal_loop is not None:
             row["modalLoop"] = modal_loop
             state = "unresponsive"

@@ -182,8 +182,10 @@ BRIDGE_POST_RECOVERY_RESPONSE_GRACE_SECONDS = 10.0
 EDITOR_UNRESPONSIVE_SECONDS = 60.0
 # The same verdict while one of those is under way: a large project can spend minutes compiling or importing.
 EDITOR_BUSY_UNRESPONSIVE_SECONDS = 900.0
-# How often a stale, CPU-busy editor's main thread is sampled for a modal dialog loop (sample itself takes ~2 s).
+# How often a stale editor's main thread is sampled for a modal dialog loop (sample itself takes ~2 s).
 EDITOR_MODAL_CHECK_SECONDS = 15.0
+# A stale heartbeat of an idle editor with no work under way is sampled for a dialog past this age (shorter stalls are frames).
+EDITOR_IDLE_MODAL_CHECK_AFTER_SECONDS = 10.0
 # A compile, import or package flag in the last heartbeat is waited out; past this stale age the main thread is sampled too:
 # "Missing Signature" after a package change opens during the compile, and the flag hid it for 900 s.
 EDITOR_FLAGGED_MODAL_CHECK_AFTER_SECONDS = 120.0

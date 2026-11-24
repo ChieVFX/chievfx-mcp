@@ -111,6 +111,7 @@ namespace Chievfx.Mcp.Editor
             }
 
             if (string.Equals(name, "Dropdown", StringComparison.Ordinal)
+                || string.Equals(name, "DropdownField", StringComparison.Ordinal)
                 || string.Equals(name, "TMP_Dropdown", StringComparison.Ordinal))
             {
                 return "dropdown";
@@ -168,7 +169,8 @@ namespace Chievfx.Mcp.Editor
                 return "scrollrect";
             }
 
-            if (string.Equals(trimmed, "TMP_Dropdown", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(trimmed, "TMP_Dropdown", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(trimmed, "DropdownField", StringComparison.OrdinalIgnoreCase))
             {
                 return "dropdown";
             }

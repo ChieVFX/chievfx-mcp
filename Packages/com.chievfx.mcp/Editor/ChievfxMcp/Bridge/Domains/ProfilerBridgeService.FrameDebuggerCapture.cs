@@ -117,6 +117,7 @@ namespace Chievfx.Mcp.Editor
                 }
 
                 capture.Before = before;
+                capture.BeforeRenderTarget = ReadPreviousRenderTarget(capture.EventIndex, capture.BeforeEventIndex);
                 SelectDrawCallCaptureEvent(window, capture.EventIndex);
                 return new { success = true, pending = true, eventIndex = capture.EventIndex };
             }
@@ -128,7 +129,8 @@ namespace Chievfx.Mcp.Editor
                 capture.Diagnostics.Add("The two halves are the same picture: the draw call changed no pixel of the camera target (drawn off screen, culled by depth, or into another target), or the Game view did not re-render; call again to make sure.");
             }
 
-            return BuildDrawCallScreenshot(capture.Before, after, capture.EventIndex, capture.BeforeEventIndex, capture.Group, capture.DrawCallIndex, capture.MaxDimension, capture.Diagnostics);
+            return BuildDrawCallScreenshot(capture.Before, after, capture.EventIndex, capture.BeforeEventIndex, capture.BeforeRenderTarget,
+                capture.Group, capture.DrawCallIndex, capture.MaxDimension, capture.Diagnostics);
         }
 
         private static void SelectDrawCallCaptureEvent(EditorWindow window, int eventIndex)
@@ -187,16 +189,46 @@ namespace Chievfx.Mcp.Editor
 
             SelectFrameDebuggerEventForCapture(window, beforeEventIndex, diagnostics);
             var before = screenshots.CaptureGameView(maxDimension);
+            var beforeRenderTarget = ReadPreviousRenderTarget(eventIndex, beforeEventIndex);
             SelectFrameDebuggerEventForCapture(window, eventIndex, diagnostics);
             var after = screenshots.CaptureGameView(maxDimension);
-            return BuildDrawCallScreenshot(before, after, eventIndex, beforeEventIndex, group, drawCallIndex, maxDimension, diagnostics);
+            return BuildDrawCallScreenshot(before, after, eventIndex, beforeEventIndex, beforeRenderTarget, group, drawCallIndex, maxDimension, diagnostics);
         }
 
-        private ImageResult BuildDrawCallScreenshot(ImageResult before, ImageResult after, int eventIndex, int beforeEventIndex, FrameDebuggerGroup group, int drawCallIndex, int maxDimension, List<string> diagnostics)
+        private static string? ReadPreviousRenderTarget(int eventIndex, int beforeEventIndex)
+        {
+            if (eventIndex == beforeEventIndex)
+            {
+                return null;
+            }
+
+            var previousEvent = CreateFrameDebuggerEventSummary(beforeEventIndex, includeDetails: true, new List<string>());
+            return ReadDrawCallRenderTarget(previousEvent);
+        }
+
+        private static string? ReadDrawCallRenderTarget(Dictionary<string, object?> frameEvent)
+        {
+            if (frameEvent.TryGetValue("renderTargetBackBuffer", out var backBuffer) && backBuffer is true)
+            {
+                return "back buffer";
+            }
+
+            return frameEvent.TryGetValue("renderTarget", out var target) ? target as string : null;
+        }
+
+        private ImageResult BuildDrawCallScreenshot(ImageResult before, ImageResult after, int eventIndex, int beforeEventIndex,
+            string? beforeRenderTarget, FrameDebuggerGroup group, int drawCallIndex, int maxDimension, List<string> diagnostics)
         {
             var combined = StackFrameDebuggerScreenshots(before, after, out var width, out var height);
 
             var frameEvent = CreateFrameDebuggerEventSummary(eventIndex, includeDetails: true, diagnostics);
+            var renderTarget = ReadDrawCallRenderTarget(frameEvent);
+            if (beforeRenderTarget != null && renderTarget != null && beforeRenderTarget != renderTarget)
+            {
+                diagnostics.Add($"Render target changed: the upper half (event {beforeEventIndex}) shows '{beforeRenderTarget}', "
+                    + $"and the lower half (event {eventIndex}) shows '{renderTarget}'. The halves cannot show the draw call's effect on one target.");
+            }
+
             frameEvent["groupIndex"] = group.Index;
             frameEvent["drawCallIndex"] = drawCallIndex;
             NoteLinearCameraTarget(frameEvent, diagnostics);
@@ -457,6 +489,7 @@ namespace Chievfx.Mcp.Editor
             public FrameDebuggerGroup Group { get; set; } = null!;
             public List<string> Diagnostics { get; } = new();
             public ImageResult? Before { get; set; }
+            public string? BeforeRenderTarget { get; set; }
             // The first selection after the Frame Debugger turns on can take more than one step to re-render the Game view:
             // a capture equal to this picture is still the frame from before the selection, so the event is selected again.
             public string? PictureBeforeSelection { get; set; }

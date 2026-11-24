@@ -45,15 +45,18 @@ namespace Chievfx.Mcp.Editor
             }
 
             // Frames kept from an earlier recording would be summarized and saved together with this one.
-            var clearedFrames = GetProfilerEnabled() ? 0 : ClearRecordedFrames();
+            var wasRecording = GetProfilerEnabled();
+            var clearedFrames = wasRecording ? 0 : ClearRecordedFrames();
             SetProfilerEnabled(true);
             return new
             {
-                started = true,
+                started = !wasRecording,
                 enabled = GetProfilerEnabled(),
                 connectionId,
                 clearedFrames = clearedFrames > 0 ? clearedFrames : (int?)null,
-                note = IsRecordingNothingOutsidePlay() ? EditorNotProfiledNote : null,
+                note = wasRecording
+                    ? "Recording is already on; existing frames were kept. Stop the recording before starting a fresh capture."
+                    : IsRecordingNothingOutsidePlay() ? EditorNotProfiledNote : null,
                 targets = GetProfilerTargets()
             };
         }
@@ -292,7 +295,8 @@ namespace Chievfx.Mcp.Editor
 
                 // The first frame holds the start of the recording itself (session metadata, memory counters flush): it was
                 // the maximum of a short capture while the game frames were a sixth of it.
-                var firstCounted = last > first ? first + 1 : first;
+                var skippedStartupFrame = first == 0 && last > first;
+                var firstCounted = skippedStartupFrame ? first + 1 : first;
                 var sum = 0d;
                 var max = 0f;
                 var worstFrame = -1;
@@ -339,10 +343,17 @@ namespace Chievfx.Mcp.Editor
                 var summary = new Dictionary<string, object?>
                 {
                     ["frames"] = count,
+                    ["firstAvailableFrameIndex"] = first,
+                    ["lastAvailableFrameIndex"] = last,
                     ["frameMsAvg"] = Math.Round(sum / count, 2),
                     ["frameMsMax"] = Math.Round(max, 2),
                     ["worstFrame"] = worstFrame,
                 };
+                if (first > 0)
+                {
+                    summary["note"] = $"Profiler history starts at frame {first}; earlier frames are unavailable. The summary covers only the retained frames.";
+                }
+
                 // In Play in the editor the main thread is the game (PlayerLoop) plus the editor's own work (EditorLoop): the
                 // worst frame by thread time was the editor's, 38 ms of a 47 ms frame whose game part took 9.
                 if (loopFrames > 0 && editorLoopSum > 0d)
@@ -357,7 +368,8 @@ namespace Chievfx.Mcp.Editor
                         ? "frameMs = whole main thread, in Play in the editor with the editor's own work (editorLoopMs); the game's part is "
                           + "playerLoopMs, worstGameFrame its slowest frame; "
                         : "main thread time of each recorded frame; ")
-                    + "the first frame, the recording start, left out; a frame index is for profiler-window-control selectedFrameIndex while "
+                    + (skippedStartupFrame ? "the first frame, the recording start, left out; " : "")
+                    + "a frame index is for profiler-window-control selectedFrameIndex while "
                     + "the frames are still in the profiler; open the .data file for markers";
                 return summary;
             }

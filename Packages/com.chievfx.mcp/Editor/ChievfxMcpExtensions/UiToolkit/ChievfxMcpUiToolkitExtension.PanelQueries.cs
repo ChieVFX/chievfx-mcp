@@ -103,31 +103,36 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 }
             }
 
-            var panel = group.Panel;
+            var screenForUiToolkit = new Vector2(position.ScreenPosition.x, position.ScreenSize.y - position.ScreenPosition.y);
+            return ConvertTopLeftScreenPointToPanel(status, group.Panel, screenForUiToolkit, warnings);
+        }
+
+        private static Vector2? ConvertTopLeftScreenPointToPanel(
+            UiToolkitDependencyStatus status, object? panel, Vector2 screenPoint, List<string>? warnings = null)
+        {
             if (panel == null || status.RuntimePanelUtilsType == null)
             {
-                warnings.Add("RuntimePanelUtils.ScreenToPanel could not run because panel/runtime helper type is unavailable.");
+                warnings?.Add("RuntimePanelUtils.ScreenToPanel could not run because panel/runtime helper type is unavailable.");
                 return null;
             }
 
-            var screenForUiToolkit = new Vector2(position.ScreenPosition.x, position.ScreenSize.y - position.ScreenPosition.y);
             var method = status.RuntimePanelUtilsType
                 .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
                 .FirstOrDefault(candidate => string.Equals(candidate.Name, "ScreenToPanel", StringComparison.Ordinal)
                     && candidate.GetParameters().Length == 2);
             if (method == null)
             {
-                warnings.Add("RuntimePanelUtils.ScreenToPanel method was not found.");
+                warnings?.Add("RuntimePanelUtils.ScreenToPanel method was not found.");
                 return null;
             }
 
             try
             {
-                return (Vector2)method.Invoke(null, new[] { panel, (object)screenForUiToolkit })!;
+                return (Vector2)method.Invoke(null, new[] { panel, (object)screenPoint })!;
             }
             catch (Exception ex)
             {
-                warnings.Add("RuntimePanelUtils.ScreenToPanel failed: " + RootMessage(ex));
+                warnings?.Add("RuntimePanelUtils.ScreenToPanel failed: " + RootMessage(ex));
                 return null;
             }
         }
@@ -326,8 +331,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         }
 
         internal static bool TryGetUiToolkitScreenZone(
-            UiToolkitDependencyStatus status,
-            object? panel,
+            Rect screenBoundsInPanel,
             object visualElement,
             Vector2 screenSize,
             out Dictionary<string, object?> zone)
@@ -339,10 +343,12 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                 return false;
             }
 
-            if (!ConvertPanelBoundsToScreenZone(status, panel, bounds.Value, screenSize, out var xMin, out var yMin, out var xMax, out var yMax))
-            {
-                return false;
-            }
+            var scaleX = screenSize.x / screenBoundsInPanel.width;
+            var scaleY = screenSize.y / screenBoundsInPanel.height;
+            var xMin = (bounds.Value.xMin - screenBoundsInPanel.xMin) * scaleX;
+            var xMax = (bounds.Value.xMax - screenBoundsInPanel.xMin) * scaleX;
+            var yMin = (screenBoundsInPanel.yMax - bounds.Value.yMax) * scaleY;
+            var yMax = (screenBoundsInPanel.yMax - bounds.Value.yMin) * scaleY;
 
             if (!ChievfxMcpRuntimeUiControlFind.IsZonePartiallyOnScreen(xMin, yMin, xMax, yMax, screenSize))
             {
@@ -353,52 +359,16 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             return true;
         }
 
-        internal static bool ConvertPanelBoundsToScreenZone(
-            UiToolkitDependencyStatus status,
-            object? panel,
-            Rect panelBounds,
-            Vector2 screenSize,
-            out float xMin,
-            out float yMin,
-            out float xMax,
-            out float yMax)
+        internal static Rect GetScreenBoundsInPanel(UiToolkitDependencyStatus status, object? panel, Vector2 screenSize)
         {
-            xMin = yMin = xMax = yMax = 0f;
-            if (panel != null && status.RuntimePanelUtilsType != null)
+            var topLeft = ConvertTopLeftScreenPointToPanel(status, panel, Vector2.zero);
+            var bottomRight = ConvertTopLeftScreenPointToPanel(status, panel, screenSize);
+            if (topLeft is Vector2 min && bottomRight is Vector2 max && max.x > min.x && max.y > min.y)
             {
-                var method = status.RuntimePanelUtilsType
-                    .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                    .FirstOrDefault(candidate => string.Equals(candidate.Name, "PanelToScreen", StringComparison.Ordinal)
-                        && candidate.GetParameters().Length == 2);
-                if (method != null)
-                {
-                    var panelPoints = new[]
-                    {
-                        new Vector2(panelBounds.xMin, panelBounds.yMin),
-                        new Vector2(panelBounds.xMax, panelBounds.yMin),
-                        new Vector2(panelBounds.xMax, panelBounds.yMax),
-                        new Vector2(panelBounds.xMin, panelBounds.yMax),
-                    };
-                    var screenPoints = panelPoints
-                        .Select(point =>
-                        {
-                            var topLeftScreen = (Vector2)method.Invoke(null, new[] { panel, (object)point })!;
-                            return new Vector2(topLeftScreen.x, screenSize.y - topLeftScreen.y);
-                        })
-                        .ToArray();
-                    xMin = screenPoints.Min(point => point.x);
-                    xMax = screenPoints.Max(point => point.x);
-                    yMin = screenPoints.Min(point => point.y);
-                    yMax = screenPoints.Max(point => point.y);
-                    return xMax > xMin && yMax > yMin;
-                }
+                return Rect.MinMaxRect(min.x, min.y, max.x, max.y);
             }
 
-            xMin = panelBounds.xMin;
-            xMax = panelBounds.xMax;
-            yMin = screenSize.y - panelBounds.yMax;
-            yMax = screenSize.y - panelBounds.yMin;
-            return xMax > xMin && yMax > yMin;
+            return new Rect(Vector2.zero, screenSize);
         }
     }
 }

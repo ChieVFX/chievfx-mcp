@@ -435,10 +435,11 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             }
 
             var screenSize = ChievfxMcpRuntimeScreenSize.Resolve();
-            var matches = new List<(object element, PanelGroup group, string controlType)>();
+            var matches = new List<(object element, string controlType, Dictionary<string, object?> zone)>();
 
             foreach (var group in FindRuntimePanelGroups(status))
             {
+                var screenBoundsInPanel = GetScreenBoundsInPanel(status, group.Panel, screenSize);
                 foreach (var document in group.Documents)
                 {
                     var root = GetRootVisualElement(document);
@@ -468,12 +469,12 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
                             continue;
                         }
 
-                        if (!TryGetUiToolkitScreenZone(status, group.Panel, item.Element, screenSize, out _))
+                        if (!TryGetUiToolkitScreenZone(screenBoundsInPanel, item.Element, screenSize, out var zone))
                         {
                             continue;
                         }
 
-                        matches.Add((item.Element, group, controlType));
+                        matches.Add((item.Element, controlType, zone));
                     }
                 }
             }
@@ -486,14 +487,13 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             var rows = matches
                 .Select(entry =>
                 {
-                    TryGetUiToolkitScreenZone(status, entry.group.Panel, entry.element, screenSize, out var zone);
                     return new Dictionary<string, object?>
                     {
                         ["framework"] = "uitoolkit",
                         ["path"] = GetVisualElementPath(entry.element),
                         ["visualElementRef"] = CreateVisualElementRef(entry.element),
                         ["controlType"] = entry.controlType,
-                        ["zone"] = zone,
+                        ["zone"] = entry.zone,
                     };
                 })
                 .ToArray();

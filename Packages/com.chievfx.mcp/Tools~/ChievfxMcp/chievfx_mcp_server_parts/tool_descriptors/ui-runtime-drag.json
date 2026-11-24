@@ -1,6 +1,6 @@
 {
   "name": "ui-runtime-drag",
-  "description": "Drag Play Mode runtime UI from a start screen position to an end position or delta. Tries uGUI and UI Toolkit at the same bottom-left-origin coordinates used by ui-control-find. Requires Play Mode.",
+  "description": "Drag Play Mode runtime UI from a start screen position to an end position or delta. Tries uGUI and UI Toolkit at the same bottom-left-origin coordinates used by ui-control-find. UI Toolkit dispatches the synthetic pointer moves in one frame, so scroll handlers that use frame time can add inertia after release. Requires Play Mode.",
   "inputSchema": {
     "type": "object",
     "properties": {

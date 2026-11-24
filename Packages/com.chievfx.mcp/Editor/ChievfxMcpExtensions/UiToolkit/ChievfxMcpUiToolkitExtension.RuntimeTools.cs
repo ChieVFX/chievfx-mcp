@@ -187,12 +187,10 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         {
             var warnings = new List<string>();
             var geometry = ChievfxMcpRuntimeUiAdapterRegistry.ReadRuntimeDragGeometry(args, warnings);
-            var panelDelta = new Vector2(geometry.ScreenDelta.x, -geometry.ScreenDelta.y);
             var dragArgs = args is JObject obj ? (JObject)obj.DeepClone() : new JObject();
             dragArgs["x"] = geometry.Start.ScreenPosition.x;
             dragArgs["y"] = geometry.Start.ScreenPosition.y;
             dragArgs["isNormalized"] = false;
-            dragArgs["delta"] = new JObject { ["x"] = panelDelta.x, ["y"] = panelDelta.y };
             if (args["steps"] != null)
             {
                 dragArgs["steps"] = args["steps"];
@@ -233,6 +231,13 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             }
             else
             {
+                var panel = resolution.Group?.Panel ?? PanelGroup.FromElement(resolution.Target).Panel;
+                var screenSize = geometry.Start.ScreenSize;
+                var screenBoundsInPanel = GetScreenBoundsInPanel(status, panel, screenSize);
+                var panelDelta = new Vector2(
+                    geometry.ScreenDelta.x * screenBoundsInPanel.width / screenSize.x,
+                    -geometry.ScreenDelta.y * screenBoundsInPanel.height / screenSize.y);
+                dragArgs["delta"] = new JObject { ["x"] = panelDelta.x, ["y"] = panelDelta.y };
                 result["dispatchedEvents"] = ApplyRuntimeInteraction("pointerDrag", resolution.Target, resolution.PanelPosition, dragArgs, warnings);
             }
 

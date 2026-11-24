@@ -218,7 +218,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
         internal static bool IsProbeHitElement(object visualElement, Vector2 panelPosition)
         {
-            var bounds = ReadRectMember(visualElement, "worldBound");
+            var bounds = GetVisiblePanelBounds(visualElement);
             if (!bounds.HasValue || !bounds.Value.Contains(panelPosition))
             {
                 return false;
@@ -230,8 +230,22 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
         internal static float GetProbeHitArea(object visualElement)
         {
-            var bounds = ReadRectMember(visualElement, "worldBound");
+            var bounds = GetVisiblePanelBounds(visualElement);
             return bounds.HasValue ? bounds.Value.width * bounds.Value.height : float.MaxValue;
+        }
+
+        // The layout bounds of a ScrollView row can extend outside its viewport. Unity's worldClip already combines its ancestor clips.
+        private static Rect? GetVisiblePanelBounds(object visualElement)
+        {
+            var bounds = ReadRectMember(visualElement, "worldBound");
+            if (bounds is not Rect elementBounds || ReadRectMember(visualElement, "worldClip") is not Rect clip)
+            {
+                return bounds;
+            }
+
+            var min = Vector2.Max(elementBounds.min, clip.min);
+            var max = Vector2.Min(elementBounds.max, clip.max);
+            return max.x > min.x && max.y > min.y ? Rect.MinMaxRect(min.x, min.y, max.x, max.y) : null;
         }
 
         internal static IEnumerable<TreeItem> EnumerateVisibleTree(object root, UiToolkitDependencyStatus status, int maxRows)
@@ -337,7 +351,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
             out Dictionary<string, object?> zone)
         {
             zone = new Dictionary<string, object?>();
-            var bounds = ReadRectMember(visualElement, "worldBound");
+            var bounds = GetVisiblePanelBounds(visualElement);
             if (!bounds.HasValue || bounds.Value.width <= 0.5f || bounds.Value.height <= 0.5f)
             {
                 return false;

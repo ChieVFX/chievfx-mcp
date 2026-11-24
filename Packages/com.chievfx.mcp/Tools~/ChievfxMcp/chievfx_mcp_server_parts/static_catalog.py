@@ -54,7 +54,7 @@ RESOURCE_TEMPLATES: list[dict[str, Any]] = [
         "id": "scene-component",
         "uriTemplate": "chievfx://scene/{scenePath}/go/{goPath}/component/{componentKey}",
         "name": "Component serialized values by scene, gameobject path, and component key",
-        "description": "Serialized values for one component. Percent-encode every dynamic value as a full URI segment.",
+        "description": "Use the component key or its unique full type name. Percent-encode every dynamic value as a full URI segment.",
         "mimeType": RESOURCE_MIME_TYPE,
     },
     {
@@ -68,7 +68,7 @@ RESOURCE_TEMPLATES: list[dict[str, Any]] = [
         "id": "scene-all-component",
         "uriTemplate": "chievfx://scene/all/go/{goPath}/component/{componentKey}",
         "name": "Component serialized values across loaded scenes",
-        "description": "Serialized values for one component across all loaded scenes. Prefer this default when scene scope is unknown.",
+        "description": "Use the component key or its unique full type name. Prefer this template when scene scope is unknown.",
         "mimeType": RESOURCE_MIME_TYPE,
     },
     {

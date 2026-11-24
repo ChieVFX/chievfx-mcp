@@ -497,20 +497,22 @@ namespace Chievfx.Mcp.Editor
                 return (exactMatches[0].Component!, exactMatches[0].Key);
             }
 
-            var simpleMatches = components
-                .Select((component, index) => new { Component = component, Key = keys[index], SimpleName = GetComponentSimpleName(component) })
-                .Where(entry => entry.Component != null && string.Equals(entry.SimpleName, componentKey, StringComparison.Ordinal))
+            var typeMatches = components
+                .Select((component, index) => new { Component = component, Key = keys[index] })
+                .Where(entry => entry.Component != null
+                    && (string.Equals(entry.Component.GetType().Name, componentKey, StringComparison.Ordinal)
+                        || string.Equals(entry.Component.GetType().FullName, componentKey, StringComparison.Ordinal)))
                 .ToArray();
-            if (simpleMatches.Length == 1)
+            if (typeMatches.Length == 1)
             {
-                return (simpleMatches[0].Component!, simpleMatches[0].Key);
+                return (typeMatches[0].Component!, typeMatches[0].Key);
             }
 
-            if (simpleMatches.Length > 1)
+            if (typeMatches.Length > 1)
             {
                 throw new InvalidOperationException(
                     $"Component key '{componentKey}' is ambiguous on GameObject '{gameObject.name}'. "
-                    + "Use a suffixed key such as BoxCollider.1.");
+                    + $"Use one of: {string.Join(", ", typeMatches.Select(entry => entry.Key))}.");
             }
 
             throw new InvalidOperationException($"No component found with key '{componentKey}' on GameObject '{gameObject.name}'.");

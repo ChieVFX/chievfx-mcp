@@ -22,9 +22,9 @@ namespace Chievfx.Mcp.Editor
             new[]
             {
                 Template("scene-go", "chievfx://scene/{scenePath}/go/{goPath}", "GameObject summary by scene and path", "Compact GameObject summary. Percent-encode scene path and hierarchy path as full URI segments."),
-                Template("scene-component", "chievfx://scene/{scenePath}/go/{goPath}/component/{componentKey}", "Component serialized values by scene, GameObject path, and component key", "Serialized values for one component. Percent-encode every dynamic value as a full URI segment."),
+                Template("scene-component", "chievfx://scene/{scenePath}/go/{goPath}/component/{componentKey}", "Component serialized values by scene, GameObject path, and component key", "Use the component key or its unique full type name. Percent-encode every dynamic value as a full URI segment."),
                 Template("scene-all-go", "chievfx://scene/all/go/{goPath}", "GameObject summary across loaded scenes", "Compact GameObject summary across all loaded scenes. Prefer this default when scene scope is unknown."),
-                Template("scene-all-component", "chievfx://scene/all/go/{goPath}/component/{componentKey}", "Component serialized values across loaded scenes", "Serialized values for one component across all loaded scenes. Prefer this default when scene scope is unknown."),
+                Template("scene-all-component", "chievfx://scene/all/go/{goPath}/component/{componentKey}", "Component serialized values across loaded scenes", "Use the component key or its unique full type name. Prefer this template when scene scope is unknown."),
                 Template("asset-detail", "chievfx://asset/{guid}", "Asset detail by GUID", "Load one persisted main asset by GUID with AssetImporter metadata and subasset drill-down hints."),
                 Template("asset-subasset-detail", "chievfx://asset/{guid}/id/{localId}", "Subasset detail by GUID and local file identifier", "Load one persisted subasset by GUID and long local file identifier."),
                 Template("scene-all-material-profile-shader", "chievfx://scene/all/material-profile/shader/{shaderKey}", "Material profile by shader across loaded scenes", "Drill into materials using one shader key from the material profile summary across loaded scenes."),

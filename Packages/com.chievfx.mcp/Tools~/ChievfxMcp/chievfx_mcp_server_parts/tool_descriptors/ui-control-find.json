@@ -50,7 +50,7 @@
       "texts": {
         "type": "boolean",
         "default": false,
-        "description": "Also return the texts a player sees (uGUI Text and TextMeshPro): titles, descriptions, counters and button captions marked (button) or (disabled button), grouped by window and read top to bottom; hidden, off-screen and covered texts are left out. wildcards filter them by text, window name or hierarchy path (*Button* also finds captions of objects named ...Button). Reads a screen without a screenshot."
+        "description": "Also return visible uGUI and TextMeshPro texts, grouped by window and read top to bottom. Control captions are marked by type and availability, e.g. (button), (disabled button), (slider) or (toggle). Hidden, off-screen and covered texts are left out. wildcards filter them by text, window name or hierarchy path (*Button* also finds captions of objects named ...Button)."
       }
     },
     "additionalProperties": false

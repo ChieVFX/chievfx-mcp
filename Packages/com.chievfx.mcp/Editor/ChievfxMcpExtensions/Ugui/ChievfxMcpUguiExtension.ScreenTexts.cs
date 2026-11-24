@@ -22,8 +22,6 @@ namespace Chievfx.Mcp.Extensions.Ugui
         private const int MaxTextLength = 120;
         private const float MinVisiblePixels = 1f;
         private const float TransparentAlpha = 0.01f;
-        private const string ButtonMark = " (button)";
-        private const string DisabledButtonMark = " (disabled button)";
 
         private static readonly Regex RichTextOrSpaces = new(@"<[^>]+>|\s+", RegexOptions.CultureInvariant);
         private static readonly Dictionary<Type, PropertyInfo?> TextProperties = new();
@@ -128,10 +126,9 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             var owner = graphic.GetComponentInParent<Selectable>();
-            var mark = owner == null ? string.Empty : owner.enabled && owner.IsInteractable() ? ButtonMark : DisabledButtonMark;
             var window = WindowOf(graphic.transform);
             var windowName = window.name;
-            // The (button) mark is not part of the text: with it *Button* matched every button caption.
+            // A control mark is not part of the text: with it *Button* matched every button caption.
             if (wildcards.Length > 0 && ChievfxMcpRuntimeUiControlFind.MatchesWildcards(text, windowName, wildcards) == false
                 && ChievfxMcpRuntimeUiControlFind.MatchesWildcards(text, UguiSharedHelpers.GetTransformPath(graphic.transform), wildcards) == false)
             {
@@ -161,8 +158,31 @@ namespace Chievfx.Mcp.Extensions.Ugui
             }
 
             text = text.Length > MaxTextLength ? text.Substring(0, MaxTextLength) + "…" : text;
-            screenText = new ScreenText(windowName, center.x, center.y, Mathf.Abs(corner.y - center.y) * 2f, text, mark, owner);
+            screenText = new ScreenText(windowName, center.x, center.y, Mathf.Abs(corner.y - center.y) * 2f, text, ControlMark(owner), owner);
             return true;
+        }
+
+        private static string ControlMark(Selectable? owner)
+        {
+            if (owner == null)
+            {
+                return string.Empty;
+            }
+
+            var controlType = owner switch
+            {
+                Button => "button",
+                Slider => "slider",
+                Toggle => "toggle",
+                _ => ChievfxMcpRuntimeUiControlFind.NormalizeControlType(owner.GetType())
+            };
+            if (controlType is not ("button" or "slider" or "toggle" or "scrollbar" or "dropdown" or "inputfield"))
+            {
+                return string.Empty;
+            }
+
+            var label = controlType == "inputfield" ? "input field" : controlType;
+            return owner.enabled && owner.IsInteractable() ? $" ({label})" : $" (disabled {label})";
         }
 
         private readonly struct ScreenText

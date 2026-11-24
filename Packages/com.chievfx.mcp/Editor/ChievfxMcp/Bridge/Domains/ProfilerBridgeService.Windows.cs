@@ -74,7 +74,7 @@ namespace Chievfx.Mcp.Editor
             if (!string.IsNullOrWhiteSpace(moduleIdentifier)
                 && !TrySelectProfilerModule(window, moduleIdentifier!, out var moduleError))
             {
-                diagnostics.Add($"Module not switched: profiler module selection is unsupported in this Unity version ({moduleError}); the selected module is in profiler.selectedModuleIdentifier.");
+                diagnostics.Add($"Module not switched: {moduleError} The selected module is in profiler.selectedModuleIdentifier.");
             }
 
             if (ReadBool(args, "latest", false) || ReadBool(args, "stayOnLatestFrame", false))
@@ -576,6 +576,35 @@ namespace Chievfx.Mcp.Editor
         private static bool TrySelectProfilerModule(EditorWindow window, string moduleIdentifier, out string? error)
         {
             error = null;
+            if (string.Equals(ReadStringMember(window, "selectedModuleIdentifier"), moduleIdentifier, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (TryInvokeReflectedMethod(window, "IndexOfModuleWithIdentifier", new object?[] { moduleIdentifier }, out var result, out _)
+                && result is int moduleIndex)
+            {
+                if (moduleIndex < 0)
+                {
+                    error = $"No Profiler module with identifier '{moduleIdentifier}'.";
+                    return false;
+                }
+
+                if (TryInvokeReflectedMethod(window, "ModuleAtIndex", new object?[] { moduleIndex }, out var profilerModule, out _)
+                    && profilerModule != null
+                    && TryInvokeReflectedMethod(window, "GetProfilerModuleActiveState", new[] { profilerModule }, out var active, out _)
+                    && active is false)
+                {
+                    error = "The requested module is disabled. Enable it in the Profiler window's modules menu first.";
+                    return false;
+                }
+
+                if (TryInvokeReflectedMethod(window, "SelectModuleAtIndex", new object?[] { moduleIndex }, out _, out error))
+                {
+                    return true;
+                }
+            }
+
             if (TrySetReflectedMember(window, "selectedModuleIdentifier", moduleIdentifier, out error))
             {
                 return true;

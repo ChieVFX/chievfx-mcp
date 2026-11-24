@@ -35,6 +35,19 @@ class UiControlFindTextsTests(unittest.TestCase):
         self.assertIn("chievfx://extensions/chievfx.uitoolkit/runtime/visible-tree", text)
         self.assertNotIn("none visible", text)
 
+    def test_all_frameworks_with_uitoolkit_matches_points_to_its_text_resource(self) -> None:
+        text = mcp.format_ui_control_find_text(
+            {
+                "frameworkFilter": "all",
+                "frameworks": [{"framework": "uitoolkit", "totalMatches": 2}],
+                "wildcards": ["*TextField*"],
+                "controls": [],
+                "texts": [],
+            }
+        )
+        self.assertIn("chievfx://extensions/chievfx.uitoolkit/runtime/visible-tree", text)
+        self.assertNotIn("none matched", text)
+
     def test_none_matched_the_wildcards_is_not_an_empty_screen(self) -> None:
         text = mcp.format_ui_control_find_text({"controls": [], "texts": [], "textsTotal": 0, "wildcards": ["*NoSuchThing*"]})
         self.assertIn("texts: none matched the wildcards", text)

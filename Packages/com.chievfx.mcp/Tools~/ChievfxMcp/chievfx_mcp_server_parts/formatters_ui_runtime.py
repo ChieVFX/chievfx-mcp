@@ -110,6 +110,15 @@ def format_ui_control_find_texts(result: dict[str, Any]) -> list[str]:
     windows = result.get("texts")
     if not isinstance(windows, list):
         return ["texts: listed with page 1"] if result.get("textsOnPage") == 1 else []
+    toolkit_matches = any(
+        isinstance(section, dict) and section.get("framework") == "uitoolkit"
+        and isinstance(section.get("totalMatches"), int) and section["totalMatches"] > 0
+        for section in result.get("frameworks") or []
+    )
+    toolkit_hint = (
+        ["UI Toolkit text: use mcp-resource-read uri:chievfx://extensions/chievfx.uitoolkit/runtime/visible-tree"]
+        if result.get("frameworkFilter") == "uitoolkit" or toolkit_matches else []
+    )
     rows: list[str] = []
     shown = 0
     for window in windows:
@@ -122,8 +131,8 @@ def format_ui_control_find_texts(result: dict[str, Any]) -> list[str]:
         rows.append(f"  {window.get('window')}: " + " | ".join(texts))
     total = result.get("textsTotal")
     if not rows:
-        if result.get("frameworkFilter") == "uitoolkit":
-            return ["UI Toolkit text: use mcp-resource-read uri:chievfx://extensions/chievfx.uitoolkit/runtime/visible-tree"]
+        if toolkit_hint:
+            return toolkit_hint
         # Filtered by wildcards, an empty list means no visible text matched, not an empty screen.
         if result.get("wildcards"):
             return ["texts: none matched the wildcards (call without wildcards for every visible text)"]
@@ -131,7 +140,7 @@ def format_ui_control_find_texts(result: dict[str, Any]) -> list[str]:
     header = f"texts ({shown}):"
     if isinstance(total, int) and total > shown:
         header = f"texts ({shown} of {total}, narrow with wildcards):"
-    return [header] + rows
+    return [header] + rows + toolkit_hint
 
 
 def format_ui_runtime_normalized(value: float) -> str:

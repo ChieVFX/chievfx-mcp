@@ -205,7 +205,7 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
         {
             return action switch
             {
-                "pointerClick" => new[] { "PointerDownEvent", "PointerUpEvent", "ClickEvent" },
+                "pointerClick" => new[] { "PointerDownEvent", "PointerUpEvent" },
                 "pointerDrag" => new[] { "PointerDownEvent", "PointerMoveEvent...", "PointerUpEvent" },
                 "navigationSubmit" => new[] { "NavigationSubmitEvent" },
                 "focus" => new[] { "VisualElement.Focus" },
@@ -251,17 +251,12 @@ namespace Chievfx.Mcp.Extensions.UiToolkit
 
             using (var pointerUp = PointerUpEvent.GetPooled())
             {
-                PreparePointerEvent(pointerUp, position);
+                PreparePointerEvent(pointerUp, position, pressedButtons: 0);
                 element.SendEvent(pointerUp);
             }
 
-            using (var click = ClickEvent.GetPooled())
-            {
-                PreparePointerEvent(click, position);
-                element.SendEvent(click);
-            }
-
-            return new[] { "PointerDownEvent", "PointerUpEvent", "ClickEvent" };
+            // The panel generates ClickEvent from the down/up pair.
+            return PlannedEvents("pointerClick");
         }
 
         internal static string[] DispatchPointerDrag(VisualElement element, Vector2? panelPosition, JToken args)

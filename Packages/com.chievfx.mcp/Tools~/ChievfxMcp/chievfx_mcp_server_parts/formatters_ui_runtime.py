@@ -122,6 +122,8 @@ def format_ui_control_find_texts(result: dict[str, Any]) -> list[str]:
         rows.append(f"  {window.get('window')}: " + " | ".join(texts))
     total = result.get("textsTotal")
     if not rows:
+        if result.get("frameworkFilter") == "uitoolkit":
+            return ["UI Toolkit text: use mcp-resource-read uri:chievfx://extensions/chievfx.uitoolkit/runtime/visible-tree"]
         # Filtered by wildcards, an empty list means no visible text matched, not an empty screen.
         if result.get("wildcards"):
             return ["texts: none matched the wildcards (call without wildcards for every visible text)"]
